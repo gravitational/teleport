@@ -191,16 +191,15 @@ const makeFoo = (): { foo: string } => {
 // This is a bogus test to satisfy Jest. We don't even need to execute the code that's in the async
 // function, we're interested only in the type system checking the code.
 test('fetchJsonWithMfaAuthnRetry does not return any', () => {
-  const bogusFunction = async () => {
+  async () => {
     const result = await fooService.doSomething();
     // Reading foo is correct. We add a bogus expect to satisfy Jest.
-    JSON.stringify(result.foo);
+    result.foo;
 
     // @ts-expect-error If there's no error here, it means that api.fetchJsonWithMfaAuthnRetry returns any, which it
     // shouldn't.
-    JSON.stringify(result.bar);
+    result.bar;
   };
-  bogusFunction.toString(); // Just to satisfy the linter
 
   expect(true).toBe(true);
 });

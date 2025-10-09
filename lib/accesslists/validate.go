@@ -26,168 +26,76 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
-// ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
-// storing it. If the existingAccessList is non-nil it also checks if this is a valid update
-// transition. It takes into account validation of the nested access lists membership.
-func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
-	if err := validateAccessList(accessList); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateAccessListUpdate(existingAccessList, accessList); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateAccessListNesting(ctx, accessList, members, g); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// validateAccessList makes sure the given AccessList is valid before storing in the backend.
-func validateAccessList(a *accesslist.AccessList) error {
-	if err := validateType(a.Spec.Type); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(a.Spec.Owners) == 0 {
-		return trace.BadParameter("owners are missing")
-	}
-
-	if a.IsReviewable() || a.Spec.Audit.Recurrence.Frequency != 0 {
-		switch a.Spec.Audit.Recurrence.Frequency {
-		case accesslist.OneMonth, accesslist.ThreeMonths, accesslist.SixMonths, accesslist.OneYear:
-		default:
-			return trace.BadParameter("audit recurrence frequency is an invalid value")
-		}
-	}
-
-	if a.IsReviewable() || a.Spec.Audit.Recurrence.DayOfMonth != 0 {
-		switch a.Spec.Audit.Recurrence.DayOfMonth {
-		case accesslist.FirstDayOfMonth, accesslist.FifteenthDayOfMonth, accesslist.LastDayOfMonth:
-		default:
-			return trace.BadParameter("audit recurrence day of month is an invalid value")
-		}
-	}
-
-	if a.IsReviewable() {
-		if a.Spec.Audit.NextAuditDate.IsZero() {
-			return trace.BadParameter("next audit date is not set")
-
-		}
-
-		if a.Spec.Audit.Notifications.Start == 0 {
-			return trace.BadParameter("audit notifications start is not set")
-		}
-	}
-
-	return nil
-}
-
-// validateType validates if access list type is a known value. It deliberately excludes
-// [accesslist.DeprecatedDynamic] as it should be converted to [accesslist.Default] in the
-// [accesslist.AccessList.CheckAndSetDefaults].
-func validateType(t accesslist.Type) error {
-	switch t {
-	case accesslist.Default, accesslist.Static, accesslist.SCIM:
-		return nil
-	default:
-		return trace.BadParameter("unknown access list type %q", t)
-	}
-}
-
-// validateAccessListUpdate checks if the AccessList update is valid. In particular it verifies
-// that immutable fields are not changed. It does nothing if the existingAccessList is nil.
-func validateAccessListUpdate(existingAccessList, accessList *accesslist.AccessList) error {
-	if existingAccessList == nil {
-		return nil
-	}
-	if !accessList.Spec.Type.Equals(existingAccessList.Spec.Type) {
-		return trace.BadParameter("access_list %q type %q cannot be changed to %q",
-			accessList.Metadata.Name, existingAccessList.Spec.Type, accessList.Spec.Type)
-	}
-	return nil
-}
-
-// validateAccessListNesting validates if nested AccessList owners and members meet max depth (of
-// 10) requirement and don't create cycles.
-func validateAccessListNesting(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+// ValidateAccessListWithMembers validates a new or existing AccessList with a list of AccessListMembers.
+func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
 	for _, owner := range accessList.Spec.Owners {
-		if err := validateAccessListOwner(ctx, accessList, owner, g); err != nil {
+		if owner.MembershipKind != accesslist.MembershipKindList {
+			continue
+		}
+		ownerList, err := g.GetAccessList(ctx, owner.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := validateAddition(ctx, accessList, ownerList, RelationshipKindOwner, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for _, member := range members {
-		if err := ValidateAccessListMember(ctx, accessList, member, g); err != nil {
+		if member.Spec.MembershipKind != accesslist.MembershipKindList {
+			continue
+		}
+		memberList, err := g.GetAccessList(ctx, member.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := validateAddition(ctx, accessList, memberList, RelationshipKindMember, g); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-// ValidateAccessListMember validates AccessListMember. That includes nested AccessList members
-// validation.
+// ValidateAccessListMember validates a new or existing AccessListMember for an Access List.
 func ValidateAccessListMember(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	member *accesslist.AccessListMember,
 	g AccessListAndMembersGetter,
 ) error {
-	if err := validateAccessListMemberBasic(member); err != nil {
-		return trace.Wrap(err)
+	if member.Spec.MembershipKind != accesslist.MembershipKindList {
+		return nil
 	}
-	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, member.GetName(), RelationshipKindMember, member.Spec.MembershipKind, g); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return validateAccessListMemberOrOwner(ctx, parentList, member.GetName(), RelationshipKindMember, g)
 }
 
-// validateAccessListMemberBasic performs basic fields validation for AccessListMember.
-func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
-	if member.Spec.AccessList == "" {
-		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
-	}
-	if member.Spec.Name != member.Metadata.Name {
-		return trace.BadParameter("member metadata name = %q and spec name = %q must be equal", member.Metadata.Name, member.Spec.Name)
-	}
-	if member.Spec.Joined.IsZero() || member.Spec.Joined.Unix() == 0 {
-		return trace.BadParameter("member %s: joined field empty or missing", member.Metadata.Name)
-	}
-	if member.Spec.AddedBy == "" {
-		return trace.BadParameter("member %s: added_by field is empty", member.Metadata.Name)
-	}
-	return nil
-}
-
-// validateAccessListOwner Owner for an AccessList. That includes nested AccessList owners
-// validation.
-func validateAccessListOwner(
+// ValidateAccessListOwner validates a new or existing AccessListOwner for an Access List.
+func ValidateAccessListOwner(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
-	owner accesslist.Owner,
+	owner *accesslist.Owner,
 	g AccessListAndMembersGetter,
 ) error {
-	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, owner.Name, RelationshipKindOwner, owner.MembershipKind, g); err != nil {
-		return trace.Wrap(err)
+	if owner.MembershipKind != accesslist.MembershipKindList {
+		return nil
 	}
-	return nil
+	return validateAccessListMemberOrOwner(ctx, parentList, owner.Name, RelationshipKindOwner, g)
 }
 
-func validateAccessListMemberOrOwnerNesting(
+func validateAccessListMemberOrOwner(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
 	memberOrOwnerName string,
-	relationshipKind RelationshipKind,
-	membershipKind string,
+	kind RelationshipKind,
 	g AccessListAndMembersGetter,
 ) error {
-	if membershipKind != accesslist.MembershipKindList {
-		return nil
-	}
-	// If it is a AccessList member/owner then the referenced AccessList must exist.
+	// Ensure member or owner list exists
 	memberOrOwnerList, err := g.GetAccessList(ctx, memberOrOwnerName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAddition(ctx, parentList, memberOrOwnerList, relationshipKind, g); err != nil {
+
+	// Validate addition
+	if err := validateAddition(ctx, parentList, memberOrOwnerList, kind, g); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

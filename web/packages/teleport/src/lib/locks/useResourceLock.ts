@@ -21,8 +21,8 @@ import { useCallback } from 'react';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
 import {
-  createLockMutationFn,
-  deleteLockMutationFn,
+  createLock,
+  deleteLock,
   listLocks,
 } from 'teleport/services/locks/locks';
 import { createQueryHook } from 'teleport/services/queryHelpers';
@@ -70,7 +70,7 @@ export function useResourceLock(opts: {
     isPending: unlockPending,
     error: unlockError,
   } = useMutation({
-    mutationFn: deleteLockMutationFn,
+    mutationFn: deleteLock,
     onSuccess: (_, vars) => {
       queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
         return existingLocks?.filter(lock => lock.name !== vars.uuid);
@@ -83,7 +83,7 @@ export function useResourceLock(opts: {
     isPending: lockPending,
     error: lockError,
   } = useMutation({
-    mutationFn: createLockMutationFn,
+    mutationFn: createLock,
     onSuccess: newLock => {
       queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
         return existingLocks ? [...existingLocks, newLock] : [newLock];
@@ -95,7 +95,7 @@ export function useResourceLock(opts: {
   // locks may affect other resources
   const canUnlock =
     hasRemovePermission &&
-    !!data &&
+    data &&
     data.length > 0 &&
     data.reduce(
       (acc, lock) =>

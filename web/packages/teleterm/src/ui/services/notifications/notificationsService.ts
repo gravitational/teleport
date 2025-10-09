@@ -17,28 +17,26 @@
  */
 
 import type {
-  ToastNotificationItem,
-  ToastNotificationItemContent,
-} from 'shared/components/ToastNotification';
+  NotificationItem,
+  NotificationItemContent,
+} from 'shared/components/Notification';
 import { useStore } from 'shared/libs/stores';
 
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { unique } from 'teleterm/ui/utils/uid';
 
-export class NotificationsService extends ImmutableStore<
-  ToastNotificationItem[]
-> {
-  state: ToastNotificationItem[] = [];
+export class NotificationsService extends ImmutableStore<NotificationItem[]> {
+  state: NotificationItem[] = [];
 
-  notifyError(content: ToastNotificationItemContent): string {
+  notifyError(content: NotificationItemContent): string {
     return this.notify({ severity: 'error', content });
   }
 
-  notifyWarning(content: ToastNotificationItemContent): string {
+  notifyWarning(content: NotificationItemContent): string {
     return this.notify({ severity: 'warn', content });
   }
 
-  notifyInfo(content: ToastNotificationItemContent): string {
+  notifyInfo(content: NotificationItemContent): string {
     return this.notify({ severity: 'info', content });
   }
 
@@ -56,7 +54,7 @@ export class NotificationsService extends ImmutableStore<
     );
   }
 
-  getNotifications(): ToastNotificationItem[] {
+  getNotifications(): NotificationItem[] {
     return this.state;
   }
 
@@ -64,11 +62,11 @@ export class NotificationsService extends ImmutableStore<
     return !!this.state.find(n => n.id === id);
   }
 
-  useState(): ToastNotificationItem[] {
+  useState(): NotificationItem[] {
     return useStore(this).state;
   }
 
-  private notify(options: Omit<ToastNotificationItem, 'id'>): string {
+  private notify(options: Omit<NotificationItem, 'id'>): string {
     const id = unique();
 
     this.setState(draftState => {

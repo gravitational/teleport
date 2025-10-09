@@ -99,14 +99,6 @@ export const plugins: Plugin[] = [
   },
   {
     resourceType: 'plugin',
-    name: 'intune',
-    details: '',
-    kind: 'intune',
-    statusCode: IntegrationStatusCode.Running,
-    spec: {},
-  },
-  {
-    resourceType: 'plugin',
     name: 'servicenow',
     details: '',
     kind: 'servicenow',
@@ -200,23 +192,6 @@ export const integrations: Integration[] = [
     statusCode: IntegrationStatusCode.Running,
     details: 'some-detail',
     spec: { organization: 'lsdf' },
-  },
-  {
-    resourceType: 'integration',
-    name: 'roles-anywhere',
-    kind: IntegrationKind.AwsRa,
-    statusCode: IntegrationStatusCode.Running,
-    details: 'some-detail',
-    spec: {
-      trustAnchorARN:
-        'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
-      profileSyncConfig: {
-        enabled: true,
-        profileArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar',
-        roleArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:role/baz',
-        filters: ['test-*', 'dev-*'],
-      },
-    },
   },
 ];
 

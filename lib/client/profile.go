@@ -19,7 +19,6 @@
 package client
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -30,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
@@ -131,6 +131,9 @@ func (ms *MemProfileStore) DeleteProfile(profileName string) error {
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSProfileStore struct {
+	// log holds the structured logger.
+	log logrus.FieldLogger
+
 	// Dir is the directory where all keys are stored.
 	Dir string
 }
@@ -139,6 +142,7 @@ type FSProfileStore struct {
 func NewFSProfileStore(dirPath string) *FSProfileStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSProfileStore{
+		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }
@@ -226,24 +230,11 @@ type ProfileStatus struct {
 	// ProxyURL is the URL the web client is accessible at.
 	ProxyURL url.URL
 
-	// RelayAddr is the address of the relay to use, if any.
-	RelayAddr string
-
-	// DefaultRelayAddr is the address of the relay to use specified by the
-	// cluster at login time, if any.
-	DefaultRelayAddr string
-
 	// Username is the Teleport username.
 	Username string
 
 	// Roles is a list of Teleport Roles this user has been assigned.
 	Roles []string
-
-	// Scope is the scope that this profile is pinned to.
-	Scope string
-
-	// ScopedRoles is a map of scopes to scoped role assignments.
-	ScopedRoles map[string][]string
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
@@ -335,8 +326,6 @@ type profileOptions struct {
 	ProfileName             string
 	ProfileDir              string
 	WebProxyAddr            string
-	RelayAddr               string
-	DefaultRelayAddr        string
 	Username                string
 	SiteName                string
 	KubeProxyAddr           string
@@ -365,20 +354,6 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	// this will be empty.
 	roles := slices.Clone(sshIdent.Roles)
 	sort.Strings(roles)
-
-	var scope string
-	var scopedRoles map[string][]string
-	if pin := sshIdent.ScopePin; pin != nil {
-		scope = pin.GetScope()
-		scopedRoles = make(map[string][]string)
-		for scope, assigned := range pin.GetAssignments() {
-			if len(assigned.GetRoles()) == 0 {
-				continue
-			}
-
-			scopedRoles[scope] = assigned.GetRoles()
-		}
-	}
 
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
@@ -440,16 +415,12 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		RelayAddr:               opts.RelayAddr,
-		DefaultRelayAddr:        opts.DefaultRelayAddr,
 		Username:                opts.Username,
 		Logins:                  sshCert.ValidPrincipals,
 		ValidUntil:              validUntil,
 		Extensions:              extensions,
 		CriticalOptions:         sshCert.CriticalOptions,
 		Roles:                   roles,
-		Scope:                   scope,
-		ScopedRoles:             scopedRoles,
 		Cluster:                 opts.SiteName,
 		Traits:                  sshIdent.Traits,
 		ActiveRequests:          sshIdent.ActiveRequests,
@@ -496,17 +467,14 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 	// If we can't resolve any env vars, this will return garbage which we
 	// should at least warn about. As ugly as this is, arguably making every
 	// profile path lookup fallible is even uglier.
-	log.DebugContext(context.Background(), "Could not resolve path to virtual profile entry",
-		"entry_type", kind,
-		"parameters", params,
-	)
+	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
+		"with parameters %+v.", kind, params)
 
 	virtualPathWarnOnce.Do(func() {
-		const msg = "A virtual profile is in use due to an identity file " +
+		log.Errorf("A virtual profile is in use due to an identity file " +
 			"(`-i ...`) but this functionality requires additional files on " +
 			"disk and may fail. Consider using a compatible wrapper " +
-			"application (e.g. Machine ID) for this command."
-		log.ErrorContext(context.Background(), msg)
+			"application (e.g. Machine ID) for this command.")
 	})
 
 	return "", false

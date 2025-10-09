@@ -26,7 +26,7 @@ import (
 
 // genericGetter is a helper to retrieve a single item from a cache collection.
 type genericGetter[T any, I comparable] struct {
-	// cache to performe the primary read from.
+	// cache to perform the primary read from.
 	cache *Cache
 	// collection that contains the item.
 	collection *collection[T, I]
@@ -39,7 +39,7 @@ type genericGetter[T any, I comparable] struct {
 
 // get retrieves a single item by an identifier from
 // a cache collection. If the cache is not healthy, then the item is retrieved
-// from the upstream backend. The item returend is cloned and ownership
+// from the upstream backend. The item returned is cloned and ownership
 // is retained by the caller.
 func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, error) {
 	var t T
@@ -64,7 +64,7 @@ func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, err
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
 type genericLister[T any, I comparable] struct {
-	// cache to performe the primary read from.
+	// cache to perform the primary read from.
 	cache *Cache
 	// collection that contains the item.
 	collection *collection[T, I]
@@ -89,7 +89,7 @@ type genericLister[T any, I comparable] struct {
 
 // listRange retrieves a page of items from the configured cache collection between the start and end tokens.
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
-// The items returend are cloned and ownership is retained by the caller.
+// The items returned are cloned and ownership is retained by the caller.
 func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startToken, endToken string) ([]T, string, error) {
 	rg, err := acquireReadGuard(l.cache, l.collection)
 	if err != nil {
@@ -133,7 +133,7 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 
 // list retrieves a page of items from the configured cache collection.
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
-// The items returend are cloned and ownership is retained by the caller.
+// The items returned are cloned and ownership is retained by the caller.
 func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
 	out, next, err := l.listRange(ctx, pageSize, startToken, "")
 	return out, next, trace.Wrap(err)

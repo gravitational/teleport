@@ -168,7 +168,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "file://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.Equal(t, "expected --proxy URL with http or https scheme", err.Error())
 			},
@@ -194,7 +194,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "1https://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "specified --proxy URL is invalid")
 			},
@@ -282,7 +282,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				}},
 				testInsecureSkipVerify: true,
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.Equal(t, `couldn't find leaf cluster named "doesnotexist.example.com"`, err.Error())
 			},
@@ -329,6 +329,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Generate kubeconfig.
@@ -398,7 +399,7 @@ type mockClient struct {
 	crl            []byte
 }
 
-func (c *mockClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 
@@ -686,7 +687,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 			outDir:      t.TempDir(),
 			outFileBase: "app-2",
 			appName:     "app-2",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},

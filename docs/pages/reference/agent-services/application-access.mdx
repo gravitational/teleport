@@ -1,11 +1,9 @@
 ---
 title: Application Access Reference Documentation
-sidebar_label: Application Access
 description: Configuration and CLI reference documentation for Teleport application access.
 tags:
  - reference
  - zero-trust
- - infrastructure-identity
 ---
 
 This guide describes interfaces and options for interacting with the Teleport
@@ -44,14 +42,6 @@ app_service:
     public_addr: "grafana.teleport.example.com"
     # Rewrites section.
     rewrite:
-      # Specify whether to include roles or traits in the JWT.
-      # Options:
-      # - roles-and-traits: include both roles and traits
-      # - roles: include only roles
-      # - traits: include only traits
-      # - none: exclude both roles and traits from the JWT token
-      # Default: roles-and-traits
-      jwt_claims: roles-and-traits
       # Rewrite the "Location" header on redirect responses replacing the
       # host with the public address of this application.
       redirect:

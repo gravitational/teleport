@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"slices"
@@ -33,8 +32,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
-	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
-	rgttypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -62,7 +59,6 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		tags map[string]string
-		env  map[string]string
 	}{
 		{
 			name: "delete keys with default tags",
@@ -79,20 +75,10 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				"TeleportCluster": "test-cluster-2",
 			},
 		},
-		{
-			name: "delete keys with tagging api lookup",
-			env: map[string]string{
-				"TELEPORT_UNSTABLE_SCOPED_KMS_KEY_DELETION": "yes",
-			},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			const pageSize int = 4
 			fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
-			fakeRGT := newFakeAWSRGTService(t, clock, "123456789012", "us-west-2", pageSize, fakeKMS)
-			for key, value := range tc.env {
-				t.Setenv(key, value)
-			}
 			cfg := servicecfg.KeystoreConfig{
 				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
@@ -107,7 +93,6 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				HostUUID:             "uuid",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
 				awsKMSClient:         fakeKMS,
-				awsRGTClient:         fakeRGT,
 				awsSTSClient: &fakeAWSSTSClient{
 					account: "123456789012",
 				},
@@ -127,7 +112,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			}
 
 			totalKeys := pageSize * 3
-			for range totalKeys {
+			for i := 0; i < totalKeys; i++ {
 				_, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 				require.NoError(t, err, trace.DebugReport(err))
 			}
@@ -349,65 +334,6 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 	}
 }
 
-type fakeAWSRGTService struct {
-	kms       *fakeAWSKMSService
-	clock     clockwork.Clock
-	account   string
-	region    string
-	pageLimit int
-}
-
-func newFakeAWSRGTService(t *testing.T, clock clockwork.Clock, account string, region string, pageLimit int, kms *fakeAWSKMSService) *fakeAWSRGTService {
-	return &fakeAWSRGTService{
-		clock:     clock,
-		account:   account,
-		region:    region,
-		pageLimit: pageLimit,
-		kms:       kms,
-	}
-}
-
-func (f *fakeAWSRGTService) GetResources(_ context.Context, input *resourcegroupstaggingapi.GetResourcesInput, _ ...func(*resourcegroupstaggingapi.Options)) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
-	pageLimit := min(int(aws.ToInt32(input.ResourcesPerPage)), f.pageLimit)
-	output := &resourcegroupstaggingapi.GetResourcesOutput{}
-	i := 0
-	if input.PaginationToken != nil && *input.PaginationToken != "" {
-		var err error
-		i, err = strconv.Atoi(aws.ToString(input.PaginationToken))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-keys:
-	for ; i < len(f.kms.keys) && len(output.ResourceTagMappingList) < pageLimit; i++ {
-		for _, t := range input.TagFilters {
-			if !f.kms.keys[i].satisfiesFilter(t) {
-				continue keys
-			}
-		}
-		convertedTags := convertKMSTagsToRGT(f.kms.keys[i].tags)
-		output.ResourceTagMappingList = append(output.ResourceTagMappingList, rgttypes.ResourceTagMapping{
-			ResourceARN: aws.String(f.kms.keys[i].arn.String()),
-			Tags:        convertedTags,
-		})
-	}
-	if i < len(f.kms.keys) {
-		output.PaginationToken = aws.String(strconv.Itoa(i))
-	}
-	return output, nil
-}
-
-func convertKMSTagsToRGT(kmsTags []kmstypes.Tag) []rgttypes.Tag {
-	out := make([]rgttypes.Tag, 0, len(kmsTags))
-	for _, t := range kmsTags {
-		out = append(out, rgttypes.Tag{
-			Key:   t.TagKey,
-			Value: t.TagValue,
-		})
-	}
-	return out
-}
-
 type fakeAWSKMSService struct {
 	keys               []*fakeAWSKMSKey
 	clock              clockwork.Clock
@@ -429,7 +355,6 @@ func newFakeAWSKMSService(t *testing.T, clock clockwork.Clock, account string, r
 type fakeAWSKMSKey struct {
 	arn          arn.ARN
 	privKeyPEM   []byte
-	keyUsage     kmstypes.KeyUsageType
 	tags         []kmstypes.Tag
 	creationDate time.Time
 	state        kmstypes.KeyState
@@ -445,24 +370,6 @@ func (f fakeAWSKMSKey) replicaArn(region string) string {
 
 func (f fakeAWSKMSKey) hasReplica(region string) bool {
 	return region == f.region || slices.Contains(f.replicas, region)
-}
-
-func (f *fakeAWSKMSKey) satisfiesFilter(filter rgttypes.TagFilter) bool {
-	for _, tag := range f.tags {
-		if aws.ToString(tag.TagKey) != aws.ToString(filter.Key) {
-			continue
-		}
-		if len(filter.Values) == 0 {
-			return true
-		}
-		for _, val := range filter.Values {
-			if aws.ToString(tag.TagValue) == aws.ToString(&val) {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
@@ -486,8 +393,6 @@ func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInp
 	switch input.KeySpec {
 	case kmstypes.KeySpecRsa2048:
 		privKeyPEM = testRSA2048PrivateKeyPEM
-	case kmstypes.KeySpecRsa4096:
-		privKeyPEM = testRSA4096PrivateKeyPEM
 	case kmstypes.KeySpecEccNistP256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
@@ -503,7 +408,6 @@ func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInp
 	f.keys = append(f.keys, &fakeAWSKMSKey{
 		arn:          a,
 		privKeyPEM:   privKeyPEM,
-		keyUsage:     input.KeyUsage,
 		tags:         input.Tags,
 		creationDate: f.clock.Now(),
 		region:       f.region,
@@ -546,9 +450,6 @@ func (f *fakeAWSKMSService) Sign(_ context.Context, input *kms.SignInput, _ ...f
 	if key.state != kmstypes.KeyStateEnabled {
 		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
 	}
-	if key.keyUsage != kmstypes.KeyUsageTypeSignVerify {
-		return nil, trace.BadParameter("key %q is not a signing key", aws.ToString(input.KeyId))
-	}
 	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -568,39 +469,6 @@ func (f *fakeAWSKMSService) Sign(_ context.Context, input *kms.SignInput, _ ...f
 	}
 	return &kms.SignOutput{
 		Signature: signature,
-	}, nil
-}
-
-func (f *fakeAWSKMSService) Decrypt(_ context.Context, input *kms.DecryptInput, _ ...func(*kms.Options)) (*kms.DecryptOutput, error) {
-	key, err := f.findKey(aws.ToString(input.KeyId))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if key.state != kmstypes.KeyStateEnabled {
-		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
-	}
-	if key.keyUsage != kmstypes.KeyUsageTypeEncryptDecrypt {
-		return nil, trace.BadParameter("key %q is not a decryption key", aws.ToString(input.KeyId))
-	}
-	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	decrypter, ok := signer.Signer.(crypto.Decrypter)
-	if !ok {
-		return nil, trace.Errorf("private key is not a decrypter")
-	}
-	switch input.EncryptionAlgorithm {
-	case kmstypes.EncryptionAlgorithmSpecRsaesOaepSha256:
-	default:
-		return nil, trace.BadParameter("unsupported EncryptionAlgorithm %q", input.EncryptionAlgorithm)
-	}
-	plaintext, err := decrypter.Decrypt(rand.Reader, input.CiphertextBlob, &rsa.OAEPOptions{Hash: crypto.SHA256})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &kms.DecryptOutput{
-		Plaintext: plaintext,
 	}, nil
 }
 

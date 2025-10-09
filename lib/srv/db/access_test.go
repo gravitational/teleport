@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -76,17 +75,15 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
-	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -95,27 +92,28 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/objects"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
-	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
+	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
+	registerTestDynamoDBEngine()
 	exitCode := m.Run()
 	cancel()
 	os.Exit(exitCode)
@@ -757,8 +755,7 @@ func TestAccessMySQLServerPacket(t *testing.T) {
 // TestGCPRequireSSL tests connecting to GCP Cloud SQL Postgres and MySQL
 // databases with an ephemeral client certificate.
 func TestGCPRequireSSL(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := context.Background()
 	user := "alice"
 	testCtx := setupTestContext(ctx, t)
 	testCtx.createUserAndRole(ctx, t, user, "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -1032,6 +1029,7 @@ func TestAccessMongoDB(t *testing.T) {
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
+		test := test
 		t.Run(fmt.Sprintf("%v", test.desc), func(t *testing.T) {
 			t.Parallel()
 
@@ -1043,6 +1041,7 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 				for _, clientOpt := range clientOpts {
+					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
@@ -1258,6 +1257,7 @@ func TestRedisPubSub(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -1337,7 +1337,7 @@ func TestRedisPipeline(t *testing.T) {
 	pipeliner := redisClient.Pipeline()
 
 	// Set multiple keys using pipelining.
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		err := pipeliner.Set(ctx, fmt.Sprintf("foo%d", i), i, 0).Err()
 		require.NoError(t, err)
 	}
@@ -1349,7 +1349,7 @@ func TestRedisPipeline(t *testing.T) {
 		require.NoError(t, cmd.Err())
 	}
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		err := pipeliner.Get(ctx, fmt.Sprintf("foo%d", i)).Err()
 		require.NoError(t, err)
 	}
@@ -1404,7 +1404,7 @@ func TestRedisTransaction(t *testing.T) {
 			return err
 		}
 
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err := redisClient.Watch(ctx, txf, key)
 			if err == nil {
 				// Success.
@@ -1429,7 +1429,7 @@ func TestRedisTransaction(t *testing.T) {
 	asyncErrors := make(chan error, concurrentConnections)
 	defer close(asyncErrors)
 
-	for range concurrentConnections {
+	for i := 0; i < concurrentConnections; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1475,19 +1475,19 @@ func TestRedisNil(t *testing.T) {
 }
 
 type testContext struct {
-	hostID        string
-	clusterName   string
-	tlsServer     *authtest.TLSServer
-	authServer    *auth.Server
-	authClient    *authclient.Client
-	proxyServer   *ProxyServer
-	mux           *multiplexer.Mux
-	mysqlListener net.Listener
-	webListener   *multiplexer.WebListener
-	fakeCluster   *reversetunnelclient.FakeCluster
-	server        *Server
-	emitter       *eventstest.ChannelEmitter
-	databaseCA    types.CertAuthority
+	hostID         string
+	clusterName    string
+	tlsServer      *authtest.TLSServer
+	authServer     *auth.Server
+	authClient     *authclient.Client
+	proxyServer    *ProxyServer
+	mux            *multiplexer.Mux
+	mysqlListener  net.Listener
+	webListener    *multiplexer.WebListener
+	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
+	server         *Server
+	emitter        *eventstest.ChannelEmitter
+	databaseCA     types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
@@ -1514,7 +1514,7 @@ type testContext struct {
 	spanner map[string]testSpannerDB
 
 	// clock to override clock in tests.
-	clock *clockwork.FakeClock
+	clock clockwork.FakeClock
 }
 
 // testPostgres represents a single proxied Postgres database.
@@ -1630,7 +1630,7 @@ func (c *testContext) startHandlingConnections() {
 	// Start all proxy services.
 	c.startProxy()
 	// Start handling database client connections on the database server.
-	for conn := range c.fakeCluster.ProxyConn() {
+	for conn := range c.fakeRemoteSite.ProxyConn() {
 		go c.server.HandleConnection(conn)
 	}
 }
@@ -2271,12 +2271,10 @@ func (c *testContext) Close() error {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	SetShuffleFunc(dbconnect.ShuffleSort)
+	SetShuffleFunc(ShuffleSort)
 }
 
 func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDatabaseOption) *testContext {
-	ctx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
 	testCtx := &testContext{
 		clusterName:   "root.example.com",
 		hostID:        uuid.New().String(),
@@ -2381,11 +2379,11 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeCluster = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
-	t.Cleanup(func() { require.NoError(t, testCtx.fakeCluster.Close()) })
+	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		FakeClusters: []reversetunnelclient.Cluster{
-			testCtx.fakeCluster,
+		Sites: []reversetunnelclient.RemoteSite{
+			testCtx.fakeRemoteSite,
 		},
 	}
 	// Empty config means no limit.
@@ -2405,7 +2403,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		ServerID:       testCtx.hostID,
 		Emitter:        testCtx.emitter,
 		EmitterContext: ctx,
-		Logger:         logtest.NewLogger(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2447,16 +2445,16 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
+	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
+	ElastiCache *mocks.ElastiCacheMock
+	// MemoryDB defines the AWS MemoryDB mock to use for MemoryDB API calls.
+	MemoryDB *mocks.MemoryDBMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
 	CADownloader CADownloader
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
-	// AWSDatabaseFetcherFactory provides AWS database fetchers
-	AWSDatabaseFetcherFactory *db.AWSFetcherFactory
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
@@ -2466,8 +2464,6 @@ type agentParams struct {
 	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 	// Recorder is the recorder used on sessions.
 	Recorder libevents.SessionRecorder
-	// GetEngineFn can be used to override the engine created in tests.
-	GetEngineFn func(types.Database, common.EngineConfig) (common.Engine, error)
 	// DatabaseObjects is used to override the db object importer in tests.
 	DatabaseObjects objects.Objects
 }
@@ -2487,6 +2483,12 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
+	if p.ElastiCache == nil {
+		p.ElastiCache = &mocks.ElastiCacheMock{}
+	}
+	if p.MemoryDB == nil {
+		p.MemoryDB = &mocks.MemoryDBMock{}
+	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2495,11 +2497,16 @@ func (p *agentParams) setDefaults(c *testContext) {
 
 	if p.CloudClients == nil {
 		p.CloudClients = &clients.TestCloudClients{
-			GCPSQL: p.GCPSQL,
+			STS:                &mocks.STSMock{},
+			RDS:                &mocks.RDSMock{},
+			Redshift:           &mocks.RedshiftMock{},
+			RedshiftServerless: &mocks.RedshiftServerlessMock{},
+			ElastiCache:        p.ElastiCache,
+			MemoryDB:           p.MemoryDB,
+			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
+			IAM:                &mocks.IAMMock{},
+			GCPSQL:             p.GCPSQL,
 		}
-	}
-	if p.AWSConfigProvider == nil {
-		p.AWSConfigProvider = &mocks.AWSConfigProvider{Err: trace.AccessDenied("AWS SDK clients are disabled for tests by default")}
 	}
 
 	if p.DiscoveryResourceChecker == nil {
@@ -2513,8 +2520,6 @@ func (p *agentParams) setDefaults(c *testContext) {
 }
 
 func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p agentParams) *Server {
-	ctx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
 	p.setDefaults(c)
 
 	// Database service credentials.
@@ -2540,11 +2545,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient:        c.authClient,
-		AccessPoint:       c.authClient,
-		Clients:           &clients.TestCloudClients{},
-		Clock:             c.clock,
-		AWSConfigProvider: p.AWSConfigProvider,
+		AuthClient:  c.authClient,
+		AccessPoint: c.authClient,
+		Clients:     &clients.TestCloudClients{},
+		Clock:       c.clock,
 	})
 	require.NoError(t, err)
 
@@ -2559,7 +2563,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		ServerID:       p.HostID,
 		Emitter:        c.emitter,
 		EmitterContext: context.Background(),
-		Logger:         logtest.NewLogger(),
+		Logger:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -2573,11 +2577,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
-		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
 				ServerID: p.HostID,
 				Version:  teleport.Version,
-				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
+				Services: []types.SystemRole{types.RoleDatabase},
 				Hostname: "test",
 			}, nil
 		})
@@ -2614,27 +2618,23 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Clock:    c.clock,
 			})
 		},
-		CADownloader:              p.CADownloader,
-		OnReconcile:               p.OnReconcile,
-		DatabaseObjects:           p.DatabaseObjects,
-		ConnectionMonitor:         connMonitor,
-		CloudClients:              p.CloudClients,
-		AWSConfigProvider:         p.AWSConfigProvider,
-		AWSDatabaseFetcherFactory: p.AWSDatabaseFetcherFactory,
-		AWSMatchers:               p.AWSMatchers,
-		AzureMatchers:             p.AzureMatchers,
-		ShutdownPollPeriod:        100 * time.Millisecond,
-		InventoryHandle:           inventoryHandle,
-		discoveryResourceChecker:  p.DiscoveryResourceChecker,
-		getEngineFn:               p.GetEngineFn,
-		ConnectedProxyGetter:      reversetunnel.NewConnectedProxyGetter(),
+		CADownloader:             p.CADownloader,
+		OnReconcile:              p.OnReconcile,
+		DatabaseObjects:          p.DatabaseObjects,
+		ConnectionMonitor:        connMonitor,
+		CloudClients:             p.CloudClients,
+		AWSMatchers:              p.AWSMatchers,
+		AzureMatchers:            p.AzureMatchers,
+		ShutdownPollPeriod:       100 * time.Millisecond,
+		InventoryHandle:          inventoryHandle,
+		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			dbServers, err := c.proxyServer.cfg.AccessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
+			dbServers, err := c.proxyServer.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -3343,46 +3343,6 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 				Region: "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "example-cluster",
-				},
-			},
-			// Set CA cert to pass cert validation.
-			TLS: types.DatabaseTLS{
-				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
-			},
-		})
-		require.NoError(t, err)
-		testCtx.redis[name] = testRedis{
-			db:       redisServer,
-			resource: database,
-		}
-		return database
-	}
-}
-
-func withElastiCacheServerlessRedis(name string, token, engineVersion string) withDatabaseOption {
-	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
-		redisServer, err := redis.NewTestServer(common.TestServerConfig{
-			Name:       name,
-			AuthClient: testCtx.authClient,
-		}, redis.TestServerPassword(token))
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			redisServer.Close()
-		})
-
-		database, err := types.NewDatabaseV3(types.Metadata{
-			Name: name,
-			Labels: map[string]string{
-				"engine-version": engineVersion,
-			},
-		}, types.DatabaseSpecV3{
-			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
-			DynamicLabels: dynamicLabels,
-			AWS: types.AWS{
-				Region: "us-west-1",
-				ElastiCacheServerless: types.ElastiCacheServerless{
-					CacheName: "example-cache",
 				},
 			},
 			// Set CA cert to pass cert validation.

@@ -18,11 +18,8 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { IntegrationEnroll } from './IntegrationEnroll';
@@ -36,13 +33,9 @@ export const Picker = () => {
 
   return (
     <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
-      <InfoGuidePanelProvider>
-        <ContentMinWidth>
-          <ContextProvider ctx={ctx}>
-            <IntegrationEnroll />
-          </ContextProvider>
-        </ContentMinWidth>
-      </InfoGuidePanelProvider>
+      <ContextProvider ctx={ctx}>
+        <IntegrationEnroll />
+      </ContextProvider>
     </MemoryRouter>
   );
 };

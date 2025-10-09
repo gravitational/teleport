@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type testMigration struct {
@@ -63,7 +63,7 @@ func (t testMigration) Name() string {
 }
 
 func TestApply(t *testing.T) {
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	cases := []struct {
 		name           string
 		migrations     []migration

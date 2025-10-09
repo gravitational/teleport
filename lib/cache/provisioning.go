@@ -20,9 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -30,72 +28,68 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type principalStateIndex string
-
-const principalStateNameIndex principalStateIndex = "name"
-
-func newPrincipalStateCollection(upstream services.ProvisioningStates, w types.WatchKind) (*collection[*provisioningv1.PrincipalState, principalStateIndex], error) {
-	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter ProvisioningStates")
-	}
-
-	return &collection[*provisioningv1.PrincipalState, principalStateIndex]{
-		store: newStore(
-			types.KindProvisioningPrincipalState,
-			proto.CloneOf[*provisioningv1.PrincipalState],
-			map[principalStateIndex]func(*provisioningv1.PrincipalState) string{
-				principalStateNameIndex: func(r *provisioningv1.PrincipalState) string {
-					return r.GetMetadata().GetName()
-				},
-			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListProvisioningStatesForAllDownstreams))
-			return out, trace.Wrap(err)
-		},
-		headerTransform: func(hdr *types.ResourceHeader) *provisioningv1.PrincipalState {
-			return &provisioningv1.PrincipalState{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
-		},
-		watch: w,
-	}, nil
+type provisioningStateGetter interface {
+	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
+	ListProvisioningStatesForAllDownstreams(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
 }
 
-func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
-	defer span.End()
+type provisioningStateExecutor struct{}
 
-	getter := genericGetter[*provisioningv1.PrincipalState, principalStateIndex]{
-		cache:      c,
-		collection: c.collections.provisioningStates,
-		index:      principalStateNameIndex,
-		upstreamGet: func(ctx context.Context, s string) (*provisioningv1.PrincipalState, error) {
-			out, err := c.Config.ProvisioningStates.GetProvisioningState(ctx, downstream, id)
-			return out, trace.Wrap(err)
-		},
+func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
+	if cache == nil {
+		return nil, trace.BadParameter("cache is nil")
 	}
-	out, err := getter.get(ctx, string(id))
+
+	if cache.ProvisioningStates == nil {
+		return nil, trace.BadParameter("cache provisioning state source is not set")
+	}
+
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.ProvisioningStates.ListProvisioningStatesForAllDownstreams))
 	return out, trace.Wrap(err)
 }
 
-func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisioningStatesForAllDownstreams")
-	defer span.End()
+func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resource *provisioningv1.PrincipalState) error {
+	_, err := cache.provisioningStatesCache.UpsertProvisioningState(ctx, resource)
+	return trace.Wrap(err)
+}
 
-	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
-		cache:        c,
-		collection:   c.collections.provisioningStates,
-		index:        principalStateNameIndex,
-		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams,
-		nextToken: func(t *provisioningv1.PrincipalState) string {
-			return t.GetMetadata().GetName()
-		},
+func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	unwrapper, ok := resource.(types.Resource153Unwrapper)
+	if !ok {
+		return trace.BadParameter("resource must implement Resource153Unwrapper: %T", resource)
 	}
 
-	out, next, err := lister.list(ctx, pageSize, pageToken)
-	return out, next, trace.Wrap(err)
+	principalState, ok := unwrapper.Unwrap().(*provisioningv1.PrincipalState)
+	if !ok {
+		return trace.BadParameter("wrapped resource must be a PrincipalState: %T", resource)
+	}
+
+	principalStateID := principalState.GetMetadata().GetName()
+	downstreamID := principalState.GetSpec().GetDownstreamId()
+	if principalStateID == "" || downstreamID == "" {
+		return trace.BadParameter("malformed PrincipalState")
+	}
+
+	err := cache.provisioningStatesCache.DeleteProvisioningState(
+		ctx,
+		services.DownstreamID(downstreamID),
+		services.ProvisioningStateID(principalStateID))
+	return trace.Wrap(err)
 }
+
+func (provisioningStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.provisioningStatesCache.DeleteAllProvisioningStates(ctx))
+}
+
+func (provisioningStateExecutor) getReader(cache *Cache, cacheOK bool) provisioningStateGetter {
+	if cacheOK {
+		return cache.provisioningStatesCache
+	}
+	return cache.Config.ProvisioningStates
+}
+
+func (provisioningStateExecutor) isSingleton() bool {
+	return false
+}
+
+var _ executor[*provisioningv1.PrincipalState, provisioningStateGetter] = provisioningStateExecutor{}

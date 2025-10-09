@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -81,7 +81,7 @@ type KubeMiddleware struct {
 	// headless controls whether proxy is working in headless login mode.
 	headless bool
 
-	logger       *slog.Logger
+	logger       logrus.FieldLogger
 	closeContext context.Context
 
 	// isCertReissuingRunning is used to only ever have one concurrent cert reissuing session requiring user input.
@@ -97,7 +97,7 @@ type KubeMiddlewareConfig struct {
 	CertReissuer KubeCertReissuer
 	Headless     bool
 	Clock        clockwork.Clock
-	Logger       *slog.Logger
+	Logger       logrus.FieldLogger
 	CloseContext context.Context
 }
 
@@ -122,7 +122,7 @@ func (m *KubeMiddleware) CheckAndSetDefaults() error {
 		m.clock = clockwork.NewRealClock()
 	}
 	if m.logger == nil {
-		m.logger = slog.With(teleport.ComponentKey, "local_proxy_kube")
+		m.logger = logrus.WithField(teleport.ComponentKey, "local_proxy_kube")
 	}
 	if m.closeContext == nil {
 		return trace.BadParameter("missing close context")
@@ -140,12 +140,12 @@ func initKubeCodecs() serializer.CodecFactory {
 	return serializer.NewCodecFactory(kubeScheme)
 }
 
-func writeKubeError(ctx context.Context, rw http.ResponseWriter, kubeError *apierrors.StatusError, logger *slog.Logger) {
+func writeKubeError(rw http.ResponseWriter, kubeError *apierrors.StatusError, logger logrus.FieldLogger) {
 	kubeCodecs := initKubeCodecs()
 	status := kubeError.Status()
 	errorBytes, err := runtime.Encode(kubeCodecs.LegacyCodec(), &status)
 	if err != nil {
-		logger.WarnContext(ctx, "Failed to encode Kube status error", "error", err)
+		logger.Warnf("Failed to encode Kube status error: %v.", err)
 		trace.WriteError(rw, trace.Wrap(kubeError))
 	}
 
@@ -153,7 +153,7 @@ func writeKubeError(ctx context.Context, rw http.ResponseWriter, kubeError *apie
 	rw.WriteHeader(int(status.Code))
 
 	if _, err := rw.Write(errorBytes); err != nil {
-		logger.WarnContext(ctx, "Failed to write Kube error", "error", err)
+		logger.Warnf("Failed to write Kube error: %v.", err)
 	}
 }
 
@@ -181,7 +181,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	if err != nil {
 		// If user input is required we return an error that will try to get user attention to the local proxy
 		if errors.Is(err, ErrUserInputRequired) {
-			writeKubeError(req.Context(), rw, &apierrors.StatusError{
+			writeKubeError(rw, &apierrors.StatusError{
 				ErrStatus: metav1.Status{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Status",
@@ -195,7 +195,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 			}, m.logger)
 			return true
 		}
-		m.logger.WarnContext(req.Context(), "Failed to reissue certificate for server", "server", req.TLS.ServerName)
+		m.logger.WithError(err).Warnf("Failed to reissue certificate for server %v", req.TLS.ServerName)
 		trace.WriteError(rw, trace.Wrap(err))
 		return true
 	}
@@ -235,7 +235,7 @@ var ErrUserInputRequired = errors.New("user input required")
 func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, serverName string) error {
 	needsReissue := false
 	if len(cert.Certificate) == 0 {
-		m.logger.InfoContext(ctx, "missing TLS certificate, attempting to reissue a new one")
+		m.logger.Info("missing TLS certificate, attempting to reissue a new one")
 		needsReissue = true
 	} else {
 		x509Cert, err := utils.TLSCertLeaf(cert)

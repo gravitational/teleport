@@ -21,10 +21,10 @@ package fetchers
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -48,7 +48,7 @@ type AKSFetcherConfig struct {
 	// FilterLabels are the filter criteria.
 	FilterLabels types.Labels
 	// Log is the logger.
-	Logger *slog.Logger
+	Log logrus.FieldLogger
 	// DiscoveryConfigName is the name of the DiscoveryConfig that created this Fetcher.
 	DiscoveryConfigName string
 }
@@ -66,8 +66,8 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing FilterLabels field")
 	}
 
-	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "fetcher:aks")
+	if c.Log == nil {
+		c.Log = logrus.WithField(teleport.ComponentKey, "fetcher:aks")
 	}
 	return nil
 }
@@ -90,19 +90,19 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 	var kubeClusters types.KubeClusters
 	for _, cluster := range clusters {
 		if !a.isRegionSupported(cluster.Location) {
-			a.Logger.DebugContext(ctx, "Cluster region does not match with allowed values", "region", cluster.Location)
+			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
 			continue
 		}
 		kubeCluster, err := common.NewKubeClusterFromAzureAKS(cluster)
 		if err != nil {
-			a.Logger.WarnContext(ctx, "Unable to create Kubernetes cluster from azure.AKSCluster", "error", err)
+			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
 			continue
 		}
 		if match, reason, err := services.MatchLabels(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
-			a.Logger.WarnContext(ctx, "Unable to match AKS cluster labels against match labels", "error", err)
+			a.Log.WithError(err).Warn("Unable to match AKS cluster labels against match labels.")
 			continue
 		} else if !match {
-			a.Logger.DebugContext(ctx, "AKS cluster labels does not match the selector", "reason", reason)
+			a.Log.Debugf("AKS cluster labels does not match the selector: %s.", reason)
 			continue
 		}
 

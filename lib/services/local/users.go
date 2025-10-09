@@ -26,8 +26,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"iter"
-	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -38,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 
@@ -45,12 +44,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,13 +64,14 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	logger           *slog.Logger
+	log              logrus.FieldLogger
 	bcryptCost       int
 	notificationsSvc *NotificationsService
 }
 
-// NewIdentityService returns a new instance of IdentityService object
-func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
+// TODO(rudream): Rename to NewIdentityService.
+// NewIdentityServiceV2 returns a new instance of IdentityService object
+func NewIdentityServiceV2(backend backend.Backend) (*IdentityService, error) {
 	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,17 +79,35 @@ func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
 
 	return &IdentityService{
 		Backend:          backend,
-		logger:           slog.With(teleport.ComponentKey, "identity"),
+		log:              logrus.WithField(teleport.ComponentKey, "identity"),
 		bcryptCost:       bcrypt.DefaultCost,
 		notificationsSvc: notificationsSvc,
 	}, nil
+}
+
+// TODO(rudream): Remove once NewIdentityServiceV2 is merged.
+// NewIdentityService returns a new instance of IdentityService object
+func NewIdentityService(backend backend.Backend) *IdentityService {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+
+	log := logrus.WithField(teleport.ComponentKey, "identity")
+	if err != nil {
+		log.Warnf("error initializing notifications service with identity service: %v", err)
+	}
+
+	return &IdentityService{
+		Backend:          backend,
+		log:              log,
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
+	}
 }
 
 // NewTestIdentityService returns a new instance of IdentityService object to be
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
 func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
-	s, err := NewIdentityService(backend)
+	s, err := NewIdentityServiceV2(backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,9 +133,13 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		pageSize = apidefaults.DefaultChunkSize
 	}
 
-	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
+	// Artificially inflate the limit to account for user secrets
+	// which have the same prefix.
+	limit := int(pageSize) * 4
 
-	var userStream iter.Seq2[*types.UserV2, error]
+	itemStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
+
+	var userStream stream.Stream[*types.UserV2]
 	if req.WithSecrets {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
@@ -134,20 +156,21 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		})
 	}
 
-	var resp userspb.ListUsersResponse
-	for user, err := range userStream {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	users, full := stream.Take(userStream, int(pageSize))
 
-		if len(resp.Users) >= int(pageSize) {
-			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
-			return &resp, nil
-		}
-
-		resp.Users = append(resp.Users, user)
+	var nextToken string
+	if full && userStream.Next() {
+		nextToken = nextUserToken(users[len(users)-1])
 	}
-	return &resp, nil
+
+	if err := userStream.Done(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userspb.ListUsersResponse{
+		Users:         users,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // nextUserToken returns the last token for the given user. This
@@ -161,7 +184,7 @@ func nextUserToken(user types.User) string {
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
 // of users along with their associated secrets.
-func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
+func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
 	type collector struct {
 		items userItems
 		name  string
@@ -172,10 +195,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 	collectorStream := stream.FilterMap(itemStream, func(item backend.Item) (collector, bool) {
 		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to extract name/suffix for user item",
-				"key", item.Key,
-				"error", err,
-			)
+			s.log.Warnf("Failed to extract name/suffix for user item at %q: %v", item.Key, err)
 			return collector{}, false
 		}
 
@@ -216,10 +236,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 	userStream := stream.FilterMap(collectorStream, func(c collector) (*types.UserV2, bool) {
 		user, err := userFromUserItems(c.name, c.items)
 		if err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to build user from user item aggregator",
-				"user", c.name,
-				"error", err,
-			)
+			s.log.Warnf("Failed to build user %q from user item aggregator: %v", c.name, err)
 			return nil, false
 		}
 
@@ -231,7 +248,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
-func (s *IdentityService) streamUsersWithoutSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
+func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
 	suffix := backend.NewKey(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
 		if !item.Key.HasSuffix(suffix) {
@@ -240,10 +257,7 @@ func (s *IdentityService) streamUsersWithoutSecrets(itemStream iter.Seq2[backend
 
 		user, err := services.UnmarshalUser(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to unmarshal user",
-				"key", item.Key,
-				"error", err,
-			)
+			s.log.Warnf("Failed to unmarshal user at %q: %v", item.Key, err)
 			return nil, false
 		}
 
@@ -527,7 +541,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -553,8 +567,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 		item.Revision = currentWithoutSecrets.GetRevision()
 
-		_, err = s.Backend.ConditionalUpdate(ctx, item)
-		if err != nil {
+		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
 			}
@@ -642,7 +655,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 	return nil
 }
 
-// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
+// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -659,7 +672,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	return nil, trace.NotFound("user with identity %q not found", &id)
 }
 
-// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns
+// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -855,7 +868,6 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 // `PasswordState` status flag accordingly. Returns an error if the user doesn't
 // exist.
 func (s *IdentityService) UpsertPassword(user string, password []byte) error {
-	ctx := context.TODO()
 	if user == "" {
 		return trace.BadParameter("missing username")
 	}
@@ -873,7 +885,7 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	}
 
 	_, err = s.UpdateAndSwapUser(
-		ctx,
+		context.TODO(),
 		user,
 		false, /*withSecrets*/
 		func(u types.User) (bool, error) {
@@ -882,10 +894,10 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		})
 	if err != nil {
 		// Don't let the password state flag change fail the entire operation.
-		s.logger.WarnContext(ctx, "Failed to set password state",
-			"user", user,
-			"error", err,
-		)
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
 	}
 
 	return nil
@@ -906,7 +918,7 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 	}
 
 	if _, err := s.UpdateAndSwapUser(
-		ctx,
+		context.TODO(),
 		user,
 		false, /*withSecrets*/
 		func(u types.User) (bool, error) {
@@ -915,10 +927,10 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 		},
 	); err != nil {
 		// Don't let the password state flag change fail the entire operation.
-		s.logger.WarnContext(ctx, "Failed to set password state",
-			"user", user,
-			"error", err,
-		)
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
 	}
 
 	// Now is the time to return the delete operation, if any.
@@ -969,7 +981,7 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 		// lib/auth/webauthn is prepared to deal with eventual inconsistencies
 		// between "web/users/.../webauthnlocalauth" and "webauthn/users/" keys.
 		if err := s.Delete(ctx, wlaKey); err != nil {
-			s.logger.WarnContext(ctx, "Failed to undo WebauthnLocalAuth update", "error", err)
+			s.log.WithError(err).Warn("Failed to undo WebauthnLocalAuth update")
 		}
 		return trace.Wrap(err, "writing webauthn user")
 	}
@@ -1100,7 +1112,10 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := max(l.scopeCount[scope]+n, 0)
+	v := l.scopeCount[scope] + n
+	if v < 0 {
+		v = 0
+	}
 	l.scopeCount[scope] = v
 	return v
 }
@@ -1187,7 +1202,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
-		s.logger.WarnContext(ctx, "Unable to update user status after adding MFA device", "error", err)
+		s.log.WithError(err).Warn("Unable to update user status after adding MFA device")
 	}
 	return nil
 }
@@ -1287,7 +1302,7 @@ func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, u
 	}
 	state, err := s.buildWeakestMFADeviceKind(ctx, user.GetName(), upsertingMFA...)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to determine weakest mfa device kind for user", "error", err)
+		s.log.WithError(err).Warn("Failed to determine weakest mfa device kind for user")
 		return
 	}
 	user.SetWeakestDevice(state)
@@ -1349,7 +1364,7 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 		return trace.Wrap(err)
 	}
 	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
-		s.logger.WarnContext(ctx, "Unable to update user status after deleting MFA device", "error", err)
+		s.log.WithError(err).Warn("Unable to update user status after deleting MFA device")
 	}
 	return nil
 }
@@ -1586,10 +1601,10 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	for _, item := range result.Items {
 		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling OIDC Connector",
-				"key", item.Key,
-				"error", err,
-			)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling OIDC Connector")
 			continue
 		}
 		if !withSecrets {
@@ -1766,10 +1781,10 @@ func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Con
 	for _, item := range result.Items {
 		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling SAML Connector",
-				"key", item.Key,
-				"error", err,
-			)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
 			continue
 		}
 		if !withSecrets {
@@ -2007,10 +2022,10 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	for _, item := range result.Items {
 		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling GitHub Connector",
-				"key", item.Key,
-				"error", err,
-			)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling GitHub Connector")
 			continue
 		}
 		if !withSecrets {

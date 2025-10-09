@@ -109,8 +109,6 @@ const WaitingForGateway = (props: {
         name: doc.targetName,
         protocol: doc.targetProtocol,
         dbUser: doc.targetUser,
-        // We don't pass gcpProjectId as target so the target user will not be adjusted,
-        // but it doesn't matter because it was already adjusted when this doc was created.
       },
       { origin: 'reopened_session' }
     );

@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -63,7 +63,7 @@ func ConvertError(err error) error {
 	}
 
 	var googleAPIErr *googleapi.Error
-	var awsRequestFailureErr *awshttp.ResponseError
+	var awsRequestFailureErr awserr.RequestFailure
 	var azResponseErr *azcore.ResponseError
 	var pgError *pgconn.PgError
 	var myError *mysql.MyError
@@ -153,7 +153,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 	if trace.IsAccessDenied(err) {
 		switch sessionCtx.Database.GetType() {
-		case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
+		case types.DatabaseTypeElastiCache:
 			return createElastiCacheRedisAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeMemoryDB:
 			return createMemoryDBAccessDeniedError(err, sessionCtx)

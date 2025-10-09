@@ -1,6 +1,6 @@
 ---
 authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 0171 - Database session playback
@@ -100,7 +100,7 @@ message Status {
   // Error includes system error message for the failed attempt
   string Error = 2 [(gogoproto.jsontag) = "error,omitempty"];
 
-  // UserMessage is a user-friendly message for successful or unsuccessful auth attempt
+  // UserMessage is a user-friendly message for successfull or unsuccessfull auth attempt
   string UserMessage = 3 [(gogoproto.jsontag) = "message,omitempty"];
 }
 

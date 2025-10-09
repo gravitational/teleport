@@ -79,7 +79,7 @@ func TestGitConfigCommand(t *testing.T) {
 			fakeRunner: fakeGitCommandRunner{
 				dirCheckError: trace.BadParameter("not a git dir"),
 			},
-			checkError: func(t require.TestingT, err error, i ...any) {
+			checkError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "the current directory is not a Git repository")
 			},

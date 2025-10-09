@@ -23,20 +23,22 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"iter"
-	"log/slog"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -49,19 +51,12 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
-	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -86,30 +81,17 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
-	modules.SetModules(&modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-				entitlements.AccessLists: {
-					Enabled: true,
-					Limit:   2000,
-				},
-			},
-		},
-	})
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -125,54 +107,56 @@ func TestNodesDontCacheHighVolumeResources(t *testing.T) {
 // testPack contains pack of
 // services used for test run
 type testPack struct {
-	dataDir                 string
-	backend                 *backend.Wrapper
-	eventsC                 chan Event
-	cache                   *Cache
-	eventsS                 *proxyEvents
-	trustS                  *local.CA
-	provisionerS            *local.ProvisioningService
-	clusterConfigS          *local.ClusterConfigurationService
-	usersS                  *local.IdentityService
-	accessS                 *local.AccessService
-	dynamicAccessS          *local.DynamicAccessService
-	presenceS               *local.PresenceService
-	appSessionS             *local.IdentityService
-	snowflakeSessionS       *local.IdentityService
-	restrictions            *local.RestrictionsService
-	apps                    *local.AppService
-	kubernetes              *local.KubernetesService
-	databases               *local.DatabaseService
-	databaseServices        *local.DatabaseServicesService
+	dataDir      string
+	backend      *backend.Wrapper
+	eventsC      chan Event
+	cache        *Cache
+	cacheBackend backend.Backend
+
+	eventsS        *proxyEvents
+	trustS         services.Trust
+	provisionerS   services.Provisioner
+	clusterConfigS services.ClusterConfiguration
+
+	usersS                  services.UsersService
+	accessS                 services.Access
+	dynamicAccessS          services.DynamicAccessCore
+	presenceS               services.Presence
+	appSessionS             services.AppSession
+	snowflakeSessionS       services.SnowflakeSession
+	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
+	restrictions            services.Restrictions
+	apps                    services.Applications
+	kubernetes              services.Kubernetes
+	databases               services.Databases
+	databaseServices        services.DatabaseServices
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
-	windowsDesktops         *local.WindowsDesktopService
-	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
-	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
-	userGroups              *local.UserGroupService
-	okta                    *local.OktaService
-	integrations            *local.IntegrationsService
-	userTasks               *local.UserTasksService
-	discoveryConfigs        *local.DiscoveryConfigService
-	userLoginStates         *local.UserLoginStateService
-	secReports              *local.SecReportsService
-	accessLists             *local.AccessListService
-	kubeWaitingContainers   *local.KubeWaitingContainerService
-	notifications           *local.NotificationsService
-	accessMonitoringRules   *local.AccessMonitoringRulesService
-	crownJewels             *local.CrownJewelsService
-	databaseObjects         *local.DatabaseObjectService
+	windowsDesktops         services.WindowsDesktops
+	dynamicWindowsDesktops  services.DynamicWindowsDesktops
+	samlIDPServiceProviders services.SAMLIdPServiceProviders
+	userGroups              services.UserGroups
+	okta                    services.Okta
+	integrations            services.Integrations
+	userTasks               services.UserTasks
+	discoveryConfigs        services.DiscoveryConfigs
+	userLoginStates         services.UserLoginStates
+	secReports              services.SecReports
+	accessLists             services.AccessLists
+	kubeWaitingContainers   services.KubeWaitingContainer
+	notifications           services.Notifications
+	accessMonitoringRules   services.AccessMonitoringRules
+	crownJewels             services.CrownJewels
+	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
-	staticHostUsers         *local.StaticHostUserService
-	autoUpdateService       *local.AutoUpdateService
-	provisioningStates      *local.ProvisioningStateService
-	identityCenter          *local.IdentityCenterService
-	pluginStaticCredentials *local.PluginStaticCredentialsService
-	gitServers              *local.GitServerService
+	staticHostUsers         services.StaticHostUser
+	autoUpdateService       services.AutoUpdateService
+	provisioningStates      services.ProvisioningStates
+	identityCenter          services.IdentityCenter
 	workloadIdentity        *local.WorkloadIdentityService
-	healthCheckConfig       *local.HealthCheckConfigService
+	pluginStaticCredentials *local.PluginStaticCredentialsService
+	gitServers              services.GitServers
 	botInstanceService      *local.BotInstanceService
-	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
 }
 
@@ -182,7 +166,7 @@ type resourceOps[T any] struct {
 	Name    func(T) string
 	Setup   func(T)
 	Modify  func(T)
-	cmpOpts []cmp.Option
+	cmpOpts []gocmp.Option
 }
 
 func defaultResourceOps[T types.Resource]() *resourceOps[T] {
@@ -204,7 +188,7 @@ func defaultResourceOps[T types.Resource]() *resourceOps[T] {
 				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
 			}
 		},
-		cmpOpts: []cmp.Option{
+		cmpOpts: []gocmp.Option{
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 		},
@@ -234,7 +218,7 @@ func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
 			metadata.Labels["label"] = "value2"
 		},
 		Name: func(t T) string { return t.GetMetadata().GetName() },
-		cmpOpts: []cmp.Option{
+		cmpOpts: []gocmp.Option{
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 			protocmp.Transform(),
 			cmpopts.EquateEmpty(),
@@ -297,7 +281,7 @@ func (t *testPack) Close() {
 		errors = append(errors, t.cache.Close())
 	}
 	if err := trace.NewAggregate(errors...); err != nil {
-		slog.WarnContext(context.Background(), "Failed to close", "error", err)
+		log.Warningf("Failed to close %v", err)
 	}
 }
 
@@ -305,8 +289,12 @@ func newPackForAuth(t *testing.T) *testPack {
 	return newTestPack(t, ForAuth)
 }
 
-func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *testPack {
-	pack, err := newPack(t.TempDir(), setupConfig, opts...)
+func newPackForProxy(t *testing.T) *testPack {
+	return newTestPack(t, ForProxy)
+}
+
+func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPack(t.TempDir(), setupConfig)
 	require.NoError(t, err)
 	return pack
 }
@@ -367,6 +355,15 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.backend = backend.NewWrapper(bk)
 
+	p.cacheBackend, err = memory.New(
+		memory.Config{
+			Context: ctx,
+			Mirror:  true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.eventsC = make(chan Event, eventBufferSize)
 
 	clusterConfig, err := local.NewClusterConfigurationService(p.backend)
@@ -395,6 +392,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = idService
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
+	p.samlIdPSessionsS = idService
 	p.webTokenS = idService.WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
@@ -526,17 +524,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.healthCheckConfig, err = local.NewHealthCheckConfigService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	p.recordingEncryption, err = local.NewRecordingEncryptionService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -555,6 +543,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 
 	p.cache, err = New(setupConfig(Config{
 		Context:                 ctx,
+		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -567,6 +556,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -593,12 +583,10 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
+		WorkloadIdentity:        p.workloadIdentity,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		GitServers:              p.gitServers,
-		HealthCheckConfig:       p.healthCheckConfig,
-		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
-		RecordingEncryption:     p.recordingEncryption,
 		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -617,6 +605,40 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
 	}
 	return p, nil
+}
+
+// TestCA tests certificate authorities
+func TestCA(t *testing.T) {
+	t.Parallel()
+
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+	ctx := context.Background()
+
+	ca := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
+	require.NoError(t, err)
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // TestWatchers tests watchers connected to the cache,
@@ -738,6 +760,114 @@ func TestWatchers(t *testing.T) {
 	}
 }
 
+func TestNodeCAFiltering(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
+	nodeCacheBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
+
+	// this mimics a cache for a node pulling events from the auth server via WatchEvents
+	nodeCache, err := New(ForNode(Config{
+		Events:                  p.cache,
+		Trust:                   p.cache.trustCache,
+		ClusterConfig:           p.cache.clusterConfigCache,
+		Provisioner:             p.cache.provisionerCache,
+		Users:                   p.cache.usersCache,
+		Access:                  p.cache.accessCache,
+		DynamicAccess:           p.cache.dynamicAccessCache,
+		Presence:                p.cache.presenceCache,
+		Restrictions:            p.cache.restrictionsCache,
+		Apps:                    p.cache.appsCache,
+		Kubernetes:              p.cache.kubernetesCache,
+		Databases:               p.cache.databasesCache,
+		DatabaseServices:        p.cache.databaseServicesCache,
+		AppSession:              p.cache.appSessionCache,
+		WebSession:              p.cache.webSessionCache,
+		WebToken:                p.cache.webTokenCache,
+		WindowsDesktops:         p.cache.windowsDesktopsCache,
+		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		StaticHostUsers:         p.staticHostUsers,
+		Backend:                 nodeCacheBackend,
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
+
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
+		{
+			Kind:   types.KindCertAuthority,
+			Filter: map[string]string{"host": "example.com", "user": "*"},
+		},
+	}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
+
+	fetchEvent := func() types.Event {
+		var ev types.Event
+		select {
+		case ev = <-cacheWatcher.Events():
+		case <-time.After(time.Second * 5):
+			t.Fatal("watcher timeout")
+		}
+		return ev
+	}
+	require.Equal(t, types.OpInit, fetchEvent().Type)
+
+	// upsert and delete a local host CA, we expect to see a Put and a Delete event
+	localCA := NewTestCA(types.HostCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
+
+	ev := fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.com", ev.Resource.GetName())
+
+	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
+	nonlocalCA := NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	// whereas we expect to see the Put and Delete for a trusted *user* CA
+	trustedUserCA := NewTestCA(types.UserCA, "example.net")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpPut, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+
+	ev = fetchEvent()
+	require.Equal(t, types.OpDelete, ev.Type)
+	require.Equal(t, types.KindCertAuthority, ev.Resource.GetKind())
+	require.Equal(t, "example.net", ev.Resource.GetName())
+}
+
 func waitForRestart(t *testing.T, eventsC <-chan Event) {
 	expectEvent(t, eventsC, WatcherStarted)
 }
@@ -809,19 +939,28 @@ func TestCompletenessInit(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
-	for i := range caCount {
+	for i := 0; i < caCount; i++ {
 		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
-	for range inits {
+	for i := 0; i < inits; i++ {
+		var err error
+
+		p.cacheBackend, err = memory.New(
+			memory.Config{
+				Context: ctx,
+				Mirror:  true,
+			})
+		require.NoError(t, err)
+
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
 
-		var err error
 		p.cache, err = New(ForAuth(Config{
 			Context:                 ctx,
+			Backend:                 p.cacheBackend,
 			Events:                  p.eventsS,
 			ClusterConfig:           p.clusterConfigS,
 			Provisioner:             p.provisionerS,
@@ -833,6 +972,7 @@ func TestCompletenessInit(t *testing.T) {
 			AppSession:              p.appSessionS,
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
+			SAMLIdPSession:          p.samlIdPSessionsS,
 			WebToken:                p.webTokenS,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
@@ -860,13 +1000,11 @@ func TestCompletenessInit(t *testing.T) {
 			AutoUpdateService:       p.autoUpdateService,
 			ProvisioningStates:      p.provisioningStates,
 			WorkloadIdentity:        p.workloadIdentity,
-			RecordingEncryption:     p.recordingEncryption,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			IdentityCenter:          p.identityCenter,
 			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
 			GitServers:              p.gitServers,
-			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
 		}))
@@ -886,6 +1024,8 @@ func TestCompletenessInit(t *testing.T) {
 
 		require.NoError(t, p.cache.Close())
 		p.cache = nil
+		require.NoError(t, p.cacheBackend.Close())
+		p.cacheBackend = nil
 	}
 }
 
@@ -901,7 +1041,7 @@ func TestCompletenessReset(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
-	for i := range caCount {
+	for i := 0; i < caCount; i++ {
 		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
@@ -909,6 +1049,7 @@ func TestCompletenessReset(t *testing.T) {
 	var err error
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
+		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -920,6 +1061,7 @@ func TestCompletenessReset(t *testing.T) {
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -947,13 +1089,11 @@ func TestCompletenessReset(t *testing.T) {
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
-		RecordingEncryption:     p.recordingEncryption,
+		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
-		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 	}))
@@ -964,7 +1104,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
-	for range resets {
+	for i := 0; i < resets; i++ {
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
@@ -988,8 +1128,62 @@ func TestCompletenessReset(t *testing.T) {
 func TestInitStrategy(t *testing.T) {
 	t.Parallel()
 
-	for range utils.GetIterations() {
+	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
+	}
+}
+
+/*
+goos: linux
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/cache
+cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
+BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
+*/
+func BenchmarkGetMaxNodes(b *testing.B) {
+	benchGetNodes(b, 1_000_000)
+}
+
+func benchGetNodes(b *testing.B, nodeCount int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	createErr := make(chan error, 1)
+
+	go func() {
+		for i := 0; i < nodeCount; i++ {
+			server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			if err != nil {
+				createErr <- err
+				return
+			}
+		}
+	}()
+
+	timeout := time.After(time.Second * 90)
+
+	for i := 0; i < nodeCount; i++ {
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case err := <-createErr:
+			b.Fatalf("failed to create node: %v", err)
+		case <-timeout:
+			b.Fatalf("timeout waiting for event, progress=%d", i)
+		}
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(b, err)
+		require.Len(b, nodes, nodeCount)
 	}
 }
 
@@ -1008,7 +1202,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	ctx := context.Background()
 
 	count := 100000
-	for i := range count {
+	for i := 0; i < count; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
@@ -1027,10 +1221,12 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 		}
 	}
 
+	b.ResetTimer()
+
 	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
 		for _, totalCount := range []bool{true, false} {
 			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
-				for b.Loop() {
+				for n := 0; n < b.N; n++ {
 					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 						ResourceType: types.KindNode,
 						Namespace:    apidefaults.Namespace,
@@ -1068,6 +1264,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
+		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -1080,6 +1277,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1106,20 +1304,18 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
-		RecordingEncryption:     p.recordingEncryption,
+		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
-		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 	}))
 	require.NoError(t, err)
 
-	for range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1145,11 +1341,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		require.Len(t, resources, nodeCount)
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -1168,6 +1364,7 @@ func initStrategy(t *testing.T) {
 	var err error
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
+		Backend:                 p.cacheBackend,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
 		Provisioner:             p.provisionerS,
@@ -1178,6 +1375,7 @@ func initStrategy(t *testing.T) {
 		Presence:                p.presenceS,
 		AppSession:              p.appSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
@@ -1206,13 +1404,11 @@ func initStrategy(t *testing.T) {
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
 		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
-		RecordingEncryption:     p.recordingEncryption,
+		PluginStaticCredentials: p.pluginStaticCredentials,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
-		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 	}))
@@ -1241,7 +1437,7 @@ func initStrategy(t *testing.T) {
 
 	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// fail again, make sure last recent data is still served
 	// on errors
@@ -1255,7 +1451,7 @@ func initStrategy(t *testing.T) {
 	// backend is out, but old value is available
 	out2, err := p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out2), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
@@ -1272,7 +1468,7 @@ func initStrategy(t *testing.T) {
 	// new value is available now
 	out, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(normalizeCA(ca), normalizeCA(out), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 // TestRecovery tests error recovery scenario
@@ -1316,7 +1512,529 @@ func TestRecovery(t *testing.T) {
 	out, err := p.cache.GetCertAuthority(context.Background(), ca2.GetID(), false)
 	require.NoError(t, err)
 	types.RemoveCASecrets(ca2)
-	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, gocmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+// TestTokens tests static and dynamic tokens
+func TestTokens(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
+			{
+				Token:   "static1",
+				Roles:   types.SystemRoles{types.RoleAuth, types.RoleNode},
+				Expires: time.Now().UTC().Add(time.Hour),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = p.clusterConfigS.SetStaticTokens(staticTokens)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err := p.cache.GetStaticTokens()
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	expires := time.Now().Add(10 * time.Hour).Truncate(time.Second).UTC()
+	token, err := types.NewProvisionToken("token", types.SystemRoles{types.RoleAuth, types.RoleNode}, expires)
+	require.NoError(t, err)
+
+	err = p.provisionerS.UpsertToken(ctx, token)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	tout, err := p.cache.GetToken(ctx, token.GetName())
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(token, tout, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.provisionerS.DeleteToken(ctx, token.GetName())
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	_, err = p.cache.GetToken(ctx, token.GetName())
+	require.True(t, trace.IsNotFound(err))
+}
+
+func TestAuthPreference(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		AllowLocalAuth:  types.NewBoolOption(true),
+		MessageOfTheDay: "test MOTD",
+	})
+	require.NoError(t, err)
+	authPref, err = p.clusterConfigS.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterAuthPreference, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	outAuthPref, err := p.cache.GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, gocmp.Diff(outAuthPref, authPref, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+func TestClusterNetworkingConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		ClientIdleTimeout:        types.Duration(time.Minute),
+		ClientIdleTimeoutMessage: "test idle timeout message",
+	})
+	require.NoError(t, err)
+	_, err = p.clusterConfigS.UpsertClusterNetworkingConfig(ctx, netConfig)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterNetworkingConfig, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	outNetConfig, err := p.cache.GetClusterNetworkingConfig(ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, gocmp.Diff(outNetConfig, netConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+func TestSessionRecordingConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode:                types.RecordAtProxySync,
+		ProxyChecksHostKeys: types.NewBoolOption(true),
+	})
+	require.NoError(t, err)
+	_, err = p.clusterConfigS.UpsertSessionRecordingConfig(ctx, recConfig)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindSessionRecordingConfig, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	outRecConfig, err := p.cache.GetSessionRecordingConfig(ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, gocmp.Diff(outRecConfig, recConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+func TestClusterAuditConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		AuditEventsURI: []string{"dynamodb://audit_table_name", "file:///home/log"},
+	})
+	require.NoError(t, err)
+	err = p.clusterConfigS.SetClusterAuditConfig(ctx, auditConfig)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterAuditConfig, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	outAuditConfig, err := p.cache.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, gocmp.Diff(outAuditConfig, auditConfig, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+func TestClusterName(t *testing.T) {
+	t.Parallel()
+
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = p.clusterConfigS.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindClusterName, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	outName, err := p.cache.GetClusterName()
+	require.NoError(t, err)
+
+	require.Empty(t, gocmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+// TestNamespaces tests caching of namespaces
+func TestNamespaces(t *testing.T) {
+	t.Parallel()
+
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
+
+	v, err := types.NewNamespace("universe")
+	require.NoError(t, err)
+	ns := &v
+	err = p.presenceS.UpsertNamespace(*ns)
+	require.NoError(t, err)
+
+	ns, err = p.presenceS.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err := p.cache.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// update namespace metadata
+	ns.Metadata.Labels = map[string]string{"a": "b"}
+	require.NoError(t, err)
+	err = p.presenceS.UpsertNamespace(*ns)
+	require.NoError(t, err)
+
+	ns, err = p.presenceS.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.presenceS.DeleteNamespace(ns.GetName())
+	require.NoError(t, err)
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	_, err = p.cache.GetNamespace(ns.GetName())
+	require.True(t, trace.IsNotFound(err))
+}
+
+// TestUsers tests caching of users
+func TestUsers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.User]{
+		newResource: func(name string) (types.User, error) {
+			return types.NewUser(name)
+		},
+		create: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpsertUser(ctx, user)
+			return err
+		},
+		list:      getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.usersS.GetUsers(ctx, false) }),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.cache.GetUsers(ctx, false) }),
+		update: func(ctx context.Context, user types.User) error {
+			_, err := p.usersS.UpdateUser(ctx, user)
+			return err
+		},
+		deleteAll: p.usersS.DeleteAllUsers,
+	}, withSkipPaginationTest())
+}
+
+// TestRoles tests caching of roles
+func TestRoles(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForNode)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Role]{
+		newResource: func(name string) (types.Role, error) {
+			return types.NewRole(name, types.RoleSpecV6{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.Duration(time.Hour),
+				},
+				Allow: types.RoleConditions{
+					Logins:     []string{"root", "bob"},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+				Deny: types.RoleConditions{},
+			})
+		},
+		create: func(ctx context.Context, role types.Role) error {
+			_, err := p.accessS.UpsertRole(ctx, role)
+			return err
+		},
+		list:      getAllAdapter(p.accessS.GetRoles),
+		cacheGet:  p.cache.GetRole,
+		cacheList: getAllAdapter(p.cache.GetRoles),
+		update: func(ctx context.Context, role types.Role) error {
+			_, err := p.accessS.UpsertRole(ctx, role)
+			return err
+		},
+		deleteAll: p.accessS.DeleteAllRoles,
+	}, withSkipPaginationTest())
+}
+
+// TestTunnelConnections tests tunnel connections caching
+func TestTunnelConnections(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	clusterName := "example.com"
+	testResources(t, p, testFuncs[types.TunnelConnection]{
+		newResource: func(name string) (types.TunnelConnection, error) {
+			return types.NewTunnelConnection(name, types.TunnelConnectionSpecV2{
+				ClusterName:   clusterName,
+				ProxyName:     "p1",
+				LastHeartbeat: time.Now().UTC(),
+			})
+		},
+		create:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
+		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		deleteAll: func(ctx context.Context) error {
+			return p.trustS.DeleteAllTunnelConnections()
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestNodes tests nodes cache
+func TestNodes(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: withKeepalive(p.presenceS.UpsertNode),
+		list: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
+			return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
+		}),
+		cacheGet: func(ctx context.Context, name string) (types.Server, error) {
+			return p.cache.GetNode(ctx, apidefaults.Namespace, name)
+		},
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
+			return p.cache.GetNodes(ctx, apidefaults.Namespace)
+		}),
+		update: withKeepalive(p.presenceS.UpsertNode),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestProxies tests proxies cache
+func TestProxies(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create:    p.presenceS.UpsertProxy,
+		list:      getAllAdapter(func(_ context.Context) ([]types.Server, error) { return p.presenceS.GetProxies() }),
+		cacheList: getAllAdapter(func(_ context.Context) ([]types.Server, error) { return p.cache.GetProxies() }),
+		update:    p.presenceS.UpsertProxy,
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllProxies()
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestAuthServers tests auth servers cache
+func TestAuthServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create:    p.presenceS.UpsertAuthServer,
+		list:      getAllAdapter(func(context.Context) ([]types.Server, error) { return p.presenceS.GetAuthServers() }),
+		cacheList: getAllAdapter(func(context.Context) ([]types.Server, error) { return p.cache.GetAuthServers() }),
+		update:    p.presenceS.UpsertAuthServer,
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllAuthServers()
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestKubernetes tests that CRUD operations on kubernetes clusters resources are
+// replicated from the backend to the cache.
+func TestKubernetes(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.KubeCluster]{
+		newResource: func(name string) (types.KubeCluster, error) {
+			return types.NewKubernetesClusterV3(types.Metadata{
+				Name: name,
+			}, types.KubernetesClusterSpecV3{})
+		},
+		create:    p.kubernetes.CreateKubernetesCluster,
+		list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
+		cacheGet:  p.cache.GetKubernetesCluster,
+		cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
+		update:    p.kubernetes.UpdateKubernetesCluster,
+		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+	}, withSkipPaginationTest())
+}
+
+// TestApplicationServers tests that CRUD operations on app servers are
+// replicated from the backend to the cache.
+func TestApplicationServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.AppServer]{
+		newResource: func(name string) (types.AppServer, error) {
+			app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{URI: "localhost"})
+			require.NoError(t, err)
+			return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertApplicationServer),
+		list: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
+			return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
+			return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
+		}),
+		update: withKeepalive(p.presenceS.UpsertApplicationServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestKubernetesServers tests that CRUD operations on kube servers are
+// replicated from the backend to the cache.
+func TestKubernetesServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.KubeServer]{
+		newResource: func(name string) (types.KubeServer, error) {
+			app, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
+		},
+		create:    withKeepalive(p.presenceS.UpsertKubernetesServer),
+		list:      getAllAdapter(p.presenceS.GetKubernetesServers),
+		cacheList: getAllAdapter(p.cache.GetKubernetesServers),
+		update:    withKeepalive(p.presenceS.UpsertKubernetesServer),
+		deleteAll: p.presenceS.DeleteAllKubernetesServers,
+	}, withSkipPaginationTest())
+}
+
+// TestApps tests that CRUD operations on application resources are
+// replicated from the backend to the cache.
+func TestApps(t *testing.T) {
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Application]{
+		newResource: func(name string) (types.Application, error) {
+			return types.NewAppV3(types.Metadata{
+				Name: name,
+			}, types.AppSpecV3{
+				URI: "localhost",
+			})
+		},
+		create:    p.apps.CreateApp,
+		list:      p.apps.ListApps,
+		cacheGet:  p.cache.GetApp,
+		cacheList: p.cache.ListApps,
+		update:    p.apps.UpdateApp,
+		deleteAll: p.apps.DeleteAllApps,
+	})
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -1331,6 +2049,348 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	)
 	require.NoError(t, err)
 	return database
+}
+
+// TestDatabaseServers tests that CRUD operations on database servers are
+// replicated from the backend to the cache.
+func TestDatabaseServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.DatabaseServer]{
+		newResource: func(name string) (types.DatabaseServer, error) {
+			return types.NewDatabaseServerV3(types.Metadata{
+				Name: name,
+			}, types.DatabaseServerSpecV3{
+				Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
+				Hostname: "localhost",
+				HostID:   uuid.New().String(),
+			})
+		},
+		create: withKeepalive(p.presenceS.UpsertDatabaseServer),
+		list: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
+		}),
+		update: withKeepalive(p.presenceS.UpsertDatabaseServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestDatabaseServices tests that CRUD operations on DatabaseServices are
+// replicated from the backend to the cache.
+func TestDatabaseServices(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.DatabaseService]{
+		newResource: func(name string) (types.DatabaseService, error) {
+			return types.NewDatabaseServiceV1(types.Metadata{
+				Name: name,
+			}, types.DatabaseServiceSpecV1{
+				ResourceMatchers: []*types.DatabaseResourceMatcher{
+					{Labels: &types.Labels{"env": []string{"prod"}}},
+				},
+			})
+		},
+		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseService, pageSize, pageToken)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
+		},
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.cache, types.KindDatabaseService, pageSize, pageToken)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
+		},
+		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
+		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
+	})
+}
+
+// TestDatabases tests that CRUD operations on database resources are
+// replicated from the backend to the cache.
+func TestDatabases(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Database]{
+		newResource: func(name string) (types.Database, error) {
+			return types.NewDatabaseV3(types.Metadata{
+				Name: name,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		},
+		create:    p.databases.CreateDatabase,
+		list:      p.databases.ListDatabases,
+		cacheGet:  p.cache.GetDatabase,
+		cacheList: p.cache.ListDatabases,
+		update:    p.databases.UpdateDatabase,
+		deleteAll: p.databases.DeleteAllDatabases,
+	})
+}
+
+// TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
+// replicated from the backend to the cache.
+func TestSAMLIdPServiceProviders(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.SAMLIdPServiceProvider]{
+		newResource: func(name string) (types.SAMLIdPServiceProvider, error) {
+			return types.NewSAMLIdPServiceProvider(
+				types.Metadata{
+					Name: name,
+				},
+				types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: fmt.Sprintf(testEntityDescriptorFmt, "IAMShowcase"+name),
+					EntityID:         "IAMShowcase" + name,
+				})
+		},
+		create:    p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
+		list:      p.samlIDPServiceProviders.ListSAMLIdPServiceProviders,
+		cacheGet:  p.cache.GetSAMLIdPServiceProvider,
+		cacheList: p.cache.ListSAMLIdPServiceProviders,
+		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
+		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
+	})
+}
+
+// TestUserGroups tests that CRUD operations on user group resources are
+// replicated from the backend to the cache.
+func TestUserGroups(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.UserGroup]{
+		newResource: func(name string) (types.UserGroup, error) {
+			return types.NewUserGroup(
+				types.Metadata{
+					Name: name,
+				}, types.UserGroupSpecV1{},
+			)
+		},
+		create:    p.userGroups.CreateUserGroup,
+		list:      p.userGroups.ListUserGroups,
+		cacheGet:  p.cache.GetUserGroup,
+		cacheList: p.cache.ListUserGroups,
+		update:    p.userGroups.UpdateUserGroup,
+		deleteAll: p.userGroups.DeleteAllUserGroups,
+	})
+}
+
+// TestLocks tests that CRUD operations on lock resources are
+// replicated from the backend to the cache.
+func TestLocks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Lock]{
+		newResource: func(name string) (types.Lock, error) {
+			return types.NewLock(
+				name,
+				types.LockSpecV2{
+					Target: types.LockTarget{
+						Role: "target-role",
+					},
+				},
+			)
+		},
+		create:    p.accessS.UpsertLock,
+		list:      getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.accessS.GetLocks(ctx, false) }),
+		cacheGet:  p.cache.GetLock,
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.cache.GetLocks(ctx, false) }),
+		update:    p.accessS.UpsertLock,
+		deleteAll: p.accessS.DeleteAllLocks,
+	}, withSkipPaginationTest())
+}
+
+// TestOktaImportRules tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaImportRules(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaImportRule]{
+		newResource: func(name string) (types.OktaImportRule, error) {
+			return types.NewOktaImportRule(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaImportRuleSpecV1{
+					Mappings: []*types.OktaImportRuleMappingV1{
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									AppIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									GroupIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.CreateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list:      p.okta.ListOktaImportRules,
+		cacheGet:  p.cache.GetOktaImportRule,
+		cacheList: p.cache.ListOktaImportRules,
+		update: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaImportRules,
+	}, withSkipPaginationTest())
+}
+
+// TestOktaAssignments tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaAssignments(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaAssignment]{
+		newResource: func(name string) (types.OktaAssignment, error) {
+			return types.NewOktaAssignment(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaAssignmentSpecV1{
+					User: "test-user@test.user",
+					Targets: []*types.OktaAssignmentTargetV1{
+						{
+							Type: types.OktaAssignmentTargetV1_APPLICATION,
+							Id:   "123456",
+						},
+						{
+							Type: types.OktaAssignmentTargetV1_GROUP,
+							Id:   "234567",
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.CreateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list:      p.okta.ListOktaAssignments,
+		cacheGet:  p.cache.GetOktaAssignment,
+		cacheList: p.cache.ListOktaAssignments,
+		update: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaAssignments,
+	})
+}
+
+// TestIntegrations tests that CRUD operations on integrations resources are
+// replicated from the backend to the cache.
+func TestIntegrations(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Integration]{
+		newResource: func(name string) (types.Integration, error) {
+			return types.NewIntegrationAWSOIDC(
+				types.Metadata{Name: name},
+				&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+				},
+			)
+		},
+		create: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.CreateIntegration(ctx, i)
+			return err
+		},
+		list:      p.integrations.ListIntegrations,
+		cacheGet:  p.cache.GetIntegration,
+		cacheList: p.cache.ListIntegrations,
+		update: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.UpdateIntegration(ctx, i)
+			return err
+		},
+		deleteAll: p.integrations.DeleteAllIntegrations,
+	})
+}
+
+// TestUserTasks tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestUserTasks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*usertasksv1.UserTask]{
+		newResource: func(name string) (*usertasksv1.UserTask, error) {
+			return newUserTasks(t), nil
+		},
+		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
+			_, err := p.userTasks.CreateUserTask(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+			return p.userTasks.ListUserTasks(ctx, int64(pageSize), pageToken, &usertasksv1.ListUserTasksFilters{})
+		},
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+			return p.userTasks.ListUserTasks(ctx, int64(pageSize), pageToken, &usertasksv1.ListUserTasksFilters{})
+		},
+		deleteAll: p.userTasks.DeleteAllUserTasks,
+	}, withSkipPaginationTest())
 }
 
 func newUserTasks(t *testing.T) *usertasksv1.UserTask {
@@ -1357,6 +2417,504 @@ func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	require.NoError(t, err)
 
 	return ut
+}
+
+// TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
+// replicated from the backend to the cache.
+func TestDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
+		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
+			dc, err := discoveryconfig.NewDiscoveryConfig(
+				header.Metadata{Name: name},
+				discoveryconfig.Spec{
+					DiscoveryGroup: "group001",
+				})
+			require.NoError(t, err)
+			return dc, nil
+		},
+		create: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
+			return trace.Wrap(err)
+		},
+		list:      p.discoveryConfigs.ListDiscoveryConfigs,
+		cacheGet:  p.cache.GetDiscoveryConfig,
+		cacheList: p.cache.ListDiscoveryConfigs,
+		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
+			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.discoveryConfigs.DeleteAllDiscoveryConfigs,
+	})
+}
+
+// TestAuditQuery tests that CRUD operations on access list rule resources are
+// replicated from the backend to the cache.
+func TestAuditQuery(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.AuditQuery]{
+		newResource: func(name string) (*secreports.AuditQuery, error) {
+			return newAuditQuery(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.AuditQuery) error {
+			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      getAllAdapter(p.secReports.GetSecurityAuditQueries),
+		cacheGet:  p.cache.GetSecurityAuditQuery,
+		cacheList: getAllAdapter(p.cache.GetSecurityAuditQueries),
+		update: func(ctx context.Context, item *secreports.AuditQuery) error {
+			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
+	}, withSkipPaginationTest())
+}
+
+// TestSecurityReportState tests that CRUD operations on security report state resources are
+// replicated from the backend to the cache.
+func TestSecurityReports(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.Report]{
+		newResource: func(name string) (*secreports.Report, error) {
+			return newSecurityReport(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.Report) error {
+			err := p.secReports.UpsertSecurityReport(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      getAllAdapter(p.secReports.GetSecurityReports),
+		cacheGet:  p.cache.GetSecurityReport,
+		cacheList: getAllAdapter(p.cache.GetSecurityReports),
+		update: func(ctx context.Context, item *secreports.Report) error {
+			err := p.secReports.UpsertSecurityReport(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityReports,
+	}, withSkipPaginationTest())
+}
+
+// TestSecurityReportState tests that CRUD operations on security report state resources are
+// replicated from the backend to the cache.
+func TestSecurityReportState(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*secreports.ReportState]{
+		newResource: func(name string) (*secreports.ReportState, error) {
+			return newSecurityReportState(t, name), nil
+		},
+		create: func(ctx context.Context, item *secreports.ReportState) error {
+			err := p.secReports.UpsertSecurityReportsState(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      getAllAdapter(p.secReports.GetSecurityReportsStates),
+		cacheGet:  p.cache.GetSecurityReportState,
+		cacheList: getAllAdapter(p.cache.GetSecurityReportsStates),
+		update: func(ctx context.Context, item *secreports.ReportState) error {
+			err := p.secReports.UpsertSecurityReportsState(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
+	}, withSkipPaginationTest())
+}
+
+// TestUserLoginStates tests that CRUD operations on user login state resources are
+// replicated from the backend to the cache.
+func TestUserLoginStates(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list:      getAllAdapter(p.userLoginStates.GetUserLoginStates),
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: getAllAdapter(p.cache.GetUserLoginStates),
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	}, withSkipPaginationTest())
+}
+
+// TestAccessList tests that CRUD operations on access list resources are
+// replicated from the backend to the cache.
+func TestAccessList(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true, Limit: apidefaults.DefaultChunkSize * 2},
+			},
+		},
+	})
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	testResources(t, p, testFuncs[*accesslist.AccessList]{
+		newResource: func(name string) (*accesslist.AccessList, error) {
+			return newAccessList(t, name, clock), nil
+		},
+		create: func(ctx context.Context, item *accesslist.AccessList) error {
+			_, err := p.accessLists.UpsertAccessList(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.accessLists.ListAccessLists,
+		cacheGet:  p.cache.GetAccessList,
+		cacheList: p.cache.ListAccessLists,
+		update: func(ctx context.Context, item *accesslist.AccessList) error {
+			_, err := p.accessLists.UpsertAccessList(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.accessLists.DeleteAllAccessLists,
+	})
+}
+
+// TestAccessListMembers tests that CRUD operations on access list member resources are
+// replicated from the backend to the cache.
+func TestAccessListMembers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	al, err := p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, "access-list", clock))
+	require.NoError(t, err)
+
+	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
+		newResource: func(name string) (*accesslist.AccessListMember, error) {
+			return newAccessListMember(t, al.GetName(), name), nil
+		},
+		create: func(ctx context.Context, item *accesslist.AccessListMember) error {
+			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: p.accessLists.ListAllAccessListMembers,
+		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
+			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
+		},
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
+			return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
+
+		},
+		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
+			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.accessLists.DeleteAllAccessListMembers,
+	})
+
+	// Verify counting.
+	ctx := context.Background()
+	for i := 0; i < 40; i++ {
+		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+
+	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	require.NoError(t, err)
+	require.Equal(t, uint32(40), count)
+	require.Equal(t, uint32(0), listCount)
+
+	// Eventually, this should be reflected in the cache.
+	require.Eventually(t, func() bool {
+		// Make sure the cache has a single resource in it.
+		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		assert.NoError(t, err)
+		return count == uint32(40) && listCount == uint32(0)
+	}, time.Second*2, time.Millisecond*250)
+}
+
+// TestAccessListReviews tests that CRUD operations on access list review resources are
+// replicated from the backend to the cache.
+func TestAccessListReviews(t *testing.T) {
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	al, _, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "access-list", "member1"),
+			newAccessListMember(t, "access-list", "member2"),
+			newAccessListMember(t, "access-list", "member3"),
+			newAccessListMember(t, "access-list", "member4"),
+			newAccessListMember(t, "access-list", "member5"),
+		})
+	require.NoError(t, err)
+
+	// Keep track of the reviews, as create can update them. We'll use this
+	// to make sure the values are up to date during the test.
+	reviews := map[string]*accesslist.Review{}
+
+	testResources(t, p, testFuncs[*accesslist.Review]{
+		newResource: func(name string) (*accesslist.Review, error) {
+			review := newAccessListReview(t, al.GetName(), name)
+			// Store the name in the description.
+			review.Metadata.Description = name
+			reviews[name] = review
+			return review, nil
+		},
+		create: func(ctx context.Context, item *accesslist.Review) error {
+			review, _, err := p.accessLists.CreateAccessListReview(ctx, item)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			// Use the old name from the description.
+			oldName := review.Metadata.Description
+			reviews[oldName].SetName(review.GetName())
+			return trace.Wrap(err)
+		},
+		list: p.accessLists.ListAllAccessListReviews,
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
+			return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
+		},
+		deleteAll: p.accessLists.DeleteAllAccessListReviews,
+	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
+}
+
+// TestUserNotifications tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestUserNotifications(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*notificationsv1.Notification]{
+		newResource: func(name string) (*notificationsv1.Notification, error) {
+			return newUserNotification(t, name), nil
+		},
+		create: func(ctx context.Context, item *notificationsv1.Notification) error {
+			_, err := p.notifications.CreateUserNotification(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.notifications.ListUserNotifications,
+		cacheList: p.cache.ListUserNotifications,
+		deleteAll: p.notifications.DeleteAllUserNotifications,
+	}, withSkipPaginationTest())
+}
+
+// TestCrownJewel tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestCrownJewel(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*crownjewelv1.CrownJewel]{
+		newResource: func(name string) (*crownjewelv1.CrownJewel, error) {
+			return newCrownJewel(t, name), nil
+		},
+		create: func(ctx context.Context, item *crownjewelv1.CrownJewel) error {
+			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
+		},
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
+		},
+		deleteAll: p.crownJewels.DeleteAllCrownJewels,
+	}, withSkipPaginationTest())
+}
+
+func TestDatabaseObjects(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*dbobjectv1.DatabaseObject]{
+		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
+			return newDatabaseObject(t, name), nil
+		},
+		create: func(ctx context.Context, item *dbobjectv1.DatabaseObject) error {
+			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.databaseObjects.ListDatabaseObjects,
+		cacheList: p.databaseObjects.ListDatabaseObjects,
+		deleteAll: func(ctx context.Context) error {
+			token := ""
+			var objects []*dbobjectv1.DatabaseObject
+
+			for {
+				resp, nextToken, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, token)
+				if err != nil {
+					return err
+				}
+
+				objects = append(objects, resp...)
+
+				if nextToken == "" {
+					break
+				}
+				token = nextToken
+			}
+
+			for _, object := range objects {
+				err := p.databaseObjects.DeleteDatabaseObject(ctx, object.GetMetadata().GetName())
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestAutoUpdateConfig tests that CRUD operations on AutoUpdateConfig resources are
+// replicated from the backend to the cache.
+func TestAutoUpdateConfig(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*autoupdate.AutoUpdateConfig]{
+		newResource: func(name string) (*autoupdate.AutoUpdateConfig, error) {
+			return newAutoUpdateConfig(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateConfig) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: getAllAdapter(func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
+			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateConfig{}, nil
+			}
+			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
+			item, err := p.cache.GetAutoUpdateConfig(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateConfig{}, nil
+			}
+			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
+		}),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateConfig,
+	}, withSkipPaginationTest())
+}
+
+// TestAutoUpdateVersion tests that CRUD operations on AutoUpdateVersion resource are
+// replicated from the backend to the cache.
+func TestAutoUpdateVersion(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*autoupdate.AutoUpdateVersion]{
+		newResource: func(name string) (*autoupdate.AutoUpdateVersion, error) {
+			return newAutoUpdateVersion(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateVersion) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      singletonListAdapter(p.autoUpdateService.GetAutoUpdateVersion),
+		cacheList: singletonListAdapter(p.cache.GetAutoUpdateVersion),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateVersion,
+	}, withSkipPaginationTest())
+}
+
+// TestAutoUpdateAgentRollout tests that CRUD operations on AutoUpdateAgentRollout resource are
+// replicated from the backend to the cache.
+func TestAutoUpdateAgentRollout(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*autoupdate.AutoUpdateAgentRollout]{
+		newResource: func(name string) (*autoupdate.AutoUpdateAgentRollout, error) {
+			return newAutoUpdateAgentRollout(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateAgentRollout) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      singletonListAdapter(p.autoUpdateService.GetAutoUpdateAgentRollout),
+		cacheList: singletonListAdapter(p.cache.GetAutoUpdateAgentRollout),
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentRollout(ctx))
+		},
+	}, withSkipPaginationTest())
+}
+
+// TestGlobalNotifications tests that CRUD operations on global notification resources are
+// replicated from the backend to the cache.
+func TestGlobalNotifications(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*notificationsv1.GlobalNotification]{
+		newResource: func(name string) (*notificationsv1.GlobalNotification, error) {
+			return newGlobalNotification(t, name), nil
+		},
+		create: func(ctx context.Context, item *notificationsv1.GlobalNotification) error {
+			_, err := p.notifications.CreateGlobalNotification(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.notifications.ListGlobalNotifications,
+		cacheList: p.cache.ListGlobalNotifications,
+		deleteAll: p.notifications.DeleteAllGlobalNotifications,
+	})
+}
+
+// TestStaticHostUsers tests that CRUD operations on static host user resources are
+// replicated from the backend to the cache.
+func TestStaticHostUsers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*userprovisioningpb.StaticHostUser]{
+		newResource: func(name string) (*userprovisioningpb.StaticHostUser, error) {
+			return newStaticHostUser(t, name), nil
+		},
+		create: func(ctx context.Context, item *userprovisioningpb.StaticHostUser) error {
+			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
+			return trace.Wrap(err)
+		},
+		list:      p.staticHostUsers.ListStaticHostUsers,
+		cacheList: p.cache.ListStaticHostUsers,
+		deleteAll: p.cache.staticHostUsersCache.DeleteAllStaticHostUsers,
+	}, withSkipPaginationTest())
 }
 
 type testOptions struct {
@@ -1427,29 +2985,26 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 			// would be overly-pedantic about a service returning `nil` rather
 			// than an empty slice.
 			if len(expected) == 0 {
-				require.Empty(t, out)
+				assert.Empty(t, out)
 				return
 			}
-
-			require.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+			assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 10*time.Millisecond)
 	}
-
 	// Check that the resource is now in the backend.
 	out, err := funcs.listAll(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
 	assertCacheContents([]T{r})
-
 	// cacheGet is optional as not every resource implements it
 	if funcs.cacheGet != nil {
 		// Make sure a single cache get works.
 		getR, err := funcs.cacheGet(ctx, funcs.resource.Name(r))
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+		require.Empty(t, gocmp.Diff(r, getR, cmpOpts...))
 
 		// Make sure we get a NotFoundError (and not a panic) when the resource
 		// is not found.
@@ -1473,16 +3028,13 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
-
 	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
 	out, err = funcs.listAll(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-
+	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 	// Check that information has been replicated to the cache.
 	assertCacheContents([]T{r})
-
 	if funcs.delete != nil {
 		// Add a second resource.
 		r2, err := funcs.newResource("test-resource-2")
@@ -1497,9 +3049,135 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	// Remove all resources from the backend.
 	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
-
 	// Check that information has been replicated to the cache.
 	assertCacheContents([]T{})
+}
+
+func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]) {
+	t.Helper()
+
+	const defaultTestPageSize = 2
+	const numberOfFullPages = 2
+	const totalItemCount = (numberOfFullPages * defaultTestPageSize) + 1
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.eventsC:
+				// Discard events to avoid blocking the test.
+			}
+		}
+	}()
+
+	// Generate resources
+	for i := range totalItemCount {
+		name := fmt.Sprintf("resources-%d", i)
+		r, err := funcs.newResource(name)
+		require.NoError(t, err)
+		require.NoError(t, funcs.create(ctx, r))
+	}
+
+	// Fetch all of the created items from the upstream:
+	expected, err := funcs.listAll(ctx)
+	require.NoError(t, err)
+	require.Len(t, expected, totalItemCount)
+
+	cmpOpts := funcs.resource.cmpOpts
+
+	// Wait for all the resources to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		items, _ := funcs.cacheListAll(ctx)
+		assert.Len(t, items, len(expected))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	page1, page2Start, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, defaultTestPageSize)
+	assert.NotEmpty(t, page2Start)
+
+	page2, page3Start, err := funcs.cacheList(ctx, defaultTestPageSize, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, defaultTestPageSize)
+	assert.NotEmpty(t, page3Start)
+
+	page3, end, err := funcs.cacheList(ctx, defaultTestPageSize, page3Start)
+	require.NoError(t, err)
+	assert.Len(t, page3, 1)
+	assert.Empty(t, end)
+
+	var listed []T
+	listed = append(listed, page1...)
+	listed = append(listed, page2...)
+	listed = append(listed, page3...)
+
+	// All items have been returned as expected
+	assert.Empty(t, gocmp.Diff(expected, listed, cmpOpts...))
+
+	// Small pages
+	pageSmall, pageSmallNext, err := funcs.cacheList(ctx, 1, "")
+	require.NoError(t, err)
+	assert.Len(t, pageSmall, 1)
+	assert.NotEmpty(t, pageSmallNext)
+
+	if funcs.Range != nil && funcs.cacheRange != nil {
+		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
+		require.NoError(t, err)
+		assert.Len(t, out, len(page1))
+		assert.Empty(t, gocmp.Diff(page1, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, page2Start, ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected)-defaultTestPageSize)
+		assert.Empty(t, gocmp.Diff(expected, append(page1, out...), cmpOpts...))
+
+		// invalidate the cache, cover upstream fallback
+		p.cache.ok = false
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
+	}
+
+	// invalidate the cache, cover upstream fallback
+	p.cache.ok = false
+	out, err := funcs.cacheListAll(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
+
+	require.NoError(t, funcs.deleteAll(ctx))
+
+	// Wait for the cache to be empty.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		items, err := funcs.cacheListAll(ctx)
+		assert.NoError(t, err)
+		assert.Empty(t, items)
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+type resourcesLister interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+func listResource(ctx context.Context, lister resourcesLister, kind string, pageSize int, pageToken string) ([]types.ResourceWithLabels, string, error) {
+	resp, err := lister.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: kind,
+		Limit:        int32(pageSize),
+		StartKey:     pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.Resources, resp.NextKey, nil
 }
 
 func TestRelativeExpiry(t *testing.T) {
@@ -1524,7 +3202,7 @@ func TestRelativeExpiry(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := range nodeCount {
+	for i := int64(0); i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1533,7 +3211,7 @@ func TestRelativeExpiry(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for range nodeCount {
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1602,7 +3280,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1611,7 +3289,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1652,6 +3330,7 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 		c.Clock = clock
 		c.target = "llama"
 		c.Watches = []types.WatchKind{
+			{Kind: types.KindNamespace},
 			{Kind: types.KindNode},
 			{Kind: types.KindCertAuthority},
 		}
@@ -1659,7 +3338,7 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 	})
 	t.Cleanup(p2.Close)
 
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		clock.Advance(time.Hour * 24)
 		drainEvents(p.eventsC)
 		unexpectedEvent(t, p.eventsC, RelativeExpiry)
@@ -1688,7 +3367,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
 	step := p.cache.Config.MaxRetryPeriod / 16.0
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
 		case event := <-p.eventsC:
@@ -1752,7 +3431,6 @@ func TestSetupConfigFns(t *testing.T) {
 
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
-		"ForRelay":          ForRelay,
 		"ForRemoteProxy":    ForRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
@@ -1862,7 +3540,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	cases := map[string]Config{
 		"ForAuth":        ForAuth(Config{}),
 		"ForProxy":       ForProxy(Config{}),
-		"ForRelay":       ForRelay(Config{}),
 		"ForRemoteProxy": ForRemoteProxy(Config{}),
 		"ForNode":        ForNode(Config{}),
 		"ForKubernetes":  ForKubernetes(Config{}),
@@ -1895,6 +3572,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebSession:                        &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:                        &types.WebSessionV2{SubKind: types.KindAppSession},
 		types.KindSnowflakeSession:                  &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:                    &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                          &types.WebTokenV3{},
 		types.KindRemoteCluster:                     &types.RemoteClusterV3{},
 		types.KindKubeServer:                        &types.KubernetesServerV3{},
@@ -1925,7 +3603,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
 		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t, "test")),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
@@ -1940,15 +3618,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
 		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
+		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindPlugin:                            &types.PluginV1{},
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
-		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
-		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
-		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
-		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
-		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
-		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 	}
 
@@ -1968,59 +3641,21 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				require.NoError(t, err)
 
 				// unwrap the RFD 153 resource if necessary
-				switch uw := event.Resource.(type) {
-				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.Account]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.Account]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*provisioningv1.PrincipalState]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*provisioningv1.PrincipalState]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*usertasksv1.UserTask]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*usertasksv1.UserTask]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentReport]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentReport]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*notificationsv1.Notification]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.Notification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				switch r := resource.(type) {
+				case types.Resource153Unwrapper:
+					eventResource, ok := event.Resource.(types.Resource153Unwrapper)
+					require.True(t, ok)
+
+					// if the resource is a protobuf message, pass an option so
+					// attempting to compare the messages does not result in a panic
+					switch r := r.Unwrap().(type) {
+					case protobuf.Message:
+						require.Empty(t, gocmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+					default:
+						require.Empty(t, gocmp.Diff(r, eventResource.Unwrap()))
+					}
 				default:
-					require.Empty(t, cmp.Diff(resource, event.Resource))
+					require.Empty(t, gocmp.Diff(resource, event.Resource))
 				}
 			}
 		})
@@ -2065,7 +3700,7 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	err = p.cache.collections.users.onPut(user)
+	_, err = p.cache.usersCache.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache
@@ -2074,7 +3709,9 @@ func TestPartialHealth(t *testing.T) {
 	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
 
 	// query cache storage directly to ensure roles haven't been replicated
-	require.Empty(t, p.cache.collections.roles.store.len())
+	rolesStoredInCache, err := p.cache.accessCache.GetRoles(ctx)
+	require.NoError(t, err)
+	require.Empty(t, rolesStoredInCache)
 
 	// non-empty result here proves that it was not served from cache
 	resultRoles, err := p.cache.GetRoles(ctx)
@@ -2169,8 +3806,8 @@ func TestInvalidDatabases(t *testing.T) {
 				// Wait until the database appear on cache.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbs, err := c.GetDatabases(ctx)
-					require.NoError(t, err)
-					require.Len(t, dbs, 1)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2188,6 +3825,7 @@ func TestInvalidDatabases(t *testing.T) {
 			},
 		},
 	} {
+		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			p := newTestPack(t, ForAuth)
@@ -2306,7 +3944,7 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 			Name: name,
 		},
 		accesslist.Spec{
-			Title:       "Title" + name,
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -2505,20 +4143,11 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	return notification
 }
 
-func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind:    types.KindAccessMonitoringRule,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-			Notification: &accessmonitoringrulesv1.Notification{
-				Name: "test",
-			},
-			Subjects:  []string{"llama", "shark"},
-			Condition: "test",
+			Notification: &accessmonitoringrulesv1.Notification{},
 		},
 	}
 	return notification
@@ -2627,6 +4256,75 @@ const testEntityDescriptorFmt = `<?xml version="1.0" encoding="UTF-8"?>
 </md:EntityDescriptor>
 `
 
+// TestCAWatcherFilters tests cache CA watchers with filters are not rejected
+// by auth, even if a CA filter includes a "new" CA type.
+func TestCAWatcherFilters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	allCAsAndNewCAFilter := makeAllKnownCAsFilter()
+	// auth will never send such an event, but it won't reject the watch request
+	// either since auth cache's confirmedKinds dont have a CA filter.
+	allCAsAndNewCAFilter["someBackportedCAType"] = "*"
+
+	tests := []struct {
+		desc    string
+		filter  types.CertAuthorityFilter
+		watcher types.Watcher
+	}{
+		{
+			desc: "empty filter",
+		},
+		{
+			desc:   "all CAs filter",
+			filter: makeAllKnownCAsFilter(),
+		},
+		{
+			desc:   "all CAs and a new CA filter",
+			filter: allCAsAndNewCAFilter,
+		},
+	}
+
+	// setup watchers for each test case before we generate events.
+	for i := range tests {
+		test := &tests[i]
+		w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
+			{
+				Kind:   types.KindCertAuthority,
+				Filter: test.filter.IntoMap(),
+			},
+		}})
+		require.NoError(t, err)
+		test.watcher = w
+		t.Cleanup(func() {
+			require.NoError(t, w.Close())
+		})
+	}
+
+	// generate an OpPut event.
+	ca := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
+
+	const fetchTimeout = time.Second
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			event := fetchEvent(t, test.watcher, fetchTimeout)
+			require.Equal(t, types.OpInit, event.Type)
+
+			event = fetchEvent(t, test.watcher, fetchTimeout)
+			require.Equal(t, types.OpPut, event.Type)
+			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
+			gotCA, ok := event.Resource.(*types.CertAuthorityV2)
+			require.True(t, ok)
+			require.Equal(t, types.UserCA, gotCA.GetType())
+		})
+	}
+}
+
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
 	t.Helper()
 	timeoutC := time.After(timeout)
@@ -2639,134 +4337,6 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	case ev = <-w.Events():
 	}
 	return ev
-}
-
-func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]) {
-	t.Helper()
-
-	const defaultTestPageSize = 2
-	const numberOfFullPages = 2
-	const totalItemCount = (numberOfFullPages * defaultTestPageSize) + 1
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-p.eventsC:
-				// Discard events to avoid blocking the test.
-			}
-		}
-	}()
-
-	// Generate resources
-	for i := range totalItemCount {
-		name := fmt.Sprintf("resources-%d", i)
-		r, err := funcs.newResource(name)
-		require.NoError(t, err)
-		require.NoError(t, funcs.create(ctx, r))
-	}
-
-	// Fetch all of the created items from the upstream:
-	expected, err := funcs.listAll(ctx)
-	require.NoError(t, err)
-	require.Len(t, expected, totalItemCount)
-
-	cmpOpts := funcs.resource.cmpOpts
-
-	// Wait for all the resources to be replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		items, _ := funcs.cacheListAll(ctx)
-		assert.Len(t, items, len(expected))
-	}, 15*time.Second, 100*time.Millisecond)
-
-	page1, page2Start, err := funcs.cacheList(ctx, defaultTestPageSize, "")
-	require.NoError(t, err)
-	assert.Len(t, page1, defaultTestPageSize)
-	assert.NotEmpty(t, page2Start)
-
-	page2, page3Start, err := funcs.cacheList(ctx, defaultTestPageSize, page2Start)
-	require.NoError(t, err)
-	assert.Len(t, page2, defaultTestPageSize)
-	assert.NotEmpty(t, page3Start)
-
-	page3, end, err := funcs.cacheList(ctx, defaultTestPageSize, page3Start)
-	require.NoError(t, err)
-	assert.Len(t, page3, 1)
-	assert.Empty(t, end)
-
-	var listed []T
-	listed = append(listed, page1...)
-	listed = append(listed, page2...)
-	listed = append(listed, page3...)
-
-	// All items have been returned as expected
-	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
-
-	// Small pages
-	pageSmall, pageSmallNext, err := funcs.cacheList(ctx, 1, "")
-	require.NoError(t, err)
-	assert.Len(t, pageSmall, 1)
-	assert.NotEmpty(t, pageSmallNext)
-
-	if funcs.Range != nil && funcs.cacheRange != nil {
-		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
-		require.NoError(t, err)
-		assert.Len(t, out, len(page1))
-		assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
-
-		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
-		require.NoError(t, err)
-		assert.Len(t, out, len(expected))
-		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
-
-		out, err = stream.Collect(funcs.cacheRange(ctx, page2Start, ""))
-		require.NoError(t, err)
-		assert.Len(t, out, len(expected)-defaultTestPageSize)
-		assert.Empty(t, cmp.Diff(expected, append(page1, out...), cmpOpts...))
-
-		// invalidate the cache, cover upstream fallback
-		p.cache.ok = false
-		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
-		require.NoError(t, err)
-		assert.Len(t, out, len(expected))
-		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
-	}
-
-	// invalidate the cache, cover upstream fallback
-	p.cache.ok = false
-	out, err := funcs.cacheListAll(ctx)
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
-
-	require.NoError(t, funcs.deleteAll(ctx))
-
-	// Wait for the cache to be empty.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		items, err := funcs.cacheListAll(ctx)
-		assert.NoError(t, err)
-		assert.Empty(t, items)
-	}, 3*time.Second, 100*time.Millisecond)
-}
-
-type resourcesLister interface {
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-}
-
-func listResource(ctx context.Context, lister resourcesLister, kind string, pageSize int, pageToken string) ([]types.ResourceWithLabels, string, error) {
-	resp, err := lister.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: kind,
-		Limit:        int32(pageSize),
-		StartKey:     pageToken,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return resp.Resources, resp.NextKey, nil
 }
 
 // NewTestCA returns new test authority with a test key as a public and
@@ -2868,7 +4438,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add TLS keys if necessary.
 	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 			Signer: key.Signer,
 			Entity: pkix.Name{

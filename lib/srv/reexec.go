@@ -33,21 +33,19 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
-	ocselinux "github.com/opencontainers/selinux/go-selinux"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -56,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
-	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -162,10 +159,6 @@ type ExecCommand struct {
 	// the parent process. These files start at file descriptor 3 of the
 	// child process, and are only valid for processes without a terminal.
 	ExtraFilesLen int `json:"extra_files_len"`
-
-	// SetSELinuxContext is true when the SELinux context should be set
-	// for the child.
-	SetSELinuxContext bool `json:"set_selinux_context"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -183,8 +176,11 @@ type PAMConfig struct {
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
 type UaccMetadata struct {
+	// The hostname of the node.
+	Hostname string `json:"hostname"`
+
 	// RemoteAddr is the address of the remote host.
-	RemoteAddr utils.NetAddr `json:"remote_addr"`
+	RemoteAddr [4]int32 `json:"remote_addr"`
 
 	// UtmpPath is the path of the system utmp database.
 	UtmpPath string `json:"utmp_path,omitempty"`
@@ -194,19 +190,11 @@ type UaccMetadata struct {
 
 	// BtmpPath is the path of the system btmp log.
 	BtmpPath string `json:"btmp_path,omitempty"`
-
-	// WtmpdbPath is the path of the system wtmpdb database.
-	WtmpdbPath string `json:"wtmpdb_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
-// pipe) then constructs and runs the command. This function may change
-// system state related to the process and/or thread for PAM and SELinux.
-// The process should exit after this function returns so the potentially
-// modified process and/or thread isn't used with a non-standard state.
+// pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
-	ctx := context.Background()
-
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
 	// existing exec sessions to close before ending the process. For this to
 	// work when closing the entire teleport process group, exec sessions must
@@ -262,25 +250,26 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
 		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
-		slog.DebugContext(ctx, "failed to send user start event to auditd", "error", err)
+		log.WithError(err).Debugf("failed to send user start event to auditd: %v", err)
 	}
 
 	defer func() {
 		if err != nil {
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-					slog.DebugContext(ctx, "failed to send UserErr event to auditd", "error", err)
+					log.WithError(err).Debugf("failed to send UserErr event to auditd: %v", err)
 				}
 				return
 			}
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
-			slog.DebugContext(ctx, "failed to send UserEnd event to auditd", "error", err)
+			log.WithError(err).Debugf("failed to send UserEnd event to auditd: %v", err)
 		}
 	}()
 
 	var tty *os.File
+	uaccEnabled := false
 
 	// If a terminal was requested, file descriptor 7 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
@@ -343,34 +332,24 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
-	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
-		UtmpFile:   c.UaccMetadata.UtmpPath,
-		WtmpFile:   c.UaccMetadata.WtmpPath,
-		BtmpFile:   c.UaccMetadata.BtmpPath,
-		WtmpdbFile: c.UaccMetadata.WtmpdbPath,
-	})
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
-			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
+		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			log.WithError(uaccErr).Debug("uacc unsupported.")
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.Terminal {
-		uaccSession, err := uaccHandler.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
+		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
+		// uacc support is best-effort, only enable it if Open is successful.
+		// Currently, there is no way to log this error out-of-band with the
+		// command output, so for now we essentially ignore it.
 		if err == nil {
-			defer func() {
-				if closeErr := uaccSession.Close(); closeErr != nil {
-					slog.DebugContext(ctx, "failed to close uacc session", "error", closeErr)
-				}
-			}()
+			uaccEnabled = true
 		} else {
-			// uacc support is best-effort, only enable it if OpenSession is successful.
-			// Currently, there is no way to log this error out-of-band with the
-			// command output, so for now we essentially ignore it.
-			slog.DebugContext(ctx, "failed to open uacc session", "error", err)
+			log.WithError(err).Debug("uacc unsupported.")
 		}
 	}
 
@@ -406,29 +385,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	if err := setNeutralOOMScore(); err != nil {
-		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
-	}
-
-	// Set SELinux context for the child process if SELinux support is
-	// enabled so the child process will be running with the correct SELinux
-	// user, role and domain.
-	if c.SetSELinuxContext {
-		seContext, err := selinux.UserContext(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
-		}
-
-		// SetExecLabel changes the SELinux exec context for the
-		// calling thread only, so we need to ensure that is the
-		// thread that will create the child. We don't ever unlock
-		// the thread as we're exiting after the child exits, and
-		// we want to avoid another goroutine getting denied due to
-		// running on this thread with a different (likely much more
-		// restrictive)SELinux context.
-		runtime.LockOSThread()
-		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
-		}
+		log.WithError(err).Warnf("failed to adjust OOM score")
 	}
 
 	// Start the command.
@@ -440,7 +397,14 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	err = waitForShell(terminatefd, cmd)
 
-	return errorWriter, exitCode(err), trace.Wrap(err)
+	if uaccEnabled {
+		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
+		if uaccErr != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
+		}
+	}
+
+	return io.Discard, exitCode(err), trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
@@ -542,7 +506,13 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return trace.Wrap(err)
 	}
 
-	found := slices.Contains(groups, group.Gid)
+	found := false
+	for _, localUserGroup := range groups {
+		if localUserGroup == group.Gid {
+			found = true
+			break
+		}
+	}
 
 	if !found {
 		// Check if the new user guid matches the TeleportDropGroup. If not
@@ -628,7 +598,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
-	cred, err := host.GetHostUserCredential(localUser)
+	cred, err := getCmdCredential(localUser)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -1038,7 +1008,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Get the login shell for the user (or fallback to the default).
 	shellPath, err := shell.GetLoginShell(c.Login)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to get login shell", "login", c.Login, "error", err)
+		log.Debugf("Failed to get login shell for %v: %v.", c.Login, err)
 	}
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
@@ -1137,7 +1107,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// to the grandchild.
 		if c.ExtraFilesLen > 0 {
 			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
-			for i := range c.ExtraFilesLen {
+			for i := 0; i < c.ExtraFilesLen; i++ {
 				fd := FirstExtraFile + uintptr(i)
 				f := os.NewFile(fd, strconv.Itoa(int(fd)))
 				if f == nil {
@@ -1178,8 +1148,18 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// workaround this, the credentials struct is only set if the credentials
 	// are different from the process itself. If the credentials are not, simply
 	// pick up the ambient credentials of the process.
-	if err := host.MaybeSetCommandCredentialAsUser(context.Background(), &cmd, localUser, slog.Default()); err != nil {
+	credential, err := getCmdCredential(localUser)
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if os.Getuid() != int(credential.Uid) || os.Getgid() != int(credential.Gid) {
+		cmd.SysProcAttr.Credential = credential
+		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
+			credential.Uid, credential.Gid, credential.Groups)
+	} else {
+		log.Debugf("Creating process with ambient credentials UID %v, GID: %v, Groups: %v.",
+			credential.Uid, credential.Gid, credential.Groups)
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1273,7 +1253,7 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	defer func() {
 		err := ctx.cmdw.Close()
 		if err != nil {
-			slog.ErrorContext(ctx.CancelContext(), "Failed to close command pipe", "error", err)
+			log.Errorf("Failed to close command pipe: %v.", err)
 		}
 
 		// Set to nil so the close in the context doesn't attempt to re-close.
@@ -1283,7 +1263,7 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
 	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
+		log.Errorf("Failed to copy command over pipe: %v.", err)
 		return
 	}
 }
@@ -1360,7 +1340,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	credential, err := host.GetHostUserCredential(localUser)
+	credential, err := getCmdCredential(localUser)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1415,4 +1395,52 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	go cmd.Wait()
 
 	return nil
+}
+
+// getCmdCredentials parses the uid, gid, and groups of the
+// given user into a credential object for a command to use.
+func getCmdCredential(localUser *user.User) (*syscall.Credential, error) {
+	uid, err := strconv.ParseUint(localUser.Uid, 10, 32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	gid, err := strconv.ParseUint(localUser.Gid, 10, 32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		// on macOS we should rely on the list of groups managed by the system
+		// (the use of setgroups is "highly discouraged", as per the setgroups
+		// man page in macOS 13.5)
+		return &syscall.Credential{
+			Uid:         uint32(uid),
+			Gid:         uint32(gid),
+			NoSetGroups: true,
+		}, nil
+	}
+
+	// Lookup supplementary groups for the user.
+	userGroups, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groups := make([]uint32, 0)
+	for _, sgid := range userGroups {
+		igid, err := strconv.ParseUint(sgid, 10, 32)
+		if err != nil {
+			log.Warnf("Cannot interpret user group: '%v'", sgid)
+		} else {
+			groups = append(groups, uint32(igid))
+		}
+	}
+	if len(groups) == 0 {
+		groups = append(groups, uint32(gid))
+	}
+
+	return &syscall.Credential{
+		Uid:    uint32(uid),
+		Gid:    uint32(gid),
+		Groups: groups,
+	}, nil
 }

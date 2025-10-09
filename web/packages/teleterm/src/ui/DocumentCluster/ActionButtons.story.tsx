@@ -121,12 +121,6 @@ function Buttons(props: StoryProps) {
           <Text>SAML app</Text>
           <SamlApp />
         </Box>
-        <HoverTooltip tipContent="Connect doesn't support MCP apps properly yet but it renders a div with consintent width.">
-          <Box>
-            <Text>MCP</Text>
-            <Mcp />
-          </Box>
-        </HoverTooltip>
       </Flex>
       <Box>
         <Text>Server</Text>
@@ -260,17 +254,6 @@ function SamlApp() {
       app={makeApp({
         endpointUri: 'https://localhost:3000',
         samlApp: true,
-        uri: `${testCluster.uri}/apps/bar`,
-      })}
-    />
-  );
-}
-
-function Mcp() {
-  return (
-    <ConnectAppActionButton
-      app={makeApp({
-        endpointUri: 'mcp+stdio://localhost:3000',
         uri: `${testCluster.uri}/apps/bar`,
       })}
     />

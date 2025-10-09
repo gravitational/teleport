@@ -19,7 +19,6 @@
 package common
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -115,7 +114,7 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
-	rsp, err := client.GetInventoryStatus(ctx, &proto.InventoryStatusRequest{
+	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
 	if err != nil {
@@ -126,13 +125,16 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 	case teleport.Text:
 		if c.getConnected {
 			table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
-			for _, h := range rsp.GetConnected() {
-				table.AddRow([]string{
-					h.GetServerID(),
-					strings.Join(h.GetServices(), ","),
-					h.GetVersion(),
-					cmp.Or(h.GetExternalUpgrader(), "none"),
-				})
+			for _, h := range rsp.Connected {
+				services := make([]string, 0, len(h.Services))
+				for _, s := range h.Services {
+					services = append(services, string(s))
+				}
+				upgrader := h.ExternalUpgrader
+				if upgrader == "" {
+					upgrader = "none"
+				}
+				table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version, upgrader})
 			}
 
 			_, err := table.AsBuffer().WriteTo(os.Stdout)

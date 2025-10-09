@@ -162,7 +162,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 	}
 
 	var big []ConditionalAction
-	for i := range MaxAtomicWriteSize + 1 {
+	for i := 0; i < MaxAtomicWriteSize+1; i++ {
 		big = append(big, ConditionalAction{
 			Key:       NewKey("key-" + strconv.Itoa(i)),
 			Condition: Whatever(),

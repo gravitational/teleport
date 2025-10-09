@@ -87,7 +87,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: upsertedConnector,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector create event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
 
 	return upserted, nil
@@ -133,7 +133,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: updatedConnector,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector update event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector update event.")
 	}
 
 	return updated, nil
@@ -175,7 +175,7 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: newConnector,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector create event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
 
 	return created, nil
@@ -196,7 +196,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 			Name: connectorID,
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector delete event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector delete event.")
 	}
 
 	return nil

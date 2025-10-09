@@ -61,7 +61,7 @@ type ProxyContext struct {
 	// Identity is the authorized client Identity.
 	Identity tlsca.Identity
 	// Cluster is the remote Cluster running the database server.
-	Cluster reversetunnelclient.Cluster
+	Cluster reversetunnelclient.RemoteSite
 	// Servers is a list of database Servers that proxy the requested database.
 	Servers []types.DatabaseServer
 	// AuthContext is a context of authenticated user.

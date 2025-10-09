@@ -160,9 +160,11 @@ func (a *Server) LookupAgentInInventory(ctx context.Context, hostID string) ([]*
 		if now.Sub(handle.RegistrationTime()) < constants.AutoUpdateAgentReportPeriod {
 			continue
 		}
+		// v17 compat code, hello in v18 + are pointers
+		hello := handle.Hello()
 		// Do don't apply other filtering logic like filterHandle() does because the instance already
 		// got selected with strict constraints earlier during sampling. We don't want a filtering rule change, or an instance change, to make the lookup fail and block the rollout.
-		qualifiedHellos = append(qualifiedHellos, handle.Hello())
+		qualifiedHellos = append(qualifiedHellos, &hello)
 	}
 
 	if len(qualifiedHellos) == 0 {

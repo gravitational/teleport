@@ -1,10 +1,9 @@
 ---
 title: Deploying tbot on Kubernetes with OIDC
 description: How to install and configure Machine ID on Kubernetes with OIDC
-tags:
+labels:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 This guide shows you how to deploy the Machine ID daemon `tbot` on a Kubernetes
@@ -65,8 +64,8 @@ possible.
 
 ## Prerequisites
 
-- A running Teleport cluster, version 18.1.5 or above.
-- The `tsh` and `tctl` clients, version 18.1.5 or above.
+- A Teleport cluster running at least version 17.7.3 or 18.1.5
+- The `tsh` and `tctl` clients, running at least version 17.7.3 or 18.1.5
 - (!docs/pages/includes/tctl.mdx!)
 - A Kubernetes cluster with support for Token Request Projection (which
   graduated to a generally available feature in Kubernetes 1.20).
@@ -154,7 +153,7 @@ Refer to your cloud provider documentation to enable this feature, including:
 
 If your provider does not support this feature, consider using either [Static
 JWKS joining](./kubernetes.mdx) or an [alternative Teleport join
-method](../../../reference/deployment/join-methods.mdx) better suited to your cloud provider.
+method](../../../reference/join-methods.mdx) better suited to your cloud provider.
 </Admonition>
 
 ## Step 2/6. Prepare Kubernetes RBAC
@@ -448,8 +447,8 @@ spec:
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
 
 [said]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery

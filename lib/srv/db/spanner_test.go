@@ -35,13 +35,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 )
 
 func TestAccessSpanner(t *testing.T) {
 	ctx := context.Background()
 	const dbServiceName = "my-spanner"
-	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, cloudSpannerAuthToken, func(db *types.DatabaseV3) {
+	// matches the token from the mock Auth.
+	const authToken = "cloud-spanner-auth-token"
+	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, authToken, func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
 	}))
 	go testCtx.startHandlingConnections()
@@ -209,7 +211,9 @@ func TestAccessSpanner(t *testing.T) {
 func TestAuditSpanner(t *testing.T) {
 	ctx := context.Background()
 	const dbServiceName = "my-spanner"
-	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, cloudSpannerAuthToken, func(db *types.DatabaseV3) {
+	// matches the token from the mock Auth.
+	const authToken = "cloud-spanner-auth-token"
+	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, authToken, func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
 	}))
 	go testCtx.startHandlingConnections()

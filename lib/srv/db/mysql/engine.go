@@ -28,18 +28,16 @@ import (
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
-	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,28 +59,14 @@ type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// proxyConn is a client connection.
-	proxyConn *server.Conn
+	proxyConn server.Conn
 }
 
 // InitializeConnection initializes the engine with client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
-	e.proxyConn = makeProxyConn(clientConn)
+	// Make server conn to get access to protocol's WriteOK/WriteError methods.
+	e.proxyConn = server.Conn{Conn: packet.NewConn(clientConn)}
 	return nil
-}
-
-func makeProxyConn(clientConn net.Conn) *server.Conn {
-	return server.MakeConn(
-		clientConn,
-		server.NewServer(
-			DefaultServerVersion,
-			mysql.DEFAULT_COLLATION_ID,
-			mysql.AUTH_CACHING_SHA2_PASSWORD,
-			nil,
-			nil,
-		),
-		&credentialProvider{},
-		server.EmptyHandler{},
-	)
 }
 
 // SendError sends an error to connected client in the MySQL understandable format.
@@ -146,19 +130,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	}
 
-	// notify proxy of auth/connect success. At this point the original client
-	// should consider the connection phase completed.
-	if err := notifyProxy(ctx, e.Log, getHandshakeMode(), e.proxyConn); err != nil {
-		e.Log.ErrorContext(ctx, "Failed to notify proxy of connection",
-			"error", err,
-		)
+	// Send back OK packet to indicate auth/connect success. At this point
+	// the original client should consider the connection phase completed.
+	err = e.proxyConn.WriteOK(nil)
+	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if attrs := e.proxyConn.Attributes(); attrs != nil {
-		if clientName, ok := attrs[clientNameParamName]; ok {
-			sessionCtx.UserAgent = clientName
-		}
 	}
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
@@ -261,7 +237,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		}
 	case sessionCtx.Database.IsCloudSQL():
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.GCPClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -520,21 +496,13 @@ func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 		// by creating a TLS connection to the Cloud Proxy port overriding the
 		// MySQL client's connection. MySQL on the default port does not trust
 		// the ephemeral certificate's CA but Cloud Proxy does.
-		address = getGCPTLSAddress(address)
+		host, port, err := net.SplitHostPort(address)
+		if err == nil && port == gcpSQLListenPort {
+			address = net.JoinHostPort(host, gcpSQLProxyListenPort)
+		}
 		tlsDialer := tls.Dialer{Config: tlsConfig}
 		return tlsDialer.DialContext(ctx, network, address)
 	}
-}
-
-// getGCPTLSAddress returns the appropriate address for a Cloud SQL MySQL
-// instance, possibly overriding the default port to instead use the Cloud Proxy
-// port.
-func getGCPTLSAddress(address string) string {
-	host, port, err := net.SplitHostPort(address)
-	if err == nil && port == gcpSQLListenPort {
-		return net.JoinHostPort(host, gcpSQLProxyListenPort)
-	}
-	return address
 }
 
 // FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
@@ -558,54 +526,3 @@ const (
 	// gcpSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
 	gcpSQLProxyListenPort = "3307"
 )
-
-// resolverClients are API clients needed to resolve MySQL endpoints.
-type resolverClients interface {
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
-}
-
-// NewEndpointsResolver returns a database target endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, cfg endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	return newEndpointsResolver(db, cfg.GCPClients)
-}
-
-func newEndpointsResolver(db types.Database, clients resolverClients) (endpoints.Resolver, error) {
-	switch {
-	case db.IsCloudSQL():
-		return newCloudSQLEndpointResolver(db, clients), nil
-	default:
-		return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-			return []string{db.GetURI()}, nil
-		}), nil
-	}
-}
-
-func newCloudSQLEndpointResolver(db types.Database, clients resolverClients) endpoints.Resolver {
-	// avoid checking the ssl mode more than once every 15 minutes.
-	sometimes := rate.Sometimes{Interval: 15 * time.Minute}
-	var requireSSL bool
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-		var requireSSLErr error
-		sometimes.Do(func() {
-			clt, err := clients.GetGCPSQLAdminClient(ctx)
-			if err != nil {
-				requireSSLErr = trace.Wrap(err)
-				return
-			}
-
-			requireSSL, err = cloud.GetGCPRequireSSL(ctx, db, clt)
-			if err != nil && !trace.IsAccessDenied(err) {
-				requireSSLErr = trace.Wrap(err)
-				return
-			}
-		})
-		if requireSSLErr != nil {
-			return nil, trace.Wrap(requireSSLErr)
-		}
-		if requireSSL {
-			return []string{getGCPTLSAddress(db.GetURI())}, nil
-		}
-		return []string{db.GetURI()}, nil
-	})
-}

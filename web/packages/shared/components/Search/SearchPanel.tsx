@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
@@ -24,7 +24,6 @@ import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceFilter } from 'teleport/services/agents';
 
 export function SearchPanel({
@@ -36,11 +35,11 @@ export function SearchPanel({
   hideAdvancedSearch,
   extraChildren,
 }: {
-  updateQuery?: (s: string) => void;
-  updateSearch: (s: string) => void;
+  updateQuery(s: string): void;
+  updateSearch(s: string): void;
   pageIndicators?: { from: number; to: number; total: number };
   filter: ResourceFilter;
-  disableSearch?: boolean;
+  disableSearch: boolean;
   hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
 }) {
@@ -60,11 +59,11 @@ export function SearchPanel({
     setQuery(newQuery);
 
     if (isAdvancedSearch) {
-      updateQuery?.(newQuery);
+      updateQuery(newQuery);
       return;
     }
 
-    updateSearch?.(newQuery);
+    updateSearch(newQuery);
   }
 
   return (

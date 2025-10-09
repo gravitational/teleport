@@ -46,7 +46,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...any) {
+		return func(tt require.TestingT, err error, i ...interface{}) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -130,7 +130,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -313,7 +313,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -327,6 +327,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 
@@ -345,7 +346,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...any) {
+		return func(tt require.TestingT, err error, i ...interface{}) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -428,6 +429,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 		},
 	}
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			localCtx := authorizerForSystemRole(ctx, string(tc.systemRole))
 

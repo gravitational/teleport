@@ -129,10 +129,10 @@ func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
 	}
 }
 
-func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventoryHello, metadata *proto.UpstreamInventoryAgentMetadata) {
+func (i *instanceMetricsPeriodic) VisitInstance(instance proto.UpstreamInventoryHello, metadata proto.UpstreamInventoryAgentMetadata) {
 	// Sort install methods if multiple methods are specified.
 	installMethod := "unknown"
-	installMethods := slices.Clone(metadata.GetInstallMethods())
+	installMethods := append([]string{}, metadata.GetInstallMethods()...)
 	if len(installMethods) > 0 {
 		slices.Sort(installMethods)
 		installMethod = strings.Join(installMethods, ",")

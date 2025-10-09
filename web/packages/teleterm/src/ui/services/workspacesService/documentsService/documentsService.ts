@@ -36,6 +36,7 @@ import { getDocumentGatewayTitle } from './documentsUtils';
 import {
   CreateAccessRequestDocumentOpts,
   CreateGatewayDocumentOpts,
+  CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentAuthorizeWebSession,
@@ -48,7 +49,9 @@ import {
   DocumentGatewayKube,
   DocumentOrigin,
   DocumentPtySession,
+  DocumentTshKube,
   DocumentTshNode,
+  DocumentTshNodeWithServerId,
   DocumentVnetDiagReport,
   DocumentVnetInfo,
   VnetLauncherArgs,
@@ -109,10 +112,38 @@ export class DocumentsService {
     return createClusterDocument(opts);
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
+  createTshKubeDocument(
+    options: CreateTshKubeDocumentOptions
+  ): DocumentTshKube {
+    const { params } = routing.parseKubeUri(options.kubeUri);
+    const uri = routing.getDocUri({ docId: unique() });
+    return {
+      uri,
+      kind: 'doc.terminal_tsh_kube',
+      status: 'connecting',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      kubeId: params.kubeId,
+      kubeUri: options.kubeUri,
+      // We prepend the name with `rootClusterId/` to create a kube config
+      // inside this directory. When the user logs out of the cluster,
+      // the entire directory is deleted.
+      kubeConfigRelativePath:
+        options.kubeConfigRelativePath ||
+        `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
+      title: params.kubeId,
+      origin: options.origin,
+    };
+  }
+
   createTshNodeDocument(
     serverUri: ServerUri,
     params: { origin: DocumentOrigin }
-  ): DocumentTshNode {
+  ): DocumentTshNodeWithServerId {
     const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -582,6 +613,5 @@ export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryPara
     search: '',
     sort: { fieldName: 'name', dir: 'ASC' },
     advancedSearchEnabled: false,
-    statuses: [],
   };
 }

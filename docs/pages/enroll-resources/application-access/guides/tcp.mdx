@@ -4,7 +4,6 @@ description: How to configure Teleport for accessing plain TCP apps
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 Teleport can provide access to any TCP-based application. This allows users to
@@ -35,14 +34,9 @@ Proxy Service.
   already have.
 - Host where you will run the Teleport Application Service.
 
-We will assume your Teleport cluster is accessible at `teleport.example.com`
-and `*.teleport.example.com`. You can substitute the address of your Teleport
-Proxy Service. (For Teleport Cloud customers, this will be similar to
-`mytenant.teleport.sh`.)
-
-<Admonition type="note">
-(!docs/pages/includes/dns-app-access.mdx!)
-</Admonition>
+We will assume your Teleport cluster is accessible at `teleport.example.com`.
+You can substitute the address of your Teleport Proxy Service. (For Teleport
+Cloud customers, this will be similar to `example.teleport.sh`.)
 
 ## Step 1/4. Start PostgreSQL container
 
@@ -128,7 +122,7 @@ $ tsh login --proxy=teleport.example.com
 $ tsh apps ls
 Application Description   Type Public Address                   Labels
 ----------- ------------- ---- -------------------------------- -----------
-tcp-app                   TCP  tcp-app.root.gravitational.io
+tcp-app                   TCP  tcp-app.teleport.example.com
 ```
 
 Your TCP application should show up and be denoted with a `TCP` type.
@@ -218,6 +212,15 @@ There is no RBAC for TCP ports – a user that has access to an application can 
 the specification. We&nbsp;strongly recommend specifying only the necessary ports instead of defining a
 wide port range that happens to include ports that are meant to be available.
 </Admonition>
+
+{/* TODO: DELETE IN 19.0.0. At this point all compatible servers and clients are going
+to support multiple ports. */}
+
+Support for multiple ports is available in Teleport v17.1+. Connections from Teleport clients that
+do not support multiple ports are routed to the first port from the application specification. An
+Application Service that does not support multiple ports will not be able to handle traffic to a
+multi-port application if it receives such application through [dynamic
+registration](./dynamic-registration.mdx) from an Auth Service.
 
 ### Further reading
 

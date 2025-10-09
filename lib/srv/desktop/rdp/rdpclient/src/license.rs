@@ -20,6 +20,7 @@ use crate::{
 };
 use ironrdp_connector::{custom_err, general_err, ConnectorError, ConnectorResult, LicenseCache};
 use ironrdp_pdu::rdp::server_license::LicenseInformation;
+use picky_krb::negoex::NegoexDataType;
 use std::ffi::{CString, NulError};
 use std::{ptr, slice};
 
@@ -74,7 +75,7 @@ impl LicenseCache for GoLicenseCache {
                 self.cgo_handle,
                 &mut req,
                 license_info.license_info.as_mut_ptr(),
-                license_info.license_info.len(),
+                license_info.license_info.size(),
             ) {
                 CGOErrCode::ErrCodeSuccess => Ok(()),
                 _ => Err(general_err!("error storing license")),

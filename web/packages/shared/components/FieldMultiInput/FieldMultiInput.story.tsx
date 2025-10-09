@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
 import { useState } from 'react';
 
 import Box from 'design/Box';
@@ -24,31 +23,20 @@ import { Button } from 'design/Button';
 import Validation from 'shared/components/Validation';
 
 import { arrayOf, requiredField } from '../Validation/rules';
-import { FieldMultiInput as Component } from './FieldMultiInput';
+import { FieldMultiInput } from './FieldMultiInput';
 
-type StoryProps = {
-  readOnly?: boolean;
-  disabled?: boolean;
-};
-
-const meta: Meta<StoryProps> = {
+export default {
   title: 'Shared',
-  component: FieldMultiInput,
-  args: {
-    readOnly: false,
-    disabled: false,
-  },
 };
-export default meta;
 
-export function FieldMultiInput(props: StoryProps) {
+export function Story() {
   const [items, setItems] = useState([]);
   return (
     <Box width="500px">
       <Validation>
         {({ validator }) => (
           <>
-            <Component
+            <FieldMultiInput
               label="Some items"
               value={items}
               onChange={setItems}
@@ -56,8 +44,6 @@ export function FieldMultiInput(props: StoryProps) {
               required
               tooltipContent="I'm a sticky tooltip."
               tooltipSticky
-              disabled={props.disabled}
-              readOnly={props.readOnly}
             />
             <Button mt={3} onClick={() => validator.validate()}>
               Validate
@@ -68,3 +54,4 @@ export function FieldMultiInput(props: StoryProps) {
     </Box>
   );
 }
+Story.storyName = 'FieldMultiInput';

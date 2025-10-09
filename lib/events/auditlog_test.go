@@ -21,7 +21,6 @@ package events_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -39,11 +37,10 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -107,14 +104,6 @@ func TestLogRotation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, found, 1)
-
-		foundUnstructured, _, err := alog.SearchUnstructuredEvents(ctx, events.SearchEventsRequest{
-			From:  now.Add(-time.Hour),
-			To:    now.Add(time.Hour),
-			Order: types.EventOrderAscending,
-		})
-		require.NoError(t, err)
-		require.Len(t, foundUnstructured, 1)
 	}
 }
 
@@ -141,7 +130,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	// on the download that the first one started
 	streams := 2
 	errors := make(chan error, streams)
-	for range streams {
+	for i := 0; i < streams; i++ {
 		go func() {
 			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
 			for {
@@ -160,7 +149,7 @@ func TestConcurrentStreaming(t *testing.T) {
 
 	// This test just verifies that the streamer does not panic when multiple
 	// concurrent streams are waiting on the same download to complete.
-	for range streams {
+	for i := 0; i < streams; i++ {
 		<-errors
 	}
 }
@@ -317,55 +306,6 @@ func TestExternalLog(t *testing.T) {
 
 	require.Len(t, m.Emitter.Events(), 1)
 	require.Equal(t, m.Emitter.Events()[0], evt)
-}
-
-func TestUploadEncryptedRecording(t *testing.T) {
-	ctx := t.Context()
-	uploader := eventstest.NewMemoryUploader()
-	alog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:       t.TempDir(),
-		ServerID:      "server1",
-		UploadHandler: uploader,
-	})
-	require.NoError(t, err)
-	defer alog.Close()
-
-	parts := [][]byte{
-		[]byte("123"),
-		[]byte("456"),
-		[]byte("789"),
-	}
-	partIter := func(yield func([]byte, error) bool) {
-		for _, part := range parts {
-			if part == nil {
-				if !yield(nil, errors.New("invalid part")) {
-					return
-				}
-			} else {
-				if !yield(part, nil) {
-					return
-				}
-			}
-		}
-	}
-	sessionID, err := uuid.NewV7()
-	require.NoError(t, err)
-
-	err = alog.UploadEncryptedRecording(ctx, sessionID.String(), partIter)
-	require.NoError(t, err)
-
-	uploads, err := uploader.ListUploads(ctx)
-	require.NoError(t, err)
-	require.Len(t, uploads, 1)
-
-	uploaded, err := uploader.ListParts(ctx, uploads[0])
-	require.NoError(t, err)
-
-	require.Len(t, uploaded, len(parts))
-	for idx, part := range uploaded {
-		// uploaded part numbers should increment starting with 1
-		require.Equal(t, int64(idx+1), part.Number)
-	}
 }
 
 func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {

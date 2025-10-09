@@ -38,15 +38,11 @@ export enum DiscoverGuideId {
 
   // Applications:
   ApplicationWebHttpProxy = 'application-web-http-proxy',
-  ApplicationAwsCliConsole = 'application-aws-cli-console', // AWS OIDC IdP
-  ApplicationAwsRolesAnywhere = 'application-aws-iam-roles-anywhere',
+  ApplicationAwsCliConsole = 'application-aws-cli-console',
   ApplicationSamlGeneric = 'application-saml-generic',
   ApplicationSamlGrafana = 'application-saml-grafana',
   ApplicationSamlWorkforceIdentityFederation = 'application-saml-workforce-identity-federation',
   ApplicationSamlMicrosoftEntraId = 'application-saml-microsoft-entra-id',
-
-  // MCP Servers:
-  MCPServerStdioTransport = 'mcp-stdio',
 
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',
@@ -59,7 +55,6 @@ export enum DiscoverGuideId {
   // Databases:
   DatabaseAwsDynamoDb = 'database-aws-dynamo-db',
   DatabaseAwsElastiCacheMemoryDb = 'database-aws-elasticache-memorydb',
-  DatabaseAwsElastiCacheServerless = 'database-aws-elasticache-serverless',
   DatabaseAwsCassandraKeyspaces = 'database-aws-cassandra-keyspaces',
   DatabaseAwsRedshiftServerless = 'database-aws-redshift-serverless',
   DatabaseAwsSqlServerAd = 'database-aws-sql-server-ad',

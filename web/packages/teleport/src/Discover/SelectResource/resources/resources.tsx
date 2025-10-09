@@ -19,8 +19,6 @@
 import { Platform } from 'design/platform';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import cfg from 'teleport/config';
-import { IntegrationKind } from 'teleport/services/integrations';
 import {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
@@ -44,7 +42,6 @@ import {
   awsKeywords,
   baseServerKeywords,
   kubeKeywords,
-  mcpKeywords,
   selfHostedKeywords,
 } from './keywords';
 
@@ -161,21 +158,12 @@ export const APPLICATIONS: SelectResourceSpec[] = [
   },
   {
     id: DiscoverGuideId.ApplicationAwsCliConsole,
-    name: 'AWS CLI/Console Access via AWS OIDC IdP',
+    name: 'AWS CLI/Console Access',
     kind: ResourceKind.Application,
     keywords: [...awsKeywords, 'application', 'cli', 'console access'],
     icon: 'aws',
     event: DiscoverEventResource.ApplicationAwsConsole,
     appMeta: { awsConsole: true },
-  },
-  {
-    id: DiscoverGuideId.ApplicationAwsRolesAnywhere,
-    name: 'AWS CLI/Console Access via AWS Roles Anywhere',
-    kind: ResourceKind.Application,
-    keywords: [...awsKeywords, 'application', 'cli', 'console access'],
-    icon: 'aws',
-    event: DiscoverEventResource.ApplicationAwsConsole,
-    guidedLink: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa),
   },
 ];
 
@@ -223,22 +211,8 @@ export const KUBERNETES: SelectResourceSpec[] = [
   },
 ];
 
-export const MCP_SERVERS: SelectResourceSpec[] = [
-  {
-    id: DiscoverGuideId.MCPServerStdioTransport,
-    name: 'MCP Server with stdio transport',
-    kind: ResourceKind.MCP,
-    keywords: [...mcpKeywords, 'stdio'],
-    icon: 'mcp',
-    event: DiscoverEventResource.MCPStdio,
-    unguidedLink:
-      'https://goteleport.com/docs/enroll-resources/mcp-access/stdio/',
-  },
-];
-
 export const BASE_RESOURCES: SelectResourceSpec[] = [
   ...APPLICATIONS,
-  ...MCP_SERVERS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
   ...SERVERS,
@@ -312,18 +286,12 @@ export function getResourcePretitle(r: SelectResourceSpec) {
     case ResourceKind.ConnectMyComputer:
       return 'SSH';
     case ResourceKind.Application:
-      if (
-        r.id === DiscoverGuideId.ApplicationAwsCliConsole ||
-        r.id === DiscoverGuideId.ApplicationAwsRolesAnywhere
-      ) {
+      if (r.id === DiscoverGuideId.ApplicationAwsCliConsole) {
         return 'Amazon Web Services (AWS)';
       }
       if (r.id === DiscoverGuideId.ApplicationWebHttpProxy) {
         return 'HTTP Proxy';
       }
-      break;
-    case ResourceKind.MCP:
-      return 'Model Context Protocol';
   }
 
   return '';

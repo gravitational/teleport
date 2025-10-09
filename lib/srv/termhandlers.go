@@ -77,7 +77,7 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.Logger.DebugContext(ctx, "Terminal has been requested", "terminal", ptyRequest.Env, "width", params.W, "height", params.H)
+	scx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
 
 	// get an existing terminal or create a new one
 	term := scx.GetTerm()
@@ -92,14 +92,14 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		scx.ttyName = term.TTYName()
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
-		scx.Logger.ErrorContext(ctx, "Failed setting window size", "error", err)
+		scx.Errorf("Failed setting window size: %v", err)
 	}
 	term.SetTermType(ptyRequest.Env)
 	term.SetTerminalModes(termModes)
 
 	// update the session
 	if err := t.SessionRegistry.NotifyWinChange(ctx, *params, scx); err != nil {
-		scx.Logger.ErrorContext(ctx, "Unable to update session", "error", err)
+		scx.Errorf("Unable to update session: %v", err)
 	}
 
 	return nil
@@ -123,19 +123,11 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	if err := scx.SetExecRequest(execRequest); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if joinID, joinMode := scx.GetJoinParams(); joinID != "" {
-		err := t.SessionRegistry.JoinSession(ctx, ch, scx, joinID, joinMode)
-
-		// TODO(Joerger): DELETE IN 20.0.0 - v19+ only set TELEPORT_SESSION
-		// when they want to join a session. Always return an error instead
-		// of ignoring the client provided session ID and creating a new session.
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
+		return trace.Wrap(err)
 	}
 
-	return t.SessionRegistry.OpenSession(ctx, ch, scx)
+	return nil
 }
 
 // HandleFileTransferDecision handles requests of type "file-transfer-decision@goteleport.com" which will

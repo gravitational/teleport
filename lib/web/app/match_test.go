@@ -76,8 +76,8 @@ func TestMatchHealthy(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			match := MatchHealthy(&mockClusterGetter{
-				cluster: &mockCluster{
+			match := MatchHealthy(&mockProxyClient{
+				remoteSite: &mockRemoteSite{
 					dialErr: test.dialErr,
 				},
 			}, "")
@@ -111,21 +111,21 @@ func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
 	}
 }
 
-type mockClusterGetter struct {
-	reversetunnelclient.ClusterGetter
-	cluster *mockCluster
+type mockProxyClient struct {
+	reversetunnelclient.Tunnel
+	remoteSite *mockRemoteSite
 }
 
-func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
-	return p.cluster, nil
+func (p *mockProxyClient) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
+	return p.remoteSite, nil
 }
 
-type mockCluster struct {
-	reversetunnelclient.Cluster
+type mockRemoteSite struct {
+	reversetunnelclient.RemoteSite
 	dialErr error
 }
 
-func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
+func (r *mockRemoteSite) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
 	if r.dialErr != nil {
 		return nil, r.dialErr
 	}

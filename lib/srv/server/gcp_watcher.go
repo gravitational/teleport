@@ -46,14 +46,6 @@ type GCPInstances struct {
 	// ScriptName is the name of the script to execute on the instances to
 	// install Teleport.
 	ScriptName string
-	// InstallSuffix indicates the installation suffix for the teleport installation.
-	// Set this value if you want multiple installations of Teleport.
-	// See --install-suffix flag in teleport-update program.
-	InstallSuffix string
-	// UpdateGroup indicates the update group for the teleport installation.
-	// This value is used to group installations in order to update them in batches.
-	// See --group flag in teleport-update program.
-	UpdateGroup string
 	// PublicProxyAddr is the address of the proxy the discovered node should use
 	// to connect to the cluster.
 	PublicProxyAddr string
@@ -135,8 +127,6 @@ type gcpInstanceFetcher struct {
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
 	Integration         string
-	InstallSuffix       string
-	UpdateGroup         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
@@ -156,8 +146,6 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 			"scriptName":      cfg.Matcher.Params.ScriptName,
 			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
 		}
-		fetcher.InstallSuffix = cfg.Matcher.Params.Suffix
-		fetcher.UpdateGroup = cfg.Matcher.Params.UpdateGroup
 	}
 	return fetcher
 }
@@ -217,8 +205,6 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 					ScriptName:      f.Parameters["scriptName"],
 					PublicProxyAddr: f.Parameters["publicProxyAddr"],
 					Parameters:      []string{f.Parameters["token"]},
-					InstallSuffix:   f.InstallSuffix,
-					UpdateGroup:     f.UpdateGroup,
 				}})
 			}
 		}

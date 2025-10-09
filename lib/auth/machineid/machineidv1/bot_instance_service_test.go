@@ -70,14 +70,6 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbRead, types.VerbList},
 		},
 		{
-			name: "ListBotInstancesV2",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbRead, types.VerbList},
-		},
-		{
 			name: "DeleteBotInstance",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthNotRequired,
@@ -289,7 +281,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotInstanceID: botInstanceID,
 			},
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot name")
 			},
 			wantHeartbeat: false,
@@ -305,7 +297,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotName: botName,
 			},
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot instance")
 			},
 			wantHeartbeat: false,
@@ -319,7 +311,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				},
 			},
 			identity: goodIdentity,
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -330,7 +322,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				Heartbeat: nil,
 			},
 			identity: goodIdentity,
-			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "heartbeat: must be non-nil")
 			},
 			wantHeartbeat: false,
@@ -420,7 +412,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	extraHeartbeats := 5
-	for i := range heartbeatHistoryLimit + extraHeartbeats {
+	for i := 0; i < (heartbeatHistoryLimit + extraHeartbeats); i++ {
 		_, err = service.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
 			Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 				Hostname: strconv.Itoa(i),
@@ -434,7 +426,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	assert.Len(t, bi.Status.LatestHeartbeats, heartbeatHistoryLimit)
 	assert.Equal(t, "0", bi.Status.InitialHeartbeat.Hostname)
 	// Ensure we have the last 10 heartbeats
-	for i := range heartbeatHistoryLimit {
+	for i := 0; i < heartbeatHistoryLimit; i++ {
 		wantHostname := strconv.Itoa(i + extraHeartbeats)
 		assert.Equal(t, wantHostname, bi.Status.LatestHeartbeats[i].Hostname)
 	}
@@ -474,8 +466,10 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindBotInstance {
-		if slices.Contains(f.allowedVerbs, verb) {
-			return nil
+		for _, allowedVerb := range f.allowedVerbs {
+			if allowedVerb == verb {
+				return nil
+			}
 		}
 	}
 
@@ -517,7 +511,7 @@ func createInstances(t *testing.T, ctx context.Context, backend *local.BotInstan
 
 	ids := map[string]struct{}{}
 
-	for range count {
+	for i := 0; i < count; i++ {
 		bi := newBotInstance(botName)
 		_, err := backend.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)

@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -240,14 +239,13 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like
 	// CreateIdentityContext and UserKeyAuth to a common package.
 	s.auth, err = srv.NewAuthHandlers(&srv.AuthHandlerConfig{
-		Server:        s,
-		Component:     teleport.ComponentForwardingGit,
-		Emitter:       s.cfg.Emitter,
-		AccessPoint:   cfg.AccessPoint,
-		TargetServer:  cfg.TargetServer,
-		FIPS:          cfg.FIPS,
-		Clock:         cfg.Clock,
-		OnRBACFailure: s.onRBACFailure,
+		Server:       s,
+		Component:    teleport.ComponentForwardingGit,
+		Emitter:      s.cfg.Emitter,
+		AccessPoint:  cfg.AccessPoint,
+		TargetServer: cfg.TargetServer,
+		FIPS:         cfg.FIPS,
+		Clock:        cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,44 +317,63 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
-	// RBAC permissions.
+	// Use auth.UserKeyAuth to verify user cert is signed by UserCA.
 	permissions, err := s.auth.UserKeyAuth(conn, key)
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
 	}
 
-	if _, ok := permissions.Extensions[utils.ExtIntGitForwardingPermit]; !ok {
-		return nil, trace.Errorf("missing git forwarding permit (this is a bug)")
+	// Check RBAC on the git server resource (aka s.cfg.TargetServer).
+	if err := s.checkUserAccess(ident); err != nil {
+		s.logger.ErrorContext(s.Context(), "Permission denied",
+			"error", err,
+			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
+			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
+			"key", key.Type(),
+			"fingerprint", sshutils.Fingerprint(key),
+			"user", cert.KeyId,
+		)
+		rbacFailureCounter.Inc()
+		s.emitEvent(&apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login:         gitUser,
+				User:          ident.Username,
+				TrustedDevice: ident.GetDeviceMetadata(),
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  conn.LocalAddr().String(),
+				RemoteAddr: conn.RemoteAddr().String(),
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return nil, trace.Wrap(err)
 	}
-
 	return permissions, nil
 }
 
-// onRBACFailure is a callback invoked by the auth handler when auth fails specifically due to an RBAC
-// failure. Used to update events/metrics.
-func (s *ForwardServer) onRBACFailure(conn ssh.ConnMetadata, ident *sshca.Identity, err error) {
-	rbacFailureCounter.Inc()
-	s.emitEvent(&apievents.AuthAttempt{
-		Metadata: apievents.Metadata{
-			Type: events.AuthAttemptEvent,
-			Code: events.AuthAttemptFailureCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			Login:         gitUser,
-			User:          ident.Username,
-			TrustedDevice: ident.GetDeviceMetadata(),
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  conn.LocalAddr().String(),
-			RemoteAddr: conn.RemoteAddr().String(),
-		},
-		Status: apievents.Status{
-			Success: false,
-			Error:   err.Error(),
-		},
-	})
+func (s *ForwardServer) checkUserAccess(ident *sshca.Identity) error {
+	clusterName, err := s.cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s.cfg.AccessPoint)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	state, err := services.AccessStateFromSSHIdentity(s.Context(), ident, accessChecker, s.cfg.AccessPoint)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(accessChecker.CheckAccess(s.cfg.TargetServer, state))
 }
 
 func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
@@ -374,7 +391,7 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	// TODO(greedy52) decouple from srv.NewServerContext. We only need
 	// connection monitoring.
-	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
+	_, serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -452,7 +469,6 @@ type sessionContext struct {
 	channel       ssh.Channel
 	remoteSession *tracessh.Session
 	waitExec      chan error
-	sessionID     rsession.ID
 }
 
 func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSession *tracessh.Session) *sessionContext {
@@ -461,15 +477,7 @@ func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSessi
 		channel:       ch,
 		remoteSession: remoteSession,
 		waitExec:      make(chan error, 1),
-		sessionID:     rsession.NewID(),
 	}
-}
-
-func (c *sessionContext) GetSessionMetadata() apievents.SessionMetadata {
-	// Overwrite with our own session ID.
-	metadata := c.ServerContext.GetSessionMetadata()
-	metadata.SessionID = c.sessionID.String()
-	return metadata
 }
 
 // dispatch executes an incoming request. If successful, it returns the ok value
@@ -566,7 +574,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 			RemoteAddr: sctx.ServerConn.RemoteAddr().String(),
 			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
 		},
-		ServerMetadata: s.EventMetadata(),
+		ServerMetadata: s.TargetMetadata(),
 	}
 	if err != nil {
 		event.Metadata.Code = events.GitCommandFailureCode
@@ -663,7 +671,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
+func (s *ForwardServer) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.cfg.TargetServer.GetNamespace(),
@@ -712,7 +720,7 @@ func (s *ForwardServer) UseTunnel() bool {
 func (s *ForwardServer) GetBPF() bpf.BPF {
 	return nil
 }
-func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
+func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
 	return
 }
 func (s *ForwardServer) GetLockWatcher() *services.LockWatcher {
@@ -726,9 +734,6 @@ func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 }
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
-}
-func (s *ForwardServer) GetSELinuxEnabled() bool {
-	return false
 }
 
 type serverContextKey struct{}

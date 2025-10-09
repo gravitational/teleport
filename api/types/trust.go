@@ -64,9 +64,6 @@ const (
 	// OktaCA identifies the certificate authority that will be used by the
 	// integration with Okta.
 	OktaCA CertAuthType = "okta"
-	// AWSRACA identifies the certificate authority that will be used by the
-	// AWS IAM Roles Anywhere integration functionality.
-	AWSRACA CertAuthType = "awsra"
 	// BoundKeypairCA identifies the CA used to sign bound keypair client state
 	// documents.
 	BoundKeypairCA CertAuthType = "bound_keypair"
@@ -84,7 +81,6 @@ var CertAuthTypes = []CertAuthType{
 	OIDCIdPCA,
 	SPIFFECA,
 	OktaCA,
-	AWSRACA,
 	BoundKeypairCA,
 }
 
@@ -110,8 +106,8 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		return 15
 	case OktaCA:
 		return 17
-	case AWSRACA, BoundKeypairCA:
-		return 18
+	case BoundKeypairCA:
+		return 17
 	default:
 		// We don't care about other CAs added before v4.0.0
 		return 4

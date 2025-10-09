@@ -27,13 +27,11 @@ import "C"
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"os/exec"
 	"os/user"
 	"strings"
@@ -42,6 +40,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -140,7 +139,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 			defer wg.Done()
 			out, err := spec.fn()
 			if err != nil {
-				slog.WarnContext(context.Background(), "Device Trust: Failed to get device details", "details", spec.desc, "error", err)
+				log.WithError(err).Warnf("Device Trust: Failed to get %v", spec.desc)
 				return
 			}
 			*spec.out = out
@@ -180,7 +179,7 @@ func getJamfBinaryVersion() (string, error) {
 		// Jamf binary may not exist. This is alright.
 		pathErr := &fs.PathError{}
 		if errors.As(err, &pathErr) {
-			slog.DebugContext(context.Background(), "Device Trust: Jamf binary not found", "binary_path", pathErr.Path)
+			log.Debugf("Device Trust: Jamf binary not found: %q", pathErr.Path)
 			return "", nil
 		}
 

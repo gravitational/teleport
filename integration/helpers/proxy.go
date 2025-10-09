@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -31,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/fixtures"
@@ -163,7 +163,7 @@ func (m *MockAWSALBProxy) serve(ctx context.Context) {
 
 		conn, err := m.Accept()
 		if err != nil {
-			slog.DebugContext(ctx, "Failed to accept conn", "error", err)
+			logrus.WithError(err).Debugf("Failed to accept conn.")
 			return
 		}
 
@@ -178,7 +178,7 @@ func (m *MockAWSALBProxy) serve(ctx context.Context) {
 			// api.Client may try different connection methods. Just close the
 			// connection when something goes wrong.
 			if err := downstreamConn.HandshakeContext(ctx); err != nil {
-				slog.DebugContext(ctx, "Failed to handshake", "error", err)
+				logrus.WithError(err).Debugf("Failed to handshake.")
 				return
 			}
 
@@ -187,7 +187,7 @@ func (m *MockAWSALBProxy) serve(ctx context.Context) {
 				InsecureSkipVerify: true,
 			})
 			if err != nil {
-				slog.DebugContext(ctx, "Failed to dial upstream", "error", err)
+				logrus.WithError(err).Debugf("Failed to dial upstream.")
 				return
 			}
 			utils.ProxyConn(ctx, downstreamConn, upstreamConn)

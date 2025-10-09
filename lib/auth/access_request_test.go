@@ -22,7 +22,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
-	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -33,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -79,7 +79,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
+	clusterName, err := tlsServer.Auth().GetClusterName()
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{
@@ -266,7 +266,8 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	staticRole, err := types.NewRole(staticRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -384,7 +385,8 @@ func TestListAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	userA, userB := "lister-a", "lister-b"
 	roleA, roleB := userA+"-role", userB+"-role"
@@ -436,7 +438,7 @@ func TestListAccessRequests(t *testing.T) {
 	// verify sort order).
 	var orderedIDs []string
 
-	for range requestsPerUser {
+	for i := 0; i < requestsPerUser; i++ {
 		clock.Advance(time.Second)
 		reqA, err := services.NewAccessRequest(userA, rroleA)
 		require.NoError(t, err)
@@ -445,7 +447,7 @@ func TestListAccessRequests(t *testing.T) {
 		orderedIDs = append(orderedIDs, rr.GetName())
 	}
 
-	for range requestsPerUser {
+	for i := 0; i < requestsPerUser; i++ {
 		clock.Advance(time.Second)
 		reqB, err := services.NewAccessRequest(userB, rroleB)
 		require.NoError(t, err)
@@ -762,7 +764,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
+			user.SetRoles(maps.Keys(tc.roles))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
@@ -866,6 +868,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			requester := authtest.TestUser(tc.requester)
@@ -1301,6 +1304,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			expectAccessRequests: []string{adminRequest.GetName()},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			client := requesterClient
@@ -1737,6 +1741,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			mem, err := memory.New(memory.Config{})
@@ -1777,7 +1782,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1785,7 +1790,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1793,6 +1798,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := services.NewAccessRequest(s.requesterUserName, "admins")
 			require.NoError(t, err)
@@ -1816,7 +1822,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1824,7 +1830,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1843,6 +1849,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			review.Review.AssumeStartTime = &tc.startTime
 			resp, err := s.testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
@@ -1866,7 +1873,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1874,7 +1881,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1890,6 +1897,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		State:     types.RequestState_APPROVED,
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			update.AssumeStartTime = &tc.startTime
 			err := s.testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)

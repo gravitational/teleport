@@ -192,7 +192,7 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 				},
 			},
 			assertErr: require.NoError,
-			assertResult: func(t require.TestingT, value any, args ...any) {
+			assertResult: func(t require.TestingT, value interface{}, args ...interface{}) {
 				require.Implements(t, (*types.SAMLConnector)(nil), value)
 				connector := value.(types.SAMLConnector)
 				skp := connector.GetSigningKeyPair()

@@ -37,7 +37,6 @@ test('should convert the old cluster user preferences format to the new one', ()
   // instead of the protobuf representation of an object with a `resourceIds` field that contains
   // that array of strings
   const oldBackendPreferences: BackendUserPreferences = {
-    keyboardLayout: 0,
     theme: Theme.LIGHT,
     clusterPreferences: {
       pinnedResources: ['resource1', 'resource2'],
@@ -46,7 +45,6 @@ test('should convert the old cluster user preferences format to the new one', ()
   };
 
   const actualUserPreferences: UserPreferences = {
-    keyboardLayout: 0,
     theme: Theme.LIGHT,
     clusterPreferences: {
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
@@ -71,7 +69,6 @@ test('should convert the user preferences back to the old format when updating',
 
   const actualUserPreferences: UserPreferences = {
     theme: Theme.LIGHT,
-    keyboardLayout: 0,
     clusterPreferences: {
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
     },

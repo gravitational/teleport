@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
@@ -523,15 +522,6 @@ export const WithNoBotReadPermission: Story = {
   },
 };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: false,
-    },
-  },
-});
-
 function Wrapper(props?: {
   hasBotsRead?: boolean;
   hasBotsEdit?: boolean;
@@ -605,3 +595,12 @@ function Wrapper(props?: {
     </QueryClientProvider>
   );
 }
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});

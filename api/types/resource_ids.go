@@ -32,29 +32,15 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 	if len(id.Kind) == 0 {
 		return trace.BadParameter("ResourceID must include Kind")
 	}
+	if !slices.Contains(RequestableResourceKinds, id.Kind) {
+		return trace.BadParameter("Resource kind %q is invalid or unsupported", id.Kind)
+	}
 	if len(id.Name) == 0 {
 		return trace.BadParameter("ResourceID must include Name")
 	}
 
-	// TODO(@creack): DELETE IN v20.0.0. Here to maintain backwards compatibility with older clients.
-	if id.Kind != KindKubeNamespace && slices.Contains(KubernetesResourcesKinds, id.Kind) {
-		apiGroup := KubernetesResourcesV7KindGroups[id.Kind]
-		if slices.Contains(KubernetesClusterWideResourceKinds, id.Kind) {
-			id.Kind = AccessRequestPrefixKindKubeClusterWide + KubernetesResourcesKindsPlurals[id.Kind]
-		} else {
-			id.Kind = AccessRequestPrefixKindKubeNamespaced + KubernetesResourcesKindsPlurals[id.Kind]
-		}
-		if apiGroup != "" {
-			id.Kind += "." + apiGroup
-		}
-	}
-
-	if id.Kind != KindKubeNamespace && !slices.Contains(RequestableResourceKinds, id.Kind) && !strings.HasPrefix(id.Kind, AccessRequestPrefixKindKube) {
-		return trace.BadParameter("Resource kind %q is invalid or unsupported", id.Kind)
-	}
-
 	switch {
-	case id.Kind == KindKubeNamespace || strings.HasPrefix(id.Kind, AccessRequestPrefixKindKube):
+	case slices.Contains(KubernetesResourcesKinds, id.Kind):
 		return trace.Wrap(id.validateK8sSubResource())
 	case id.SubResourceName != "":
 		return trace.BadParameter("resource kind %q doesn't allow sub resources", id.Kind)
@@ -66,17 +52,17 @@ func (id *ResourceID) validateK8sSubResource() error {
 	if id.SubResourceName == "" {
 		return trace.BadParameter("resource of kind %q must include a subresource name", id.Kind)
 	}
-	isResourceClusterwide := id.Kind == KindKubeNamespace || slices.Contains(KubernetesClusterWideResourceKinds, id.Kind) || strings.HasPrefix(id.Kind, AccessRequestPrefixKindKubeClusterWide)
+	isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, id.Kind)
 	switch split := strings.Split(id.SubResourceName, "/"); {
-	case isResourceClusterwide && len(split) != 1:
+	case isResourceNamespaceScoped && len(split) != 1:
 		return trace.BadParameter("subresource %q must follow the following format: <name>", id.SubResourceName)
-	case isResourceClusterwide && split[0] == "":
+	case isResourceNamespaceScoped && split[0] == "":
 		return trace.BadParameter("subresource %q must include a non-empty name: <name>", id.SubResourceName)
-	case !isResourceClusterwide && len(split) != 2:
+	case !isResourceNamespaceScoped && len(split) != 2:
 		return trace.BadParameter("subresource %q must follow the following format: <namespace>/<name>", id.SubResourceName)
-	case !isResourceClusterwide && split[0] == "":
+	case !isResourceNamespaceScoped && split[0] == "":
 		return trace.BadParameter("subresource %q must include a non-empty namespace: <namespace>/<name>", id.SubResourceName)
-	case !isResourceClusterwide && split[1] == "":
+	case !isResourceNamespaceScoped && split[1] == "":
 		return trace.BadParameter("subresource %q must include a non-empty name: <namespace>/<name>", id.SubResourceName)
 	}
 
@@ -109,10 +95,9 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		Kind:        parts[1],
 		Name:        parts[2],
 	}
-
 	switch {
-	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, AccessRequestPrefixKindKube) || resourceID.Kind == KindKubeNamespace:
-		isResourceClusterWide := resourceID.Kind == KindKubeNamespace || slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, AccessRequestPrefixKindKubeClusterWide)
+	case slices.Contains(KubernetesResourcesKinds, resourceID.Kind):
+		isResourceNamespaceScoped := slices.Contains(KubernetesClusterWideResourceKinds, resourceID.Kind)
 		// Kubernetes forbids slashes "/" in Namespaces and Pod names, so it's safe to
 		// explode the resourceID.Name and extract the last two entries as namespace
 		// and name.
@@ -122,10 +107,10 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 		// will fail because, for kind=pod, it's mandatory to present a non-empty
 		// namespace and name.
 		splits := strings.Split(resourceID.Name, "/")
-		if !isResourceClusterWide && len(splits) >= 3 {
+		if !isResourceNamespaceScoped && len(splits) >= 3 {
 			resourceID.Name = strings.Join(splits[:len(splits)-2], "/")
 			resourceID.SubResourceName = strings.Join(splits[len(splits)-2:], "/")
-		} else if isResourceClusterWide && len(splits) >= 2 {
+		} else if isResourceNamespaceScoped && len(splits) >= 2 {
 			resourceID.Name = strings.Join(splits[:len(splits)-1], "/")
 			resourceID.SubResourceName = strings.Join(splits[len(splits)-1:], "/")
 		}

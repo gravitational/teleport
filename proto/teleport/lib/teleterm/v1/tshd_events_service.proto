@@ -185,12 +185,6 @@ message PromptMFARequest {
   bool webauthn = 4;
   string cluster_uri = 5;
   SSOChallenge sso = 6;
-
-  // We may handle MFA options differently based on whether or not per-session
-  // MFA is required. For example, we invalidate TOTP as an option during
-  // per-session MFA but we may still need to know that the user has TOTP
-  // configured as an option.
-  bool per_session_mfa = 7;
 }
 
 // SSOChallenge contains SSO challenge details.

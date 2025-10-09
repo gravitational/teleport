@@ -22,11 +22,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -52,7 +52,7 @@ type Store struct {
 
 // StoreConfig contains shared config options for Store.
 type StoreConfig struct {
-	log                *slog.Logger
+	log                *logrus.Entry
 	HardwareKeyService hardwarekey.Service
 }
 
@@ -97,7 +97,7 @@ func NewMemClientStore(opts ...StoreConfigOpt) *Store {
 func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ...StoreConfigOpt) *Store {
 	// Start with default config
 	config := StoreConfig{
-		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 	}
 
 	// Apply opts
@@ -297,8 +297,6 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
-		RelayAddr:               profile.RelayAddr,
-		DefaultRelayAddr:        profile.DefaultRelayAddr,
 		Username:                profile.Username,
 		SiteName:                profile.SiteName,
 		KubeProxyAddr:           profile.KubeProxyAddr,
@@ -335,10 +333,7 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 		}
 		status, err := s.ReadProfileStatus(profileName)
 		if err != nil {
-			s.log.WarnContext(context.Background(), "skipping profile due to error",
-				"profile_name", profileName,
-				"error", err,
-			)
+			s.log.WithError(err).Warnf("skipping profile %q due to error", profileName)
 			continue
 		}
 		profiles = append(profiles, status)

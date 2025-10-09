@@ -43,13 +43,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const fileMaxSize = 1000
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -296,7 +296,7 @@ func TestUpload(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
 			},
 		},
@@ -312,7 +312,7 @@ func TestUpload(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
 			},
 		},
@@ -325,7 +325,7 @@ func TestUpload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 				require.ErrorAs(t, err, new(*NonRecursiveDirectoryTransferError))
 			},
@@ -335,7 +335,7 @@ func TestUpload(t *testing.T) {
 			srcPaths: []string{
 				"idontexist",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -508,14 +508,14 @@ func TestDownload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 			},
 		},
 		{
 			name:    "non-existent src file",
 			srcPath: "idontexist",
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -590,7 +590,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		{
 			name: "~user path",
 			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},
@@ -631,6 +631,82 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	require.NoError(t, err)
 
 	checkTransfer(t, false, dstPath, linkPath)
+}
+
+type mockFS struct {
+	localFS
+	fileAccesses map[string]int
+}
+
+func (m *mockFS) Open(path string) (File, error) {
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m.fileAccesses[realPath]++
+	return m.localFS.Open(path)
+}
+
+func TestRecursiveSymlinks(t *testing.T) {
+	// Create files and symlinks.
+	root := t.TempDir()
+	t.Chdir(root)
+	srcDir := filepath.Join(root, "a")
+	createDir(t, filepath.Join(srcDir, "b/c"))
+	fileA := "a/a.txt"
+	fileB := "a/b/b.txt"
+	fileC := "a/b/c/c.txt"
+	for _, file := range []string{fileA, fileB, fileC} {
+		createFile(t, filepath.Join(root, file))
+	}
+	require.NoError(t, os.Symlink(srcDir, filepath.Join(srcDir, "abs_link")))
+	require.NoError(t, os.Symlink("..", filepath.Join(srcDir, "b/rel_link")))
+
+	tests := []struct {
+		name   string
+		srcDir string
+	}{
+		{
+			name:   "absolute",
+			srcDir: srcDir,
+		},
+		{
+			name:   "relative",
+			srcDir: filepath.Base(srcDir),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Perform the transfer.
+			dstDir := filepath.Join(root, "dst")
+			t.Cleanup(func() { os.RemoveAll(dstDir) })
+
+			cfg, err := CreateDownloadConfig(tc.srcDir, dstDir, Options{Recursive: true})
+			require.NoError(t, err)
+			// use all local filesystems to avoid SSH overhead
+			srcFS := &mockFS{fileAccesses: make(map[string]int)}
+			cfg.srcFS = srcFS
+			require.NoError(t, cfg.initFS(nil))
+			require.NoError(t, cfg.transfer(t.Context()))
+
+			// Check results. Don't use checkTransfer() as the directories will not have
+			// matching sizes (the symlinks that aren't copied over).
+			for _, file := range []string{fileA, fileB, fileC} {
+				srcFile, err := filepath.EvalSymlinks(filepath.Join(filepath.Dir(tc.srcDir), file))
+				require.NoError(t, err)
+				srcInfo, err := os.Stat(srcFile)
+				require.NoError(t, err)
+				dstFile, err := filepath.EvalSymlinks(filepath.Join(dstDir, file))
+				require.NoError(t, err)
+				dstInfo, err := os.Stat(dstFile)
+				require.NoError(t, err)
+				compareFiles(t, false, dstInfo, srcInfo, dstFile, srcFile)
+				// Check that the file was only opened once.
+				accesses := srcFS.fileAccesses[srcFile]
+				require.Equal(t, 1, accesses, "file %q was opened %d times", srcFile, accesses)
+			}
+		})
+	}
 }
 
 func TestHTTPUpload(t *testing.T) {

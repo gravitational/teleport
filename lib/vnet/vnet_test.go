@@ -33,7 +33,6 @@ import (
 	"net"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -58,7 +57,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -872,7 +870,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf1.example.com",
-			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectCIDR: defaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf1.example.com",
 				PublicAddr:  "echo1.leaf1.example.com",
@@ -881,7 +879,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf2.example.com",
-			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectCIDR: defaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf2.example.com",
 				PublicAddr:  "echo1.leaf2.example.com",
@@ -890,7 +888,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.root2.example.com",
-			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectCIDR: defaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.root2.example.com",
 				PublicAddr:  "echo1.root2.example.com",
@@ -899,7 +897,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo2.root2.example.com",
-			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectCIDR: defaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo2.root2.example.com",
 				PublicAddr:  "echo2.root2.example.com",
@@ -908,7 +906,7 @@ func TestDialFakeApp(t *testing.T) {
 		},
 		{
 			app:        "echo1.leaf3.example.com",
-			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectCIDR: defaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "echo1.leaf3.example.com",
 				PublicAddr:  "echo1.leaf3.example.com",
@@ -929,7 +927,7 @@ func TestDialFakeApp(t *testing.T) {
 		{
 			app:        "multi-port.leaf1.example.com",
 			port:       1337,
-			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectCIDR: defaultIPv4CIDRRange,
 			expectRouteToApp: proto.RouteToApp{
 				Name:        "multi-port.leaf1.example.com",
 				PublicAddr:  "multi-port.leaf1.example.com",
@@ -946,7 +944,7 @@ func TestDialFakeApp(t *testing.T) {
 		//
 		// It's important not to run these subtests which advance a shared clock in parallel. It's okay for
 		// the inner app dial/connection tests to run in parallel because they don't advance the clock.
-		for i := range 3 {
+		for i := 0; i < 3; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				for _, tc := range validTestCases {
 					if tc.expectRouteToApp.URI == "" && tc.expectRouteToApp.PublicAddr != "" {
@@ -1027,7 +1025,7 @@ func testEchoConnection(t *testing.T, conn net.Conn) {
 	writeBuf := bytes.Repeat([]byte(testString), 200)
 	readBuf := make([]byte, len(writeBuf))
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		written, err := conn.Write(writeBuf)
 		for written < len(writeBuf) && err == nil {
 			var n int
@@ -1164,7 +1162,8 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	clock := clockwork.NewRealClock()
 	homePath := t.TempDir()
 
@@ -1431,7 +1430,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
+			sshConn, chans, reqs, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")

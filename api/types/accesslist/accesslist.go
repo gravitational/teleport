@@ -18,7 +18,6 @@ package accesslist
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"time"
 
@@ -41,6 +40,8 @@ const (
 	ThreeMonths ReviewFrequency = 3
 	SixMonths   ReviewFrequency = 6
 	OneYear     ReviewFrequency = 12
+
+	twoWeeks = 24 * time.Hour * 14
 )
 
 func (r ReviewFrequency) String() string {
@@ -142,9 +143,9 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
-	// Type can be an empty string which denotes a regular Access List, "scim" which represents
-	// an Access List created from SCIM group or "static" for Access Lists managed by IaC
-	// tools.
+	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
+	// Access List, "scim" which represents an Access List created from SCIM group or "static"
+	// for Access Lists managed by IaC tools.
 	Type Type `json:"type" yaml:"type"`
 
 	// Title is a plaintext short description of the access list.
@@ -195,8 +196,14 @@ const (
 	SCIM Type = "scim"
 )
 
-// AllTypes is a slice of all currently supported access list types.
-var AllTypes = []Type{DeprecatedDynamic, Default, Static, SCIM}
+func validateType(t Type) error {
+	switch t {
+	case DeprecatedDynamic, Default, Static, SCIM:
+		return nil
+	default:
+		return trace.BadParameter("unknown access_list type %q", t)
+	}
+}
 
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
@@ -208,19 +215,10 @@ func (t Type) IsReviewable() bool {
 	}
 }
 
-// Equals checks if the Type is equal to another.
-func (t Type) Equals(other Type) bool {
-	return t == other
-}
-
 // Owner is an owner of an access list.
 type Owner struct {
 	// Name is the username of the owner.
 	Name string `json:"name" yaml:"name"`
-
-	// Title is the title of an owner if it is of type MEMBERSHIP_KIND_LIST.
-	// This is only populated by the proxy when fetching an access list and its members for the web UI
-	Title string `json:"title" yaml:"title"`
 
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
@@ -285,17 +283,6 @@ type Grants struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
-// Clone returns a copy of the Grants.
-func (grants *Grants) Clone() Grants {
-	if grants == nil {
-		return Grants{}
-	}
-	return Grants{
-		Roles:  slices.Clone(grants.Roles),
-		Traits: grants.Traits.Clone(),
-	}
-}
-
 // Status contains dynamic fields calculated during retrieval.
 type Status struct {
 	// MemberCount is the number of members in the access list.
@@ -344,8 +331,7 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
-// CheckAndSetDefaults performs very basic validation and populates empty fields with default
-// values. The main validation part is performed before the storage.
+// CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessList)
 	a.SetVersion(types.V1)
@@ -359,26 +345,49 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		a.Spec.Type = Default
 	}
 
+	if err := validateType(a.Spec.Type); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if a.Spec.Title == "" {
 		return trace.BadParameter("access list title required")
 	}
 
-	if a.IsReviewable() {
-		if a.Spec.Audit.Recurrence.Frequency == 0 {
-			a.Spec.Audit.Recurrence.Frequency = SixMonths
+	switch a.Spec.Type {
+	case Static, SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
 		}
-		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
-			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
-		}
-		if a.Spec.Audit.NextAuditDate.IsZero() {
-			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
-				return trace.Wrap(err, "setting initial audit date")
-			}
-		}
-		if a.Spec.Audit.Notifications.Start == 0 {
-			twoWeeks := 24 * time.Hour * 14
-			a.Spec.Audit.Notifications.Start = twoWeeks
-		}
+	}
+
+	if a.Spec.Audit.Recurrence.Frequency == 0 {
+		a.Spec.Audit.Recurrence.Frequency = SixMonths
+	}
+
+	switch a.Spec.Audit.Recurrence.Frequency {
+	case OneMonth, ThreeMonths, SixMonths, OneYear:
+	default:
+		return trace.BadParameter("recurrence frequency is an invalid value")
+	}
+
+	if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
+		a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
+	}
+
+	switch a.Spec.Audit.Recurrence.DayOfMonth {
+	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
+	default:
+		return trace.BadParameter("recurrence day of month is an invalid value")
+	}
+
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		a.setInitialAuditDate(clockwork.NewRealClock())
+	}
+
+	if a.Spec.Audit.Notifications.Start == 0 {
+		a.Spec.Audit.Notifications.Start = twoWeeks
 	}
 
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
@@ -454,14 +463,11 @@ func (a *AccessList) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
-// Clone returns a copy of the list.
-func (a *AccessList) Clone() *AccessList {
-	if a == nil {
-		return nil
-	}
-	out := &AccessList{}
-	deriveDeepCopyAccessList(out, a)
-	return out
+// CloneResource returns a copy of the resource as types.ResourceWithLabels.
+func (a *AccessList) CloneResource() types.ResourceWithLabels {
+	var copy *AccessList
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
@@ -567,11 +573,7 @@ func (a *AccessList) IsReviewable() bool {
 }
 
 // SelectNextReviewDate will select the next review date for the access list.
-func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
-	if !a.IsReviewable() {
-		return time.Time{}, trace.BadParameter("access_list %q is not reviewable", a.GetName())
-	}
-
+func (a *AccessList) SelectNextReviewDate() time.Time {
 	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
 	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
 
@@ -586,16 +588,15 @@ func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
 	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
 		0, 0, 0, 0, time.UTC)
 
-	return nextDate, nil
+	return nextDate
 }
 
 // setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
 // The function is extracted from CheckAndSetDefaults for the sake of testing
 // (we need to pass a fake clock).
-func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
 	// We act as if the AccessList just got reviewed (we just created it, so
 	// we're pretty sure of what it does) and pick the next review date.
 	a.Spec.Audit.NextAuditDate = clock.Now()
-	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
-	return trace.Wrap(err)
+	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
 }

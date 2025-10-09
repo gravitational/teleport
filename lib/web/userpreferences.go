@@ -82,15 +82,14 @@ type UserPreferencesResponse struct {
 	Theme                       userpreferencesv1.Theme             `json:"theme"`
 	UnifiedResourcePreferences  UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
 	Onboard                     OnboardUserPreferencesResponse      `json:"onboard"`
-	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences"`
+	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
 	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
-	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph"`
+	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
 	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
-	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }
 
-func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	authClient, err := sctx.GetUserClient(r.Context(), cluster)
+func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	authClient, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,14 +103,14 @@ func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Reque
 }
 
 // updateUserClusterPreferences is a handler for PUT /webapi/user/preferences.
-func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	req := UserPreferencesResponse{}
 
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authClient, err := sctx.GetUserClient(r.Context(), cluster)
+	authClient, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,8 +148,7 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 	}
 	return &userpreferencesv1.UpsertUserPreferencesRequest{
 		Preferences: &userpreferencesv1.UserPreferences{
-			KeyboardLayout: req.KeyboardLayout,
-			Theme:          req.Theme,
+			Theme: req.Theme,
 			UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
 				DefaultTab:            req.UnifiedResourcePreferences.DefaultTab,
 				ViewMode:              req.UnifiedResourcePreferences.ViewMode,
@@ -213,7 +211,6 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 		AccessGraph:                 accessGraphPreferencesResponse(resp.AccessGraph),
 		SideNavDrawerMode:           resp.SideNavDrawerMode,
 		DiscoverResourcePreferences: discoverResourcePreferenceResponse(resp.DiscoverResourcePreferences),
-		KeyboardLayout:              resp.KeyboardLayout,
 	}
 
 	return jsonResp

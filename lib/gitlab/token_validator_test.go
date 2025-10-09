@@ -29,15 +29,13 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type fakeIDP struct {
@@ -89,7 +87,7 @@ func (f *fakeIDP) issuer() string {
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 	// mimic https://gitlab.com/.well-known/openid-configuration
-	response := map[string]any{
+	response := map[string]interface{}{
 		"claims_supported": []string{
 			"sub",
 			"aud",
@@ -154,7 +152,7 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]any{
+	customClaims := map[string]interface{}{
 		"user_login": userLogin,
 	}
 	token, err := jwt.Signed(f.signer).
@@ -168,7 +166,7 @@ func (f *fakeIDP) issueToken(
 
 type mockClusterNameGetter string
 
-func (m mockClusterNameGetter) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (m mockClusterNameGetter) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterID:   uuid.NewString(),
 		ClusterName: string(m),
@@ -272,9 +270,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }
@@ -381,9 +377,7 @@ func TestIDTokenValidator_ValidateWithJWKS(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }

@@ -23,7 +23,6 @@ import { buttonSizes } from 'design/ButtonIcon';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
-import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import {
   useRule,
@@ -94,11 +93,6 @@ export type LabelsInputProps = {
    * with empty key and value.
    */
   atLeastOneRow?: boolean;
-  /**
-   * Disables inputs and hides controls
-   * but does not mute values.
-   */
-  readOnly?: boolean;
 };
 
 export function LabelsInput({
@@ -115,7 +109,6 @@ export function LabelsInput({
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
   rule = defaultRule,
   atLeastOneRow = false,
-  readOnly = false,
 }: LabelsInputProps) {
   const validator = useValidation() as Validator;
   const validationResult: LabelListValidationResult = useRule(rule(labels));
@@ -248,8 +241,7 @@ export function LabelsInput({
                     placeholder={labelKey.placeholder}
                     mb={0}
                     onChange={e => handleChange(e, index, 'name')}
-                    disabled={disableBtns}
-                    readonly={readOnly}
+                    readonly={disableBtns}
                   />
                 </td>
                 <td>
@@ -264,59 +256,50 @@ export function LabelsInput({
                     placeholder={labelVal.placeholder}
                     mb={0}
                     onChange={e => handleChange(e, index, 'value')}
-                    disabled={disableBtns}
-                    readonly={readOnly}
+                    readonly={disableBtns}
                   />
                 </td>
-                {!readOnly && (
-                  <td>
-                    {/* Force the trash button container to be the same height as an
+                <td>
+                  {/* Force the trash button container to be the same height as an
                       input. We can't just set center-align the cell, because the
                       field can expand when showing a validation error. */}
-                    <Flex
-                      alignItems="center"
-                      height={inputGeometry[inputSize].height}
+                  <Flex
+                    alignItems="center"
+                    height={inputGeometry[inputSize].height}
+                  >
+                    <ButtonIcon
+                      size={buttonIconSize}
+                      title={`Remove ${adjective}`}
+                      onClick={() => removeLabel(index)}
+                      css={`
+                        &:disabled {
+                          opacity: 0.65;
+                        }
+                      `}
+                      disabled={disableBtns || singleEmptyRow}
                     >
-                      <ButtonIcon
-                        size={buttonIconSize}
-                        title={`Remove ${adjective}`}
-                        onClick={() => removeLabel(index)}
-                        css={`
-                          &:disabled {
-                            opacity: 0.65;
-                          }
-                        `}
-                        disabled={disableBtns || singleEmptyRow}
-                      >
-                        <Icons.Cross color="text.muted" size="small" />
-                      </ButtonIcon>
-                    </Flex>
-                  </td>
-                )}
+                      <Icons.Cross color="text.muted" size="small" />
+                    </ButtonIcon>
+                  </Flex>
+                </td>
               </tr>
             );
           })}
         </tbody>
       </LabelTable>
-      {!readOnly && (
-        <ButtonWithAddIcon
-          Button={ButtonSecondary}
-          label={
-            labels.length > 0
-              ? `Add another ${adjective}`
-              : `Add a ${adjective}`
-          }
-          onClick={e => {
-            e.preventDefault();
-            addLabel();
-          }}
-          disabled={disableBtns}
-          size="small"
-          pr={3}
-          compact={false}
-          inputAlignment
-        />
-      )}
+      <ButtonSecondary
+        onClick={e => {
+          e.preventDefault();
+          addLabel();
+        }}
+        disabled={disableBtns}
+        gap={1}
+        size="small"
+        inputAlignment
+      >
+        <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
+        {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
+      </ButtonSecondary>
     </Fieldset>
   );
 }

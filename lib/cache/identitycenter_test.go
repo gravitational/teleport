@@ -56,14 +56,14 @@ func TestIdentityCenterAccount(t *testing.T) {
 			return newIdentityCenterAccount(s), nil
 		},
 		create: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount(ctx, item)
+			_, err := fixturePack.identityCenter.CreateIdentityCenterAccount2(ctx, item)
 			return trace.Wrap(err)
 		},
 		update: func(ctx context.Context, item *identitycenterv1.Account) error {
-			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount(ctx, item)
+			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount2(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListIdentityCenterAccounts,
+		list: fixturePack.identityCenter.ListIdentityCenterAccounts2,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteIdentityCenterAccount(
 				ctx, services.IdentityCenterAccountID(id)))
@@ -71,7 +71,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 		deleteAll: fixturePack.identityCenter.DeleteAllIdentityCenterAccounts,
 		cacheList: fixturePack.cache.ListIdentityCenterAccounts,
 		cacheGet:  fixturePack.cache.GetIdentityCenterAccount,
-	})
+	}, withSkipPaginationTest())
 }
 
 func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.PrincipalAssignment {
@@ -93,7 +93,7 @@ func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.Principal
 	}
 }
 
-// TestIdentityCenterPrincipalAssignment asserts that an Identity Center PrincipalAssignment can be cached
+// TestIdentityCenterPrincpialAssignment asserts that an Identity Center PrincipalAssignment can be cached
 func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 	t.Parallel()
 	fixturePack := newTestPack(t, ForAuth)
@@ -111,7 +111,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			_, err := fixturePack.identityCenter.UpdatePrincipalAssignment(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListPrincipalAssignments,
+		list: fixturePack.identityCenter.ListPrincipalAssignments2,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeletePrincipalAssignment(ctx, services.PrincipalAssignmentID(id)))
 		},
@@ -120,10 +120,11 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 		},
 		cacheList: fixturePack.cache.ListPrincipalAssignments,
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.PrincipalAssignment, error) {
-			r, err := fixturePack.cache.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(id))
+			r, err := fixturePack.cache.identityCenterCache.GetPrincipalAssignment(
+				ctx, services.PrincipalAssignmentID(id))
 			return r, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssignment {
@@ -174,5 +175,5 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			r, err := fixturePack.cache.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id))
 			return r.AccountAssignment, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }

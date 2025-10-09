@@ -5,10 +5,6 @@ app_service:
     # Application Service is working correctly. The app outputs JWTs so it can
     # be useful when extending your application.
     debug_app: true
-    # Enables the builtin Teleport demo MCP server that shows current user and
-    # session information. To access it, this MCP server uses the app label
-    # "teleport.internal/resource-type" with the value "demo".
-    mcp_demo_server: true
 
     # Matchers for dynamic application resources
     #
@@ -106,14 +102,4 @@ app_service:
         ## - none: include neither roles nor traits in the JWT token
         ## Default: roles-and-traits
         # jwt_claims: roles-and-traits
-
-      # Contains MCP server-related configurations.
-      mcp:
-        # Command to launch stdio-based MCP servers.
-        command: "docker"
-        # Args to execute with the command.
-        args: ["run", "-i", "--rm", "mcp/everything"]
-        # Name of the host user account under which the command will be
-        # executed. Required for stdio-based MCP servers.
-        run_as_host_user: "docker"
 

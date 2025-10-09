@@ -21,11 +21,11 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -102,7 +102,8 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			hasCalledOnExpiredCert := false
 
@@ -111,7 +112,7 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 					hasCalledOnExpiredCert = true
 					return tls.Certificate{}, nil
 				},
-				logger:  slog.With(teleport.ComponentKey, "middleware"),
+				log:     logrus.WithField(teleport.ComponentKey, "middleware"),
 				dbRoute: tt.dbRoute,
 			}
 

@@ -131,7 +131,7 @@ type FindPublicAddrClient interface {
 	GetProxies() ([]types.Server, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
@@ -158,7 +158,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	}
 
 	// Fall back to cluster name.
-	cn, err := client.GetClusterName(context.TODO())
+	cn, err := client.GetClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

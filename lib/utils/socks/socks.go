@@ -27,7 +27,14 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentSOCKS,
+})
 
 const (
 	socks5Version               byte = 0x05
@@ -94,7 +101,7 @@ func readAuthenticationMethod(conn net.Conn) ([]byte, error) {
 	// Read nmethods number of bytes from the connection return the list of
 	// supported authentication methods to the caller.
 	authMethods := make([]byte, nmethods)
-	for range nmethods {
+	for i := byte(0); i < nmethods; i++ {
 		method, err := readByte(conn)
 		if err != nil {
 			return nil, trace.Wrap(err)

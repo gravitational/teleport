@@ -115,7 +115,7 @@ export function DiscoveryConfigSsm() {
     'TeleportDiscoveryInstaller'
   );
   const [scriptUrl, setScriptUrl] = useState('');
-  const joinTokenRef = useRef<JoinToken>(undefined);
+  const joinTokenRef = useRef<JoinToken>();
   const [tags, setTags] = useState<AWSLabels>([]);
   const [showRestOfSteps, setShowRestOfSteps] = useState(false);
 

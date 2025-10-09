@@ -82,9 +82,6 @@ type WebConfig struct {
 	// PlayableDatabaseProtocols is a list of database protocols which session
 	// recordings can be played.
 	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
-	// SessionSummarizerEnabled indicates whether the session recording
-	// summarizer is configured.
-	SessionSummarizerEnabled bool `json:"sessionSummarizerEnabled,omitempty"`
 	// entitlements define a customer’s access to a specific features
 	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
 
@@ -208,6 +205,4 @@ type WebConfigAuthSettings struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"privateKeyPolicy,omitempty"`
 	// MOTD is message of the day. MOTD is displayed to users before login.
 	MOTD string `json:"motd"`
-	// IdentifierFirstLoginEnabled is whether identifier-first login is enabled, this will be true if one or more auth connectors has a `user_matchers` field set.
-	IdentifierFirstLoginEnabled bool `json:"identifierFirstLoginEnabled,omitempty"`
 }

@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
-
 import { MatchCallback } from 'design/utils/match';
 
 import { Pagination } from './useTable';
@@ -25,9 +23,6 @@ import { Pagination } from './useTable';
 export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
-  infiniteScrollProps?: {
-    fetchStatus: FetchStatus;
-  };
   emptyText: string;
   /**
    * Optional button that is rendered below emptyText if there's no data, during processing or on

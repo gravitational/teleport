@@ -56,13 +56,6 @@ endif
 # $(ARCH) is the target architecture we want to build for.
 REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cross-compile $@ $(ARCH) on $(RUNTIME_ARCH)))
 
-# Determine which version of wasm-bindgen should be installed on build containers
-# responsible for building webassets.
-WASM_BINDGEN_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-wasm-bindgen-version)
-
-# Determine which version of rust is required to build rust components.
-RUST_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-rust-toolchain-version)
-
 # This determines which make target we call in this repo's top level Makefile when
 # make release in this Makefile is called. Currently this supports its default value
 # (release) and release-unix-preserving-webassets. See the release-arm target for
@@ -183,8 +176,7 @@ buildbox:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
-		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
@@ -227,6 +219,7 @@ buildbox-centos7:
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -255,6 +248,7 @@ buildbox-centos7-fips:
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -303,8 +297,7 @@ buildbox-node:
 		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
-		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_NODE) \
 		$(if $(PUSH),--push,--load) \
@@ -745,18 +738,11 @@ print-rust-version:
 	@echo $(RUST_VERSION)
 
 #
-# Print the wasm-opt version used to build Teleport.
+# Print the wasm-pack version used to build Teleport.
 #
-.PHONY:print-wasm-opt-version
-print-wasm-opt-version:
-	@echo $(WASM_OPT_VERSION)
-
-#
-# Print the wasm-bindgen version used to build Teleport.
-#
-.PHONY:print-wasm-bindgen-version
-print-wasm-bindgen-version:
-	@echo $(WASM_BINDGEN_VERSION)
+.PHONY:print-wasm-pack-version
+print-wasm-pack-version:
+	@echo $(WASM_PACK_VERSION)
 
 #
 # Print the Node version used to build Teleport Connect.

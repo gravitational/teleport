@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Ref } from 'react';
 import {
   GroupBase,
   OnChangeValue,
@@ -49,13 +48,6 @@ export type CommonProps<Opt, IsMulti extends boolean> = {
   // having this more strict (depending on `IsMulti`) helps us to pass the
   // correct type to the validation rules in `FieldSelect`.
   value?: OnChangeValue<Opt, IsMulti>;
-  /** Ref to the wrapper element. */
-  ref?: Ref<HTMLDivElement>;
-  /**
-   * Disables inputs and hides controls
-   * but does not mute values.
-   */
-  readOnly?: boolean;
 };
 
 export type Props<

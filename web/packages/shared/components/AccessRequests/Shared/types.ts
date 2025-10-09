@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Option } from 'shared/components/Select';
-import type { RequestKind } from 'shared/services/accessRequests';
+import { Option } from 'shared/components/Select';
 
 export type TimeOption = Option<Date>;
 
@@ -28,5 +27,4 @@ export type CreateRequest = {
   maxDuration?: Date;
   requestTTL?: Date;
   dryRun?: boolean;
-  requestKind?: RequestKind;
 };

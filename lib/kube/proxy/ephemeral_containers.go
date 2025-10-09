@@ -83,7 +83,7 @@ func (f *Forwarder) ephemeralContainers(authCtx *authContext, w http.ResponseWri
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.log.ErrorContext(req.Context(), "Failed to create cluster session", "error", err)
+		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	// sess.Close cancels the connection monitor context to release it sooner.
@@ -101,7 +101,7 @@ func (f *Forwarder) ephemeralContainers(authCtx *authContext, w http.ResponseWri
 	if err := f.setupForwardingHeaders(sess, req, true /* withImpersonationHeaders */); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.log.ErrorContext(req.Context(), "Failed to set up forwarding headers", "error", err)
+		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	if !sess.isLocalKubernetesCluster {
@@ -148,8 +148,8 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		req.Context(),
 		mergeEphemeralPatchWithCurrentPodConfig{
 			kubeCluster:   sess.kubeClusterName,
-			kubeNamespace: authCtx.metaResource.requestedResource.namespace,
-			podName:       authCtx.metaResource.requestedResource.resourceName,
+			kubeNamespace: authCtx.kubeResource.Namespace,
+			podName:       authCtx.kubeResource.Name,
 			decoder:       decoder,
 			encoder:       encoder,
 			podPatch:      podPatch,
@@ -226,8 +226,8 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 		&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 			Username:      authCtx.User.GetName(),
 			Cluster:       authCtx.kubeClusterName,
-			Namespace:     authCtx.metaResource.requestedResource.namespace,
-			PodName:       authCtx.metaResource.requestedResource.resourceName,
+			Namespace:     authCtx.kubeResource.Namespace,
+			PodName:       authCtx.kubeResource.Name,
 			ContainerName: ephemeralContName,
 			Patch:         podPatch,
 			PatchType:     string(patchType),

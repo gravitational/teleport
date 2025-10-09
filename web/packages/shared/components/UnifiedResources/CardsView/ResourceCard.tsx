@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
@@ -24,21 +24,16 @@ import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
-  getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
-import { SingleLineBox } from '../shared/SingleLineBox';
-import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
-import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -57,26 +52,20 @@ const ResTypeIconBox = styled(Box)`
 `;
 
 export function ResourceCard({
+  name,
+  primaryIconName,
+  SecondaryIcon,
   onLabelClick,
+  cardViewProps,
+  ActionButton,
+  labels,
   pinningSupport,
   pinned,
   pinResource,
   selectResource,
+  requiresRequest,
   selected,
-  onShowStatusInfo,
-  showingStatusInfo,
-  viewItem,
-}: Omit<ResourceItemProps, 'expandAllLabels'>) {
-  const {
-    name,
-    primaryIconName,
-    SecondaryIcon,
-    cardViewProps,
-    ActionButton,
-    labels,
-    requiresRequest,
-    status,
-  } = viewItem;
+}: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
@@ -169,18 +158,12 @@ export function ResourceCard({
     }
   };
 
-  const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
-
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      showingStatusInfo={showingStatusInfo}
     >
-      <CardOuterContainer
-        showAllLabels={showAllLabels}
-        shouldDisplayWarning={shouldDisplayStatusWarning}
-      >
+      <CardOuterContainer showAllLabels={showAllLabels}>
         <CardInnerContainer
           ref={innerContainer}
           p={3}
@@ -192,12 +175,6 @@ export function ResourceCard({
           pinned={pinned}
           requiresRequest={requiresRequest}
           selected={selected}
-          showingStatusInfo={showingStatusInfo}
-          shouldDisplayWarning={shouldDisplayStatusWarning}
-          // we set extra padding to push contents to the right to make
-          // space for the WarningRightEdgeBadgeIcon.
-          {...(shouldDisplayStatusWarning && !showAllLabels && { pr: '35px' })}
-          {...(shouldDisplayStatusWarning && showAllLabels && { pr: '7px' })}
         >
           <CheckboxInput
             checked={selected}
@@ -262,10 +239,7 @@ export function ResourceCard({
               )}
             </Flex>
             <LabelsContainer showAll={showAllLabels}>
-              <LabelsInnerContainer
-                ref={labelsInnerContainer}
-                hasUnhealthyStatus={shouldDisplayStatusWarning}
-              >
+              <LabelsInnerContainer ref={labelsInnerContainer}>
                 <MoreLabelsButton
                   style={{
                     visibility:
@@ -294,46 +268,11 @@ export function ResourceCard({
               </LabelsInnerContainer>
             </LabelsContainer>
           </Flex>
-          {shouldDisplayStatusWarning && !showAllLabels && (
-            <HoverTooltip tipContent={'Show Connection Issue'} placement="left">
-              <WarningRightEdgeBadgeIcon onClick={onShowStatusInfo} />
-            </HoverTooltip>
-          )}
         </CardInnerContainer>
       </CardOuterContainer>
-      {/* This is to let the WarningRightEdgeBadgeIcon stay in place while the
-        InnerContainer pops out and expands vertically from rendering all
-        labels. */}
-      {shouldDisplayStatusWarning && showAllLabels && (
-        <WarningRightEdgeBadgeIcon />
-      )}
     </CardContainer>
   );
 }
-
-const WarningRightEdgeBadgeIcon = ({
-  onClick,
-  ref,
-}: {
-  onClick?(): void;
-  ref?: Ref<HTMLDivElement>;
-}) => {
-  return (
-    <Box
-      onClick={onClick}
-      ref={ref}
-      css={`
-        position: absolute;
-        top: 0;
-        right: 0;
-        cursor: pointer;
-        height: 100%;
-      `}
-    >
-      <WarningRightEdgeBadgeSvg />
-    </Box>
-  );
-};
 
 /**
  * The outer container's purpose is to reserve horizontal space on the resource
@@ -342,40 +281,15 @@ const WarningRightEdgeBadgeIcon = ({
  * clicks the "more" button, the inner container "pops out" by changing its
  * position to absolute.
  *
- * The card height is fixed to allow the WarningRightEdgeBadgeIcon to stay in
- * place when user clicks on "showAllLabels". Without the fixed height, the
- * container's height shrinks when the inner container pops out, resulting in
- * the svg to jump around (from size difference) and or disappearing.
- *
  * TODO(bl-nero): Known issue: this doesn't really work well with one-column
- * layout;
+ * layout; we may need to globally set the card height to fixed size on the
+ * outer container.
  */
-const CardContainer = styled(Box)<{
-  showingStatusInfo: boolean;
-}>`
-  height: 110px;
-
+const CardContainer = styled(Box)`
   position: relative;
-  .resource-health-status-svg {
-    width: 100%;
-    height: 100%;
-
-    fill: ${p =>
-      p.showingStatusInfo
-        ? p.theme.colors.interactive.solid.alert.active
-        : p.theme.colors.interactive.solid.alert.default};
-  }
-  &:hover {
-    .resource-health-status-svg {
-      fill: ${p => p.theme.colors.interactive.solid.alert.hover};
-    }
-  }
 `;
 
-const CardOuterContainer = styled(Box)<{
-  showAllLabels?: boolean;
-  shouldDisplayWarning: boolean;
-}>`
+const CardOuterContainer = styled(Box)<{ showAllLabels?: boolean }>`
   border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
@@ -383,8 +297,7 @@ const CardOuterContainer = styled(Box)<{
     css`
       position: absolute;
       left: 0;
-      // The padding is required to show the WarningRightEdgeBadgeIcon
-      right: ${props.shouldDisplayWarning ? '28px' : 0};
+      right: 0;
       z-index: 1;
     `}
   transition: all 150ms;
@@ -424,40 +337,16 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => getBackgroundColor(props)};
 
-  ${p =>
-    p.shouldDisplayWarning &&
-    css`
-      border: 2px solid ${p.theme.colors.interactive.solid.alert.default};
-      background-color: ${getStatusBackgroundColor({
-        showingStatusInfo: p.showingStatusInfo,
-        theme: p.theme,
-        action: '',
-        viewType: 'card',
-      })};
-    `}
-
-  ${p =>
-    p.showingStatusInfo &&
-    css`
-      border: 2px solid ${p.theme.colors.interactive.solid.alert.active};
-    `}
-
   &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
-
-    ${p =>
-      p.shouldDisplayWarning &&
-      css`
-        border-color: ${p.theme.colors.interactive.solid.alert.hover};
-        background-color: ${getStatusBackgroundColor({
-          showingStatusInfo: p.showingStatusInfo,
-          theme: p.theme,
-          action: 'hover',
-          viewType: 'card',
-        })};
-      `}
   }
+`;
+
+const SingleLineBox = styled(Box)`
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 `;
 
 /**
@@ -484,16 +373,12 @@ const StyledLabel = styled(Label)`
  * The inner labels container always adapts to the size of labels.  Its height
  * is measured by the resize observer.
  */
-const LabelsInnerContainer = styled(Flex)<{ hasUnhealthyStatus: boolean }>`
+const LabelsInnerContainer = styled(Flex)`
   position: relative;
   flex-wrap: wrap;
   align-items: start;
   gap: ${props => props.theme.space[1]}px;
-  // Padding is required to prevent the more label button to not collide
-  // with the rendered labels. Just a tiny bit more padding needed to
-  // accomodate contents getting pushed more to the right when a
-  // WarningRightEdgeBadgeIcon renders.
-  padding-right: ${p => (p.hasUnhealthyStatus ? '75px' : '74px')};
+  padding-right: 60px;
 `;
 
 /**
@@ -509,14 +394,10 @@ const MoreLabelsButton = styled(ButtonLink)`
   margin: ${labelVerticalMargin}px 0;
   min-height: 0;
 
-  background-color: transparent;
+  background-color: ${props => getBackgroundColor(props)};
   color: ${props => props.theme.colors.text.slightlyMuted};
   font-style: italic;
 
   transition: visibility 0s;
   transition: background 150ms;
-
-  &:hover {
-    background-color: transparent;
-  }
 `;

@@ -22,7 +22,7 @@ import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
-import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import type { NotificationItem } from 'shared/components/Notification';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
@@ -110,7 +110,7 @@ type Props = {
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
-  alerts: ToastNotificationItem[];
+  alerts: NotificationItem[];
   isConnected: boolean;
   onRemoveAlert(id: string): void;
   latency: {

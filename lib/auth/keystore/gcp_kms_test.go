@@ -21,7 +21,6 @@ package keystore
 import (
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -112,8 +111,6 @@ func (f *fakeGCPKMSServer) CreateCryptoKey(ctx context.Context, req *kmspb.Creat
 	switch cryptoKey.VersionTemplate.Algorithm {
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512:
 		pem = testRSA2048PrivateKeyPEM
-	case kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256:
-		pem = testRSA4096PrivateKeyPEM
 	case kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
@@ -217,40 +214,6 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 
 	resp := &kmspb.AsymmetricSignResponse{
 		Signature: sig,
-	}
-
-	return resp, nil
-}
-
-func (f *fakeGCPKMSServer) AsymmetricDecrypt(ctx context.Context, req *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	keyState, ok := f.keyVersions[req.Name]
-	if !ok {
-		return nil, trace.NotFound("no such key")
-	}
-	if keyState.cryptoKeyVersion.State != kmspb.CryptoKeyVersion_ENABLED {
-		return nil, trace.BadParameter("cannot fetch key, state has value %s", keyState.cryptoKeyVersion.State)
-	}
-
-	signer, err := keys.ParsePrivateKey(keyState.pem)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	decrypter, ok := signer.Signer.(crypto.Decrypter)
-	if !ok {
-		return nil, trace.Errorf("private key is not a valid decrypter")
-	}
-
-	testRand := mathrandv1.New(mathrandv1.NewSource(0))
-	plaintext, err := decrypter.Decrypt(testRand, req.Ciphertext, &rsa.OAEPOptions{Hash: crypto.SHA256})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp := &kmspb.AsymmetricDecryptResponse{
-		Plaintext: plaintext,
 	}
 
 	return resp, nil
@@ -408,6 +371,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			expectSignError: true,
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -625,7 +589,8 @@ func TestGCPKMSKeystore(t *testing.T) {
 
 func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "test-cluster",

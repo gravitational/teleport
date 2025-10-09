@@ -21,8 +21,6 @@ package dbcmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -32,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -144,8 +143,8 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
-	if options.logger == nil {
-		options.logger = slog.Default()
+	if options.log == nil {
+		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
 	if options.exe == nil {
@@ -260,11 +259,8 @@ func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
-		c.options.logger.DebugContext(context.Background(), "Couldn't find cockroach client in PATH, falling back to postgres client",
-			"cockroach_client", cockroachBin,
-			"postgres_client", postgresBin,
-			"error", err,
-		)
+		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
+			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
 	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
@@ -567,10 +563,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 	// force a different timeout for debugging purpose or extreme situations.
 	serverSelectionTimeoutMS := "5000"
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
-		c.options.logger.InfoContext(context.Background(), "Using server selection timeout value from environment variable",
-			"environment_variable", envVarMongoServerSelectionTimeoutMS,
-			"server_selection_timeout", envValue,
-		)
+		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
@@ -589,7 +582,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,
-		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
+		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
 		RawQuery: query.Encode(),
 		Path:     fmt.Sprintf("/%s", c.db.Database),
 	}
@@ -834,17 +827,15 @@ func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
 func (c *CLICommandBuilder) getOracleAlternativeCommands() []CommandAlternative {
 	var commands []CommandAlternative
 
-	ctx := context.Background()
+	c.options.log.Debugf("Building Oracle commands.")
+	c.options.log.Debugf("Found servers with TCP support: %v.", c.options.oracle.hasTCPServers)
+	c.options.log.Debugf("All servers support TCP: %v.", c.options.oracle.canUseTCP)
 
-	c.options.logger.DebugContext(ctx, "Building Oracle commands.")
-	c.options.logger.DebugContext(ctx, "Found servers with TCP support", "count", c.options.oracle.hasTCPServers)
-	c.options.logger.DebugContext(ctx, "All servers support TCP", "all_servers_support_tcp", c.options.oracle.canUseTCP)
-
-	c.options.logger.DebugContext(ctx, "Connection strings:")
-	c.options.logger.DebugContext(ctx, "JDBC", "connection_string", c.getOracleJDBCConnectionString())
+	c.options.log.Debugf("Connection strings:")
+	c.options.log.Debugf("- JDBC: %s", c.getOracleJDBCConnectionString())
 	if c.options.oracle.hasTCPServers {
-		c.options.logger.DebugContext(ctx, "TNS", "connection_string", c.getOracleTNSDescriptorString())
-		c.options.logger.DebugContext(ctx, "Direct", "connection_string", c.getOracleDirectConnectionString())
+		c.options.log.Debugf("- TNS descriptor: %s", c.getOracleTNSDescriptorString())
+		c.options.log.Debugf("- Direct: %s", c.getOracleDirectConnectionString())
 	}
 
 	const oneShotLogin = "-L"
@@ -953,7 +944,7 @@ type connectionCommandOpts struct {
 	noTLS                    bool
 	printFormat              bool
 	tolerateMissingCLIClient bool
-	logger                   *slog.Logger
+	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
 	gcp                      types.GCPCloudSQL
@@ -1018,9 +1009,9 @@ func WithPrintFormat() ConnectCommandFunc {
 
 // WithLogger is the connect command option that allows the caller to pass a logger that will be
 // used by CLICommandBuilder.
-func WithLogger(log *slog.Logger) ConnectCommandFunc {
+func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
-		opts.logger = log
+		opts.log = log
 	}
 }
 

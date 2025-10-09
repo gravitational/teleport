@@ -24,7 +24,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"iter"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -35,7 +34,6 @@ import (
 	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -49,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -141,8 +138,6 @@ type record struct {
 	Value      []byte `firestore:"value,omitempty"`
 	RevisionV2 string `firestore:"revision,omitempty"`
 	RevisionV1 string `firestore:"-"`
-
-	snapShot *firestore.DocumentSnapshot `firestore:"-"`
 }
 
 func (r *record) updates() []firestore.Update {
@@ -243,8 +238,6 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			}
 		}
 	}
-
-	r.snapShot = doc
 
 	if r.RevisionV2 == "" {
 		r.RevisionV1 = toRevisionV1(doc.UpdateTime)
@@ -548,150 +541,45 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 	return allDocs, nil
 }
 
-func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
-	if params.StartKey.IsZero() {
-		err := trace.BadParameter("missing parameter startKey")
-		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
-	}
-	if params.EndKey.IsZero() {
-		err := trace.BadParameter("missing parameter endKey")
-		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
-	}
-
-	limit := params.Limit
-	if limit <= 0 {
-		limit = backend.DefaultRangeLimit
-	}
-
-	sort := firestore.Asc
-	if params.Descending {
-		sort = firestore.Desc
-	}
-
-	return func(yield func(backend.Item, error) bool) {
-		count := 0
-		defer func() {
-			if count >= backend.DefaultRangeLimit {
-				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", params.StartKey, "count", count)
-			}
-		}()
-
-		for r, err := range b.mergedRecords(ctx, params.StartKey.String(), params.EndKey.String(), limit, sort) {
-			if err != nil {
-				yield(backend.Item{}, trace.Wrap(err))
-				return
-			}
-
-			if r.isExpired(b.clock.Now()) {
-				if _, err := r.snapShot.Ref.Delete(ctx, firestore.LastUpdateTime(r.snapShot.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
-					// If the document has been updated, then attempt one additional get to see if the
-					// resource was updated and is no longer expired.
-					docSnap, err := b.svc.Collection(b.CollectionName).
-						Doc(r.snapShot.Ref.ID).
-						Get(ctx)
-					if err != nil {
-						yield(backend.Item{}, trace.Wrap(err))
-						return
-					}
-
-					r, err = newRecordFromDoc(docSnap)
-					if err != nil {
-						yield(backend.Item{}, trace.Wrap(err))
-						return
-					}
-
-					if r.isExpired(b.clock.Now()) {
-						continue
-					}
-				}
-			}
-
-			if !yield(r.backendItem(), nil) {
-				return
-			}
-			count++
-
-			if limit != backend.NoLimit && count >= limit {
-				return
-			}
-		}
-	}
-}
-
-// mergedRecords returns an iterator that aggregates all items in the collection
-// in the desired order. This is required because over the years the key has been
-// stored in three formats. In order to iterate over all keys in the collection in the
-// correct order, documents with keys of all formats need to be considered.
-//
-// TODO(tross|tigrato): DELETE IN V19.0.0 with the background migration
-func (b *Backend) mergedRecords(ctx context.Context, startKey, endKey string, limit int, sort firestore.Direction) iter.Seq2[*record, error] {
-	return func(yield func(*record, error) bool) {
-		snaps := records(b.svc.Collection(b.CollectionName).
-			Where(keyDocProperty, ">=", []byte(startKey)).
-			Where(keyDocProperty, "<=", []byte(endKey)).
-			Limit(limit).
-			OrderBy(keyDocProperty, sort).
-			Documents(ctx))
-
-		legacySnaps := records(b.svc.Collection(b.CollectionName).
-			Where(keyDocProperty, ">=", startKey).
-			Where(keyDocProperty, "<=", endKey).
-			Limit(limit).
-			OrderBy(keyDocProperty, sort).
-			Documents(ctx))
-
-		brokenSnaps := records(b.svc.Collection(b.CollectionName).
-			Where(keyDocProperty, ">=", brokenKey(startKey)).
-			Where(keyDocProperty, "<=", brokenKey(endKey)).
-			Limit(limit).
-			OrderBy(keyDocProperty, sort).
-			Documents(ctx))
-
-		less := func(a, b *record) bool {
-			return bytes.Compare(a.Key, b.Key) < 0
-		}
-
-		for snap, err := range stream.MergeStreams(stream.MergeStreams(brokenSnaps, legacySnaps, less), snaps, less) {
-			if !yield(snap, err) || err != nil {
-				return
-			}
-		}
-	}
-}
-
-func records(iter *firestore.DocumentIterator) iter.Seq2[*record, error] {
-	return func(yield func(*record, error) bool) {
-		defer iter.Stop()
-
-		for {
-			snapshot, err := iter.Next()
-			if errors.Is(err, iterator.Done) {
-				return
-			}
-
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			r, err := newRecordFromDoc(snapshot)
-			if !yield(r, err) || err != nil {
-				return
-			}
-		}
-	}
-}
-
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	var result backend.GetResult
-	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var values []backend.Item
+	for _, docSnap := range docSnaps {
+		r, err := newRecordFromDoc(docSnap)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		result.Items = append(result.Items, item)
+
+		if r.isExpired(b.clock.Now()) {
+			if _, err := docSnap.Ref.Delete(ctx, firestore.LastUpdateTime(docSnap.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
+				// If the document has been updated, then attempt one additional get to see if the
+				// resource was updated and is no longer expired.
+				docSnap, err := b.svc.Collection(b.CollectionName).
+					Doc(docSnap.Ref.ID).
+					Get(ctx)
+				if err != nil {
+					return nil, ConvertGRPCError(err)
+				}
+				r, err := newRecordFromDoc(docSnap)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				if !r.isExpired(b.clock.Now()) {
+					values = append(values, r.backendItem())
+				}
+			}
+			// Do not include this document in the results.
+			continue
+		}
+
+		values = append(values, r.backendItem())
 	}
-	return &result, nil
+	return &backend.GetResult{Items: values}, nil
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey

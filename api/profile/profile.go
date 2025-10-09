@@ -23,7 +23,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -67,14 +67,6 @@ type Profile struct {
 
 	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
 	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
-
-	// RelayAddr is the relay in use specified at login time, or "none" if use
-	// of a relay is explicitly disabled.
-	RelayAddr string `yaml:"relay_addr,omitempty"`
-
-	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
-	// be used if RelayAddr is unspecified. Set at login time.
-	DefaultRelayAddr string `yaml:"default_relay_addr,omitempty"`
 
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
@@ -341,7 +333,7 @@ func UserHomeDir() (string, bool) {
 		return home, true
 	}
 	// Fall back to the user lookup.
-	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
 		return u.HomeDir, true
 	}
 	return "", false

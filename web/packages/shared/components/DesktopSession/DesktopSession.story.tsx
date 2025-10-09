@@ -57,8 +57,8 @@ export default meta;
 const fakeClient = () => {
   const client = new TdpClient(() => null, selectDirectoryInBrowser);
   // Don't try to connect to a websocket.
-  client.connect = async options => {
-    emitFrame(client, options.screenSpec);
+  client.connect = async spec => {
+    emitFrame(client, spec);
   };
   return client;
 };
@@ -172,8 +172,8 @@ export const SharingDisabledRbac = () => (
 
 export const Alerts = () => {
   const client = fakeClient();
-  client.connect = async options => {
-    emitFrame(client, options.screenSpec);
+  client.connect = async spec => {
+    emitFrame(client, spec);
     client.emit(
       TdpClientEvent.TDP_WARNING,
       'Potential performance issues detected. Expect possible lag or instability.'

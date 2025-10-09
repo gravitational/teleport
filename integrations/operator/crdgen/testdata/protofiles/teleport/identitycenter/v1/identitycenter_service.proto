@@ -1,0 +1,49 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.identitycenter.v1;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
+
+// IdentityCenterService provides methods to manage Identity Center
+// resources.
+service IdentityCenterService {
+  // DeleteAllIdentityCenterAccounts deletes all Identity Center accounts.
+  rpc DeleteAllIdentityCenterAccounts(DeleteAllIdentityCenterAccountsRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllAccountAssignments deletes all Identity Center Account assignments.
+  rpc DeleteAllAccountAssignments(DeleteAllAccountAssignmentsRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllPrincipalAssignments deletes all Identity Center principal assignments.
+  rpc DeleteAllPrincipalAssignments(DeleteAllPrincipalAssignmentsRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllPermissionSets deletes all Identity Center permission sets.
+  rpc DeleteAllPermissionSets(DeleteAllPermissionSetsRequest) returns (google.protobuf.Empty);
+}
+
+// DeleteAllIdentityCenterAccountsRequest is a request to delete all Identity Center imported accounts.
+message DeleteAllIdentityCenterAccountsRequest {}
+
+// DeleteAllAccountAssignmentsRequest is a request to delete all Identity Center account assignments.
+message DeleteAllAccountAssignmentsRequest {}
+
+// DeleteAllPrincipalAssignmentsRequest is a request to delete all Identity Center principal assignments.
+message DeleteAllPrincipalAssignmentsRequest {}
+
+// DeleteAllPermissionSetsRequest is a request to delete all Identity Center permission sets.
+message DeleteAllPermissionSetsRequest {}

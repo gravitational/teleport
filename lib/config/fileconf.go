@@ -20,14 +20,12 @@ package config
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -36,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
@@ -66,7 +65,6 @@ type FileConfig struct {
 	Auth    Auth  `yaml:"auth_service,omitempty"`
 	SSH     SSH   `yaml:"ssh_service,omitempty"`
 	Proxy   Proxy `yaml:"proxy_service,omitempty"`
-	Relay   Relay `yaml:"relay_service,omitempty"`
 	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
@@ -184,8 +182,6 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
-	// MCPDemoServer enables the "Teleport Demo" MCP server.
-	MCPDemoServer bool
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -412,24 +408,17 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if enabled || flags.AppURI != "" || flags.AppName != "" || flags.MCPDemoServer {
-		apps.EnabledFlag = "yes"
-		apps.MCPDemoServer = flags.MCPDemoServer
-
-		switch {
-		case flags.AppURI != "" && flags.AppName != "":
-			apps.Apps = []*App{
-				{
-					Name: flags.AppName,
-					URI:  flags.AppURI,
-				},
-			}
-
-		case flags.MCPDemoServer && flags.AppURI == "" && flags.AppName == "":
-			// This is ok if only MCPDemoServer is set.
-
-		default:
+	if enabled || flags.AppURI != "" || flags.AppName != "" {
+		if flags.AppURI == "" || flags.AppName == "" {
 			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
+		}
+
+		apps.EnabledFlag = "yes"
+		apps.Apps = []*App{
+			{
+				Name: flags.AppName,
+				URI:  flags.AppURI,
+			},
 		}
 	}
 
@@ -561,7 +550,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -606,17 +595,12 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
-	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
-
-	// ShutdownDelay is a fixed delay between receiving a termination signal and
-	// the beginning of the shutdown procedures.
-	ShutdownDelay types.Duration `yaml:"shutdown_delay,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -746,10 +730,6 @@ type Auth struct {
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
 
-	// SessionRecordingConfig configures how session recording should be handled including things like
-	// encryption and key management.
-	SessionRecordingConfig *SessionRecordingConfig `yaml:"session_recording_config,omitempty"`
-
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
 	LicenseFile string `yaml:"license_file,omitempty"`
@@ -851,16 +831,6 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
-	// AuditLog contains audit log export details.
-	AuditLog AuditLogConfig `yaml:"audit_log"`
-}
-
-// AuditLogConfig specifies the audit log event export setup.
-type AuditLogConfig struct {
-	// Enabled indicates if Audit Log event exporting is enabled.
-	Enabled bool `yaml:"enabled"`
-	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
-	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -891,8 +861,7 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
-		a.SessionRecordingConfig != empty.SessionRecordingConfig
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1116,7 +1085,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	switch {
 	case a.HardwareKey != nil:
 		if a.PIVSlot != "" {
-			slog.WarnContext(context.Background(), `Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting`)
+			log.Warn(`Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting.`)
 		}
 		h, err = a.HardwareKey.Parse()
 		if err != nil {
@@ -1134,9 +1103,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	if a.SecondFactor != "" && a.SecondFactors != nil {
-		const msg = `second_factor and second_factors are both set. second_factors will take precedence. ` +
-			`second_factor should be unset to remove this warning.`
-		slog.WarnContext(context.Background(), msg)
+		log.Warn(`` +
+			`second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`)
 	}
 
 	stableUNIXUserConfig, err := a.StableUNIXUserConfig.Parse()
@@ -1211,10 +1180,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
 	if w.Disabled {
-		const msg = `The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
+		log.Warnf(`` +
+			`The "webauthn.disabled" setting is marked for removal and currently has no effect. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
-		slog.WarnContext(context.Background(), msg)
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`)
 	}
 	return &types.Webauthn{
 		// Allow any RPID to go through, we rely on
@@ -1535,7 +1504,11 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1616,15 +1589,6 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
-// AccessGraphAWSSyncCloudTrailLogs represents the configuration for the SQS queue
-// to poll for CloudTrail notifications.
-type AccessGraphAWSSyncCloudTrailLogs struct {
-	// QueueURL is the URL of the SQS queue to poll for AWS resources.
-	QueueURL string `yaml:"queue_url,omitempty"`
-	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
-	QueueRegion string `yaml:"queue_region,omitempty"`
-}
-
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1634,9 +1598,6 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
-	// CloudTrailLogs is the configuration for the SQS queue to poll for
-	// CloudTrail logs.
-	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1826,14 +1787,6 @@ type InstallParams struct {
 	// Valid values: script, eice.
 	// Optional.
 	EnrollMode string `yaml:"enroll_mode"`
-	// Suffix indicates the installation suffix for the teleport installation.
-	// Set this value if you want multiple installations of Teleport.
-	// See --install-suffix flag in teleport-update program.
-	Suffix string `yaml:"suffix,omitempty"`
-	// UpdateGroup indicates the update group for the teleport installation.
-	// This value is used to group installations in order to update them in batches.
-	// See --group flag in teleport-update program.
-	UpdateGroup string `yaml:"update_group,omitempty"`
 }
 
 const (
@@ -1851,8 +1804,6 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
-		Suffix:          ip.Suffix,
-		UpdateGroup:     ip.UpdateGroup,
 	}
 
 	switch ip.EnrollMode {
@@ -2031,8 +1982,6 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
-	// ElastiCacheServerless contains ElastiCache Serverless specific settings.
-	ElastiCacheServerless DatabaseAWSElastiCacheServerless `yaml:"elasticache_serverless"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
@@ -2069,13 +2018,6 @@ type DatabaseAWSElastiCache struct {
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
 }
 
-// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless
-// databases.
-type DatabaseAWSElastiCacheServerless struct {
-	// CacheName is the ElastiCache Serverless cache name.
-	CacheName string `yaml:"cache_name,omitempty"`
-}
-
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
@@ -2096,17 +2038,6 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
-	// AlloyDB contains AlloyDB specific settings.
-	AlloyDB DatabaseGCPAlloyDB `yaml:"alloydb,omitempty"`
-}
-
-// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
-type DatabaseGCPAlloyDB struct {
-	// EndpointType is the database endpoint type to use. Available types are 'private', 'public' and 'psc'.
-	// 'private' is the default type.
-	EndpointType string `yaml:"endpoint_type,omitempty"`
-	// EndpointOverride is an override of endpoint address to use.
-	EndpointOverride string `yaml:"endpoint_override,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.
@@ -2127,9 +2058,6 @@ type Apps struct {
 
 	// DebugApp turns on a header debugging application.
 	DebugApp bool `yaml:"debug_app"`
-
-	// MCPDemoServer enables the "Teleport Demo" MCP server.
-	MCPDemoServer bool `yaml:"mcp_demo_server"`
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
@@ -2192,9 +2120,6 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
-
-	// MCP contains MCP server-related configurations.
-	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2251,17 +2176,6 @@ type PortRange struct {
 	// greater than Port and less than or equal to 65535. When describing a single port, it must be
 	// set to 0.
 	EndPort int `yaml:"end_port,omitempty"`
-}
-
-// MCP contains MCP server-related configurations.
-type MCP struct {
-	// Command to launch stdio-based MCP servers.
-	Command string `yaml:"command,omitempty"`
-	// Args to execute with the command.
-	Args []string `yaml:"args,omitempty"`
-	// RunAsHostUser is the host user account under which the command will be
-	// executed. Required for stdio-based MCP servers.
-	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2576,14 +2490,7 @@ type WindowsDesktopService struct {
 	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
-	// New usages should prever DiscoveryConfigs instead, which allows for multiple searches.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// DiscoveryConfigs configures desktop discovery via LDAP.
-	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
-	// DiscoveryInterval controls how frequently the discovery process runs.
-	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
-	// PublishCRLInterval determines how frequently CRLs should be published.
-	PublishCRLInterval time.Duration `yaml:"publish_crl_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2612,14 +2519,12 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	ldapConfigOK := wds.LDAP.Domain != "" && (wds.LDAP.Addr != "" || wds.LDAP.LocateServer.Enabled)
-
-	if hasAD && !ldapConfigOK {
+	if hasAD && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration must also be specified")
 	}
 
-	if (wds.Discovery.BaseDN != "" || len(wds.DiscoveryConfigs) > 0) && !ldapConfigOK {
+	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
 			"ldap configuration must also be specified")
 	}
@@ -2650,22 +2555,10 @@ type WindowsHost struct {
 	AD bool `yaml:"ad"`
 }
 
-// LocateServer contains parameters for locating LDAP servers
-// from the AD Domain
-type LocateServer struct {
-	// Enabled will automatically locate the LDAP server using DNS SRV records.
-	// When enabled, Domain must be set, Addr will be ignored
-	// https://ldap.com/dns-srv-records-for-ldap/
-	Enabled bool `yaml:"enabled,omitempty"`
-	// Site is an LDAP site to locate servers from a specific logical site.
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
-	Site string `yaml:"site,omitempty"`
-}
-
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
-	Addr string `yaml:"addr,omitempty"`
+	Addr string `yaml:"addr"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
@@ -2680,8 +2573,6 @@ type LDAPConfig struct {
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
 	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
-	// LocateServer is the config that enables LDAP server location using DNS SRV records.
-	LocateServer `yaml:"locate_server"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
@@ -2699,9 +2590,6 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
-	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
-	// Optional, defaults to 3389 if unspecified.
-	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.
@@ -2936,93 +2824,4 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
-}
-
-// Relay is the relay_service section of the Teleport config file.
-type Relay struct {
-	// Enabled is set if the relay service is enabled, defaults to false.
-	Enabled bool `yaml:"enabled"`
-
-	// RelayGroup is the Relay group name, required if the relay service is
-	// enabled.
-	RelayGroup string `yaml:"relay_group"`
-
-	// TargetConnectionCount is the connection count that agents are supposed to
-	// maintain when connecting to the Relay group of this instance.
-	TargetConnectionCount int `yaml:"target_connection_count"`
-
-	// PublicHostnames is the list of DNS names and IP addresses that the
-	// Relay service credentials should be authoritative for.
-	PublicHostnames []string `yaml:"public_hostnames"`
-
-	// TransportListenAddr is the listen address for the transport listener, in
-	// addr:port format.
-	TransportListenAddr string `yaml:"transport_listen_addr"`
-
-	// TransportPROXYProtocol is set if the transport listener should expect a
-	// PROXY protocol header in incoming connections.
-	TransportPROXYProtocol bool `yaml:"transport_proxy_protocol"`
-
-	// PeerListenAddr is the listen address for the peer listener, in addr:port
-	// format.
-	PeerListenAddr string `yaml:"peer_listen_addr"`
-
-	// PeerPublicAddr, if set, is the public address for the peer listener, in
-	// host:port format.
-	PeerPublicAddr string `yaml:"peer_public_addr"`
-
-	// TunnelListenAddr is the listen address for the tunnel listener, in
-	// addr:port format.
-	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
-
-	// TunnelPROXYProtocol is set if the tunnel listener should expect a PROXY
-	// protocol header in incoming connections.
-	TunnelPROXYProtocol bool `yaml:"tunnel_proxy_protocol"`
-}
-
-// SessionRecordingEncryptionConfig is the session_recording_config.encryption
-// section of the Teleport config file. It maps directly to [types.SessionRecordingEncryptionConfig]
-type SessionRecordingEncryptionConfig struct {
-	Enabled             bool `yaml:"enabled,omitempty"`
-	ManualKeyManagement *struct {
-		Enabled     bool              `yaml:"enabled,omitempty"`
-		ActiveKeys  []*types.KeyLabel `yaml:"active_keys,omitempty"`
-		RotatedKeys []*types.KeyLabel `yaml:"rotated_keys,omitempty"`
-	} `yaml:"manual_key_management,omitempty"`
-}
-
-// SessionRecordingConfig is the session_recording_config section of the Teleport config file.
-// It maps directly to [types.SessionRecordingConfigSpecV2]
-type SessionRecordingConfig struct {
-	Mode                string                            `yaml:"mode"`
-	ProxyChecksHostKeys *types.BoolOption                 `yaml:"proxy_checks_host_keys,omitempty"`
-	Encryption          *SessionRecordingEncryptionConfig `yaml:"encryption,omitempty"`
-}
-
-// toSpec converts SessionRecordingConfig into a types.SessionRecordingConfigSpecV2 so it can
-// be used to initialize session recording.
-func (src *SessionRecordingConfig) toSpec() types.SessionRecordingConfigSpecV2 {
-	if src == nil {
-		return types.SessionRecordingConfigSpecV2{}
-	}
-
-	var encryption *types.SessionRecordingEncryptionConfig
-	if src.Encryption != nil {
-		encryption = &types.SessionRecordingEncryptionConfig{
-			Enabled: src.Encryption.Enabled,
-		}
-		if src.Encryption.ManualKeyManagement != nil {
-			encryption.ManualKeyManagement = &types.ManualKeyManagementConfig{
-				Enabled:     src.Encryption.ManualKeyManagement.Enabled,
-				ActiveKeys:  src.Encryption.ManualKeyManagement.ActiveKeys,
-				RotatedKeys: src.Encryption.ManualKeyManagement.RotatedKeys,
-			}
-		}
-	}
-
-	return types.SessionRecordingConfigSpecV2{
-		Mode:                src.Mode,
-		ProxyChecksHostKeys: src.ProxyChecksHostKeys,
-		Encryption:          encryption,
-	}
 }

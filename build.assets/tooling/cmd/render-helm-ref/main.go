@@ -20,16 +20,15 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
@@ -53,15 +52,14 @@ func main() {
 	flag.StringVar(&outputPath, "output", "-", "Path of the generated markdown reference, '-' means stdout.")
 	flag.Parse()
 
-	ctx := context.Background()
 	if chartPath == "" {
-		slog.ErrorContext(ctx, "chart path must be specified")
+		log.Error(trace.BadParameter("chart path must be specified"))
 		os.Exit(1)
 	}
 
 	reference, err := parseAndRender(chartPath)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed parsing chart and rendering reference", "error", err)
+		log.Errorf("failed parsing chart and rendering reference: %s", err)
 		os.Exit(1)
 	}
 
@@ -71,10 +69,10 @@ func main() {
 	}
 	err = os.WriteFile(outputPath, reference, 0o644)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed writing file", "error", err)
+		log.Errorf("failed writing file: %s", err)
 		os.Exit(1)
 	}
-	slog.InfoContext(ctx, "File successfully written", "file_path", outputPath)
+	log.Infof("File %s successfully written", outputPath)
 }
 
 func parseAndRender(chartPath string) ([]byte, error) {
@@ -108,10 +106,7 @@ func parseAndRender(chartPath string) ([]byte, error) {
 		if value.Kind != "" && value.Default == "" {
 			defaultValue, err := getDefaultForValue(value.Name, chrt.Values)
 			if err != nil {
-				slog.WarnContext(context.Background(), "failed to look up default value",
-					"value", value.Name,
-					"error", err,
-				)
+				log.Warnf("failed to get default for value %s, error: %s", value.Name, err)
 			} else {
 				value.Default = string(defaultValue)
 			}
@@ -232,7 +227,7 @@ func cleanLine(line string) string {
 		return ""
 	}
 	if line2[0] != '#' {
-		slog.WarnContext(context.Background(), "Misformatted line", "line", line)
+		log.Warnf("Misformatted line: %s", line)
 		return ""
 	}
 	return line2[2:]

@@ -20,7 +20,6 @@ import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
 import { ListWorkloadIdentitiesResponse } from 'teleport/services/workloadIdentity/types';
-import { JsonObject } from 'teleport/types';
 
 export const listWorkloadIdentitiesSuccess = (
   mock: ListWorkloadIdentitiesResponse = {
@@ -39,14 +38,15 @@ export const listWorkloadIdentitiesSuccess = (
       {
         name: 'test-workload-identity-2',
         spiffe_id: '',
-        spiffe_hint: 'This is a hint',
+        spiffe_hint:
+          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
         labels: {},
       },
       {
         name: 'test-workload-identity-3',
         spiffe_id: '/test/spiffe/6bfd8c2d-83eb-4a6f-97ba-f8b187f08339',
         spiffe_hint: '',
-        labels: { 'test-label-4': 'test-value-4' },
+        labels: { 'test-label-1': 'test-value-1' },
       },
     ],
     next_page_token: 'page-token-1',
@@ -67,9 +67,8 @@ export const listWorkloadIdentitiesForever = () =>
 
 export const listWorkloadIdentitiesError = (
   status: number,
-  error: string | null = null,
-  fields: JsonObject = {}
+  error: string | null = null
 ) =>
   http.get(cfg.api.workloadIdentity.list, () => {
-    return HttpResponse.json({ error: { message: error }, fields }, { status });
+    return HttpResponse.json({ error: { message: error } }, { status });
   });

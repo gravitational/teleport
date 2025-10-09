@@ -64,7 +64,7 @@ func (s *ProvisioningService) PatchToken(
 ) (types.ProvisionToken, error) {
 	const iterLimit = 3
 
-	for range iterLimit {
+	for i := 0; i < iterLimit; i++ {
 		existing, err := s.GetToken(ctx, tokenName)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -177,8 +177,6 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-// Deprecated: use [ListProvisionTokens] instead.
-// TODO(hugoShaka): DELETE IN 19.0.0
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -211,15 +209,15 @@ func (s *ProvisioningService) ListProvisionTokens(ctx context.Context, pageSize 
 	}
 
 	prefix := backend.NewKey(tokensPrefix)
+	result, err := s.GetRange(ctx,
+		prefix.AppendKey(backend.KeyFromString(pageToken)),
+		backend.RangeEnd(prefix.ExactKey()), backend.NoLimit,
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	var out []types.ProvisionToken
-	for item, err := range s.Items(ctx, backend.ItemsParams{
-		StartKey: prefix.AppendKey(backend.KeyFromString(pageToken)),
-		EndKey:   backend.RangeEnd(prefix.ExactKey()),
-	}) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
+	for _, item := range result.Items {
 		t, err := services.UnmarshalProvisionToken(
 			item.Value,
 			services.WithExpires(item.Expires),

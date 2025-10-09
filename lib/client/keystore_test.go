@@ -73,6 +73,7 @@ func TestKeyStore(t *testing.T) {
 		"software key": softKeyRing,
 		"hardware key": hardKeyRing,
 	} {
+		keyRing := keyRing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -142,7 +143,7 @@ func TestListKeys(t *testing.T) {
 
 		// add 5 keys for "bob"
 		keys := make([]KeyRing, keyNum)
-		for i := range keyNum {
+		for i := 0; i < keyNum; i++ {
 			idx := KeyRingIndex{fmt.Sprintf("host-%v", i), "bob", "root"}
 			keyRing := auth.makeSignedKeyRing(t, idx, false)
 			require.NoError(t, keyStore.AddKeyRing(keyRing))
@@ -154,7 +155,7 @@ func TestListKeys(t *testing.T) {
 		require.NoError(t, keyStore.AddKeyRing(samKeyRing))
 
 		// read all bob keys:
-		for i := range keyNum {
+		for i := 0; i < keyNum; i++ {
 			keyRing, err := keyStore.GetKeyRing(keys[i].KeyRingIndex, nil /*hwks*/, WithSSHCerts{}, WithDBCerts{})
 			require.NoError(t, err)
 			keyRing.TrustedCerts = keys[i].TrustedCerts
@@ -183,7 +184,7 @@ func TestGetCertificates(t *testing.T) {
 		certs := make([]*ssh.Certificate, keyNum)
 		var proxy = "proxy.example.com"
 		var user = "bob"
-		for i := range keyNum {
+		for i := 0; i < keyNum; i++ {
 			idx := KeyRingIndex{proxy, user, fmt.Sprintf("cluster-%v", i)}
 			keyRing := auth.makeSignedKeyRing(t, idx, false)
 			err := keyStore.AddKeyRing(keyRing)

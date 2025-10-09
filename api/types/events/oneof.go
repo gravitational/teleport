@@ -809,15 +809,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AutoUpdateAgentRolloutRollback{
 			AutoUpdateAgentRolloutRollback: e,
 		}
-	case *ContactCreate:
-		out.Event = &OneOf_ContactCreate{
-			ContactCreate: e,
-		}
-	case *ContactDelete:
-		out.Event = &OneOf_ContactDelete{
-			ContactDelete: e,
-		}
-
 	case *WorkloadIdentityCreate:
 		out.Event = &OneOf_WorkloadIdentityCreate{
 			WorkloadIdentityCreate: e,
@@ -830,13 +821,17 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadIdentityDelete{
 			WorkloadIdentityDelete: e,
 		}
+	case *ContactCreate:
+		out.Event = &OneOf_ContactCreate{
+			ContactCreate: e,
+		}
+	case *ContactDelete:
+		out.Event = &OneOf_ContactDelete{
+			ContactDelete: e,
+		}
 	case *GitCommand:
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
-		}
-	case *StableUNIXUserCreate:
-		out.Event = &OneOf_StableUNIXUserCreate{
-			StableUNIXUserCreate: e,
 		}
 	case *WorkloadIdentityX509RevocationCreate:
 		out.Event = &OneOf_WorkloadIdentityX509RevocationCreate{
@@ -850,21 +845,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WorkloadIdentityX509RevocationUpdate{
 			WorkloadIdentityX509RevocationUpdate: e,
 		}
-	case *AWSICResourceSync:
-		out.Event = &OneOf_AWSICResourceSync{
-			AWSICResourceSync: e,
-		}
-	case *HealthCheckConfigCreate:
-		out.Event = &OneOf_HealthCheckConfigCreate{
-			HealthCheckConfigCreate: e,
-		}
-	case *HealthCheckConfigUpdate:
-		out.Event = &OneOf_HealthCheckConfigUpdate{
-			HealthCheckConfigUpdate: e,
-		}
-	case *HealthCheckConfigDelete:
-		out.Event = &OneOf_HealthCheckConfigDelete{
-			HealthCheckConfigDelete: e,
+	case *StableUNIXUserCreate:
+		out.Event = &OneOf_StableUNIXUserCreate{
+			StableUNIXUserCreate: e,
 		}
 	case *WorkloadIdentityX509IssuerOverrideCreate:
 		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideCreate{
@@ -886,30 +869,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SigstorePolicyDelete{
 			SigstorePolicyDelete: e,
 		}
-	case *MCPSessionStart:
-		out.Event = &OneOf_MCPSessionStart{
-			MCPSessionStart: e,
-		}
-	case *MCPSessionEnd:
-		out.Event = &OneOf_MCPSessionEnd{
-			MCPSessionEnd: e,
-		}
-	case *MCPSessionRequest:
-		out.Event = &OneOf_MCPSessionRequest{
-			MCPSessionRequest: e,
-		}
-	case *MCPSessionNotification:
-		out.Event = &OneOf_MCPSessionNotification{
-			MCPSessionNotification: e,
-		}
-	case *MCPSessionListenSSEStream:
-		out.Event = &OneOf_MCPSessionListenSSEStream{
-			MCPSessionListenSSEStream: e,
-		}
-	case *MCPSessionInvalidHTTPRequest:
-		out.Event = &OneOf_MCPSessionInvalidHTTPRequest{
-			MCPSessionInvalidHTTPRequest: e,
-		}
 	case *BoundKeypairRecovery:
 		out.Event = &OneOf_BoundKeypairRecovery{
 			BoundKeypairRecovery: e,
@@ -922,10 +881,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_BoundKeypairJoinStateVerificationFailed{
 			BoundKeypairJoinStateVerificationFailed: e,
 		}
-	case *SCIMListingEvent:
-		out.Event = &OneOf_SCIMListingEvent{SCIMListingEvent: e}
-	case *SCIMResourceEvent:
-		out.Event = &OneOf_SCIMResourceEvent{SCIMResourceEvent: e}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

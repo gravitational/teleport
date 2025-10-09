@@ -111,7 +111,7 @@ func (n *testifyMockClient) SampleAgentsFromAutoUpdateGroup(ctx context.Context,
 	args := n.Called(ctx, groupName, sampleSize, groups)
 	var canaries []*autoupdate.Canary
 	for _, canary := range args.Get(0).([]*autoupdate.Canary) {
-		canaries = append(canaries, proto.CloneOf(canary))
+		canaries = append(canaries, proto.Clone(canary).(*autoupdate.Canary))
 	}
 	return canaries, args.Error(1)
 }

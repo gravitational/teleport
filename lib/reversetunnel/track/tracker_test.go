@@ -36,7 +36,7 @@ type simpleTestProxies struct {
 func (s *simpleTestProxies) AddRandProxies(n int, min time.Duration, max time.Duration) {
 	s.Lock()
 	defer s.Unlock()
-	for range n {
+	for i := 0; i < n; i++ {
 		proxy := newTestProxy(prDuration(min, max))
 		s.proxies = append(s.proxies, proxy)
 	}
@@ -119,7 +119,7 @@ type testProxy struct {
 
 func newTestProxy(life time.Duration) testProxy {
 	principals := make([]string, 0, 3)
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		p := fmt.Sprintf("proxy-%d", rand.Int())
 		principals = append(principals, p)
 	}

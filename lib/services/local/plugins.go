@@ -58,6 +58,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 

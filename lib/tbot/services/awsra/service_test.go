@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -147,7 +147,7 @@ type mockCreateSessionInputBody struct {
 func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	tests := []struct {
 		name        string

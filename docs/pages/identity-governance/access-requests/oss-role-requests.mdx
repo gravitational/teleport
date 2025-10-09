@@ -2,10 +2,8 @@
 title: Teleport Community Edition Role Access Requests
 description: Teleport Community Edition allows users to request access to roles from the CLI.
 tags:
- - access-requests
  - conceptual
  - identity-governance
- - privileged-access
 ---
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
@@ -25,7 +23,7 @@ users can request access to. In this example, we will define two roles:
 
 There is no role for request approvers, because request approval rules can only
 be configured for Teleport Enterprise. In Teleport Community Edition, approvals must
-be performed by running `tctl` on the Teleport Auth Service.
+be performed by running `tctl` on an Auth Service instance.
 
 **Contractor role**
 

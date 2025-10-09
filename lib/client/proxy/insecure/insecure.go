@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -36,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -87,10 +85,9 @@ func NewConnection(
 	conn, err := grpc.Dial(
 		params.ProxyServer,
 		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
-		grpc.WithChainUnaryInterceptor(metadata.UnaryClientInterceptor, interceptors.GRPCClientUnaryErrorInterceptor),
-		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 	return conn, trace.Wrap(err)
 }

@@ -46,7 +46,7 @@ import (
 )
 
 // integrationsCreate creates an Integration
-func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req *ui.CreateIntegrationRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -104,27 +104,11 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.Wrap(err)
 		}
 
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		ig, err = types.NewIntegrationAWSRA(types.Metadata{
-			Name: req.Name,
-		}, &types.AWSRAIntegrationSpecV1{
-			TrustAnchorARN: req.Integration.AWSRA.TrustAnchorARN,
-			ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-				Enabled:            req.Integration.AWSRA.ProfileSyncConfig.Enabled,
-				ProfileARN:         req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
-				RoleARN:            req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
-				ProfileNameFilters: req.Integration.AWSRA.ProfileSyncConfig.ProfileNameFilters,
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 	default:
 		return nil, trace.BadParameter("subkind %q is not supported", req.SubKind)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,10 +130,10 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 }
 
 // integrationsUpdate updates the Integration based on its name
-func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("integration name is required")
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
 	var req *ui.UpdateIntegrationRequest
@@ -161,7 +145,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,24 +189,6 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		}
 	}
 
-	if req.AWSRA != nil {
-		if integration.GetSubKind() != types.IntegrationSubKindAWSRolesAnywhere {
-			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSRolesAnywhere, integration.GetSubKind())
-		}
-
-		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
-		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
-		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
-			Enabled:            req.AWSRA.ProfileSyncConfig.Enabled,
-			ProfileARN:         req.AWSRA.ProfileSyncConfig.ProfileARN,
-			RoleARN:            req.AWSRA.ProfileSyncConfig.RoleARN,
-			ProfileNameFilters: req.AWSRA.ProfileSyncConfig.ProfileNameFilters,
-
-			ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
-		}
-		integration.SetAWSRolesAnywhereIntegrationSpec(spec)
-	}
-
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -236,13 +202,13 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 }
 
 // integrationsDelete removes an Integration based on its name
-func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name_or_subkind")
 	if integrationName == "" {
-		return nil, trace.BadParameter("integration name is required")
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -259,13 +225,13 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 }
 
 // integrationsGet returns an Integration based on its name
-func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("integration name is required")
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,13 +250,13 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 }
 
 // integrationStats returns the integration stats.
-func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("integration name is required")
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -402,57 +368,25 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		nextPage = nextToken
 	}
 
-	switch req.integration.GetSubKind() {
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		ret.RolesAnywhereProfileSync = &ui.RolesAnywhereProfileSync{}
-
-		awsRolesAnywhereSpec := req.integration.GetAWSRolesAnywhereIntegrationSpec()
-		if awsRolesAnywhereSpec != nil {
-			ret.RolesAnywhereProfileSync.Enabled = awsRolesAnywhereSpec.ProfileSyncConfig.Enabled
-		}
-
-		integrationStatus := req.integration.GetStatus()
-		if integrationStatus.AWSRolesAnywhere != nil {
-			ret.RolesAnywhereProfileSync.Status = integrationStatus.AWSRolesAnywhere.LastProfileSync.Status
-			ret.RolesAnywhereProfileSync.ErrorMessage = integrationStatus.AWSRolesAnywhere.LastProfileSync.ErrorMessage
-			ret.RolesAnywhereProfileSync.SyncedProfiles = int(integrationStatus.AWSRolesAnywhere.LastProfileSync.SyncedProfiles)
-			ret.RolesAnywhereProfileSync.SyncStartTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.StartTime
-			ret.RolesAnywhereProfileSync.SyncEndTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.EndTime
-		}
-
-	case types.IntegrationSubKindAWSOIDC:
-		// For now, Deploying Database Services is only possible using the AWS OIDC Integration.
-		// When/if more integrations (eg, AWS IAM Roles Anywhere) support it, this must be updated.
-		ecsCount, err := countAWSOIDCDeployedDatabaseServices(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		ret.AWSRDS.ECSDatabaseServiceCount = ecsCount
-	}
-
-	return ret, nil
-}
-
-func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegrationStatsRequest) (int, error) {
 	regions, err := fetchRelevantAWSRegions(ctx, req.databaseGetter, req.discoveryConfigLister)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
-	if err != nil {
+	switch {
+	case trace.IsAccessDenied(err):
 		// The number of ECS Database Services is shown when listing the integration status.
 		// However, listing ECS Services is only possible after the user goes through the RDS enrollment flows, which adds the required policy to the IAM Role.
 		// If this calls returns an access denied, we assume the user doesn't have the required IAM Policies in their IAM Role and show 0 instead.
-		if trace.IsAccessDenied(err) {
-			return 0, nil
-		}
 
-		return 0, trace.Wrap(err)
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
 
-	return len(services), nil
+	ret.AWSRDS.ECSDatabaseServiceCount = len(services)
+
+	return ret, nil
 }
 
 func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
@@ -499,10 +433,10 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 // startKey: indicator for pagination, should be the value of the last reponse's `nextItem`, or absent for a the starting page
 // resourceType: which resource type to return, one of ec2, eks, rds
 // regions: only rules for regions listed are returned (omit query to include all regions)
-func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("integration name is required")
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
 	values := r.URL.Query()
@@ -515,7 +449,7 @@ func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Reque
 		regionsFilter = nil
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -620,8 +554,8 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 }
 
 // integrationsList returns a page of Integrations
-func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -651,8 +585,8 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 }
 
 // integrationsMsTeamsAppZipGet generates and returns the app.zip required for the MsTeams plugin with the given name.
-func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -682,13 +616,13 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 	return nil, nil
 }
 
-func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("integration name is required")
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

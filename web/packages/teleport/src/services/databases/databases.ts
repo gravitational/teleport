@@ -20,17 +20,11 @@ import cfg, { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 
-import { withGenericUnsupportedError } from '../version/unsupported';
-import {
-  makeDatabase,
-  makeDatabaseServer,
-  makeDatabaseService,
-} from './makeDatabase';
+import { makeDatabase, makeDatabaseService } from './makeDatabase';
 import type {
   CreateDatabaseRequest,
   Database,
   DatabaseIamPolicyResponse,
-  DatabaseServer,
   DatabaseServicesResponse,
   UpdateDatabaseRequest,
 } from './types';
@@ -95,28 +89,3 @@ class DatabaseService {
 }
 
 export default DatabaseService;
-
-export function fetchDatabaseServers({
-  clusterId,
-  params,
-  signal,
-}: {
-  clusterId: string;
-  params: UrlResourcesParams;
-  signal?: AbortSignal;
-}): Promise<ResourcesResponse<DatabaseServer>> {
-  return (
-    api
-      .get(cfg.getDatabaseServerUrl(clusterId, params), signal)
-      .then(json => {
-        const items = json?.items || [];
-
-        return {
-          agents: items.map(makeDatabaseServer),
-          startKey: json?.startKey,
-        };
-      })
-      // TODO(kimlisa): DELETE IN v19.0
-      .catch(err => withGenericUnsupportedError(err, 'v18.0.0'))
-  );
-}

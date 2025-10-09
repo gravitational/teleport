@@ -98,10 +98,6 @@ export interface ResourceSpec {
    */
   unguidedLink?: string;
   /**
-   * guidedLink is an internal link to a guided flow outside of Discover flow.
-   */
-  guidedLink?: string;
-  /**
    * isDialog indicates whether the flow for this resource is a popover dialog as opposed to a
    * Discover flow. This is the case for the 'Application' resource.
    */

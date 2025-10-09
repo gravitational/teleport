@@ -339,9 +339,6 @@ const (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
-	// RelayQueueSize is the watcher queue size for the relay cache.
-	RelayQueueSize = 8192
-
 	// UnifiedResourcesQueueSize is the unified resource watcher queue size
 	UnifiedResourcesQueueSize = 8192
 
@@ -735,7 +732,7 @@ const (
 )
 
 // The following are cryptographic primitives Teleport does not support in
-// its default configuration.
+// it's default configuration.
 const (
 	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
 	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"
@@ -890,7 +887,7 @@ var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // FormatFlagDescription creates the description for the --format flag.
 func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s).", strings.Join(formats, ", "))
+	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
 }
 
 func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {

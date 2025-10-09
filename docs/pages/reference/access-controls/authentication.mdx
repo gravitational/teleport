@@ -4,7 +4,6 @@ description: A reference for Teleport's authentication connectors
 tags:
  - reference
  - zero-trust
- - privileged-access
 ---
 
 Teleport authenticates users either via the Proxy Service or with an identity
@@ -24,7 +23,7 @@ possible values (types) of MFA:
   multi-factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
   implements FIDO2 or FIDO U2F standards.
-  See our [Harden your Cluster Against IdP Compromises](../../zero-trust-access/authentication/webauthn.mdx) guide for detailed
+  See our [Harden your Cluster Against IdP Compromises](../../zero-trust-access/access-controls/guides/webauthn.mdx) guide for detailed
   instructions on setting up WebAuthn for Teleport.
 - `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
 - `optional` enables both TOTP and WebAuthn but makes it optional for users. Local users that register a MFA device will
@@ -51,7 +50,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factors: ["webauthn"]
+      second_factor: "webauthn"
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -72,7 +71,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "webauthn"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -106,7 +105,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "webauthn"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -276,7 +275,7 @@ See [GitHub OAuth 2.0](../../zero-trust-access/sso/github-sso.mdx) for details o
 ## Require displaying a message of the day
 
 Teleport can display a custom message of the day (MOTD) for users prior to authenticating
-in the Teleport Web UI and CLI. 
+in the Teleport Web UI and CLI.
 
 ### Self-Hosted
 

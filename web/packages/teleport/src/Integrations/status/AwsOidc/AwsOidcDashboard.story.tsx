@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { http, HttpResponse } from 'msw';
-
 import {
   makeErrorAttempt,
   makeProcessingAttempt,
@@ -33,18 +31,6 @@ import { makeAwsOidcStatusContextState } from './testHelpers/makeAwsOidcStatusCo
 
 export default {
   title: 'Teleport/Integrations/AwsOidc',
-  parameters: {
-    msw: {
-      handlers: [
-        http.get(cfg.getIntegrationsUrl(), () => {
-          return HttpResponse.json({
-            items: [],
-            nextKey: '',
-          });
-        }),
-      ],
-    },
-  },
 };
 
 const setup = {

@@ -96,13 +96,6 @@ teleport:
     #  # The cache is enabled by default, it can be disabled with this flag
     #  enabled: true
 
-    # The duration (in string form) of the delay between receiving a termination
-    # signal and the beginning of the shutdown procedures. It can be used to
-    # give time to load balancers to stop routing connections to the Teleport
-    # instance while the instance is still capable of handling them. If unset or
-    # negative, no delay is applied.
-    #shutdown_delay: "0s"
-
     # Teleport can limit the number of connections coming from each client
     # IP address to avoid abuse. Note that these limits are enforced separately
     # for each service (SSH, Kubernetes, etc.)

@@ -21,8 +21,6 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type GroupMember interface {
@@ -164,7 +162,7 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 		Type string `json:"@odata.type"`
 	}
 
-	if err := utils.FastUnmarshal(msg, &temp); err != nil {
+	if err := json.Unmarshal(msg, &temp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -173,11 +171,11 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	switch temp.Type {
 	case "#microsoft.graph.user":
 		var u *User
-		err = utils.FastUnmarshal(msg, &u)
+		err = json.Unmarshal(msg, &u)
 		member = u
 	case "#microsoft.graph.group":
 		var g *Group
-		err = utils.FastUnmarshal(msg, &g)
+		err = json.Unmarshal(msg, &g)
 		member = g
 	default:
 		// Return an error if we encounter a type we do not support.

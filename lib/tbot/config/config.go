@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -357,6 +358,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case legacyspiffe.WorkloadAPIServiceType:
+			v := &legacyspiffe.WorkloadAPIConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case database.TunnelServiceType:
 			v := &database.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
@@ -377,6 +384,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case k8s.OutputV2ServiceType:
 			v := &k8s.OutputV2Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case legacyspiffe.SVIDOutputServiceType:
+			v := &legacyspiffe.SVIDOutputConfig{}
 			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}

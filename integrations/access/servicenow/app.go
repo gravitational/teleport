@@ -21,27 +21,26 @@ package servicenow
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -117,7 +116,7 @@ func (a *App) WaitReady(ctx context.Context) (bool, error) {
 
 func (a *App) run(ctx context.Context) error {
 	log := logger.Get(ctx)
-	log.InfoContext(ctx, "Starting Teleport Access Servicenow Plugin")
+	log.Infof("Starting Teleport Access Servicenow Plugin")
 
 	if err := a.init(ctx); err != nil {
 		return trace.Wrap(err)
@@ -154,9 +153,9 @@ func (a *App) run(ctx context.Context) error {
 	}
 	a.mainJob.SetReady(ok)
 	if ok {
-		log.InfoContext(ctx, "ServiceNow plugin is ready")
+		log.Info("ServiceNow plugin is ready")
 	} else {
-		log.ErrorContext(ctx, "ServiceNow plugin is not ready")
+		log.Error("ServiceNow plugin is not ready")
 	}
 
 	<-watcherJob.Done()
@@ -191,25 +190,25 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "Starting API health check")
+	log.Debug("Starting API health check...")
 	if err = a.serviceNow.CheckHealth(ctx); err != nil {
 		return trace.Wrap(err, "API health check failed")
 	}
-	log.DebugContext(ctx, "API health check finished ok")
+	log.Debug("API health check finished ok")
 
 	return nil
 }
 
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
-	log.DebugContext(ctx, "Checking Teleport server version")
+	log.Debug("Checking Teleport server version")
 
 	pong, err := a.teleport.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
 		}
-		log.ErrorContext(ctx, "Unable to get Teleport server version")
+		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
 	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
@@ -234,16 +233,16 @@ func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error 
 	}
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.With(ctx, "request_id", reqID)
+	ctx, _ = logger.WithField(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.With(ctx, "request_op", "put")
+		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
+		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
 
 		var err error
 		switch {
@@ -252,29 +251,21 @@ func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error 
 		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WarnContext(ctx, "Unknown request state",
-				slog.Group("event",
-					slog.Any("type", logutils.StringerAttr(event.Type)),
-					slog.Group("resource",
-						"kind", event.Resource.GetKind(),
-						"name", event.Resource.GetName(),
-					),
-				),
-			)
+			log.WithField("event", event).Warnf("Unknown request state: %q", req.GetState())
 			return nil
 		}
 
 		if err != nil {
-			log.ErrorContext(ctx, "Failed to process request", "error", err)
+			log.WithError(err).Error("Failed to process request")
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.With(ctx, "request_op", "delete")
+		ctx, log := logger.WithField(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
+			log.WithError(err).Error("Failed to process deleted request")
 			return trace.Wrap(err)
 		}
 		return nil
@@ -285,7 +276,7 @@ func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error 
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
 	reqID := req.GetName()
-	log := logger.Get(ctx).With("req_id", reqID)
+	log := logger.Get(ctx).WithField("reqId", reqID)
 
 	resourceNames, err := a.getResourceNames(ctx, req)
 	if err != nil {
@@ -312,7 +303,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	if isNew {
-		log.InfoContext(ctx, "Creating servicenow incident")
+		log.Infof("Creating servicenow incident")
 		recipientAssignee := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
 		assignees := []string{}
 		recipientAssignee.ForEach(func(r common.Recipient) {
@@ -384,8 +375,8 @@ func (a *App) createIncident(ctx context.Context, reqID string, reqData RequestD
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, log := logger.With(ctx, "servicenow_incident_id", data.IncidentID)
-	log.InfoContext(ctx, "Successfully created Servicenow incident")
+	ctx, log := logger.WithField(ctx, "servicenow_incident_id", data.IncidentID)
+	log.Info("Successfully created Servicenow incident")
 
 	// Save servicenow incident info in plugin data.
 	_, err = a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
@@ -429,10 +420,10 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).DebugContext(ctx, "Failed to post the note: plugin data is missing")
+		logger.Get(ctx).Debug("Failed to post the note: plugin data is missing")
 		return nil
 	}
-	ctx, _ = logger.With(ctx, "servicenow_incident_id", data.IncidentID)
+	ctx, _ = logger.WithField(ctx, "servicenow_incident_id", data.IncidentID)
 
 	slice := reqReviews[oldCount:]
 	if len(slice) == 0 {
@@ -454,28 +445,22 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 
 	serviceNames, err := a.getOnCallServiceNames(req)
 	if err != nil {
-		logger.Get(ctx).DebugContext(ctx, "Skipping the approval", "error", err)
+		logger.Get(ctx).Debugf("Skipping the approval: %s", err)
 		return nil
 	}
-	log.DebugContext(ctx, "Checking the shifts to see if the requester is on-call", "shifts", serviceNames)
+	log.Debugf("Checking the following shifts to see if the requester is on-call: %s", serviceNames)
 
 	onCallUsers, err := a.getOnCallUsers(ctx, serviceNames)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.DebugContext(ctx, "Users on-call are", "on_call_users", onCallUsers)
+	log.Debugf("Users on-call are: %s", onCallUsers)
 
 	if userIsOnCall := slices.Contains(onCallUsers, req.GetUser()); !userIsOnCall {
-		log.DebugContext(ctx, "User is not on-call, not approving the request",
-			"user", req.GetUser(),
-			"request", req.GetName(),
-		)
+		log.Debugf("User %q is not on-call, not approving the request %q.", req.GetUser(), req.GetName())
 		return nil
 	}
-	log.DebugContext(ctx, "User is on-call, auto-approving the request",
-		"user", req.GetUser(),
-		"request", req.GetName(),
-	)
+	log.Debugf("User %q is on-call. Auto-approving the request %q.", req.GetUser(), req.GetName())
 	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: req.GetName(),
 		Review: types.AccessReview{
@@ -489,12 +474,12 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		},
 	}); err != nil {
 		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
-			log.DebugContext(ctx, "Already reviewed the request")
+			log.Debug("Already reviewed the request")
 			return nil
 		}
 		return trace.Wrap(err, "submitting access request")
 	}
-	log.InfoContext(ctx, "Successfully submitted a request approval")
+	log.Info("Successfully submitted a request approval")
 	return nil
 }
 
@@ -505,7 +490,7 @@ func (a *App) getOnCallUsers(ctx context.Context, serviceNames []string) ([]stri
 		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				log.ErrorContext(ctx, "Failed to retrieve responder from schedule", "error", err)
+				log.WithError(err).Error("Failed to retrieve responder from schedule")
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -543,15 +528,15 @@ func (a *App) resolveIncident(ctx context.Context, reqID string, resolution Reso
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).DebugContext(ctx, "Failed to resolve the incident: plugin data is missing")
+		logger.Get(ctx).Debug("Failed to resolve the incident: plugin data is missing")
 		return nil
 	}
 
-	ctx, log := logger.With(ctx, "servicenow_incident_id", incidentID)
+	ctx, log := logger.WithField(ctx, "servicenow_incident_id", incidentID)
 	if err := a.serviceNow.ResolveIncident(ctx, incidentID, resolution); err != nil {
 		return trace.Wrap(err)
 	}
-	log.InfoContext(ctx, "Successfully resolved the incident")
+	log.Info("Successfully resolved the incident")
 
 	return nil
 }
@@ -566,15 +551,7 @@ func (a *App) resolveIncident(ctx context.Context, reqID string, resolution Reso
 // it doesn't perform any sort of I/O operations so even things like Go channels must be avoided.
 // Indeed, this limitation is not that ultimate at least if you know what you're doing.
 func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *PluginData) (PluginData, bool)) (bool, error) {
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(modifyPluginDataBackoffBase),
-		First:  modifyPluginDataBackoffBase,
-		Max:    modifyPluginDataBackoffMax,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
+	backoff := backoff.NewDecorr(modifyPluginDataBackoffBase, modifyPluginDataBackoffMax, clockwork.NewRealClock())
 	for {
 		oldData, err := a.getPluginData(ctx, reqID)
 		if err != nil && !trace.IsNotFound(err) {
@@ -595,10 +572,8 @@ func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *
 		if !trace.IsCompareFailed(err) {
 			return false, trace.Wrap(err)
 		}
-		select {
-		case <-ctx.Done():
-			return false, trace.Wrap(ctx.Err())
-		case <-retry.After():
+		if err := backoff.Do(ctx); err != nil {
+			return false, trace.Wrap(err)
 		}
 	}
 }

@@ -58,6 +58,9 @@ const (
 	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
 	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
 	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
+	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
+	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
+	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
 	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
 	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
@@ -332,6 +335,9 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverAutoDiscoveredResourcesEvent,
 		uiDiscoverPrincipalsConfigureEvent,
 		uiDiscoverTestConnectionEvent,
+		uiDiscoverEC2InstanceSelectionEvent,
+		uiDiscoverDeployEICEEvent,
+		uiDiscoverCreateNodeEvent,
 		uiDiscoverCreateAppServerEvent,
 		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:

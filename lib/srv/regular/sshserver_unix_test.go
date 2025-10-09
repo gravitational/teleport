@@ -1,4 +1,5 @@
 //go:build unix
+// +build unix
 
 /*
  * Teleport
@@ -62,8 +63,9 @@ func BenchmarkRootExecCommand(b *testing.B) {
 			}
 
 			f := newFixtureWithoutDiskBasedLogging(b, opts...)
+			b.ResetTimer()
 
-			for b.Loop() {
+			for i := 0; i < b.N; i++ {
 				username := f.user
 				if test.createUser {
 					username = testutils.GenerateLocalUsername(b)
@@ -85,7 +87,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 	tb.Helper()
 
 	var wg sync.WaitGroup
-	for range executions {
+	for i := 0; i < executions; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

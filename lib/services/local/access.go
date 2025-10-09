@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -36,14 +36,14 @@ import (
 // AccessService manages roles
 type AccessService struct {
 	backend.Backend
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewAccessService returns new access service instance
 func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "AccessService"),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "AccessService"}),
 	}
 }
 
@@ -103,48 +103,54 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
 	}
 
-	var resp proto.ListRolesResponse
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: startKey,
-		EndKey:   backend.RangeEnd(backend.ExactKey(rolesPrefix)),
-	}) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	endKey := backend.RangeEnd(backend.ExactKey(rolesPrefix))
 
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
-			// Item represents a different resource type in the
-			// same namespace.
-			continue
-		}
+	var roles []*types.RoleV6
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(roles) > limit {
+				return true, nil
+			}
 
-		role, err := services.UnmarshalRoleV6(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal role",
-				"key", item.Key,
-				"error", err,
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+				// Item represents a different resource type in the
+				// same namespace.
+				continue
+			}
+
+			role, err := services.UnmarshalRoleV6(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
 			)
-			continue
+			if err != nil {
+				s.log.Warnf("Failed to unmarshal role at %q: %v", item.Key, err)
+				continue
+			}
+
+			// if a filter was provided, skip roles that fail to match.
+			if req.Filter != nil && !req.Filter.Match(role) {
+				continue
+			}
+
+			roles = append(roles, role)
 		}
 
-		// if a filter was provided, skip roles that fail to match.
-		if req.Filter != nil && !req.Filter.Match(role) {
-			continue
-		}
-
-		if len(resp.Roles) >= limit {
-			resp.NextKey = role.GetName()
-			return &resp, nil
-		}
-
-		resp.Roles = append(resp.Roles, role)
+		return len(roles) > limit, nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &resp, nil
+	var nextKey string
+	if len(roles) > limit {
+		nextKey = roles[limit].GetName()
+		roles = roles[:limit]
+	}
+
+	return &proto.ListRolesResponse{
+		Roles:   roles,
+		NextKey: nextKey,
+	}, nil
 }
 
 // CreateRole creates a new role.

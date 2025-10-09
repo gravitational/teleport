@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SortType } from 'design/DataTable/types';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
@@ -42,6 +43,31 @@ export class ResourcesService {
   private logger = new Logger('ResourcesService');
 
   constructor(private tshClient: TshdClient) {}
+
+  // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
+  // https://github.com/gravitational/teleport/blob/2a2b08dbfdaf71706a5af3812d3a7ec843d099b4/lib/web/apiserver.go#L2471
+  async getServerByHostname(
+    clusterUri: uri.ClusterUri,
+    hostname: string
+  ): Promise<types.Server | undefined> {
+    const query = `name == "${hostname}"`;
+    const {
+      response: { agents: servers },
+    } = await this.tshClient.getServers(
+      makeGetResourcesParamsRequest({
+        clusterUri,
+        query,
+        limit: 2,
+        sort: null,
+      })
+    );
+
+    if (servers.length > 1) {
+      throw new AmbiguousHostnameError(hostname);
+    }
+
+    return servers[0];
+  }
 
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
     const { response } = await this.tshClient.listDatabaseUsers({ dbUri });
@@ -172,6 +198,13 @@ export class ResourcesService {
   }
 }
 
+export class AmbiguousHostnameError extends Error {
+  constructor(hostname: string) {
+    super(`Ambiguous hostname "${hostname}"`);
+    this.name = 'AmbiguousHostname';
+  }
+}
+
 export class ResourceSearchError extends Error {
   constructor(
     public clusterUri: uri.ClusterUri,
@@ -249,6 +282,34 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
           : Kind extends 'windows_desktop'
             ? SearchResultWindowsDesktop['resource']
             : never;
+
+type GetResourcesParams = {
+  clusterUri: uri.ClusterUri;
+  // sort is a required field because it has direct implications on performance of ListResources.
+  sort: SortType | null;
+  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
+  // return an error.
+  limit: number;
+  // search is used for regular search.
+  search?: string;
+  searchAsRoles?: string;
+  startKey?: string;
+  // query is used for advanced search.
+  query?: string;
+};
+
+function makeGetResourcesParamsRequest(params: GetResourcesParams) {
+  return {
+    ...params,
+    search: params.search || '',
+    query: params.query || '',
+    searchAsRoles: params.searchAsRoles || '',
+    startKey: params.startKey || '',
+    sortBy: params.sort
+      ? `${params.sort.fieldName}:${params.sort.dir.toLowerCase()}`
+      : '',
+  };
+}
 
 export type UnifiedResourceResponse =
   | { kind: 'server'; resource: types.Server; requiresRequest: boolean }

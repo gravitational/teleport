@@ -24,14 +24,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"maps"
 	"math"
-	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -498,13 +497,12 @@ func (p *Player) translateEvent(evt events.AuditEvent) (translatedEvent events.A
 
 // databaseTranslators maps database protocol event translators.
 var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
-	defaults.ProtocolPostgres:    func() sessionPrintTranslator { return db.NewPostgresTranslator() },
-	defaults.ProtocolCockroachDB: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
+	defaults.ProtocolPostgres: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
 }
 
 // SupportedDatabaseProtocols a list of database protocols supported by the
 // player.
-var SupportedDatabaseProtocols = slices.Collect(maps.Keys(databaseTranslators))
+var SupportedDatabaseProtocols = maps.Keys(databaseTranslators)
 
 func getDelay(e events.AuditEvent) time.Duration {
 	switch x := e.(type) {

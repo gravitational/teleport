@@ -1,12 +1,12 @@
 module github.com/teleport/assets/backport
 
-go 1.25.1
+go 1.23.0
 
 require (
 	github.com/google/go-github/v41 v41.0.0
-	github.com/gravitational/trace v1.5.1
-	github.com/stretchr/testify v1.11.1
-	golang.org/x/oauth2 v0.31.0
+	github.com/gravitational/trace v1.4.0
+	github.com/stretchr/testify v1.9.0
+	golang.org/x/oauth2 v0.27.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

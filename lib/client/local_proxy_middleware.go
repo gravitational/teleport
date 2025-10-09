@@ -142,7 +142,7 @@ func (c *CertChecker) SetCert(cert tls.Certificate) {
 
 // GetOrIssueCert gets the CertChecker's certificate, or issues a new
 // certificate if the it is invalid (e.g. expired) or missing.
-func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate, err error) {
+func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
@@ -150,7 +150,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate,
 		return c.cert, nil
 	}
 
-	cert, err = c.certIssuer.IssueCert(ctx)
+	cert, err := c.certIssuer.IssueCert(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -161,10 +161,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate,
 	}
 
 	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.DebugContext(ctx, "Certificate renewed",
-		"valid_until", cert.Leaf.NotAfter.Format(time.RFC3339),
-		"cert_ttl", certTTL,
-	)
+	log.Debugf("Certificate renewed: valid until %s [valid for %v]", cert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	c.cert = cert
 	return c.cert, nil
@@ -212,7 +209,7 @@ func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WarnContext(ctx, "unable to load profile, requesting database certs without access requests", "error", err)
+		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests
 	}
@@ -279,7 +276,7 @@ func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WarnContext(ctx, "unable to load profile, requesting app certs without access requests", "error", err)
+		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests
 	}
@@ -444,10 +441,7 @@ func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 	}
 
 	certTTL := time.Until(caTLSCert.Leaf.NotAfter).Round(time.Minute)
-	log.DebugContext(ctx, "Local CA renewed",
-		"valid_until", caTLSCert.Leaf.NotAfter.Format(time.RFC3339),
-		"cert_ttl", certTTL,
-	)
+	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caTLSCert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	// Clear cert cache and use CA for hostnames in the CA.
 	r.certsByHost = make(map[string]*tls.Certificate)

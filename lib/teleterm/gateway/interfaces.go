@@ -19,9 +19,8 @@
 package gateway
 
 import (
-	"log/slog"
-
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -42,7 +41,7 @@ type Gateway interface {
 	TargetUser() string
 	TargetSubresourceName() string
 	SetTargetSubresourceName(value string)
-	Log() *slog.Logger
+	Log() *logrus.Entry
 	// LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
 	// on the platform).
 	LocalAddress() string

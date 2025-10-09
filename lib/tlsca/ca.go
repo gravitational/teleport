@@ -19,7 +19,6 @@
 package tlsca
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -33,27 +32,26 @@ import (
 	"math/big"
 	"net"
 	"os"
-	"slices"
 	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/scopes/pinning"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentAuthority)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentAuthority,
+})
 
 // FromCertAndSigner returns a CertAuthority with the given raw certificate and signer.
 func FromCertAndSigner(certPEM []byte, signer crypto.Signer) (*CertAuthority, error) {
@@ -121,9 +119,6 @@ type Identity struct {
 	// Username is the name of the user (for end-users/bots) or the Host ID (for
 	// Teleport processes).
 	Username string
-	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
-	// set, the Groups field must not be set.
-	ScopePin *scopesv1.Pin
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
@@ -220,10 +215,6 @@ type Identity struct {
 	// JoinAttributes holds the attributes that resulted from the
 	// Bot/Agent join process.
 	JoinAttributes *workloadidentityv1pb.JoinAttrs
-
-	// OriginClusterName is the name of the cluster where the identity is
-	// authenticated.
-	OriginClusterName string
 }
 
 // RouteToApp holds routing information for applications.
@@ -261,11 +252,6 @@ type RouteToApp struct {
 	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
 	// RouteToApp is not used as the source of truth for routing.
 	TargetPort int
-
-	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
-	// This is a JSON string that conforms with
-	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
-	AWSCredentialProcessCredentials string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -368,7 +354,6 @@ func (id *Identity) GetEventIdentity() events.Identity {
 
 	return events.Identity{
 		User:                    id.Username,
-		ScopePin:                pinning.ToEventsPin(id.ScopePin),
 		Impersonator:            id.Impersonator,
 		Roles:                   id.Groups,
 		Usage:                   id.Usage,
@@ -406,15 +391,8 @@ func (id *Identity) CheckAndSetDefaults() error {
 	if id.Username == "" {
 		return trace.BadParameter("missing identity username")
 	}
-	if len(id.Groups) == 0 && id.ScopePin == nil {
-		return trace.BadParameter("missing identity groups or scope pin")
-	}
-
-	// Set the origin cluster name to the teleport cluster name.
-	// OriginClusterName is never encoded in the certificate
-	// so we set it to cert's TeleportCluster.
-	if id.OriginClusterName == "" {
-		id.OriginClusterName = id.TeleportCluster
+	if len(id.Groups) == 0 {
+		return trace.BadParameter("missing identity groups")
 	}
 
 	return nil
@@ -510,11 +488,6 @@ var (
 	// target port into a certificate.
 	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
 
-	// AppAWSCredentialProcessCredentialsASN1ExtensionOID is an extension that encodes the credentials to access AWS APIs.
-	// This is a JSON string that conforms with
-	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
-	AppAWSCredentialProcessCredentialsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 22}
-
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -607,10 +580,6 @@ var (
 	// JoinTokenOID is an extension OID that contains the name of the join token
 	// used when a bot joins.
 	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
-
-	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
-	// used to tie the certificate to a specific scope and set of scoped roles.
-	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
 )
 
 // Device Trust OIDs.
@@ -733,13 +702,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AWSRoleARNsASN1ExtensionOID,
 				Value: id.AWSRoleARNs[i],
-			})
-	}
-	if id.RouteToApp.AWSCredentialProcessCredentials != "" {
-		subject.ExtraNames = append(subject.ExtraNames,
-			pkix.AttributeTypeAndValue{
-				Type:  AppAWSCredentialProcessCredentialsASN1ExtensionOID,
-				Value: id.RouteToApp.AWSCredentialProcessCredentials,
 			})
 	}
 	if id.RouteToApp.AzureIdentity != "" {
@@ -925,19 +887,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
-	if id.ScopePin != nil {
-		pin, err := protojson.Marshal(id.ScopePin)
-		if err != nil {
-			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
-		}
-
-		subject.ExtraNames = append(subject.ExtraNames,
-			pkix.AttributeTypeAndValue{
-				Type:  ScopePinASN1ExtensionOID,
-				Value: string(pin),
-			})
-	}
-
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1100,11 +1049,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
 			}
-		case attr.Type.Equal(AppAWSCredentialProcessCredentialsASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				id.RouteToApp.AWSCredentialProcessCredentials = val
-			}
 		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1230,15 +1174,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.JoinToken = val
 			}
-		case attr.Type.Equal(ScopePinASN1ExtensionOID):
-			val, ok := attr.Value.(string)
-			if ok {
-				var pin scopesv1.Pin
-				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
-					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
-				}
-				id.ScopePin = &pin
-			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1320,10 +1255,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	default:
 		userKind = events.UserKind_USER_KIND_HUMAN
 	}
-	userTeleportCluster := id.OriginClusterName
-	if userTeleportCluster == "" {
-		userTeleportCluster = id.TeleportCluster
-	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1335,9 +1267,6 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		TrustedDevice:     device,
 		BotName:           id.BotName,
 		BotInstanceID:     id.BotInstanceID,
-		UserRoles:         slices.Clone(id.Groups),
-		UserTraits:        id.Traits.Clone(),
-		UserClusterName:   userTeleportCluster,
 	}
 }
 
@@ -1423,13 +1352,13 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(context.TODO(), "Generating TLS certificate",
-		"not_after", req.NotAfter,
-		"dns_names", req.DNSNames,
-		"key_usage", req.KeyUsage,
-		"common_name", req.Subject.CommonName,
-		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
-	)
+	log.WithFields(logrus.Fields{
+		"not_after":   req.NotAfter,
+		"dns_names":   req.DNSNames,
+		"key_usage":   req.KeyUsage,
+		"common_name": req.Subject.CommonName,
+		"issuer_skid": base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
+	}).Debug("Generating TLS certificate")
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

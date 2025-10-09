@@ -60,7 +60,6 @@ function makeDesktopRecording({
     description,
     recordingType: 'desktop',
     playable: recorded,
-    user,
   } as Recording;
 }
 
@@ -111,7 +110,6 @@ function makeSshOrKubeRecording({
     description,
     recordingType: kubernetes_cluster ? 'k8s' : 'ssh',
     playable,
-    user,
   } as Recording;
 }
 
@@ -163,7 +161,6 @@ function makeDatabaseRecording({
     description,
     recordingType: 'database',
     playable: description === 'play',
-    user,
   } as Recording;
 }
 

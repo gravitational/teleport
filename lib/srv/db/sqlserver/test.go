@@ -21,20 +21,19 @@ package sqlserver
 import (
 	"context"
 	"io"
-	"log/slog"
 	"net"
 	"strconv"
 
 	"github.com/gravitational/trace"
 	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/microsoft/go-mssqldb/msdsn"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // MakeTestClient returns SQL Server client used in tests.
@@ -56,7 +55,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 		Database:   config.RouteToDatabase.Database,
 		Encryption: msdsn.EncryptionDisabled,
 		Protocols:  []string{"tcp"},
-	})
+	}, nil)
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {
@@ -76,7 +75,7 @@ type TestConnector struct{}
 
 // Connect simulates successful connection to a SQL Server.
 func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
-	host, port, err := getHostPort(sessionCtx.Database)
+	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -98,7 +97,7 @@ func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session,
 		Port:         portI,
 		LoginOptions: options,
 		Protocols:    []string{"tcp"},
-	})
+	}, nil)
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {
@@ -119,7 +118,7 @@ type TestServer struct {
 	cfg      common.TestServerConfig
 	listener net.Listener
 	port     string
-	log      *slog.Logger
+	log      logrus.FieldLogger
 }
 
 // NewTestServer returns a new instance of a test MSServer.
@@ -134,9 +133,10 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := logtest.With(teleport.ComponentKey, defaults.ProtocolSQLServer,
-		"name", config.Name,
-	)
+	log := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: defaults.ProtocolSQLServer,
+		"name":                config.Name,
+	})
 	server := &TestServer{
 		cfg:      config,
 		listener: config.Listener,
@@ -153,25 +153,25 @@ func (s *TestServer) Port() string {
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
-	ctx := context.Background()
-	s.log.DebugContext(ctx, "Starting test MSServer server", "listen_addr", s.listener.Addr())
-	defer s.log.DebugContext(ctx, "Test MSServer server stopped")
+	s.log.Debugf("Starting test MSServer server on %v.", s.listener.Addr())
+	defer s.log.Debug("Test MSServer server stopped.")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			s.log.ErrorContext(ctx, "Failed to accept connection", "error", err)
+			s.log.WithError(err).Error("Failed to accept connection.")
 			continue
 		}
-		s.log.DebugContext(ctx, "Accepted connection")
+		s.log.Debug("Accepted connection.")
 		go func() {
-			defer s.log.DebugContext(ctx, "Connection done")
+			defer s.log.Debug("Connection done.")
 			defer conn.Close()
 			err = s.handleConnection(conn)
 			if err != nil {
-				s.log.ErrorContext(ctx, "Failed to handle connection", "error", err)
+				s.log.Errorf("Failed to handle connection: %v.",
+					trace.DebugReport(err))
 			}
 		}()
 	}

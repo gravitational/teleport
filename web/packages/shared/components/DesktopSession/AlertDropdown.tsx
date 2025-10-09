@@ -22,9 +22,9 @@ import styled, { useTheme } from 'styled-components';
 import { Button, ButtonIcon, Card, Flex, H3 } from 'design';
 import { Cross, Warning } from 'design/Icon';
 import {
-  ToastNotification,
-  type ToastNotificationItem,
-} from 'shared/components/ToastNotification';
+  Notification,
+  type NotificationItem,
+} from 'shared/components/Notification';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
@@ -126,7 +126,7 @@ const StyledCard = styled(Card)`
   background-color: ${({ theme }) => theme.colors.levels.elevated};
 `;
 
-const StyledNotification = styled(ToastNotification)`
+const StyledNotification = styled(Notification)`
   background: ${({ theme }) => theme.colors.spotBackground[0]};
   ${({ theme }) =>
     theme.type === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
@@ -139,6 +139,6 @@ const StyledOverflow = styled(Flex)`
 `;
 
 type Props = {
-  alerts: ToastNotificationItem[];
+  alerts: NotificationItem[];
   onRemoveAlert: (id: string) => void;
 };

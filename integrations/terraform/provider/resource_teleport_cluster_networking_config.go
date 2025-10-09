@@ -22,11 +22,12 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -85,7 +86,7 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 		return
 	}
 
-	_, err = r.p.Client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	err = r.p.Client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
@@ -98,24 +99,14 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 	// - the ones who can deleted and return a trace.NotFoundErr
 	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		clusterNetworkingConfigI, err = r.p.Client.GetClusterNetworkingConfig(ctx)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(ctx.Err()), "cluster_networking_config"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading ClusterNetworkingConfig (tried %d times) - state outdated, please import resource", tries)
@@ -134,11 +125,9 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(ctx.Err()), "cluster_networking_config"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(bErr), "cluster_networking_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading ClusterNetworkingConfig (tried %d times) - state outdated, please import resource", tries)
@@ -237,7 +226,7 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		return
 	}
 
-	_, err = r.p.Client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	err = r.p.Client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
@@ -245,15 +234,7 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 	var clusterNetworkingConfigI apitypes.ClusterNetworkingConfig
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		clusterNetworkingConfigI, err = r.p.Client.GetClusterNetworkingConfig(ctx)
@@ -264,11 +245,9 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		if clusterNetworkingConfigBefore.GetMetadata().Revision != clusterNetworkingConfigI.GetMetadata().Revision || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(ctx.Err()), "cluster_networking_config"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(bErr), "cluster_networking_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading ClusterNetworkingConfig (tried %d times) - state outdated, please import resource", tries)

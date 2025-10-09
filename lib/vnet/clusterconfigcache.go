@@ -27,8 +27,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/singleflight"
-
-	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 )
 
 type ClusterConfig struct {
@@ -122,7 +120,7 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 	}
 
 	var customDNSZones []string
-	ipv4CIDRRange := typesvnet.DefaultIPv4CIDRRange
+	ipv4CIDRRange := defaultIPv4CIDRRange
 
 	vnetConfig, err := clusterClient.CurrentCluster().GetVnetConfig(ctx)
 	if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
@@ -133,7 +131,7 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 		for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
 			customDNSZones = append(customDNSZones, zone.GetSuffix())
 		}
-		ipv4CIDRRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), typesvnet.DefaultIPv4CIDRRange)
+		ipv4CIDRRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
 	}
 
 	return &ClusterConfig{

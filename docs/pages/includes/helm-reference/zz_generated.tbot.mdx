@@ -231,7 +231,7 @@ Ignored if `tbotConfig` is set.
 | `string` | `"kubernetes"` |
 
 `joinMethod` describes how tbot joins the Teleport cluster.
-See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
 Ignored if `tbotConfig` is set.
 
 ## `token`
@@ -309,21 +309,6 @@ resources.
 `serviceAccount.name` sets the name of the `ServiceAccount` resource
 used by the chart. By default, the `ServiceAccount` has the name of the
 Helm release.
-
-## `rbac`
-
-`rbac` controls the Kubernetes Role and RoleBinding creation
-used by the serviceAccount
-
-### `rbac.create`
-
-| Type | Default |
-|------|---------|
-| `bool` | `true` |
-
-`rbac.create` controls whether Helm Chart creates the
-Kubernetes `Role` & `RoleBindings` resources for the Kubernetes SA.
-When off, you are responsible for creating the appropriate resources.
 
 ## `imagePullPolicy`
 

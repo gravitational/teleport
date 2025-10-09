@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -247,6 +248,39 @@ func TestBotConfig_YAML(t *testing.T) {
 					},
 				},
 				Services: []ServiceConfig{
+					&legacyspiffe.WorkloadAPIConfig{
+						Listen: "unix:///var/run/spiffe.sock",
+						SVIDs: []legacyspiffe.SVIDRequestWithRules{
+							{
+								SVIDRequest: legacyspiffe.SVIDRequest{
+									Path: "/bar",
+									Hint: "my hint",
+									SANS: legacyspiffe.SVIDRequestSANs{
+										DNS: []string{"foo.bar"},
+										IP:  []string{"10.0.0.1"},
+									},
+								},
+								Rules: []legacyspiffe.SVIDRequestRule{
+									{
+										Unix: legacyspiffe.SVIDRequestRuleUnix{
+											PID: ptr(100),
+											UID: ptr(1000),
+											GID: ptr(1234),
+										},
+									},
+									{
+										Unix: legacyspiffe.SVIDRequestRuleUnix{
+											PID: ptr(100),
+										},
+									},
+								},
+							},
+						},
+						CredentialLifetime: bot.CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
+					},
 					&example.Config{
 						Message: "llama",
 					},
@@ -573,4 +607,8 @@ func TestBotConfig_NameValidation(t *testing.T) {
 			require.ErrorContains(t, tc.cfg.CheckAndSetDefaults(), tc.err)
 		})
 	}
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }

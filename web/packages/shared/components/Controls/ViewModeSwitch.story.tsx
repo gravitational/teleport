@@ -17,6 +17,7 @@
  */
 
 import type { Meta, StoryFn, StoryObj } from '@storybook/react-vite';
+import React from 'react';
 import { action } from 'storybook/actions';
 import { useArgs } from 'storybook/preview-api';
 

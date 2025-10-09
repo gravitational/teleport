@@ -21,14 +21,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/distribution/reference"
-	"github.com/go-logr/logr"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -39,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -48,7 +47,6 @@ import (
 	podmaintenance "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -60,24 +58,8 @@ func init() {
 	utilruntime.Must(v1.AddToScheme(scheme))
 }
 
-var extraFields = []string{logutils.LevelField, logutils.ComponentField, logutils.TimestampField}
-
 func main() {
 	ctx := ctrl.SetupSignalHandler()
-
-	// Setup early logger, using INFO level by default.
-	slogLogger, slogLeveler, err := logutils.Initialize(logutils.Config{
-		Severity:    slog.LevelInfo.String(),
-		Format:      "json",
-		ExtraFields: extraFields,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logs: %v\n", err)
-		os.Exit(1)
-	}
-
-	logger := logr.FromSlogHandler(slogLogger.Handler())
-	ctrl.SetLogger(logger)
 
 	var agentName string
 	var agentNamespace string
@@ -91,7 +73,6 @@ func main() {
 	var insecureNoResolve bool
 	var disableLeaderElection bool
 	var credSource string
-	var logLevel string
 	var proxyAddress string
 	var updateGroup string
 
@@ -113,16 +94,14 @@ func main() {
 			img.DockerCredentialSource, img.GoogleCredentialSource, img.AmazonCredentialSource, img.NoCredentialSource,
 		),
 	)
-	flag.StringVar(&logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR).")
+
+	opts := zap.Options{
+		Development: false,
+	}
+	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	// Now that we parsed the flags, we can tune the log level.
-	var lvl slog.Level
-	if err := (&lvl).UnmarshalText([]byte(logLevel)); err != nil {
-		ctrl.Log.Error(err, "Failed to parse log level", "level", logLevel)
-		os.Exit(1)
-	}
-	slogLeveler.Set(lvl)
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// Validate configuration.
 	if agentName == "" {
@@ -251,7 +230,7 @@ func main() {
 	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
 		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified", kc))
-	case kubeversionupdater.Version().PreRelease != "":
+	case kubeversionupdater.SemVersion != nil && kubeversionupdater.SemVersion.PreRelease != "":
 		ctrl.Log.Info("This is a pre-release updater version, the key used to sign dev and pre-release builds of Teleport will be trusted.")
 		validator, err := img.NewCosignSingleKeyValidator(teleportStageOCIPubKey, "staging cosign signature validator", kc)
 		if err != nil {

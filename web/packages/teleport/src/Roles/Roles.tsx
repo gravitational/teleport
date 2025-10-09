@@ -17,17 +17,22 @@
  */
 
 import { useEffect, useState } from 'react';
+import styled from 'styled-components';
 
 import { Alert, Box, Button, Flex, Link } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
 import {
   InfoExternalTextLink,
   InfoGuideButton,
   InfoParagraph,
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { useToastNotifications } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
@@ -91,7 +96,18 @@ const useNewRoleEditor = storageService.getUseNewRoleEditor();
 export function Roles(props: State & RolesProps) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
-  const toastNotification = useToastNotifications();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  function addNotification(content: string, severity: NotificationSeverity) {
+    setNotifications(notifications => [
+      ...notifications,
+      { id: crypto.randomUUID(), content, severity },
+    ]);
+  }
+
+  function removeNotification(id: string) {
+    setNotifications(n => n.filter(item => item.id !== id));
+  }
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -116,13 +132,12 @@ export function Roles(props: State & RolesProps) {
       ? create(role)
       : update(resources.item.name, role));
 
-    toastNotification.add({
-      severity: 'success',
-      content:
-        resources.status === 'creating'
-          ? `Role ${response.name} has been created`
-          : `Role ${response.name} has been updated`,
-    });
+    addNotification(
+      resources.status === 'creating'
+        ? `Role ${response.name} has been created`
+        : `Role ${response.name} has been updated`,
+      'success'
+    );
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;
@@ -274,6 +289,17 @@ export function Roles(props: State & RolesProps) {
           onDelete={handleDelete}
         />
       )}
+
+      <NotificationContainer>
+        {notifications.map(item => (
+          <Notification
+            mb={3}
+            key={item.id}
+            item={item}
+            onRemove={() => removeNotification(item.id)}
+          />
+        ))}
+      </NotificationContainer>
     </FeatureBox>
   );
 }
@@ -330,3 +356,9 @@ function InfoGuide() {
     </Box>
   );
 }
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  bottom: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;

@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
@@ -35,35 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
-// metaResource wraps the various representations of a Kubernetes resource.
-type metaResource struct {
-	resourceDefinition *metav1.APIResource // Resource definition data from the schema.
-	requestedResource  apiResource         // User input, based on URL.
-	verb               string              // Verb of the user request.
-	isList             bool
-}
-
-func (mr *metaResource) isClusterWideResource() bool {
-	if mr == nil {
-		return false
-	}
-	return mr.resourceDefinition != nil && !mr.resourceDefinition.Namespaced
-}
-
-func (mr *metaResource) rbacResource() *types.KubernetesResource {
-	if mr == nil || mr.resourceDefinition == nil {
-		return nil
-	}
-	return &types.KubernetesResource{
-		Kind:      mr.resourceDefinition.Name,
-		Namespace: mr.requestedResource.namespace,
-		Name:      mr.requestedResource.resourceName,
-		Verbs:     []string{mr.verb},
-		APIGroup:  mr.requestedResource.apiGroup,
-	}
-}
-
-// apiResource represents the resource requested by the user.
 type apiResource struct {
 	apiGroup        string
 	apiGroupVersion string
@@ -81,7 +51,7 @@ func parseResourcePath(p string) apiResource {
 	// Let's try to parse this. Here be dragons!
 	//
 	// URLs have a prefix that defines an "API group":
-	// - /api/v1/ - the special "" API group (e.g. pods, secrets, etc. belong here)
+	// - /api/v1/ - the special "core" API group (e.g. pods, secrets, etc. belong here)
 	// - /apis/{group}/{version} - the other properly named groups (e.g. apps/v1 or rbac.authorization.k8s.io/v1beta1)
 	//
 	// After the prefix, we have the resource info:
@@ -112,7 +82,7 @@ func parseResourcePath(p string) apiResource {
 	switch {
 	// Core API group has a "special" URL prefix /api/v1/.
 	case len(parts) >= 3 && parts[1] == "api" && parts[2] == "v1":
-		r.apiGroup = ""
+		r.apiGroup = "core"
 		r.apiGroupVersion = parts[2]
 		parts = parts[3:]
 	// Other API groups have URL prefix /apis/{group}/{version}.
@@ -194,69 +164,92 @@ type allowedResourcesKey struct {
 	resourceKind string
 }
 
-type rbacSupportedResources map[allowedResourcesKey]metav1.APIResource
+type rbacSupportedResources map[allowedResourcesKey]string
 
 // getResourceWithKey returns the teleport resource kind for a given resource key if
 // it exists, otherwise returns an empty string.
-func (r rbacSupportedResources) getResource(apiGroup, resourceKind string) (metav1.APIResource, bool) {
-	k := allowedResourcesKey{
-		apiGroup:     apiGroup,
-		resourceKind: getResourceFromAPIResource(resourceKind),
+func (r rbacSupportedResources) getResourceWithKey(k allowedResourcesKey) string {
+	if k.apiGroup == "" {
+		k.apiGroup = "core"
 	}
-	out, ok := r[k]
-	return out, ok
+	return r[k]
 }
 
 func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiResource) (string, bool) {
 	resource := getResourceFromAPIResource(api.resourceKind)
 	resourceType, ok := r[allowedResourcesKey{apiGroup: api.apiGroup, resourceKind: resource}]
-	return resourceType.Kind, ok
+	return resourceType, ok
+}
+
+// defaultRBACResources is a map of supported resources and their corresponding
+// teleport resource kind for the purpose of resource rbac.
+var defaultRBACResources = rbacSupportedResources{
+	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
+	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
+	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
+	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
+	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
+	{apiGroup: "core", resourceKind: "endpoints"}:                                 types.KindKubeService,
+	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
+	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
+	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
+	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    types.KindKubePersistentVolumeClaim,
+	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
+	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
+	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
+	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
+	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
+	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
+	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
+	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
+	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
+	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
+	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
 }
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
+func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types.KubernetesResource, apiResource, error) {
 	apiResource := parseResourcePath(req.URL.Path)
-
-	out := metaResource{
-		requestedResource: apiResource,
-		verb:              apiResource.getVerb(req),
-	}
+	verb := apiResource.getVerb(req)
 	if kubeDetails == nil {
-		return out, nil
+		return nil, apiResource, nil
 	}
 
 	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
 	if err != nil {
-		return out, trace.Wrap(err)
+		return nil, apiResource, trace.Wrap(err)
 	}
 
-	resource, ok := rbacSupportedTypes.getResource(apiResource.apiGroup, apiResource.resourceKind)
-	if !ok {
-		// TODO(@creack): Change this behavior, unsupported resource should be rejected.
-		// If the resource is not supported, return nil.
-		return out, nil
-	}
-	out.resourceDefinition = &resource
-
-	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
+	resourceType, ok := rbacSupportedTypes.getTeleportResourceKindFromAPIResource(apiResource)
+	switch {
+	case !ok:
+		// if the resource is not supported, return nil.
+		return nil, apiResource, nil
+	case apiResource.resourceName == "" && verb != types.KubeVerbCreate:
 		// if the resource is supported but the resource name is not present and not a create request,
 		// return nil because it's a list request.
-		out.isList = true
-		return out, nil
-	}
+		return nil, apiResource, nil
 
-	if apiResource.resourceName == "" && out.verb == types.KubeVerbCreate {
+	case apiResource.resourceName == "" && verb == types.KubeVerbCreate:
 		// If the request is a create request, extract the resource name from the request body.
-		resourceName, err := extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource))
-		if err != nil {
-			return out, trace.Wrap(err)
+		var err error
+		if apiResource.resourceName, err = extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource)); err != nil {
+			return nil, apiResource, trace.Wrap(err)
 		}
-		apiResource.resourceName = resourceName
-		out.requestedResource = apiResource
 	}
 
-	return out, nil
+	return &types.KubernetesResource{
+		Kind:      resourceType,
+		Namespace: apiResource.namespace,
+		Name:      apiResource.resourceName,
+		Verbs:     []string{verb},
+	}, apiResource, nil
 }
 
 // extractResourceNameFromPostRequest extracts the resource name from a POST body.

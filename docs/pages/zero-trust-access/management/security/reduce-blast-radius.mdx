@@ -4,7 +4,6 @@ description: How to configure Teleport to minimize the scope of security breache
 tags:
  - conceptual
  - platform-wide
- - resiliency
 ---
 
 Teleport encourages users to practice defense in depth so that every component of their infrastructure is safe against attacks, even if an attacker is partially successful. You can configure Teleport to add layers of protection to your cluster when users authenticate or request elevated privileges. In this guide, we will show you how to:
@@ -215,9 +214,9 @@ Two `user`s can grant elevated privileges to another `user` temporarily without 
 ## Next steps
 
 ### Guides
-- [Per-session MFA](../../authentication/per-session-mfa.mdx)
-- [Dual authorization](../../../identity-governance/access-requests/access-requests.mdx)
-- [Role templates, allow/deny rules, and traits](../../rbac-get-started/role-templates.mdx)
+- [Per-session MFA](../../../zero-trust-access/access-controls/guides/per-session-mfa.mdx)
+- [Dual authorization](../../../zero-trust-access/access-controls/guides/dual-authz.mdx)
+- [Role templates, allow/deny rules, and traits](../../../zero-trust-access/access-controls/guides/role-templates.mdx)
 - [Access Requests](../../../identity-governance/access-requests/access-requests.mdx)
 
 ### Background reading

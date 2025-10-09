@@ -35,9 +35,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -63,12 +63,10 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type TestContext struct {
@@ -229,13 +227,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
-				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+				Services: []types.SystemRole{types.RoleKube},
 				Hostname: "test",
 			}, nil
 		})
@@ -283,13 +283,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:          func(err error) {},
-		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:     cfg.ResourceMatchers,
-		OnReconcile:          cfg.OnReconcile,
-		Log:                  logtest.NewLogger(),
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		OnHeartbeat:      func(err error) {},
+		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers: cfg.ResourceMatchers,
+		OnReconcile:      cfg.OnReconcile,
+		Log:              log,
+		InventoryHandle:  inventoryHandle,
 	})
 	require.NoError(t, err)
 
@@ -319,9 +318,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				FakeClusters: []reversetunnelclient.Cluster{
-					&fakeCluster{
-						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
+				Sites: []reversetunnelclient.RemoteSite{
+					&fakeRemoteSite{
+						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -365,12 +364,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
-		Log:             logtest.NewLogger(),
+		Log:             log,
 		InventoryHandle: inventoryHandle,
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
@@ -383,7 +381,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		case sender := <-inventoryHandle.Sender():
 			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
 				KubernetesServer: server,
 			}))
 		case <-time.After(20 * time.Second):
@@ -455,10 +453,6 @@ type RoleSpec struct {
 
 // CreateUserWithTraitsAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
-	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, userTraits, types.DefaultRoleVersion, roleSpec)
-}
-
-func (c *TestContext) CreateUserWithTraitsAndRoleVersion(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
 	user, role, err := authtest.CreateUserAndRole(
 		c.TLSServer.Auth(),
 		username,
@@ -467,16 +461,14 @@ func (c *TestContext) CreateUserWithTraitsAndRoleVersion(ctx context.Context, t 
 		authtest.WithUserMutator(func(user types.User) {
 			user.SetTraits(userTraits)
 		}),
-		authtest.WithRoleVersion(roleVersion),
 	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
 	role.SetSessionRequirePolicies(roleSpec.SessionRequire)
 	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
-
 	if roleSpec.SetupRoleFunc == nil {
-		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: ""}})
+		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
 	} else {
 		roleSpec.SetupRoleFunc(role)
 	}
@@ -487,12 +479,7 @@ func (c *TestContext) CreateUserWithTraitsAndRoleVersion(ctx context.Context, t 
 
 // CreateUserAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	return c.CreateUserAndRoleVersion(ctx, t, username, types.DefaultRoleVersion, roleSpec)
-}
-
-// CreateUserAndRoleVersion creates Teleport user and role with specified names and role version.
-func (c *TestContext) CreateUserAndRoleVersion(ctx context.Context, t *testing.T, username, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
-	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, nil, roleVersion, roleSpec)
+	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
 }
 
 func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
@@ -547,14 +534,8 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
-	client, _, cfg := c.GenTestKubeClientsTLSCert(t, userName, kubeCluster, opts...)
-	return client, cfg
-}
-
-// GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
-func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.
@@ -624,10 +605,7 @@ func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeClus
 	client, err := kubernetes.NewForConfig(restConfig)
 	require.NoError(t, err)
 
-	dynClient, err := dynamic.NewForConfig(restConfig)
-	require.NoError(t, err)
-
-	return client, dynClient, restConfig
+	return client, restConfig
 }
 
 // NewJoiningSession creates a new session stream for joining an existing session.
@@ -688,14 +666,14 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 	}
 }
 
-// fakeCluster is a fake cluster that uses a map to map server IDs to
+// fakeRemoteSite is a fake remote site that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
-type fakeCluster struct {
-	*reversetunnelclient.FakeCluster
+type fakeRemoteSite struct {
+	*reversetunnelclient.FakeRemoteSite
 	idToAddr map[string]string
 }
 
-func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

@@ -47,7 +47,7 @@ func (stream *legacyAdapter[T]) Done() error {
 }
 
 // IntoLegacy converts a standard stream into a legacy pull-based stream.
-func IntoLegacy[T any](stream Stream[T]) legacy.Stream[T] {
+func IntoLegacy[T any](stream iter.Seq2[T, error]) legacy.Stream[T] {
 	next, stop := iter.Pull2(stream)
 	return &legacyAdapter[T]{
 		next: next,
@@ -56,7 +56,7 @@ func IntoLegacy[T any](stream Stream[T]) legacy.Stream[T] {
 }
 
 // FromLegacy converts a legacy pull-based stream into a standard stream.
-func FromLegacy[T any](stream legacy.Stream[T]) Stream[T] {
+func FromLegacy[T any](stream legacy.Stream[T]) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		for stream.Next() {
 			if !yield(stream.Item(), nil) {

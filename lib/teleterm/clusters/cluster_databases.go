@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -44,18 +43,6 @@ type Database struct {
 	// URI is the database URI
 	URI uri.ResourceURI
 	types.Database
-	// TargetHealth describes the health status of network connectivity
-	// reported from an agent (db_service) that is proxying this database.
-	TargetHealth types.TargetHealth
-}
-
-// DatabaseServer (db_server) describes a database heartbeat signal
-// reported from an agent (db_service) that is proxying
-// the database.
-type DatabaseServer struct {
-	// URI is the db_servers URI
-	URI uri.ResourceURI
-	types.DatabaseServer
 }
 
 // GetDatabase returns a database
@@ -144,38 +131,12 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 	return dbUsers.Allowed(), nil
 }
 
-// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
-func (c *Cluster) ListDatabaseServers(ctx context.Context, params *api.ListResourcesParams, authClient authclient.ClientI) (*GetDatabaseServersResponse, error) {
-	page, err := listResources[types.DatabaseServer](ctx, params, authClient, types.KindDatabaseServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	results := make([]DatabaseServer, 0, len(page.Resources))
-	for _, server := range page.Resources {
-		results = append(results, DatabaseServer{
-			URI:            c.URI.AppendDBServer(server.GetName()),
-			DatabaseServer: server,
-		})
-	}
-
-	return &GetDatabaseServersResponse{
-		Servers: results,
-		NextKey: page.NextKey,
-	}, nil
-}
-
 type GetDatabasesResponse struct {
 	Databases []Database
 	// StartKey is the next key to use as a starting point.
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
-}
-
-type GetDatabaseServersResponse struct {
-	Servers []DatabaseServer
-	NextKey string
 }
 
 // NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,

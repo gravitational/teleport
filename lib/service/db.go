@@ -104,7 +104,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -135,10 +135,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		AccessPoint:    accessPoint,
 		LockWatcher:    lockWatcher,
 		Clock:          process.Config.Clock,
-		ServerID:       conn.HostUUID(),
+		ServerID:       process.Config.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.logger,
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,7 +156,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Limiter:              connLimiter,
 		GetRotation:          process.GetRotation,
 		Hostname:             process.Config.Hostname,
-		HostID:               conn.HostUUID(),
+		HostID:               process.Config.HostUUID,
 		Databases:            databases,
 		CloudLabels:          process.cloudLabels,
 		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
@@ -207,7 +207,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Execute this when the process running database proxy service exits.
-	process.OnExit("db.stop", func(payload any) {
+	process.OnExit("db.stop", func(payload interface{}) {
 		if dbService != nil {
 			if payload == nil {
 				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")

@@ -44,12 +44,8 @@ func OnAfterResponse(pluginName string, errWrapper ErrWrapperFunc, sink StatusSi
 				code = types.PluginStatusCode_OTHER_ERROR
 			}
 			if err := sink.Emit(resp.Request.Context(), &types.PluginStatusV1{Code: code}); err != nil {
-				logger.Get(resp.Request.Context()).ErrorContext(resp.Request.Context(),
-					"Error while emittingplugin status",
-					"plugin", pluginName,
-					"error", err,
-					"code", resp.StatusCode(),
-				)
+				logger.Get(resp.Request.Context()).
+					Errorf("Error while emitting plugin status for plugin %q: status code: %v: %v", pluginName, resp.StatusCode(), err)
 			}
 		}
 		if resp.IsError() {

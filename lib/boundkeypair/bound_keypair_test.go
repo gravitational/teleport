@@ -125,7 +125,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 		name         string
 		key          crypto.Signer
 		assert       require.ErrorAssertionFunc
-		clockFn      func(clock *clockwork.FakeClock)
+		clockFn      func(clock clockwork.FakeClock)
 		manipulateFn func(doc *ChallengeDocument, now time.Time)
 	}{
 		{
@@ -141,10 +141,10 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 		{
 			name: "waited too long",
 			key:  correctKey,
-			clockFn: func(clock *clockwork.FakeClock) {
+			clockFn: func(clock clockwork.FakeClock) {
 				clock.Advance(challengeExpiration * 10)
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "token is expired")
 			},
@@ -152,10 +152,10 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 		{
 			name: "too early",
 			key:  correctKey,
-			clockFn: func(clock *clockwork.FakeClock) {
+			clockFn: func(clock clockwork.FakeClock) {
 				clock.Advance(challengeNotBeforeOffset * 10)
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "token not valid yet")
 			},
@@ -166,7 +166,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.IssuedAt = jwt.NewNumericDate(now.Add(time.Minute))
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid challenge document")
 			},
@@ -177,7 +177,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.Expiry = jwt.NewNumericDate(now.Add(time.Hour))
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid challenge document")
 			},
@@ -188,7 +188,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.NotBefore = jwt.NewNumericDate(now.Add(time.Minute))
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid challenge document")
 			},
@@ -199,7 +199,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.Nonce = "abcd"
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid nonce")
 			},
@@ -210,7 +210,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.Subject = "abcd"
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid subject claim")
 			},
@@ -221,7 +221,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.Issuer = "abcd"
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid issuer claim")
 			},
@@ -232,7 +232,7 @@ func TestChallengeValidator_ValidateChallengeResponse(t *testing.T) {
 			manipulateFn: func(doc *ChallengeDocument, now time.Time) {
 				doc.Audience = jwt.Audience{"abcd"}
 			},
-			assert: func(tt require.TestingT, err error, i ...any) {
+			assert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "invalid audience claim")
 			},

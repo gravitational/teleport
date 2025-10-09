@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -59,8 +58,8 @@ func (h *Handler) sessionLengthHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
-) (any, error) {
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
@@ -69,7 +68,7 @@ func (h *Handler) sessionLengthHandle(
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	clt, err := sctx.GetUserClient(ctx, cluster)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,26 +105,26 @@ func (h *Handler) ttyPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
-) (any, error) {
+	site reversetunnelclient.RemoteSite,
+) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	h.logger.DebugContext(r.Context(), "upgrading to websocket")
+	h.log.Debug("upgrading to websocket")
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "failed upgrade", "error", err)
+		h.log.Warn("failed upgrade", err)
 		// if Upgrade fails, it automatically replies with an HTTP error
 		// (this means we don't need to return an error here)
 		return nil, nil
@@ -139,7 +138,7 @@ func (h *Handler) ttyPlaybackHandle(
 		Context:   r.Context(),
 	})
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "player error", "error", err)
+		h.log.Warn("player error", err)
 		writeError(ws, err)
 		return nil, nil
 	}
@@ -153,18 +152,18 @@ func (h *Handler) ttyPlaybackHandle(
 			typ, b, err := ws.ReadMessage()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) {
-					h.logger.WarnContext(ctx, "websocket read error", "error", err)
+					log.Warnf("websocket read error: %v", err)
 				}
 				return
 			}
 
 			if typ != websocket.BinaryMessage {
-				h.logger.DebugContext(ctx, "skipping unknown websocket message type", "message_type", logutils.TypeAttr(typ))
+				log.Debugf("skipping unknown websocket message type %v", typ)
 				continue
 			}
 
 			if err := handlePlaybackAction(b, player); err != nil {
-				h.logger.WarnContext(ctx, "skipping bad action", "error", err)
+				log.Warnf("skipping bad action: %v", err)
 				continue
 			}
 		}
@@ -173,12 +172,12 @@ func (h *Handler) ttyPlaybackHandle(
 	go func() {
 		defer cancel()
 		defer func() {
-			h.logger.DebugContext(ctx, "closing websocket")
+			h.log.Debug("closing websocket")
 			if err := ws.WriteMessage(websocket.CloseMessage, nil); err != nil {
-				h.logger.DebugContext(r.Context(), "error sending close message", "error", err)
+				h.log.Debugf("error sending close message: %v", err)
 			}
 			if err := ws.Close(); err != nil {
-				h.logger.DebugContext(ctx, "error closing websocket", "error", err)
+				h.log.Debugf("error closing websocket: %v", err)
 			}
 		}()
 
@@ -216,7 +215,7 @@ func (h *Handler) ttyPlaybackHandle(
 		writeSize := func(size string) error {
 			ts, err := session.UnmarshalTerminalParams(size)
 			if err != nil {
-				h.logger.DebugContext(ctx, "Ignoring invalid terminal size", "terminal_size", size)
+				h.log.Debugf("Ignoring invalid terminal size %q", size)
 				return nil // don't abort playback due to a bad event
 			}
 
@@ -237,7 +236,7 @@ func (h *Handler) ttyPlaybackHandle(
 				if !ok {
 					// send any playback errors to the browser
 					if err := writeError(ws, player.Err()); err != nil {
-						h.logger.WarnContext(ctx, "failed to send error message to browser", "error", err)
+						h.log.Warnf("failed to send error message to browser: %v", err)
 					}
 					return
 				}
@@ -245,13 +244,13 @@ func (h *Handler) ttyPlaybackHandle(
 				switch evt := evt.(type) {
 				case *events.SessionStart:
 					if err := writeSize(evt.TerminalSize); err != nil {
-						h.logger.DebugContext(ctx, "Failed to write resize", "error", err)
+						h.log.Debugf("Failed to write resize: %v", err)
 						return
 					}
 
 				case *events.SessionPrint:
 					if err := writePTY(evt.Data, uint64(evt.DelayMilliseconds)); err != nil {
-						h.logger.DebugContext(ctx, "Failed to send PTY data", "error", err)
+						h.log.Debugf("Failed to send PTY data: %v", err)
 						return
 					}
 
@@ -260,20 +259,20 @@ func (h *Handler) ttyPlaybackHandle(
 					// at the end of the recording is processed and the allow
 					// the progress bar to go to 100%
 					if err := writePTY(nil, uint64(evt.EndTime.Sub(evt.StartTime)/time.Millisecond)); err != nil {
-						h.logger.DebugContext(ctx, "Failed to send session end data", "error", err)
+						h.log.Debugf("Failed to send session end data: %v", err)
 						return
 					}
 
 				case *events.Resize:
 					if err := writeSize(evt.TerminalSize); err != nil {
-						h.logger.DebugContext(ctx, "Failed to write resize", "error", err)
+						h.log.Debugf("Failed to write resize: %v", err)
 						return
 					}
 
 				case *events.SessionLeave: // do nothing
 
 				default:
-					h.logger.DebugContext(ctx, "unexpected event type", "event_type", logutils.TypeAttr(evt))
+					h.log.Debugf("unexpected event type %T", evt)
 				}
 			}
 		}

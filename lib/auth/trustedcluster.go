@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -306,7 +305,7 @@ func (a *Server) getCAsForTrustedCluster(ctx context.Context, tc types.TrustedCl
 // DeleteTrustedCluster removes types.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName(ctx)
+	cn, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,7 +345,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit trusted cluster delete event", "error", err)
+		log.WithError(err).Warn("Failed to emit trusted cluster delete event.")
 	}
 
 	return nil
@@ -387,15 +386,12 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the local certificate authorities that we are sending
-	a.logger.InfoContext(ctx, "Sending validate request",
-		"token", backend.MaskKeyName(validateRequest.Token),
-		"cas", validateRequest.CAs,
-	)
+	log.Infof("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
-	validateResponse, err := a.sendValidateRequestToProxy(ctx, trustedCluster.GetProxyAddress(), &validateRequest)
+	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "failed to send validation request", "error", err)
+		log.Error(err)
 		if strings.Contains(err.Error(), "x509") {
 			return nil, trace.AccessDenied("the trusted cluster uses misconfigured HTTP/TLS certificate.")
 		}
@@ -403,7 +399,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the remote certificate authorities we are adding
-	a.logger.InfoContext(ctx, "Received validate response", "cas", validateResponse.CAs)
+	log.Infof("Received validate response; CAs=%v", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
 		for _, keyPair := range ca.GetActiveKeys().TLS {
@@ -431,7 +427,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
 func (a *Server) DeleteRemoteCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName(ctx)
+	cn, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -539,14 +535,11 @@ func (a *Server) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, 
 func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (resp *authclient.ValidateTrustedClusterResponse, err error) {
 	defer func() {
 		if err != nil {
-			a.logger.InfoContext(ctx, "Trusted cluster validation failed", "error", err)
+			log.WithError(err).Info("Trusted cluster validation failed")
 		}
 	}()
 
-	a.logger.DebugContext(ctx, "Received validate request",
-		"token", backend.MaskKeyName(validateRequest.Token),
-		"cas", validateRequest.CAs,
-	)
+	log.Debugf("Received validate request: token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	domainName, err := a.GetDomainName()
 	if err != nil {
@@ -613,7 +606,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
-		meta.Labels = maps.Clone(tokenLabels)
+		meta.Labels = utils.CopyStringsMap(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
@@ -638,7 +631,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 
 	// log the local certificate authorities we are sending
-	a.logger.DebugContext(ctx, "Sending validate response", "cas", validateResponse.CAs)
+	log.Debugf("Sending validate response: CAs=%v", validateResponse.CAs)
 
 	return &validateResponse, nil
 }
@@ -675,7 +668,7 @@ func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName stri
 	return provisionToken.GetMetadata().Labels, nil
 }
 
-func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
+func (a *Server) sendValidateRequestToProxy(host string, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	proxyAddr := url.URL{
 		Scheme: "https",
 		Host:   host,
@@ -686,7 +679,7 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 	}
 
 	if lib.IsInsecureDevMode() {
-		a.logger.WarnContext(ctx, "The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
+		log.Warn("The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// Get the default transport, this allows picking up proxy from the
 		// environment.
@@ -718,7 +711,7 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := httplib.ConvertResponse(clt.PostJSON(ctx, clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
+	out, err := httplib.ConvertResponse(clt.PostJSON(context.TODO(), clt.Endpoint("webapi", "trustedclusters", "validate"), validateRequestRaw))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -765,6 +758,5 @@ func (a *Server) createReverseTunnel(ctx context.Context, t types.TrustedCluster
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = a.UpsertReverseTunnel(ctx, reverseTunnel)
-	return trace.Wrap(err)
+	return trace.Wrap(a.UpsertReverseTunnel(ctx, reverseTunnel))
 }

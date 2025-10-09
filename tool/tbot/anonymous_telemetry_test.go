@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockReportingServiceClient struct {
@@ -58,7 +58,7 @@ func mockEnvGetter(data map[string]string) envGetter {
 
 func TestSendTelemetry(t *testing.T) {
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	t.Run("sends telemetry when enabled", func(t *testing.T) {
 		mockClient := &mockReportingServiceClient{}

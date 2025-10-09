@@ -68,21 +68,21 @@ across distributed infrastructures.
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 |**User identity.** Authenticate users without passwords:||||
-| [Single Sign-On](zero-trust-access/sso/sso.mdx)| GitHub, Google Workspace, Microsoft Entra ID, Okta, SailPoint, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, SailPoint, OIDC, SAML, Teleport | GitHub |
-| User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta, Microsoft Entra ID, and SailPoint | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
-| [Hardware Private Key Support](zero-trust-access/authentication/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
-| [Per-Session MFA](zero-trust-access/authentication/per-session-mfa.mdx)| ✔ | ✔ | ✔ |
+| [Single Sign-On](zero-trust-access/sso/sso.mdx)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
+| User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
+| [Hardware Private Key Support](zero-trust-access/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+| [Per-Session MFA](zero-trust-access/access-controls/guides/per-session-mfa.mdx)| ✔ | ✔ | ✔ |
 |**Resource identity.** Assign a cryptographic identity to every Teleport Protected Resource:||||
-| Protecting: [MCP Servers](./enroll-resources/mcp-access/mcp-access.mdx), [Applications](./enroll-resources/application-access/getting-started.mdx), [Databases](./enroll-resources/database-access/getting-started.mdx), [Kubernetes Clusters](./enroll-resources/kubernetes-access/getting-started.mdx), [Linux Servers](./enroll-resources/server-access/getting-started.mdx), [Windows Servers](./enroll-resources/desktop-access/introduction.mdx), [Windows Desktops](./enroll-resources/desktop-access/introduction.mdx), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](zero-trust-access/management/guides/github-integration.mdx) | ✔ | ✔ | ✔ (does not include Oracle support) |
+| Protecting: [Applications](./enroll-resources/application-access/getting-started.mdx), [Databases](./enroll-resources/database-access/getting-started.mdx), [Kubernetes Clusters](./enroll-resources/kubernetes-access/getting-started.mdx), [Linux Servers](./enroll-resources/server-access/getting-started.mdx), [Windows Servers](./enroll-resources/desktop-access/introduction.mdx), [Windows Desktops](./enroll-resources/desktop-access/introduction.mdx), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](zero-trust-access/management/guides/github-integration.mdx) | ✔ | ✔ | ✔ (does not include Oracle support) |
 |**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
 | Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
-| Supports MCP servers, SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
+| Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
 | [Machines](machine-workload-identity/machine-id/machine-id.mdx) and [workloads](machine-workload-identity/workload-identity/introduction.mdx) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
 | Agentless Integration with [OpenSSH Servers](./enroll-resources/server-access/openssh/openssh-agentless.mdx) | ✔ | ✔ | ✔ |
-| [IP-Based Restrictions](zero-trust-access/authentication/ip-pinning.mdx) | ✔ | ✔ | ✖ |
+| [IP-Based Restrictions](zero-trust-access/access-controls/guides/ip-pinning.mdx) | ✔ | ✔ | ✖ |
 | [Teleport VNet](./connect-your-client/vnet.mdx) | ✔ | ✔ | ✔ |
 |**Short-lived privileges.** Ephemeral authorization granted through short-lived certificates:||||
-| [Role-Based Access Control](zero-trust-access/rbac-get-started/role-templates.mdx) | ✔ | ✔ | ✔ |
+| [Role-Based Access Control](zero-trust-access/access-controls/guides/role-templates.mdx) | ✔ | ✔ | ✔ |
 | [Just-in-Time Access Requests & Reviews](identity-governance/access-requests/resource-requests.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
 |**Session recording and interactive controls.** Record, replay, join, and moderate interactive sessions:||||
 | [Session Recording with Playback](./reference/architecture/session-recording.mdx) | ✔ | ✔ | ✔ |
@@ -90,10 +90,10 @@ across distributed infrastructures.
 | [Recording Proxy Mode](./enroll-resources/server-access/guides/recording-proxy-mode.mdx) | ✖ | ✔ | ✔ |
 | Live Sessions View | SSH, Kubernetes, Desktops, Databases | SSH, Kubernetes, Desktops, Databases | SSH, Kubernetes, Desktops, Databases |
 | Protocol-Level Events, for all supported resources | ✔ | ✔ | ✔ |
-| [Dual Authorization](identity-governance/access-requests/access-requests.mdx) | ✔ | ✔ | ✖ |
-| [Session Sharing & Moderation](zero-trust-access/authentication/joining-sessions.mdx) | ✔ | ✔ | ✖ |
+| [Dual Authorization](zero-trust-access/access-controls/guides/dual-authz.mdx) | ✔ | ✔ | ✖ |
+| [Session Sharing & Moderation](zero-trust-access/access-controls/guides/joining-sessions.mdx) | ✔ | ✔ | ✖ |
 |**Identity-based audit events:** ||||
-| [Structured Audit Logs](reference/deployment/monitoring/audit.mdx) | ✔ | ✔ | ✔ |
+| [Structured Audit Logs](./reference/monitoring/audit.mdx) | ✔ | ✔ | ✔ |
 | [Export to SIEM](zero-trust-access/export-audit-events/export-audit-events.mdx) | ✔ | ✔ | ✔ |
 |**Regulatory standards and frameworks:**||||
 | [FedRAMP Control](zero-trust-access/compliance-frameworks/fedramp.mdx) | ✖ | ✔ | ✖ |
@@ -109,7 +109,7 @@ certificates, access control, and auditability.
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | **Service Discovery:** Live inventory of machine and workload identities for CI/CD jobs, microservices, and others | ✔ | ✔ | ✔ |
-|**Issuance:** Provisions cryptographic identities for [machines](machine-workload-identity/getting-started.mdx) and [workloads](machine-workload-identity/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
+|**Issuance:** Provisions cryptographic identities for [machines](machine-workload-identity/machine-id/getting-started.mdx) and [workloads](machine-workload-identity/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
 |**Secretless Authentication:** Eliminates the need for API keys and long-term secrets with short-lived certificates.| ✔ | ✔ | ✔ |
 |**Ephemeral Authorization:** With granular ABAC/RBAC for workload interactions | ✔ | ✔ | ✔ |
 |**Auditability:** Audit data, exportable to SIEMs, for compliance reporting & reviews | ✔ | ✔ | ✔ |
@@ -126,14 +126,14 @@ and non-human identities.
 
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
-| [JIT Access Requests](identity-governance/access-requests/access-requests.mdx): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
+| [JIT Access Requests](zero-trust-access/access-controls/guides/dual-authz.mdx): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
 | Automatic Access Requests & Approvals: Automate pre-defined workflows based on RBAC, ABAC, or context-based authorization. | ✔ | ✔ | ✖ |
 | [Access Lists & Access Reviews](identity-governance/access-lists/access-lists.mdx): Review access requests using Slack, PagerDuty, Microsoft Teams, Jira and ServiceNow. Assign managers, automate mandatory reviews, and implement custom review logic using our API and Go SDK. Integrates with AWS Identity Center. | ✔ | ✔ | ✖ |
 | [Session & Identity Locks](identity-governance/locking.mdx): Lock suspicious or compromised identities and stop all their activity across all protocols and services. | ✔ | ✔ | ✖ |
 | [Device Trust](identity-governance/device-trust/guide.mdx): Require an up-to-date, registered device for each authentication. Teleport uses TPMs and secure enclaves to give every device a cryptographic identity. Restrict further by resource or MDM-authorization. | ✔ | ✔ | ✖ |
-| User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta, Microsoft Entra ID, and SailPoint | ✔ | ✔ | ✖ |
+| User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | ✔ | ✔ | ✖ |
 | [Access Monitoring & Response](identity-governance/access-monitoring.mdx): Detect overly broad privileges and inspect sessions that are not using strong protection, such as multi-factor authentication or device trust. Alert on access violations and purge unused permissions with automated access rules. | ✔ | ✔ | ✖ |
-| [Okta integration](identity-governance/integrations/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
+| [Okta integration](identity-governance/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
 | Microsoft Entra ID directory synchronization and SSO [integration](zero-trust-access/sso/entra-id.mdx) | ✔ | ✔ | ✖ |
 
 ## Teleport Identity Security
@@ -147,9 +147,7 @@ and non-human identities.
 | Discover standing privileges  | ✔ | ✔ | ✖ |
 | Analyze  shadow access and drift of security posture | ✔ | ✔ | ✖ |
 | Investigate identity vulnerabilities and potential exposures | ✔ | ✔ | ✖ |
-| Monitor critical assets with [Crown Jewel](identity-security/usage/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
-| [Session Recording Summaries](identity-security/session-summaries.mdx) | ✖ | ✔ | ✖ |
-| Identity Activity Center | ✖ | ✔ | ✖ |
+| Monitor critical assets with [Crown Jewel](identity-security/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
 
 ## Platform integrations, management, licensing, and deployment
 
@@ -161,12 +159,12 @@ and non-human identities.
 | Security Information & Event Management (SIEM): Elastic, Splunk, Panther, and anything else that integrates with Fluentd | ✔ | ✔ | ✔ |
 | ITSM: ServiceNow, JIRA | ✔ | ✔ | ✖ |
 | Access Request Integration: Slack, Teams, Discord, Mattermost, PagerDuty, Opsgenie, Email | ✔ | ✔ | ✔ |
-| [Hardware Private Key Support](zero-trust-access/authentication/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+| [Hardware Private Key Support](zero-trust-access/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 | [Hardware Security Module support](zero-trust-access/deploy-a-cluster/hsm.mdx) for encryption at rest | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 | **Management and licensing:** ||||
 | Annual or multi-year contracts, volume discounts | ✔ | ✔ | ✖ |
 | Anonymized Usage Tracking | ✔ | ✔ | Opt-in |
-| [Backend support](reference/deployment/backends.mdx) | All data is stored in DynamoDB and S3 with server-side encryption. | Any S3-compatible storage for session records, many managed backends for custom audit log storage | Any S3-compatible storage for session records, many managed backends for custom audit log storage. |
+| [Backend support](./reference/backends.mdx) | All data is stored in DynamoDB and S3 with server-side encryption. | Any S3-compatible storage for session records, many managed backends for custom audit log storage | Any S3-compatible storage for session records, many managed backends for custom audit log storage. |
 | Multi-region failover using Cockroach DB | ✔ | ✔ | ✖ |
 | Data storage location | Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access. | Can store data anywhere in the world, on most managed cloud backends | Can store data anywhere in the world, on most managed cloud backends |
 | License | Commercial | Commercial | Commercial for binaries, with restrictions: Free usage for companies with \<100 employees and \<US$10M annual revenue. Code on GitHub distributed via AGPL-3.0  |

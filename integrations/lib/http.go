@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,8 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	log "github.com/sirupsen/logrus"
 )
 
 // TLSConfig stores TLS configuration for a http service
@@ -46,7 +44,7 @@ type TLSConfig struct {
 }
 
 // HTTPConfig stores configuration of an HTTP service
-// including its public address, listen host and port,
+// including it's public address, listen host and port,
 // TLS certificate and key path, and extra TLS configuration
 // options, represented as TLSConfig.
 type HTTPConfig struct {
@@ -180,7 +178,7 @@ func NewHTTP(config HTTPConfig) (*HTTP, error) {
 			if verify := config.TLS.VerifyClientCertificateFunc; verify != nil {
 				tlsConfig.VerifyPeerCertificate = func(_ [][]byte, chains [][]*x509.Certificate) error {
 					if err := verify(chains); err != nil {
-						slog.ErrorContext(context.Background(), "HTTPS client certificate verification failed", "error", err)
+						log.WithError(err).Error("HTTPS client certificate verification failed")
 						return err
 					}
 					return nil
@@ -202,7 +200,7 @@ func NewHTTP(config HTTPConfig) (*HTTP, error) {
 // BuildURLPath returns a URI with args represented as query params
 // If any supplied argument is not a string, BuildURLPath will use
 // fmt.Sprintf(value) to stringify it.
-func BuildURLPath(args ...any) string {
+func BuildURLPath(args ...interface{}) string {
 	var pathArgs []string
 	for _, a := range args {
 		var str string
@@ -219,7 +217,7 @@ func BuildURLPath(args ...any) string {
 
 // ListenAndServe runs a http(s) server on a provided port.
 func (h *HTTP) ListenAndServe(ctx context.Context) error {
-	defer slog.DebugContext(ctx, "HTTP server terminated")
+	defer log.Debug("HTTP server terminated")
 	var err error
 
 	h.server.BaseContext = func(_ net.Listener) context.Context {
@@ -258,10 +256,10 @@ func (h *HTTP) ListenAndServe(ctx context.Context) error {
 	}
 
 	if h.Insecure {
-		slog.DebugContext(ctx, "Starting insecure HTTP server", "listen_addr", logutils.StringerAttr(addr))
+		log.Debugf("Starting insecure HTTP server on %s", addr)
 		err = h.server.Serve(listener)
 	} else {
-		slog.DebugContext(ctx, "Starting secure HTTPS server", "listen_addr", logutils.StringerAttr(addr))
+		log.Debugf("Starting secure HTTPS server on %s", addr)
 		err = h.server.ServeTLS(listener, h.CertFile, h.KeyFile)
 	}
 	if errors.Is(err, http.ErrServerClosed) {
@@ -290,7 +288,7 @@ func (h *HTTP) ServiceJob() ServiceJob {
 	return NewServiceJob(func(ctx context.Context) error {
 		MustGetProcess(ctx).OnTerminate(func(ctx context.Context) error {
 			if err := h.ShutdownWithTimeout(ctx, time.Second*5); err != nil {
-				slog.ErrorContext(ctx, "HTTP server graceful shutdown failed")
+				log.Error("HTTP server graceful shutdown failed")
 				return err
 			}
 			return nil

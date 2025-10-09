@@ -5,7 +5,6 @@ videoBanner: 9DyKQbg4ORc
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 This guide demonstrates how to configure Teleport to provide secure, passwordless access
@@ -66,9 +65,9 @@ To prepare a Windows computer:
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple 
-   user CAs (one for each Auth Service instance). You can download a bundle containing
-   all CAs by appending `&format=zip` to the URL.
+   If you are using Teleport's support for HSM-backed keys, then your Teleport cluster
+   has multiple user CAs (one for each Auth Service instance). You can download a bundle
+   containing all CAs by appending `&format=zip` to the URL.
 
 3. Download the Teleport Windows Auth setup program:
 
@@ -319,6 +318,6 @@ Windows login to use for the connection.
 ## Next steps
 
 For more general information about how to create, assign, and update roles, see [Access Controls
-Getting Started](../../zero-trust-access/rbac-get-started/role-demo.mdx).
+Getting Started](../../zero-trust-access/access-controls/getting-started.mdx).
 For more specific information about configuring Windows-specific role permissions, see
 [Role-Based Access Control for Desktops](./rbac.mdx).

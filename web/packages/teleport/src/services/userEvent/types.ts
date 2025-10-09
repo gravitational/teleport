@@ -76,6 +76,7 @@ export enum IntegrationEnrollKind {
   MachineIDAzure = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE',
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
+  MachineIDArgoCD = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD',
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
   AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
@@ -163,7 +164,10 @@ export enum DiscoverEvent {
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
+  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
+  EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateApplicationServer = 'tp.ui.discover.createAppServer',
+  CreateNode = 'tp.ui.discover.createNode',
   CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
@@ -202,7 +206,6 @@ export enum DiscoverEventResource {
   DatabaseCassandraSelfHosted = 'DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED',
   DatabaseElasticSearchSelfHosted = 'DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED',
   DatabaseRedisElasticache = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE',
-  DatabaseRedisElastiCacheServerless = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE_SERVERLESS',
   DatabaseRedisMemoryDb = 'DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB',
   DatabaseRedisAzureCache = 'DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE',
   DatabaseRedisClusterSelfHosted = 'DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED',
@@ -227,8 +230,6 @@ export enum DiscoverEventResource {
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
-
-  MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
 }
 
 export enum DiscoverEventStatus {
@@ -309,6 +310,7 @@ export enum DiscoverServiceDeployType {
 export enum DiscoverDiscoveryConfigMethod {
   Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
   AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsEc2Eice = 'CONFIG_METHOD_AWS_EC2_EICE',
   AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
   AwsEks = 'CONFIG_METHOD_AWS_EKS',
 }
@@ -328,7 +330,6 @@ export enum CtaEvent {
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
   CTA_OKTA_SCIM = 13,
-  CTA_IDENTITY_SECURITY = 14,
 }
 
 export type CtaEventRequest = UserEventWithData<

@@ -43,13 +43,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestEditResources(t *testing.T) {
 	t.Parallel()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -103,10 +103,6 @@ func TestEditResources(t *testing.T) {
 		{
 			kind: types.KindDynamicWindowsDesktop,
 			edit: testEditDynamicWindowsDesktop,
-		},
-		{
-			kind: types.KindHealthCheckConfig,
-			edit: testEditHealthCheckConfig,
 		},
 	}
 
@@ -370,7 +366,7 @@ func TestEditEnterpriseResources(t *testing.T) {
 			},
 		},
 	})
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -408,7 +404,6 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		ClientID:     "12345",
 		ClientSecret: "678910",
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/github/callback"},
-		PKCEMode:     "enabled",
 		Display:      "OIDC",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
@@ -689,7 +684,7 @@ func TestMultipleRoles(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
 	t.Cleanup(func() {

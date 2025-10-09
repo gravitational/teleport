@@ -67,7 +67,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -86,7 +86,7 @@ func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, a
 func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
-		Stdout: &stdoutBuff,
+		stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
@@ -113,7 +113,7 @@ func runLockCommand(t *testing.T, client *authclient.Client, args []string) erro
 func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
-		Stdout: &stdoutBuff,
+		stdout: &stdoutBuff,
 	}
 
 	args = append([]string{"tokens"}, args...)
@@ -138,7 +138,7 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
-func runNotificationsCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &NotificationCommand{
 		stdout: &stdoutBuff,
@@ -216,7 +216,7 @@ func mustWriteIdentityFile(t *testing.T, client *authclient.Client, username str
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
-	fakeClock       *clockwork.FakeClock
+	fakeClock       clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -233,7 +233,7 @@ func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc 
 	}
 }
 
-func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
+func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fakeClock = fakeClock
 	}

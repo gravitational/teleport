@@ -78,20 +78,6 @@ func TestGetAWSPolicyDocument(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	elasticacheServerless, err := types.NewDatabaseV3(types.Metadata{
-		Name: "aws-elasticache-serverless",
-	}, types.DatabaseSpecV3{
-		Protocol: "redis",
-		URI:      "example-abc123.serverless.cac1.cache.amazonaws.com:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			ElastiCacheServerless: types.ElastiCacheServerless{
-				CacheName: "example",
-			},
-		},
-	})
-	require.NoError(t, err)
-
 	memorydb, err := types.NewDatabaseV3(types.Metadata{
 		Name: "aws-memorydb",
 	}, types.DatabaseSpecV3{
@@ -168,22 +154,6 @@ func TestGetAWSPolicyDocument(t *testing.T) {
             "Action": "elasticache:Connect",
             "Resource": [
                 "arn:aws:elasticache:ca-central-1:123456789012:replicationgroup:some-group",
-                "arn:aws:elasticache:ca-central-1:123456789012:user:*"
-            ]
-        }
-    ]
-}`,
-		},
-		{
-			inputDatabase: elasticacheServerless,
-			expectPolicyDocument: `{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "elasticache:Connect",
-            "Resource": [
-                "arn:aws:elasticache:ca-central-1:123456789012:serverlesscache:example",
                 "arn:aws:elasticache:ca-central-1:123456789012:user:*"
             ]
         }

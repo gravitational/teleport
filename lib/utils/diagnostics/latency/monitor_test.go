@@ -28,17 +28,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 
 	os.Exit(m.Run())
 }
 
 type fakePinger struct {
-	clock   *clockwork.FakeClock
+	clock   clockwork.FakeClock
 	latency time.Duration
 	pingC   chan struct{}
 }
@@ -101,7 +101,7 @@ func TestMonitor(t *testing.T) {
 	assert.Equal(t, Statistics{}, monitor.GetStats(), "expected initial latency stats to be zero got %v", stats)
 
 	// Simulate a few ping loops to validate the pingers are activated appropriately.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		// Wait for the ping timers and reporting timer to block.
 		clock.BlockUntil(3)
 		// Advance the clock enough to trigger a ping.
@@ -109,7 +109,7 @@ func TestMonitor(t *testing.T) {
 
 		pingTimeout := time.After(15 * time.Second)
 		// Wait for both pings to return a response.
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			// Wait for the fake pingers to sleep and the reporting timer to block.
 			clock.BlockUntil(3)
 			// Advance the clock in intervals of 5s to wake up the pingers one at a time.

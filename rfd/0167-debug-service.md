@@ -1,6 +1,6 @@
 ---
 authors: Gabriel Corado (gabriel.oliveira@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 0167 - Debug service
@@ -197,7 +197,7 @@ $ teleport debug profile heap,goroutine > profile.tar.gz
 ### Security
 
 Items listed on this section are have their impact limited due to the fact that
-the service will not be exposed outside the machine/container running the
+the service will not be exposed outsite the machine/container running the
 Teleport instance.
 
 #### CPU and Memory consumption during profiling

@@ -19,7 +19,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -30,13 +29,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -265,13 +264,13 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../../deployment/join-methods.mdx) for possible values. You must use [a delegated join method](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
+				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
 			},
 			attributeTerraformJoinToken: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
+				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
 			},
 			attributeTerraformJoinAudienceTag: {
 				Type:        types.StringType,
@@ -330,7 +329,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	slog.DebugContext(ctx, "Using Teleport address", "addr", addr)
+	log.WithFields(log.Fields{"addr": addr}).Debug("Using Teleport address")
 
 	dialTimeoutDuration, err := time.ParseDuration(dialTimeoutDurationStr)
 	if err != nil {
@@ -419,7 +418,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 
 // checkTeleportVersion ensures that Teleport version is at least minServerVersion
 func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfsdk.ConfigureProviderResponse) bool {
-	slog.DebugContext(ctx, "Checking Teleport server version")
+	log.Debug("Checking Teleport server version")
 	pong, err := client.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
@@ -429,13 +428,13 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 			)
 			return false
 		}
-		slog.DebugContext(ctx, "Teleport version check error", "error", err)
+		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
 	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
-		slog.DebugContext(ctx, "Teleport version check error", "error", err)
+		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
 		return false
 	}
@@ -483,7 +482,7 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Teleport address format error", "error", err, "addr", addr)
+		log.WithField("addr", addr).WithError(err).Debug("Teleport address format error!")
 		resp.Diagnostics.AddError(
 			"Invalid Teleport address format",
 			fmt.Sprintf("Teleport address must be specified as host:port. Got %q", addr),
@@ -497,32 +496,20 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 // configureLog configures logging
 func (p *Provider) configureLog() {
-	level := slog.LevelError
 	// Get Terraform log level
-	switch strings.ToLower(os.Getenv("TF_LOG")) {
-	case "panic", "fatal", "error":
-		level = slog.LevelError
-	case "warn", "warning":
-		level = slog.LevelWarn
-	case "info":
-		level = slog.LevelInfo
-	case "debug":
-		level = slog.LevelDebug
-	case "trace":
-		level = logutils.TraceLevel
+	level, err := log.ParseLevel(os.Getenv("TF_LOG"))
+	if err != nil {
+		log.SetLevel(log.ErrorLevel)
+	} else {
+		log.SetLevel(level)
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
-		Severity: level.String(),
-		Format:   "text",
-	})
-	if err != nil {
-		return
-	}
+	log.SetFormatter(&log.TextFormatter{})
 
 	// Show GRPC debug logs only if TF_LOG=DEBUG
-	if level <= slog.LevelDebug {
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(os.Stderr, os.Stderr, os.Stderr))
+	if log.GetLevel() >= log.DebugLevel {
+		l := grpclog.NewLoggerV2(log.StandardLogger().Out, log.StandardLogger().Out, log.StandardLogger().Out)
+		grpclog.SetLoggerV2(l)
 	}
 }
 
@@ -548,7 +535,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                resourceTeleportAccessListType{},
-		"teleport_access_list_member":         resourceTeleportMemberType{},
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
@@ -556,7 +542,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
 	}, nil
 }
 
@@ -581,14 +566,12 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
-		"teleport_access_list_member":         dataSourceTeleportMemberType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 	}, nil
 }
 

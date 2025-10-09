@@ -1,4 +1,5 @@
 //go:build bpf && !386
+// +build bpf,!386
 
 /*
  * Teleport
@@ -50,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -61,7 +62,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 
 	// Check if the re-exec was requested.
 	if len(os.Args) == 3 {

@@ -183,10 +183,10 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
-    fireEvent.click(screen.getByTestId('open'));
+    act(() => screen.getByTestId('open').click());
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
-    fireEvent.click(screen.getByTestId('close'));
+    act(() => screen.getByTestId('close').click());
     expect(otherInput).toHaveFocus();
   });
 });
@@ -260,7 +260,6 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['db'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: true,
-        statuses: ['healthy'],
       },
     });
     docService.add(clusterDoc);
@@ -282,7 +281,6 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
-        statuses: [],
       },
     });
     docService.add(clusterDoc);
@@ -318,7 +316,6 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
-        statuses: [],
       },
     });
     docService.add(clusterDoc);

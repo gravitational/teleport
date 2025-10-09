@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"os"
 	"os/exec"
@@ -44,8 +43,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -53,11 +50,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
-	"github.com/gravitational/teleport/api/types/vnet"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -80,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -749,22 +743,6 @@ func TestAuthPreference(t *testing.T) {
 	})
 }
 
-func TestVnetConfig(t *testing.T) {
-	t.Parallel()
-
-	conf := setupConfig(t)
-	authServer, err := auth.Init(context.Background(), conf)
-	require.NoError(t, err)
-	t.Cleanup(func() { authServer.Close() })
-
-	actualVnetConfig, err := authServer.GetVnetConfig(t.Context())
-	require.NoError(t, err)
-
-	defaultVnetConfig, err := vnet.DefaultVnetConfig()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(defaultVnetConfig.GetSpec(), actualVnetConfig.GetSpec(), protocmp.Transform()))
-}
-
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	modules.SetInsecureTestMode(false)
 	defer modules.SetInsecureTestMode(true)
@@ -873,7 +851,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName(ctx)
+	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
@@ -883,7 +861,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName(ctx)
+	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -907,10 +885,18 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName(ctx)
+	cn, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
+}
+
+func keysIn[K comparable, V any](m map[K]V) []K {
+	result := make([]K, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
 }
 
 type failingTrustInternal struct {
@@ -959,7 +945,6 @@ func TestPresets(t *testing.T) {
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
-		teleport.PresetMCPUserRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -970,14 +955,8 @@ func TestPresets(t *testing.T) {
 		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
-		require.NoError(t, err)
-
 		// Second call should not fail
 		err = auth.CreatePresetRoles(ctx, as)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -985,10 +964,6 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
-
-		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
@@ -1014,26 +989,6 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
-	})
-
-	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// an existing health check config should not be modified by init
-		cfg := services.NewPresetHealthCheckConfig()
-		cfg.Spec.Interval = durationpb.New(42 * time.Second)
-		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
-		require.NoError(t, err)
-
-		// Preset was created. Ensure it didn't overwrite the existing config
-		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
-		require.NoError(t, err)
-		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.
@@ -1192,7 +1147,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, slices.Collect(maps.Keys(createdSystemRoles)), r.GetName())
+				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -1202,8 +1157,8 @@ func TestPresets(t *testing.T) {
 
 		err := auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
-		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
+		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
+		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -1264,7 +1219,7 @@ func TestPresets(t *testing.T) {
 
 		// EXPECT that createPresets will try to create all expected
 		// non-system roles
-		remainingPresets := set.New(expectedPresetRoles...)
+		remainingPresets := toSet(expectedPresetRoles)
 		roleManager.
 			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
@@ -1340,7 +1295,7 @@ func TestPresets(t *testing.T) {
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
-			for range 2 {
+			for i := 0; i < 2; i++ {
 				err := auth.CreatePresetRoles(ctx, as)
 				require.NoError(t, err)
 
@@ -1508,6 +1463,14 @@ func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
 	}
 }
 
+func toSet(items []string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, v := range items {
+		result[v] = struct{}{}
+	}
+	return result
+}
+
 func setupConfig(t *testing.T) auth.InitConfig {
 	tempDir := t.TempDir()
 
@@ -1666,18 +1629,6 @@ spec:
   type: saml_idp
 sub_kind: saml_idp
 version: v2`
-	healthCheckConfigYAML = `kind: health_check_config
-metadata:
-  name: valid
-  revision: c1159783-930e-4a79-bb19-0d0d866d7af6
-spec:
-  enabled: true
-  match:
-    db_labels:
-    - name: "*"
-      values:
-      - "*"
-version: v1`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -1727,28 +1678,6 @@ func TestInit_bootstrap(t *testing.T) {
 				)
 			},
 			assertError: require.NoError,
-		},
-		{
-			name: "OK bootstrap health check config",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.BootstrapResources = append(
-					cfg.BootstrapResources,
-					newHealthCheckConfig(t),
-				)
-			},
-			assertError: require.NoError,
-		},
-		{
-			name: "NOK bootstrap health check config invalid",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.BootstrapResources = append(
-					cfg.BootstrapResources,
-					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
-						hcc.Spec.HealthyThreshold = 9000
-					}),
-				)
-			},
-			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
@@ -1937,12 +1866,6 @@ spec:
   type: local
 version: v2
 `
-	botYAML = `kind: bot
-metadata:
-  name: my-bot
-spec:
-  roles: ["admin"]
-`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1954,7 +1877,6 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
-	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
 		name         string
@@ -2023,22 +1945,6 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			},
 			assertError: require.NoError,
 		},
-		{
-			name: "Apply Role+Bot",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
-			},
-			assertError: require.NoError,
-		},
-		{
-			name: "Apply Bot+Role",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
-			},
-			assertError: require.NoError,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -2067,15 +1973,6 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
-}
-
-func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.HealthCheckConfig)) types.Resource {
-	r := resourceFromYAML(t, healthCheckConfigYAML)
-	inner := r.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT()
-	for _, opt := range opts {
-		opt(inner)
-	}
-	return r
 }
 
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
@@ -2412,7 +2309,8 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			authCfg := setupConfig(t)
 			service, err := local.NewBackendInfoService(authCfg.Backend)
@@ -2544,6 +2442,7 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			m := &mockDatabaseObjectImportRules{

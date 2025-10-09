@@ -23,18 +23,13 @@ import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
-import "teleport/healthcheckconfig/v1/health_check_config.proto";
 import "teleport/identitycenter/v1/identitycenter.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
-import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
-import "teleport/recordingencryption/v1/recording_encryption.proto";
-import "teleport/scopes/access/v1/assignment.proto";
-import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -219,17 +214,8 @@ message Event {
     teleport.workloadidentity.v1.WorkloadIdentity WorkloadIdentity = 76;
     // WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.
     teleport.workloadidentity.v1.WorkloadIdentityX509Revocation WorkloadIdentityX509Revocation = 77;
-    // HealthCheckConfig is a resource for configuring health checks.
-    teleport.healthcheckconfig.v1.HealthCheckConfig HealthCheckConfig = 78;
     // AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
     teleport.autoupdate.v1.AutoUpdateAgentReport AutoUpdateAgentReport = 79;
-    // ScopedRole is a role that descibes scoped privileges.
-    teleport.scopes.access.v1.ScopedRole ScopedRole = 80;
-    // ScopedRoleAssignment is an assignment of one or more scoped roles to a user.
-    teleport.scopes.access.v1.ScopedRoleAssignment ScopedRoleAssignment = 81;
-    teleport.presence.v1.RelayServer relay_server = 82;
-    // RecordingEncryption is a resource for controlling session recording encryption.
-    teleport.recordingencryption.v1.RecordingEncryption RecordingEncryption = 83;
     // PluginV1 is a resource for Teleport plugins.
     types.PluginV1 plugin = 84;
   }

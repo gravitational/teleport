@@ -28,6 +28,7 @@ lint:
     - api/proto/teleport/legacy/client/proto/certs.proto
     - api/proto/teleport/legacy/client/proto/event.proto
     - api/proto/teleport/legacy/client/proto/proxyservice.proto
+    - api/proto/teleport/legacy/client/proto/requestable_roles.proto
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
@@ -53,7 +54,6 @@ lint:
     COMMENT_SERVICE:
       - proto/prehog
     FIELD_LOWER_SNAKE_CASE:
-      - api/proto/teleport/legacy/client/proto/inventory.proto
       - api/proto/teleport/legacy/types/device.proto
     PACKAGE_DIRECTORY_MATCH:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
@@ -76,8 +76,7 @@ lint:
       - api/proto/teleport/workloadidentity/v1/revocation_service.proto
       - proto/accessgraph/v1alpha/access_graph_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
-      - api/proto/teleport/recordingmetadata/v1/recordingmetadata_service.proto
-      - api/proto/teleport/join/v1/joinservice.proto
+  disallow_comment_ignores: true
 
 breaking:
   use:
@@ -86,8 +85,6 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
-    # TODO(nklaassen): Remove ignore once the new join API is stable.
-    - api/proto/teleport/join/v1
 
 plugins:
   - plugin:

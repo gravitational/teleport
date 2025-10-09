@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
@@ -82,7 +81,8 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 	t.Helper()
 
 	fs := eventstest.NewFakeStreamer(events, streamInterval)
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
+	logrusLogger := utils.NewLoggerForTests()
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
@@ -103,7 +103,7 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 		})
 		assert.NoError(t, err)
 		player.Play()
-		desktop.PlayRecording(r.Context(), log, ws, player)
+		desktop.PlayRecording(r.Context(), logrusLogger, ws, player)
 	}))
 
 	t.Cleanup(s.Close)

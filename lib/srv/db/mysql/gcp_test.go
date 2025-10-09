@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
@@ -55,7 +56,7 @@ func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, database types.Databa
 	return "one-time-password", nil
 }
 
-func (a fakeAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
+func (a fakeAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
 	if a.Auth != nil {
 		return a.Auth.WithLogger(getUpdatedLogger)
 	}
@@ -142,6 +143,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			sessionCtx := &common.Session{
 				Database:     db,

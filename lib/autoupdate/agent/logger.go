@@ -66,12 +66,7 @@ type lineLogger struct {
 }
 
 func (w *lineLogger) out(s string) {
-	if !w.log.Handler().Enabled(w.ctx, w.level) {
-		return
-	}
-
-	//nolint:sloglint // msg is appended with prefix
-	w.log.Log(w.ctx, w.level, w.prefix+s)
+	w.log.Log(w.ctx, w.level, w.prefix+s) //nolint:sloglint // msg cannot be constant
 }
 
 func (w *lineLogger) Write(p []byte) (n int, err error) {

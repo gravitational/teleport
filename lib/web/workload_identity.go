@@ -33,8 +33,8 @@ import (
 
 // listWorkloadIdentities returns a list of workload identities for a given
 // cluster site.
-func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

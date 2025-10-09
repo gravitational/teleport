@@ -57,14 +57,14 @@ func TestTransportCredentials_Check(t *testing.T) {
 	}{
 		{
 			name: "invalid configuration: no transport credentials",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("parameter TransportCredentials required"))
 			},
 			credentialAssertion: require.Nil,
 		},
 		{
 			name: "invalid configuration: bad transport credentials security protocol",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("the TransportCredentials must be a tls security protocol, got insecure"))
 			},
 			conf:                auth.TransportCredentialsConfig{TransportCredentials: insecure.NewCredentials()},
@@ -72,7 +72,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 		},
 		{
 			name: "invalid configuration: no user getter provided",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("parameter UserGetter required"))
 			},
 			conf:                auth.TransportCredentialsConfig{TransportCredentials: credentials.NewTLS(tlsConf.Clone())},
@@ -80,7 +80,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 		},
 		{
 			name: "invalid configuration: connection enforcer provided without an authorizer",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("both a UserGetter and an Authorizer are required to enforce connection limits with an Enforcer"))
 			},
 			conf: auth.TransportCredentialsConfig{
@@ -122,6 +122,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 	}
 
 	for _, test := range cases {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -154,7 +155,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "valid connection without session control",
 			conf: auth.TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &auth.Middleware{ClusterName: "test"},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: true},
 			errAssertion:       require.NoError,
@@ -173,7 +174,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "valid connection with authorization but no connection limiting",
 			conf: auth.TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &auth.Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: true},
@@ -190,7 +191,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "valid connection with full session control",
 			conf: auth.TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &auth.Middleware{ClusterName: "test"},
 				Authorizer: &fakeAuthorizer{
 					checker: &fakeChecker{maxConnections: 1},
 				},
@@ -210,11 +211,11 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "not authorized",
 			conf: auth.TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &auth.Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{authorizeError: unauthorized},
 			},
 			clientTLSConf: &tls.Config{InsecureSkipVerify: true},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, unauthorized)
 			},
 			handshakeAssertion: require.NoError,
@@ -226,12 +227,12 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "connection limits exceeded",
 			conf: auth.TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &auth.Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{checker: &fakeChecker{maxConnections: 1}},
 				Enforcer:             &fakeEnforcer{err: tooManyConnections},
 			},
 			clientTLSConf: &tls.Config{InsecureSkipVerify: true},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, tooManyConnections)
 			},
 			handshakeAssertion: require.NoError,
@@ -243,7 +244,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 			name: "tls handshake failure",
 			conf: auth.TransportCredentialsConfig{
 				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
-				UserGetter:           &authz.Middleware{ClusterName: "test"},
+				UserGetter:           &auth.Middleware{ClusterName: "test"},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: false},
 			handshakeAssertion: require.Error,
@@ -251,6 +252,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 	}
 
 	for _, test := range cases {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -324,7 +326,7 @@ type fakeUserGetter struct {
 	identity authz.IdentityGetter
 }
 
-func (f fakeUserGetter) GetUser(context.Context, tls.ConnectionState) (authz.IdentityGetter, error) {
+func (f fakeUserGetter) GetUser(tls.ConnectionState) (authz.IdentityGetter, error) {
 	return f.identity, nil
 }
 
@@ -354,7 +356,7 @@ func TestTransportCredentialsDisconnection(t *testing.T) {
 	// Assert that the connections are eventually closed.
 	connectionClosedAssertion := func(t *testing.T, conn *fakeConn) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			require.True(t, conn.closed.Load())
+			assert.True(t, conn.closed.Load())
 		}, 5*time.Second, 100*time.Millisecond)
 	}
 

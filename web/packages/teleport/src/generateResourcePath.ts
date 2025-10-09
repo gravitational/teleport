@@ -34,14 +34,8 @@ export default function generateResourcePath(
       ].dir.toLowerCase()}`;
     } else if (param === 'kinds') {
       processedParams[param] = (params[param] ?? []).join('&kinds=');
-    } else if (param === 'statuses') {
-      processedParams[param] = (params[param] ?? []).join('&status=');
     } else if (param === 'regions') {
       processedParams[param] = (params[param] ?? []).join('&regions=');
-    } else if (param === 'owners') {
-      processedParams[param] = (params[param] ?? []).join('&owners=');
-    } else if (param === 'roles') {
-      processedParams[param] = (params[param] ?? []).join('&roles=');
     } else
       processedParams[param] = params[param]
         ? encodeURIComponent(params[param])
@@ -63,7 +57,6 @@ export default function generateResourcePath(
     // param
     .replace(':kind?', processedParams.kind || '')
     .replace(':kinds?', processedParams.kinds || '')
-    .replace(':status?', processedParams.statuses || '')
     .replace(':kubeCluster?', processedParams.kubeCluster || '')
     .replace(':kubeNamespace?', processedParams.kubeNamespace || '')
     .replace(':limit?', params.limit || '')
@@ -75,8 +68,6 @@ export default function generateResourcePath(
     .replace(':sort?', processedParams.sort || '')
     .replace(':startKey?', params.startKey || '')
     .replace(':regions?', processedParams.regions || '')
-    .replace(':owners?', processedParams.owners || '')
-    .replace(':roles?', processedParams.roles || '')
     .replace(
       ':includedResourceMode?',
       processedParams.includedResourceMode || ''

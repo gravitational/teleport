@@ -17,6 +17,7 @@
 package diag
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -224,7 +225,7 @@ func TestSSHDiag(t *testing.T) {
 				},
 			}
 
-			report, err := diag.Run(t.Context())
+			report, err := diag.Run(context.Background())
 			require.NoError(t, err)
 			require.Equal(t, expectReport, report)
 		})

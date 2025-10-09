@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -62,7 +62,7 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	// Spin up a test server.
 	process, err := testenv.NewTeleportProcess(

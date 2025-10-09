@@ -4,8 +4,6 @@ description: How to configure Teleport to automatically enroll GCP compute insta
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - google-cloud
 ---
 
 This guide shows you how to set up automatic server discovery for Google Compute
@@ -275,13 +273,6 @@ discovery_service:
       labels:
         "env": "prod" # Match virtual machines where label:env=prod
       install:
-        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
-        # Requires managed updates to be enabled.
-        # Supported characters are alphanumeric characters and `-`.
-        suffix: "<suffix>"
-        # Optional: when using managed updates, set the update group of the installation.
-        # Supported characters are alphanumeric characters and `-`.
-        update_group: "<update-group>"
         public_proxy_addr: "<Var name="teleport.example.com" />:443"
 ```
 
@@ -290,11 +281,6 @@ discovery_service:
 - Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
-- Set the `install.suffix` key to install teleport in a non-global location, allowing
-  for multiple, simultaneously installations from different clusters.
-  Requires [agent managed updates](../../../upgrading/agent-managed-updates.mdx).
-- When using [agent managed updates](../../../upgrading/agent-managed-updates.mdx), you can
-  configure the update group by setting the `install.update_group` key.
 
 ### GCP credentials
 
@@ -309,11 +295,11 @@ for details on alternate methods.
 
 ## Step 6/6. [Optional] Customize the default installer script
 
-(!docs/pages/includes/server-access/custom-installer.mdx matcher="gcp"!)
+(!docs/pages/includes/server-access/custom-installer.mdx cloud="GCP" matcher="gcp" matchTypes="[\"gce\"]"!)
 
 ## Next steps
 
 - Read [Joining Services via GCP](../../agents/gcp.mdx)
   for more information on GCP tokens.
 - Full documentation on GCP discovery configuration can be found through the [
-  config file reference documentation](../../../reference/deployment/config.mdx).
+  config file reference documentation](../../../reference/config.mdx).

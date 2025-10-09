@@ -169,13 +169,13 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clusterLog := s.Logger.With("cluster", clusterURI)
+	clusterLog := s.Log.WithField("cluster", clusterURI)
 
 	pingResponseJSON, err := json.Marshal(pingResponse)
 	if err != nil {
-		clusterLog.DebugContext(ctx, "Could not marshal ping response to JSON", "error", err)
+		clusterLog.WithError(err).Debugln("Could not marshal ping response to JSON")
 	} else {
-		clusterLog.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
+		clusterLog.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
 	}
 
 	if err := clusterClient.SaveProfile(false); err != nil {
@@ -190,7 +190,7 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		clock:         s.Clock,
-		Logger:        clusterLog,
+		Log:           clusterLog,
 		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}, clusterClient, nil
 }
@@ -228,7 +228,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		clusterClient: clusterClient,
 		clock:         s.Clock,
 		statusError:   err,
-		Logger:        s.Logger.With("cluster", clusterURI),
+		Log:           s.Log.WithField("cluster", clusterURI),
 		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}
 	if status != nil {
@@ -246,7 +246,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			s.Logger.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
 		} else {
 			return nil, trace.Wrap(err)
 		}

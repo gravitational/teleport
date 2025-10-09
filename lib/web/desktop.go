@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -49,35 +49,31 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
+	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (any, error) {
+) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := sctx.cfg.Log.With(
-		"desktop_name", desktopName,
-		"cluster_name", cluster.GetName(),
-	)
-	log.DebugContext(r.Context(), "New desktop access websocket connection")
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
+	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, site.GetName(), log, sctx, site, ws); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
 		// format, and this will fail since the HTTP connection has been upgraded to websockets.
-		log.ErrorContext(r.Context(), "creating desktop connection failed", "error", err)
+		log.Error(err)
 	}
 
 	return nil, nil
@@ -87,9 +83,9 @@ func (h *Handler) createDesktopConnection(
 	r *http.Request,
 	desktopName string,
 	clusterName string,
-	log *slog.Logger,
+	log *logrus.Entry,
 	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
+	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
 ) error {
 	defer ws.Close()
@@ -103,33 +99,21 @@ func (h *Handler) createDesktopConnection(
 		return err
 	}
 
-	readClientMessage := func() (tdp.Message, error) {
-		typ, data, err := ws.ReadMessage()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if typ != websocket.BinaryMessage {
-			return nil, trace.BadParameter("expected binary websocket message, got %v", typ)
-		}
-
-		msg, err := tdp.Decode(data)
-		return msg, trace.Wrap(err)
-	}
-
 	username, err := readUsername(r)
 	if err != nil {
 		return sendTDPError(err)
 	}
-	log.DebugContext(ctx, "Attempting to connect to desktop", "username", username)
+	log.Debugf("Attempting to connect to desktop using username=%v\n", username)
 
-	// The first thing we expect from the client is the screen spec.
-	msg, err := readClientMessage()
+	// Read the tdp.ClientScreenSpec from the websocket.
+	// This is always the first thing sent by the client.
+	// Certificate issuance may rely on the client sending
+	// a subsequent tdp.MFA message, hence we need to make
+	// sure that this message has been read from the wire
+	// beforehand.
+	screenSpec, err := readClientScreenSpec(ws)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	screenSpec, ok := msg.(tdp.ClientScreenSpec)
-	if !ok {
-		return sendTDPError(trace.BadParameter("client sent unexpected message %T", msg))
+		return sendTDPError(err)
 	}
 
 	width, height := screenSpec.Width, screenSpec.Height
@@ -140,23 +124,9 @@ func (h *Handler) createDesktopConnection(
 		))
 	}
 
-	log = log.With("username", username, "width", width, "height", height)
+	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
-	// Holds any messages withheld while issuing certs.
-	var withheld []tdp.Message
-
-	// Try to read the keyboard layout, which is sent by v18+ clients.
-	msg, err = readClientMessage()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	keyboardLayout, gotKeyboardLayout := msg.(tdp.ClientKeyboardLayout)
-	if !gotKeyboardLayout {
-		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
-		withheld = append(withheld, msg)
-	}
-
-	clt, err := sctx.GetUserClient(ctx, cluster)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
 	}
@@ -168,11 +138,13 @@ func (h *Handler) createDesktopConnection(
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk.Public(), desktopName, username)
 	if err != nil {
 		return sendTDPError(err)
 	}
 
+	// Holds any messages withheld while issuing certs.
+	var withheld []tdp.Message
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
 	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq, &withheld)
 	if err != nil {
@@ -190,7 +162,7 @@ func (h *Handler) createDesktopConnection(
 	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
-		Cluster:        cluster,
+		Site:           site,
 		ClientSrcAddr:  clientSrcAddr,
 		ClientDstAddr:  clientDstAddr,
 		DesktopName:    desktopName,
@@ -206,7 +178,7 @@ func (h *Handler) createDesktopConnection(
 	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {
 		return sendTDPError(err)
 	}
-	log.DebugContext(ctx, "Connected to windows_desktop_service")
+	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
 
@@ -221,18 +193,8 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return sendTDPError(err)
 	}
-
-	// Forward the user's keyboard layout to the agent, as long as the agent is new enough.
-	if keyboardLayoutSupported, _ := utils.MinVerWithoutPreRelease(version, "18.0.0"); keyboardLayoutSupported && gotKeyboardLayout {
-		if err := tdpConn.WriteMessage(keyboardLayout); err != nil {
-			return sendTDPError(err)
-		}
-	} else {
-		log.DebugContext(ctx, "Client sent keyboard layout but agent is too old", "agent_version", version)
-	}
-
 	for _, msg := range withheld {
-		log.DebugContext(ctx, "Sending withheld message", "message", logutils.TypeAttr(msg))
+		log.Debugf("Sending withheld message: %v", msg)
 		if err := tdpConn.WriteMessage(msg); err != nil {
 			return sendTDPError(err)
 		}
@@ -241,12 +203,9 @@ func (h *Handler) createDesktopConnection(
 	// for the rest of the connection
 	withheld = nil
 
-	// this blocks until the connection is closed
+	// tdp.ProxyConn hangs here until connection is closed.
 	handleProxyWebsocketConnErr(
-		ctx,
-		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, version),
-		log,
-	)
+		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, version), log)
 
 	return nil
 }
@@ -298,7 +257,7 @@ func createUserCertsRequest(
 func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
+	site reversetunnelclient.RemoteSite,
 	publicKey crypto.PublicKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
@@ -308,12 +267,12 @@ func (h *Handler) prepareForCertIssuance(
 			DesktopName: desktopName,
 			Login:       username,
 		},
-	}, sctx, cluster)
+	}, sctx, site)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, site.GetName())
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
@@ -431,15 +390,6 @@ func (h *Handler) performSessionMFACeremony(
 					return nil, trace.Wrap(err)
 				}
 
-				// Special case: if we've already received an MFA response (because an old web UI
-				// that doesn't send the keyboard layout is connected), then we're done.
-				if len(*withheld) > 0 {
-					mfaResp, ok := (*withheld)[0].(*tdp.MFA)
-					if ok {
-						return mfaResp.MFAAuthenticateResponse, nil
-					}
-				}
-
 				span.AddEvent("waiting for user to complete mfa ceremony")
 				var buf []byte
 				// Loop through incoming messages until we receive an MFA message that lets us
@@ -461,7 +411,7 @@ func (h *Handler) performSessionMFACeremony(
 					if tdp.MessageType(buf[0]) != tdp.TypeMFA {
 						// This is not an MFA message, withhold it for later.
 						msg, err := tdp.Decode(buf)
-						h.logger.DebugContext(ctx, "Received non-MFA message, withholding", "msg_type", logutils.TypeAttr(msg))
+						h.log.Debugf("Received non-MFA message, withholding:", msg)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -509,6 +459,11 @@ func readUsername(r *http.Request) (string, error) {
 	return username, nil
 }
 
+func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
+	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
+	return tdpConn.ReadClientScreenSpec()
+}
+
 // desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
@@ -538,7 +493,7 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, log *slog.Logger, version string) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, log *logrus.Entry, version string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
@@ -589,9 +544,9 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
 // unwrapping it and determining whether to log an error.
-func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log *slog.Logger) {
+func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 	if proxyWsConnErr == nil {
-		log.DebugContext(ctx, "proxyWebsocketConn returned with no error")
+		log.Debug("proxyWebsocketConn returned with no error")
 		return
 	}
 
@@ -609,7 +564,7 @@ func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log 
 			switch closeErr.Code {
 			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
 				websocket.CloseGoingAway: // when the user closes the tab
-				log.DebugContext(ctx, "Web socket closed by client", "close_code", closeErr.Code)
+				log.Debugf("Web socket closed by client with code: %v", closeErr.Code)
 				return
 			}
 			return
@@ -620,7 +575,7 @@ func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log 
 		}
 	}
 
-	log.WarnContext(ctx, "Error proxying a desktop protocol websocket to windows_desktop_service", "error", proxyWsConnErr)
+	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
 // sendTDPAlert sends a tdp Notification over the supplied websocket with the

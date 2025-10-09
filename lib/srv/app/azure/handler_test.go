@@ -76,10 +76,10 @@ func TestForwarder_getToken(t *testing.T) {
 				Clock: clockwork.NewFakeClock(),
 				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					// find the fake clock from above
-					var clock *clockwork.FakeClock
+					var clock clockwork.FakeClock
 					for _, test := range tests {
 						if test.name == "timeout" {
-							clock = test.config.Clock.(*clockwork.FakeClock)
+							clock = test.config.Clock.(clockwork.FakeClock)
 						}
 					}
 
@@ -97,7 +97,7 @@ func TestForwarder_getToken(t *testing.T) {
 					return &azcore.AccessToken{Token: "foobar"}, nil
 				},
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
@@ -110,7 +110,7 @@ func TestForwarder_getToken(t *testing.T) {
 					return nil, trace.BadParameter("bad param foo")
 				},
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -124,7 +124,7 @@ func TestForwarder_getToken(t *testing.T) {
 					return nil, trace.BadParameter("bad param foo")
 				},
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, context.Canceled)
 			},
 		},

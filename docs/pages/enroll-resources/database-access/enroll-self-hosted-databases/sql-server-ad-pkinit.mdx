@@ -1,11 +1,9 @@
 ---
 title: Microsoft SQL Server access with PKINIT authentication
-sidebar_label: SQL Server
 description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Microsoft SQL Server" dbConfigure="with PKINIT authentication"!)
@@ -168,7 +166,7 @@ to the exported Teleport `db-ca.cer` file that you copied above):
 
 ```powershell
 certutil –dspublish –f <PathToCertFile.cer> RootCA
-certutil -dspublish -f <PathToCertFile.cer> NTAuthCA
+certutil -dspublish -f <PathToCertFile.cert> NTAuthCA
 ```
 
 ### Publish the Teleport CRL

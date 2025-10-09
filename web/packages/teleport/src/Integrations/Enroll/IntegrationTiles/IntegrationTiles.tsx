@@ -31,7 +31,6 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationIcon, IntegrationTile } from '../common';
 import { installableIntegrations, IntegrationTileSpec } from './integrations';
 
-// TODO(alexhemard): delete in a follow up PR
 export function IntegrationTiles({
   hasIntegrationAccess = true,
   hasExternalAuditStorage = true,
@@ -73,7 +72,7 @@ export function IntegrationTileWithSpec({
         data-testid="tile-external-audit-storage"
       >
         <Flex flexBasis={100}>
-          <IntegrationIcon name={spec.icon} />
+          <IntegrationIcon name={spec.icon} size={80} />
         </Flex>
         <Flex>
           <Text>{spec.name}</Text>
@@ -96,7 +95,7 @@ export function IntegrationTileWithSpec({
   );
 }
 
-export function renderExternalAuditStorageBadge(
+function renderExternalAuditStorageBadge(
   hasExternalAuditStorageAccess: boolean,
   isEnterprise: boolean
 ) {
@@ -107,15 +106,15 @@ export function renderExternalAuditStorageBadge(
       </ToolTipNoPermBadge>
     );
 
-  return !hasExternalAuditStorageAccess ? (
+  return (
     <GenericNoPermBadge
       noAccess={!hasExternalAuditStorageAccess}
       kind="External Audit Storage"
     />
-  ) : undefined;
+  );
 }
 
-export function GenericNoPermBadge({
+function GenericNoPermBadge({
   noAccess,
   kind = 'integration',
 }: {

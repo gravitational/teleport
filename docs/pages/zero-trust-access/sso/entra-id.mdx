@@ -1,22 +1,15 @@
 ---
-title: Teleport Authentication with Microsoft Entra ID (SAML)
-description: How to configure Teleport access with Microsoft Entra ID (formerly Azure AD) as a SAML identity provider.
+title: Teleport Authentication with Microsoft Entra ID (formerly Azure AD)
+description: How to configure Teleport access with Microsoft Entra ID.
 tags:
- - sso
  - how-to
  - zero-trust
- - privileged-access
- - azure
 ---
 
-{/* vale 3rd-party-products.former-names = NO */}
-
-This guide will cover how to configure Microsoft Entra ID (formerly Azure AD) as
-a SAML identity provider to issue credentials to specific groups of users with 
-a SAML Authentication Connector. When used in combination with role-based access 
-control (RBAC), it allows Teleport administrators to define policies like:
-
-{/* vale 3rd-party-products.former-names = YES */}
+This guide will cover how to configure Microsoft Entra ID to issue credentials
+to specific groups of users with a SAML Authentication Connector. When used in
+combination with role-based access control (RBAC), it allows Teleport
+administrators to define policies like:
 
 - Only members of the "DBA" Microsoft Entra ID group can connect to PostgreSQL
   databases.
@@ -25,8 +18,6 @@ control (RBAC), it allows Teleport administrators to define policies like:
 The following steps configure an example SAML authentication connector matching
 Microsoft Entra ID groups with security roles. You can choose to configure other
 options.
-
-An OIDC-based Entra ID IdP configuration version is available in this [guide](entra-id-oidc.mdx).
 
 ## How it works
 
@@ -88,11 +79,6 @@ Before you get started, you’ll need:
    ```code
    https://mytenant.teleport.sh:443/v1/webapi/saml/acs/ad
    ```
-
-   If you have a self-hosted cluster with multiple public addresses for the
-   Teleport Proxy Service (the value of `proxy_service.public_addr` in the
-   Teleport configuration file), ensure that this address points to the first
-   one listed.
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
@@ -247,7 +233,7 @@ $ tctl create -f azure-connector.yaml
 Entra ID's SAML token encryption encrypts the SAML assertions sent to Teleport
 during SSO redirect.
 
-Token encryption is an Microsoft Entra ID premium feature and requires a
+Token encryption is an Azure Active Directory premium feature and requires a
 separate license. Since traffic between Entra ID and the Teleport Proxy Service
 already uses HTTPS, token encryption is optional. To determine whether you
 should enable token encryption, read the Entra ID
@@ -430,7 +416,7 @@ Change the Name ID format to use email instead:
 
 ## Further reading
 
-- [Teleport Configuration Resources Reference](../../reference/infrastructure-as-code/resources.mdx)
+- [Teleport Configuration Resources Reference](../../reference/resources.mdx)
 - In the Teleport role we illustrated in this guide, `external` traits
   are replaced with values from the single sign-on provider that the
   user used to authenticate to Teleport. For full details on how traits

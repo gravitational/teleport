@@ -32,11 +32,10 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils/cert"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -57,7 +56,7 @@ func TestRandomDuration(t *testing.T) {
 
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
-	for range 50 {
+	for i := 0; i < 50; i++ {
 		dur := RandomDuration(expectedMax)
 		require.GreaterOrEqual(t, dur, expectedMin)
 		require.Less(t, dur, expectedMax)
@@ -148,6 +147,30 @@ func TestMaxVersions(t *testing.T) {
 		t.Run(testCase.info, func(t *testing.T) {
 			require.True(t, trace.IsBadParameter(CheckMaxVersion(testCase.client, testCase.maxClient)))
 			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
+		})
+	}
+}
+
+// TestClickableURL tests clickable URL conversions
+func TestClickableURL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		info string
+		in   string
+		out  string
+	}{
+		{info: "original URL is OK", in: "http://127.0.0.1:3000/hello", out: "http://127.0.0.1:3000/hello"},
+		{info: "unspecified IPV6", in: "http://[::]:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
+		{info: "unspecified IPV4", in: "http://0.0.0.0:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
+		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
+		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
+		{info: "hostname", in: "http://example.com:3000/howdy", out: "http://example.com:3000/howdy"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			out := ClickableURL(testCase.in)
+			require.Equal(t, testCase.out, out)
 		})
 	}
 }
@@ -454,8 +477,8 @@ func TestMarshalYAML(t *testing.T) {
 	}
 	testCases := []struct {
 		comment  string
-		val      any
-		expected any
+		val      interface{}
+		expected interface{}
 		isDoc    bool
 	}{
 		{
@@ -464,23 +487,23 @@ func TestMarshalYAML(t *testing.T) {
 		},
 		{
 			comment: "list of yaml types",
-			val:     []any{"hello", "there"},
+			val:     []interface{}{"hello", "there"},
 		},
 		{
 			comment:  "list of yaml documents",
-			val:      []any{kv{Key: "a"}, kv{Key: "b"}},
-			expected: []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
+			val:      []interface{}{kv{Key: "a"}, kv{Key: "b"}},
+			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
 			isDoc:    true,
 		},
 		{
 			comment:  "list of pointers to yaml docs",
-			val:      []any{kv{Key: "a"}, &kv{Key: "b"}},
-			expected: []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
+			val:      []interface{}{kv{Key: "a"}, &kv{Key: "b"}},
+			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
 			isDoc:    true,
 		},
 		{
 			comment: "list of maps",
-			val:     []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
+			val:     []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
 			isDoc:   true,
 		},
 	}
@@ -524,6 +547,15 @@ func TestTryReadValueAsFile(t *testing.T) {
 	require.Equal(t, "shmoken", tok)
 }
 
+// TestStringsSet makes sure that nil slice returns empty set (less error prone)
+func TestStringsSet(t *testing.T) {
+	t.Parallel()
+
+	out := StringsSet(nil)
+	require.Empty(t, out)
+	require.NotNil(t, out)
+}
+
 func TestReadAtMost(t *testing.T) {
 	t.Parallel()
 
@@ -544,6 +576,56 @@ func TestReadAtMost(t *testing.T) {
 			data, err := ReadAtMost(r, tc.limit)
 			require.Equal(t, []byte(tc.data), data)
 			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}
+
+func TestByteCount(t *testing.T) {
+	tt := []struct {
+		name     string
+		size     int64
+		expected string
+	}{
+		{
+			name:     "1 byte",
+			size:     1,
+			expected: "1 B",
+		},
+		{
+			name:     "2 byte2",
+			size:     2,
+			expected: "2 B",
+		},
+		{
+			name:     "1kb",
+			size:     1000,
+			expected: "1.0 kB",
+		},
+		{
+			name:     "1mb",
+			size:     1000_000,
+			expected: "1.0 MB",
+		},
+		{
+			name:     "1gb",
+			size:     1000_000_000,
+			expected: "1.0 GB",
+		},
+		{
+			name:     "1tb",
+			size:     1000_000_000_000,
+			expected: "1.0 TB",
+		},
+		{
+			name:     "1.6 kb",
+			size:     1600,
+			expected: "1.6 kB",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ByteCount(tc.size))
 		})
 	}
 }

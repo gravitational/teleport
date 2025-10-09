@@ -21,10 +21,8 @@ package integrationv1
 import (
 	"cmp"
 	"context"
-	"crypto/x509/pkix"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -40,18 +38,17 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -148,7 +145,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -686,6 +683,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
@@ -891,7 +889,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		PluginStaticCredentialsService: localCredService,
 	}
 
-	keystoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+	keystoreManager, err := keystore.NewManager(ctx, &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
 		AuthPreferenceGetter: clusterConfigSvc,
 	})
@@ -903,15 +901,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Cache:           cache,
 		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
-		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
-			return &createsession.CreateSessionResponse{
-				Version:         1,
-				AccessKeyID:     "access-key-id",
-				SecretAccessKey: "secret-access-key",
-				SessionToken:    "session-token",
-				Expiration:      time.Now().Add(1 * time.Hour).Format(time.RFC3339),
-			}, nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -961,7 +950,7 @@ func (m *mockCache) UpsertToken(ctx context.Context, token types.ProvisionToken)
 }
 
 // GetClusterName returns local auth domain of the current auth server
-func (m *mockCache) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (m *mockCache) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return &types.ClusterNameV2{
 		Spec: types.ClusterNameSpecV2{
 			ClusterName: m.domainName,
@@ -982,9 +971,6 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	pub, priv, err := ta.GenerateJWT()
 	require.NoError(t, err)
 
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Minute)
-	require.NoError(t, err)
-
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        caType,
 		ClusterName: domain,
@@ -993,10 +979,6 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 				PublicKey:      pub,
 				PrivateKey:     priv,
 				PrivateKeyType: types.PrivateKeyType_RAW,
-			}},
-			TLS: []*types.TLSKeyPair{{
-				Key:  key,
-				Cert: cert,
 			}},
 		},
 	})

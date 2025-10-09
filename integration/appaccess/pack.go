@@ -44,13 +44,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
@@ -60,8 +60,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -310,9 +308,15 @@ func (p *Pack) initWebSession(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
 
-	// Set Content-Type header, otherwise Teleport's CSRF protection will
-	// reject the request.
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{
@@ -753,12 +757,15 @@ func (p *Pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 }
 
 func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
+	log := utils.NewLoggerForTests()
+
 	configs := make([]*servicecfg.Config, count)
 
-	for i := range count {
+	for i := 0; i < count; i++ {
 		raConf := servicecfg.MakeDefaultConfig()
 		raConf.Clock = opts.Clock
-		raConf.Logger = logtest.NewLogger()
+		raConf.Console = nil
+		raConf.Log = log
 		raConf.DataDir = t.TempDir()
 		raConf.SetToken("static-token-value")
 		raConf.SetAuthServerAddress(utils.NetAddr{
@@ -769,7 +776,6 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
-		raConf.Apps.MCPDemoServer = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
 		raConf.Apps.Apps = append([]servicecfg.App{
@@ -910,25 +916,27 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, srv *service.TeleportProcess, apps []servicecfg.App) {
+func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, hostUUID string, apps []servicecfg.App) {
 	// Make sure that the app server is ready to accept connections.
 	// The remote site cache needs to be filled with new registered application services.
-	waitForAppInClusterCache(t, tunnel, clusterName, srv, apps)
+	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
+	log := utils.NewLoggerForTests()
 	configs := make([]*servicecfg.Config, count)
 
-	for i := range count {
+	for i := 0; i < count; i++ {
 		laConf := servicecfg.MakeDefaultConfig()
 		laConf.Clock = opts.Clock
-		laConf.Logger = logtest.NewLogger()
+		laConf.Console = nil
+		laConf.Log = log
 		laConf.DataDir = t.TempDir()
 		laConf.SetToken("static-token-value")
 		laConf.SetAuthServerAddress(utils.NetAddr{
@@ -1055,47 +1063,29 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
-		waitForAppServer(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
+		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv.Config.HostUUID, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-// waitForAppInClusterCache ensures the applications is present on the cache.
-// Given that the applications might be already served by other application
-// agent, we must assert the applications are served by the provided server.
-func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, srv *service.TeleportProcess, cfgApps []servicecfg.App) {
-	t.Helper()
-
-	ctx := t.Context()
-	hostID, err := srv.WaitForHostID(ctx)
-	require.NoError(t, err)
-
-	type appHost struct {
-		appID  string
-		hostID string
-	}
-
-	wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) appHost {
-		return appHost{appID: app.Name, hostID: hostID}
-	})
-
+func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		cluster, err := server.Cluster(ctx, clusterName)
-		require.NoError(t, err)
+		site, err := tunnel.GetSite(clusterName)
+		assert.NoError(t, err)
 
-		ap, err := cluster.CachingAccessPoint()
-		require.NoError(t, err)
+		ap, err := site.CachingAccessPoint()
+		assert.NoError(t, err)
 
-		apps, err := ap.GetApplicationServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+		apps, err := ap.GetApplicationServers(context.Background(), apidefaults.Namespace)
+		assert.NoError(t, err)
 
-		require.Subset(t,
-			slices.Collect(iterutils.Map(func(appServer types.AppServer) appHost {
-				return appHost{appID: appServer.GetApp().GetName(), hostID: appServer.GetHostID()}
-			}, slices.Values(apps))),
-			wantNames,
-		)
+		counter := 0
+		for _, v := range apps {
+			if v.GetHostID() == hostUUID {
+				counter++
+			}
+		}
+		assert.Len(t, cfgApps, counter)
 	}, time.Minute*2, time.Millisecond*200)
 }

@@ -360,7 +360,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.searchEventsWithFilter(
+	return l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -372,14 +372,6 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 			filter:    searchEventsFilter{eventTypes: req.EventTypes},
 			sessionID: "",
 		})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 type searchEventsWithFilterParams struct {
@@ -392,7 +384,7 @@ type searchEventsWithFilterParams struct {
 	sessionID      string
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]events.EventFields, string, error) {
+func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]apievents.AuditEvent, string, error) {
 	if params.limit <= 0 {
 		params.limit = batchReadLimit
 	}
@@ -449,8 +441,16 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWit
 	}
 
 	sort.Sort(toSort)
+	eventArr := make([]apievents.AuditEvent, 0, len(values))
+	for _, fields := range values {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
 
-	return values, lastKey, nil
+	return eventArr, lastKey, nil
 }
 
 func (l *Log) query(
@@ -498,7 +498,7 @@ func (l *Log) query(
 		// Iterate over the documents in the query.
 		// The iterator is limited to [limit] documents so in order to know if we
 		// have more pages to read when filtering, we can read only [limit] documents.
-		for range limit {
+		for i := 0; i < limit; i++ {
 			docSnap, err := fstoreIterator.Next()
 			if errors.Is(err, iterator.Done) {
 				// iterator.Done is returned when there are no more documents to read.
@@ -549,13 +549,13 @@ func (l *Log) query(
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
-		condFn, err := utils.ToFieldsCondition(*req.Cond)
+		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condition = condFn
 	}
-	values, next, err := l.searchEventsWithFilter(
+	return l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -568,14 +568,6 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 			sessionID: req.SessionID,
 		},
 	)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -598,8 +590,6 @@ func (l *Log) getIndexParent() string {
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := firestorebk.IndexList{}
-	// each pair of indexes below are identical except for the sort direction
-	// of createdAt
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
@@ -610,20 +600,12 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-
-	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
-	)
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
@@ -631,14 +613,6 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(sessionIDDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
-	)
-
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, l.logger, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }
@@ -651,30 +625,6 @@ func (l *Log) Close() error {
 
 func (l *Log) getDocIDForEvent() string {
 	return uuid.New().String()
-}
-
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.searchEventsWithFilter(
-		ctx,
-		searchEventsWithFilterParams{
-			fromUTC:   req.From,
-			toUTC:     req.To,
-			namespace: apidefaults.Namespace,
-			limit:     req.Limit,
-			order:     req.Order,
-			lastKey:   req.StartKey,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes},
-			sessionID: "",
-		})
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 func (l *Log) purgeExpiredEvents() error {

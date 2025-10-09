@@ -94,7 +94,7 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 type setupAccessRequestLimist struct {
 	monthlyLimit int
 	testpack     testPack
-	clock        *clockwork.FakeClock
+	clock        clockwork.FakeClock
 	features     modules.Features
 }
 

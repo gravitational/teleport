@@ -4,8 +4,6 @@ description: How to access Amazon Athena with Teleport
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - aws
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -76,8 +74,6 @@ Connect to Athena with the ODBC or JDBC driver:
 <Tabs>
   <TabItem label="Connect with ODBC">
   Start a local HTTPS proxy:
-
-  {/* vale 3rd-party-products.aws-vs-amazon = OFF */}
   ```code
   $ tsh proxy aws --port 8443 --format athena-odbc
   Started AWS proxy on http://127.0.0.1:8443.
@@ -96,7 +92,6 @@ Connect to Athena with the ODBC or JDBC driver:
   Here is a sample connection string using the above credentials and proxy settings:
   DRIVER=Simba Amazon Athena ODBC Connector;AuthenticationType=IAM Credentials;UID=(=aws.aws_access_key=);PWD=(=aws.aws_secret_access_key=);UseProxy=1;ProxyScheme=http;ProxyHost=127.0.0.1;ProxyPort=8443;TrustedCerts=<local-ca-bundle-path>;AWSRegion=<region>;Workgroup=<workgroup>
   ```
-  {/* vale 3rd-party-products.aws-vs-amazon = ON */}
 
   Use the provided connection string in your Athena application with ODBC
   driver.

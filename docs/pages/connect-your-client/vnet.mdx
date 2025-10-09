@@ -4,7 +4,6 @@ description: Using VNet
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 This guide explains how to use VNet to connect to TCP applications and SSH
@@ -24,8 +23,8 @@ address managed by VNet that will handle the connection.
 
 VNet's SSH support enables third-party SSH clients to connect to Teleport SSH
 servers with minimal configuration required, while still offering Teleport
-access controls and features like [Per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx)
-and [Hardware Key Support](../zero-trust-access/authentication/hardware-key-support.mdx).
+access controls and features like [Per-session MFA](../zero-trust-access/access-controls/guides/per-session-mfa.mdx)
+and [Hardware Key Support](../zero-trust-access/access-controls/guides/hardware-key-support.mdx).
 
 ![Diagram showing VNet architecture](../../img/vnet/how-it-works.svg)
 
@@ -123,7 +122,7 @@ VNet proxies connections over any port used by the application client. For multi
 number must match one of the target ports of the app. To see a list of target ports, click the
 three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
 
-If [per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx) is enabled, the
+If [per-session MFA](../zero-trust-access/access-controls/guides/per-session-mfa.mdx) is enabled, the
 first connection over each port triggers an MFA check.
 </Admonition>
 
@@ -261,9 +260,9 @@ When [submitting an
 issue](https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug,vnet&template=bug_report.md),
 make sure to include a VNet diag report and debug logs from VNet and Teleport Connect.
 
-To save a diag report to a file, open Teleport Connect. From the Connections panel in the top left
-select VNet, then "Open Diag Report". In the new tab with the report that was opened click the "Save
-Report to File" icon.
+To save a diag report to a file, make sure you have Teleport Connect 17.5.3+ installed. From the
+Connections panel in the top left select VNet, then "Open Diag Report". In the new tab with the
+report that was opened click the "Save Report to File" icon.
 
 To collect VNet and Teleport Connect logs use the instructions below:
 
@@ -276,10 +275,10 @@ enables debug logs just for the next invocation of VNet:
 $ sudo launchctl debug system/com.gravitational.teleport.tsh.vnetd --environment TELEPORT_DEBUG=1
 ```
 
-Next, start capturing logs from VNet into a file:
+Next, start capturing new VNet logs into a file:
 
 ```code
-$ log stream --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --level debug > vnet.log
+$ tail -f /var/log/vnet.log > vnet.log
 ```
 
 Then start Teleport Connect using the following command to enable debug logs for Teleport Connect:
@@ -293,9 +292,6 @@ Next, attempt to reproduce the issue with VNet.
 To gather logs from Teleport Connect, from the app menu select Help → Open Logs Directory which
 opens `~/Library/Application Support/Teleport Connect/logs` in Finder. Attach all files together
 with `vnet.log` produced in the earlier step.
-
-{/* TODO: DELETE IN 21.0.0 */}
-Before version 18.0.0, VNet logs were saved in `/var/log/vnet.log`.
 
 If the error is related to Teleport Connect not being able to start VNet or issues with code
 signing, searching through `/var/log/com.apple.xpc.launchd/launchd.log` for `tsh` soon after
@@ -315,6 +311,13 @@ Teleport Connect as an admin by mistake.
 $ reg.exe ADD HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /t REG_MULTI_SZ /d TELEPORT_DEBUG=1 /f && exit
 ```
 
+Open PowerShell and start capturing new VNet logs into a file:
+
+```code
+# In PowerShell.
+$ Get-Content -Path "$Env:Programfiles\Teleport Connect\resources\bin\logs.txt" -Wait | Out-File vnet.log
+```
+
 Next, from the Start menu open the Run app. Execute the following to start Teleport Connect with
 debug logs enabled:
 
@@ -331,24 +334,10 @@ debug logs in VNet:
 $ reg.exe DELETE HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /f
 ```
 
-The last step is collecting the logs. Let's start with the VNet logs. From the Start menu, open Event Viewer.
-From the sidebar on the left, select Event Viewer (Local) → Applications and Services Logs →
-Teleport. From the sidebar on the right, select "Save All Events As…". Save the logs as .evtx file.
-If Event Viewer asks about Display Information, choose "No display information".
-
-To gather logs from Teleport Connect, press `Alt` while in the app, then select Help → Open Logs
-Directory. This opens `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`. Attach all files
-together with the .evtx file from the previous step.
-
-Outside of submitting an issue, VNet logs can be quickly saved to a file with the following
-PowerShell command. However, when submitting an issue please attach the .evtx file instead.
-
-```code
-$ Get-WinEvent -LogName Teleport -FilterXPath "*[System[Provider[@Name='vnet']]]" -Oldest | Format-Table -Property TimeCreated,LevelDisplayName,Message -Wrap | Out-File vnet.log
-```
-
-{/* TODO: DELETE IN 21.0.0 */}
-Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connect\resources\bin\logs.txt`.
+The last step is collecting the logs. To gather logs from Teleport Connect, press `Alt` while in the
+app, then select Help → Open Logs Directory. This opens
+`C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`. Attach all files together with the
+`vnet.log` from the previous step.
 </TabItem>
 </Tabs>
 

@@ -40,7 +40,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGetChartUrl(t *testing.T) {
@@ -396,7 +396,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			}
 
 			response, err := EnrollEKSClusters(
-				ctx, logtest.With("test", t.Name()), clock, proxyAddr, tc.enrollClient(t, tc.eksClusters), req)
+				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, tc.enrollClient(t, tc.eksClusters), req)
 			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
@@ -422,7 +422,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		}
 
 		response, err := EnrollEKSClusters(
-			ctx, logtest.With("test", t.Name()), clock, proxyAddr, mockClt, req)
+			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, mockClt, req)
 		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
@@ -475,7 +475,7 @@ func TestGetKubeClientGetter(t *testing.T) {
 			region:        "us-east-1",
 			caData:        "badCA",
 			expectedToken: "",
-			errorCheck: func(t require.TestingT, err error, i ...any) {
+			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "illegal base64 data")
 			},
 		},

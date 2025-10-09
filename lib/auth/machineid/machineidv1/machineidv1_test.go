@@ -223,7 +223,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-success",
 					Namespace: defaults.Namespace,
@@ -339,7 +339,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-success-with-expiry",
 					Namespace: defaults.Namespace,
@@ -425,7 +425,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-success-with-max-ttl",
 					Namespace: defaults.Namespace,
@@ -494,7 +494,7 @@ func TestCreateBot(t *testing.T) {
 				Bot: preExistingBot,
 			},
 
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAlreadyExists(err), "error should be already exists")
 			},
 		},
@@ -505,7 +505,7 @@ func TestCreateBot(t *testing.T) {
 				Bot: preExistingBot,
 			},
 
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -515,7 +515,7 @@ func TestCreateBot(t *testing.T) {
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -533,7 +533,7 @@ func TestCreateBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -551,7 +551,7 @@ func TestCreateBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -569,7 +569,7 @@ func TestCreateBot(t *testing.T) {
 					Spec: nil,
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "spec: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -590,7 +590,7 @@ func TestCreateBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -789,7 +789,7 @@ func TestUpdateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      preExistingBot.Status.RoleName,
 					Namespace: defaults.Namespace,
@@ -828,7 +828,7 @@ func TestUpdateBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -841,7 +841,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -862,7 +862,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot.spec: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -882,7 +882,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot.metadata: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -905,7 +905,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot.metadata.name: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -926,7 +926,7 @@ func TestUpdateBot(t *testing.T) {
 				},
 				UpdateMask: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "update_mask: must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -949,7 +949,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "update_mask.paths: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -973,7 +973,7 @@ func TestUpdateBot(t *testing.T) {
 					Paths: []string{"spec.roles"},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1175,7 +1175,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-new",
 					Namespace: defaults.Namespace,
@@ -1279,7 +1279,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-new-with-expiry",
 					Namespace: defaults.Namespace,
@@ -1336,7 +1336,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
@@ -1425,7 +1425,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
@@ -1484,7 +1484,7 @@ func TestUpsertBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1504,7 +1504,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 			},
 
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1514,7 +1514,7 @@ func TestUpsertBot(t *testing.T) {
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: nil,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1532,7 +1532,7 @@ func TestUpsertBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-nil")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1550,7 +1550,7 @@ func TestUpsertBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1571,7 +1571,7 @@ func TestUpsertBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1726,7 +1726,7 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: preExistingBot.Metadata.Name,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -1736,7 +1736,7 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: preExistingBot.Metadata.Name,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -1746,7 +1746,7 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: "",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
@@ -1757,7 +1757,7 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: "non-existent",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be bad parameter")
 			},
 		},
@@ -1905,7 +1905,7 @@ func TestListBots(t *testing.T) {
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
 			req:  &machineidv1pb.ListBotsRequest{},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -2079,7 +2079,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: preExistingBot5.Metadata.Name,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -2089,7 +2089,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: preExistingBot3.Metadata.Name,
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
 		},
@@ -2099,7 +2099,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: "does-not-exist",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), "error should be not found")
 			},
 		},
@@ -2109,7 +2109,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: "not-bot",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "missing bot label matching bot name")
 			},
 		},
@@ -2119,7 +2119,7 @@ func TestDeleteBot(t *testing.T) {
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: "",
 			},
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bot_name: must be non-empty")
 				require.True(t, trace.IsBadParameter(err), "error should be access denied")
 			},

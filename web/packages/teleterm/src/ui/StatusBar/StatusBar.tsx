@@ -16,20 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { UseQueryResult } from '@tanstack/react-query';
 import { Fragment, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
 import { ButtonPrimary, Flex, Text } from 'design';
 import { ChevronRight } from 'design/Icon';
-import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
-import { useAssumedRequests } from 'teleterm/ui/AccessRequests';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { getAssumedRequests } from 'teleterm/ui/services/clusters';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
-import { statusBarHeight } from './constants';
 import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
@@ -40,14 +37,21 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
     'workspacesService',
     useCallback(store => store.rootClusterUri, [])
   );
-
-  const assumed = useAssumedRequests(rootClusterUri);
-  const assumedRolesText = getAssumedRoles(assumed);
+  const assumedRoles = Object.values(
+    useStoreSelector(
+      'clustersService',
+      useCallback(
+        state => getAssumedRequests(state, rootClusterUri),
+        [rootClusterUri]
+      )
+    )
+  );
+  const assumedRolesText = assumedRoles.flatMap(r => r.roles).join(', ');
 
   return (
     <Flex
       width="100%"
-      height={`${statusBarHeight}px`}
+      height="28px"
       css={`
         border-top: 1px solid ${props => props.theme.colors.spotBackground[1]};
       `}
@@ -103,7 +107,7 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
           min-width: 0;
         `}
       >
-        {!!assumedRolesText && (
+        {!!assumedRoles.length && (
           <ButtonPrimary
             css={`
               min-width: 40px;
@@ -131,25 +135,4 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
       </Flex>
     </Flex>
   );
-}
-
-function getAssumedRoles(
-  queries: Map<string, UseQueryResult<AccessRequest>>
-): string {
-  return Array.from(queries)
-    .map(([requestId, query]) => {
-      if (query.isLoading) {
-        return '';
-      }
-
-      if (query.isSuccess) {
-        return query.data.roles.join(', ');
-      }
-
-      // If failed to load details or the query is disabled,
-      // only show the request id.
-      return requestId;
-    })
-    .filter(Boolean)
-    .join(', ');
 }

@@ -24,12 +24,13 @@ import (
 
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/userprovisioning/v2"
 )
@@ -104,24 +105,14 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 		var staticHostUserI *userprovisioningv2.StaticHostUser
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		staticHostUserI, err = r.p.Client.StaticHostUserClient().GetStaticHostUser(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(ctx.Err()), "static_host_user"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(err), "static_host_user"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading StaticHostUser (tried %d times) - state outdated, please import resource", tries)
@@ -237,15 +228,7 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 		var staticHostUserI *userprovisioningv2.StaticHostUser
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		staticHostUserI, err = r.p.Client.StaticHostUserClient().GetStaticHostUser(ctx, name)
@@ -257,11 +240,9 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(ctx.Err()), "static_host_user"))
+		if err := backoff.Do(ctx); err != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(err), "static_host_user"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading StaticHostUser (tried %d times) - state outdated, please import resource", tries)

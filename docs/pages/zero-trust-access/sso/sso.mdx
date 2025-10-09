@@ -2,10 +2,8 @@
 title: Configure Single Sign-On
 description: How to set up single sign-on (SSO) using Teleport
 tags:
- - sso
  - conceptual
  - zero-trust
- - privileged-access
 ---
 
 Teleport users can log in to servers, Kubernetes clusters, databases, web
@@ -418,9 +416,9 @@ SSO provider as an alternative to registering MFA devices directly with the Tele
 This allows Teleport users to use MFA devices and custom flows configured in the SSO provider
 to carry out privileged actions in Teleport, such as:
 
-- [Per-session MFA](../authentication/per-session-mfa.mdx)
-- [Moderated sessions](../authentication/joining-sessions.mdx)
-- [Admin actions](../authentication/mfa-for-admin-actions.mdx)
+- [Per-session MFA](../access-controls/guides/per-session-mfa.mdx)
+- [Moderated sessions](../access-controls/guides/joining-sessions.mdx)
+- [Admin actions](../access-controls/guides/mfa-for-admin-actions.mdx)
 
 Administrators may want to consider enabling this feature in order to:
 
@@ -521,6 +519,13 @@ spec:
 +  - sso
 ```
 
+<Admonition type="warning">
+  Before using the new `second_factors` field instead of the legacy `second_factor`,
+  you must ensure that your Teleport cluster is fully upgraded to v17+. Due to a
+  version compatibility bug, v16 teleport services do not properly handle this setting
+  and may fail to start as a result.
+</Admonition>
+
 ## Working with an external email identity
 
 Along with sending groups, an SSO provider will also provide a user's email address.
@@ -566,7 +571,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources Reference](../../reference/infrastructure-as-code/resources.mdx).
+as described in the [Resources Reference](../../reference/resources.mdx).
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -599,116 +604,6 @@ of SSO buttons in the Teleport Web UI.
 | Google | `display: Google` | ![google](../../../img/teleport-sso/google@2x.png) |
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../../img/teleport-sso/bitbucket@2x.png) |
 | OpenID | `display: Okta` | ![Okta](../../../img/teleport-sso/openId@2x.png) |
-
-## Identifier-first login
-
-Identifier-first login is a feature that simplifies the login experience in clusters with
-multiple authentication connectors. When identifier-first login is enabled, the initial
-login screen prompts the user for their username only.
-Teleport will then present only the auth connectors
-that are relevant to the specified user.
-
-This feature can be enabled on a cluster by configuring one or more SAML, OIDC, or
-GitHub auth connectors with a `spec.user_matchers` field, which takes a set of one or more
-user matchers for usernames. A user matcher is a string matcher that can either be a specific
-username to match, or a glob pattern using wildcard characters (`*`). An auth connector
-will be mapped to a user if one or more of its `user_matchers` matches their username.
-
-```yaml
-kind: saml
-version: v2
-metadata:
-  name: okta
-spec:
-  user_matchers: ['joe', '*@example.com']
-```
-
-Once enabled, users without an auth connector mapped to them will not be able to see
-any auth connectors on the login page. For this reason, it is recommended to configure
-one or more fallback connectors. A user matcher of `*` is a special case that marks a
-connector as a fallback, which will only be presented to users who don't match any other connector.
-
-### Examples
-
-Match users with a username that ends in "@example.com":
-
-```yaml
-  user_matchers: ['*@example.com']
-```
-
-Match users with a username that ends in "@example.com" and also match "alice":
-
-```yaml
-user_matchers: ['*@example.com', 'alice']
-```
-
-Match only users that weren't matched to any other auth connectors:
-
-```yaml
-user_matchers: ['*']
-```
-
-Match users that end in "@example.com" or weren't matched to any other connectors:
-
-```yaml
-user_matchers: ['*', '*@example.com']
-```
-
-## Using an OIDC provider with arbitrary non-standard JSON claims
-
-Standard OIDC claims consist of string values and lists. However, it is also
-possible to have provider that returns non-standard JSON claims. By default,
-Teleport will not attempt to read these claims for `claims_to_roles` mappings
-or for the user's Teleport traits.
-
-In order to consume these JSON claims, an administrator must create a [login rule](../authentication/login-rules/login-rules.mdx)
-with a [JSONPath](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html)
-expression.
-
-For example, imagine a custom distributed IdP that aggregates claims for a user
-from multiple different provider sources. The claims set might look like a JSON object of the following format:
-
-```json
-{
-  "aggregated_claims": {
-    "okta": {
-      "groups": "okta_dev"
-    },
-    "auth0": {
-      "groups": "auth0_devops"
-    }
-  }
-}
-```
-
-The following JSONPath expression will take these claims and interpolate them
-into a standard groups claim:
-
-```yaml
-kind: login_rule
-version: v1
-metadata:
-  name: set_logins
-spec:
-  priority: 1
-  traits_expression: |
-    external.put("groups", jsonpath("$.aggregated_claims.*.groups"))
-```
-
-A user logging in with the claims and login rule above will be treated as if
-they have the following claims:
-
-```json
-{
-  "groups": [
-    "okta_dev", 
-    "auth0_devops"
-  ]
-}
-```
-
-These interpolated claims can be used in claims to roles mappings, and they are
-kept as Teleport traits like any standard claims would be.
 
 ## Troubleshooting
 

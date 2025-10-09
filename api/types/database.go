@@ -88,12 +88,8 @@ type Database interface {
 	SetAWSExternalID(id string)
 	// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
 	SetAWSAssumeRole(roleARN string)
-	// IsGCPHosted returns true if the database is hosted by GCP.
-	IsGCPHosted() bool
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
-	// GetGCPProjectID returns Project ID for GCP databases.
-	GetGCPProjectID() (string, error)
 	// GetAzure returns Azure database server metadata.
 	GetAzure() Azure
 	// SetStatusAzure sets the database Azure metadata in the status field.
@@ -122,8 +118,6 @@ type Database interface {
 	IsAzure() bool
 	// IsElastiCache returns true if this is an AWS ElastiCache database.
 	IsElastiCache() bool
-	// IsElastiCacheServerless returns true if this is an AWS ElastiCache Serverless database.
-	IsElastiCacheServerless() bool
 	// IsMemoryDB returns true if this is an AWS MemoryDB database.
 	IsMemoryDB() bool
 	// IsAWSHosted returns true if database is hosted by AWS.
@@ -435,11 +429,6 @@ func (g GCPCloudSQL) IsEmpty() bool {
 	return deriveTeleportEqualGCPCloudSQL(&g, &GCPCloudSQL{})
 }
 
-// IsEmpty returns true if AlloyDB options are empty.
-func (a AlloyDB) IsEmpty() bool {
-	return deriveTeleportEqualAlloyDB(&a, &AlloyDB{})
-}
-
 // GetGCP returns GCP information for Cloud SQL databases.
 func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
@@ -488,11 +477,6 @@ func (d *DatabaseV3) IsCloudSQL() bool {
 	return d.GetType() == DatabaseTypeCloudSQL
 }
 
-// IsAlloyDB returns true if this database is a GCP-hosted AlloyDB instance.
-func (d *DatabaseV3) IsAlloyDB() bool {
-	return d.GetType() == DatabaseTypeAlloyDB
-}
-
 // IsAzure returns true if this is Azure hosted database.
 func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
@@ -501,11 +485,6 @@ func (d *DatabaseV3) IsAzure() bool {
 // IsElastiCache returns true if this is an AWS ElastiCache database.
 func (d *DatabaseV3) IsElastiCache() bool {
 	return d.GetType() == DatabaseTypeElastiCache
-}
-
-// IsElastiCacheServerless returns true if this is an AWS ElastiCache database.
-func (d *DatabaseV3) IsElastiCacheServerless() bool {
-	return d.GetType() == DatabaseTypeElastiCacheServerless
 }
 
 // IsMemoryDB returns true if this is an AWS MemoryDB database.
@@ -566,50 +545,16 @@ func (d *DatabaseV3) IsGCPHosted() bool {
 	return ok
 }
 
-// GetGCPProjectID returns Project ID for GCP databases.
-func (d *DatabaseV3) GetGCPProjectID() (string, error) {
-	dbType, isGCP := d.getGCPType()
-
-	if !isGCP {
-		return "", trace.NotFound("%v is not a GCP database; db type: %v", d.GetName(), dbType)
-	}
-
-	switch dbType {
-	case DatabaseTypeAlloyDB:
-		info, err := gcputils.ParseAlloyDBConnectionURI(d.GetURI())
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return info.ProjectID, nil
-	default:
-		return d.GetGCP().ProjectID, nil
-	}
-}
-
 // getAWSType returns the gcp hosted database type.
 func (d *DatabaseV3) getGCPType() (string, bool) {
 	if d.Spec.Protocol == DatabaseTypeSpanner {
 		return DatabaseTypeSpanner, true
 	}
-
-	if gcputils.IsAlloyDBConnectionURI(d.Spec.URI) {
-		return DatabaseTypeAlloyDB, true
-	}
-
 	gcp := d.GetGCP()
-	if gcp.IsEmpty() {
-		return "", false
+	if !gcp.IsEmpty() {
+		return DatabaseTypeCloudSQL, true
 	}
-
-	// This check catches the case when URI is not prefixed with `alloydb://`, and yet spec.gcp.alloydb is not empty.
-	// Most likely this is due to a typo in URI or misconfiguration (copy-pasting the URI without adding the prefix).
-	//
-	// Making it clear this is AlloyDB instance will prevent CloudSQL-specific logic to fire,
-	// but also make it eligible for AlloyDB-specific validation to run, which will catch the URI problem.
-	if !gcp.AlloyDB.IsEmpty() {
-		return DatabaseTypeAlloyDB, true
-	}
-	return DatabaseTypeCloudSQL, true
+	return "", false
 }
 
 // getAWSType returns the database type.
@@ -637,9 +582,6 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	}
 	if aws.ElastiCache.ReplicationGroupID != "" {
 		return DatabaseTypeElastiCache, true
-	}
-	if aws.ElastiCacheServerless.CacheName != "" {
-		return DatabaseTypeElastiCacheServerless, true
 	}
 	if aws.MemoryDB.ClusterName != "" {
 		return DatabaseTypeMemoryDB, true
@@ -786,10 +728,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("GCP Spanner database %q missing GCP instance ID",
 				d.GetName())
 		}
-	case d.IsAlloyDB():
-		if err := d.handleAlloyDBConfig(); err != nil {
-			return trace.Wrap(err)
-		}
 	case d.IsDynamoDB():
 		if err := d.handleDynamoDBConfig(); err != nil {
 			return trace.Wrap(err)
@@ -866,21 +804,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.ElastiCache.TransitEncryptionEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.ElastiCache.EndpointType = endpointInfo.EndpointType
-	case awsutils.IsElastiCacheServerlessEndpoint(d.Spec.URI):
-		info, err := awsutils.ParseElastiCacheServerlessEndpoint(d.Spec.URI)
-		if err != nil {
-			slog.WarnContext(context.Background(), "Failed to parse ElastiCache Serverless endpoint",
-				"uri", d.Spec.URI,
-				"error", err,
-			)
-			break
-		}
-		if d.Spec.AWS.ElastiCacheServerless.CacheName == "" {
-			d.Spec.AWS.ElastiCacheServerless.CacheName = info.ID
-		}
-		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = info.Region
-		}
 	case awsutils.IsMemoryDBEndpoint(d.Spec.URI):
 		endpointInfo, err := awsutils.ParseMemoryDBEndpoint(d.Spec.URI)
 		if err != nil {
@@ -1042,36 +965,6 @@ func (d *DatabaseV3) IsEqual(i Database) bool {
 	return false
 }
 
-// handleAlloyDBConfig validates AlloyDB configuration.
-func (d *DatabaseV3) handleAlloyDBConfig() error {
-	// default to private endpoint type, but only if override isn't set.
-	if d.Spec.GCP.AlloyDB.EndpointType == "" && d.Spec.GCP.AlloyDB.EndpointOverride == "" {
-		d.Spec.GCP.AlloyDB.EndpointType = string(gcputils.AlloyDBEndpointTypePrivate)
-	}
-
-	err := gcputils.ValidateAlloyDBEndpointType(d.Spec.GCP.AlloyDB.EndpointType)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	info, err := gcputils.ParseAlloyDBConnectionURI(d.Spec.URI)
-	if err != nil {
-		return trace.Wrap(err, "failed to parse AlloyDB connection URI")
-	}
-
-	// ensure the GCP fields are empty: we want to avoid redundant information in the database spec.
-	if d.Spec.GCP.InstanceID != "" {
-		return trace.BadParameter("database %q the gcp.instance_id field should be empty but is %q instead; the GCP instance ID configured through URI %q will be automatically used instead",
-			d.GetName(), d.Spec.GCP.InstanceID, info.InstanceID)
-	}
-	if d.Spec.GCP.ProjectID != "" {
-		return trace.BadParameter("database %q the gcp.project_id field should be empty but is %q instead; the GCP project ID configured through URI %q will be automatically used instead",
-			d.GetName(), d.Spec.GCP.ProjectID, info.ProjectID)
-	}
-
-	return nil
-}
-
 // handleDynamoDBConfig handles DynamoDB configuration checking.
 func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {
@@ -1216,9 +1109,6 @@ func (d *DatabaseV3) GetEndpointType() string {
 	switch d.GetType() {
 	case DatabaseTypeElastiCache:
 		return d.GetAWS().ElastiCache.EndpointType
-	case DatabaseTypeElastiCacheServerless:
-		// ElastiCache Serverless endpoints are always cluster mode.
-		return awsutils.ElastiCacheConfigurationEndpoint
 	case DatabaseTypeMemoryDB:
 		return d.GetAWS().MemoryDB.EndpointType
 	case DatabaseTypeOpenSearch:
@@ -1277,16 +1167,12 @@ const (
 	DatabaseTypeRedshiftServerless = "redshift-serverless"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
-	// DatabaseTypeAlloyDB is GCP-hosted AlloyDB database.
-	DatabaseTypeAlloyDB = "alloydb"
 	// DatabaseTypeSpanner is a GCP Spanner instance.
 	DatabaseTypeSpanner = "spanner"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
 	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
 	DatabaseTypeElastiCache = "elasticache"
-	// DatabaseTypeElastiCacheServerless is AWS-hosted ElastiCache serverless database.
-	DatabaseTypeElastiCacheServerless = "elasticache-serverless"
 	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
 	DatabaseTypeMemoryDB = "memorydb"
 	// DatabaseTypeAWSKeyspaces is AWS-hosted Keyspaces database (Cassandra).

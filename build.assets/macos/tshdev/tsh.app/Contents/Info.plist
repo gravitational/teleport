@@ -17,13 +17,13 @@
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
-		<string>1.0</string>
+		<string>17.7.7</string>
 		<key>CFBundleSupportedPlatforms</key>
 		<array>
 			<string>MacOSX</string>
 		</array>
 		<key>CFBundleVersion</key>
-		<string>1.0</string>
+		<string>17.7.7</string>
 		<key>DTCompiler</key>
 		<string>com.apple.compilers.llvm.clang.1_0</string>
 		<key>DTPlatformBuild</key>
@@ -48,21 +48,5 @@
 		<string>Main</string>
 		<key>NSPrincipalClass</key>
 		<string>NSApplication</string>
-		<key>OSLogPreferences</key>
-		<dict>
-			<key>com.goteleport.tshdev.vnetd</key>
-			<dict>
-				<key>DEFAULT-OPTIONS</key>
-				<dict>
-					<key>Level</key>
-					<dict>
-						<key>Enable</key>
-						<string>Info</string>
-						<key>Persist</key>
-						<string>Info</string>
-					</dict>
-				</dict>
-			</dict>
-		</dict>
 	</dict>
 </plist>

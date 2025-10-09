@@ -76,13 +76,6 @@ type Server interface {
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 
-	// GetRelayGroup returns the name of the Relay group that the server is
-	// connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the server is
-	// connected to.
-	GetRelayIDs() []string
-
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
@@ -391,22 +384,6 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetRelayGroup implements [Server].
-func (s *ServerV2) GetRelayGroup() string {
-	if s == nil {
-		return ""
-	}
-	return s.Spec.RelayGroup
-}
-
-// GetRelayIDs implements [Server].
-func (s *ServerV2) GetRelayIDs() []string {
-	if s == nil {
-		return nil
-	}
-	return s.Spec.RelayIds
-}
-
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
@@ -673,9 +650,7 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	switch s.Kind {
-	case KindNode, KindGitServer:
-	default:
+	if s.GetKind() != KindNode {
 		return false
 	}
 Outer:

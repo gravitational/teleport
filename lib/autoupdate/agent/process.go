@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -533,8 +532,6 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 
 // localExec runs a command locally, logging any output.
 type localExec struct {
-	// Dir specifies the working directory of the local command.
-	Dir string
 	// Log contains a slog logger.
 	// Defaults to slog.Default() if nil.
 	Log *slog.Logger
@@ -548,7 +545,6 @@ type localExec struct {
 // Outputs the status code, or -1 if out-of-range or unstarted.
 func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = c.Dir
 	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel, prefix: "[stderr] "}
 	stdout := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel, prefix: "[stdout] "}
 	cmd.Stderr = stderr
@@ -558,23 +554,4 @@ func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, 
 	stdout.Flush()
 	code := cmd.ProcessState.ExitCode()
 	return code, trace.Wrap(err)
-}
-
-// Output runs the command and returns combined output from stdout and stderr.
-// Same arguments as exec.CommandContext.
-func (c *localExec) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
-	var buf bytes.Buffer
-	stderrLogger := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel, prefix: "[stderr] "}
-	stdoutLogger := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel, prefix: "[stdout] "}
-
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = c.Dir
-	stderr := io.MultiWriter(&buf, stderrLogger)
-	stdout := io.MultiWriter(&buf, stdoutLogger)
-	cmd.Stderr = stderr
-	cmd.Stdout = stdout
-	err := cmd.Run()
-	stderrLogger.Flush()
-	stdoutLogger.Flush()
-	return buf.Bytes(), trace.Wrap(err)
 }

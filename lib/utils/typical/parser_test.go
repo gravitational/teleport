@@ -20,7 +20,6 @@ package typical_test
 
 import (
 	"errors"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -29,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -467,6 +467,7 @@ func TestParser(t *testing.T) {
 			},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			expr, err := parser.Parse(tc.expr)
@@ -565,7 +566,7 @@ func TestUnknownIdentifier(t *testing.T) {
 			name:               "unknown variable",
 			expression:         "unknown",
 			knownVariablesOnly: true,
-			parseAssertion: func(t require.TestingT, err error, i ...any) {
+			parseAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				var u typical.UnknownIdentifierError
 				require.ErrorAs(t, err, &u, i...)
 				require.ErrorAs(t, trace.Wrap(err), &u, i...)
@@ -583,6 +584,7 @@ func TestUnknownIdentifier(t *testing.T) {
 	}
 
 	for _, test := range cases {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			spec := typical.ParserSpec[resource]{
 				Functions: map[string]typical.Function{

@@ -19,7 +19,6 @@ package workloadidentityv1
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -210,7 +209,9 @@ func evaluateRules(
 			if err != nil {
 				return false, err
 			}
-			maps.Copy(sigstorePolicyResults, resultMap)
+			for k, v := range resultMap {
+				sigstorePolicyResults[k] = v
+			}
 		}
 
 		// If any of them resulted in an error, return false.

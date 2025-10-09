@@ -28,22 +28,12 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
-	"github.com/aws/aws-sdk-go-v2/service/memorydb"
-	"github.com/aws/aws-sdk-go-v2/service/opensearch"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
-	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
-	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -51,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 )
 
 // TestWatcher verifies that database server properly detects and applies
@@ -122,17 +111,6 @@ func TestWatcher(t *testing.T) {
 	// Both should be registered now.
 	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1, db2})
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-		require.Len(t, servers, 3)
-		require.Equal(t, "db0", servers[0].GetName())
-		wantDBs := types.Databases(types.DatabaseServers(servers).ToDatabases()).ToMap()
-		for _, db := range []types.Database{db0, db1, db2} {
-			require.Contains(t, wantDBs, db.GetName())
-		}
-	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be registered")
-
 	// Update db2 URI so it gets re-registered.
 	db2.SetURI("localhost:2345")
 	err = testCtx.authServer.UpdateDatabase(ctx, db2)
@@ -156,13 +134,6 @@ func TestWatcher(t *testing.T) {
 
 	// Only static database should remain.
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-		require.Equal(t, "db0", servers[0].GetName())
-	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be cleaned up")
 }
 
 // TestWatcherDynamicResource tests dynamic resource registration where the
@@ -350,7 +321,8 @@ func setLabels(r types.ResourceWithLabels, newLabels map[string]string) {
 // TestWatcherCloudFetchers tests usage of discovery database fetchers by the
 // database service.
 func TestWatcherCloudFetchers(t *testing.T) {
-	// Test an AWS fetcher.
+	// Test an AWS fetcher. Note that status AWS can be set by Metadata
+	// service.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
 	redshiftServerlessDatabase, err := discovery.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
@@ -368,16 +340,6 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
-	dbFetcherFactory, err := db.NewAWSFetcherFactory(db.AWSFetcherFactoryConfig{
-		AWSConfigProvider: &mocks.AWSConfigProvider{},
-		AWSClients: fakeAWSClients{
-			rdsClient: &mocks.RDSClient{Unauth: true}, // Access denied error should not affect other fetchers.
-			rssClient: &mocks.RedshiftServerlessClient{
-				Workgroups: []rsstypes.Workgroup{*redshiftServerlessWorkgroup},
-			},
-		},
-	})
-	require.NoError(t, err)
 	reconcileCh := make(chan types.Databases)
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		// Keep ResourceMatchers as nil to disable resource matchers.
@@ -402,12 +364,15 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			},
 		}},
 		CloudClients: &clients.TestCloudClients{
+			RDS: &mocks.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
+				Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
+			},
 			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
 				AllServers: []*armsql.Server{azSQLServer},
 			}),
 			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
 		},
-		AWSDatabaseFetcherFactory: dbFetcherFactory,
 		AzureMatchers: []types.AzureMatcher{{
 			Subscriptions: []string{"sub"},
 			Types:         []string{types.AzureMatcherSQLServer},
@@ -423,24 +388,21 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	wantDatabases := types.Databases{azSQLServerDatabase, redshiftServerlessDatabase}
 	sort.Sort(wantDatabases)
 
-	// cloud metadata updater is disabled, so don't check the AWS metadata status.
-	assertReconciledResource(t, reconcileCh, wantDatabases, cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "AWS"))
+	assertReconciledResource(t, reconcileCh, wantDatabases)
 }
 
-func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases, opts ...cmp.Option) {
+func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases) {
 	t.Helper()
 	select {
 	case d := <-ch:
 		sort.Sort(d)
 		require.Len(t, databases, len(d))
 		require.Empty(t, cmp.Diff(databases, d,
-			append(cmp.Options{
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
-			}, opts...),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):
-		require.FailNow(t, "Didn't receive reconcile event after 1s.")
+		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
 }
 
@@ -469,7 +431,9 @@ func makeDatabase(name string, labels map[string]string, additionalLabels map[st
 		labels = make(map[string]string)
 	}
 
-	maps.Copy(labels, additionalLabels)
+	for k, v := range additionalLabels {
+		labels[k] = v
+	}
 
 	ds := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -500,42 +464,4 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 	require.NoError(t, err)
 	discovery.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherSQLServer)
 	return server, database
-}
-
-type fakeAWSClients struct {
-	ec2Client        db.EC2Client
-	ecClient         db.ElastiCacheClient
-	mdbClient        db.MemoryDBClient
-	openSearchClient db.OpenSearchClient
-	rdsClient        db.RDSClient
-	redshiftClient   db.RedshiftClient
-	rssClient        db.RSSClient
-}
-
-func (f fakeAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) db.EC2Client {
-	return f.ec2Client
-}
-
-func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {
-	return f.ecClient
-}
-
-func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) db.MemoryDBClient {
-	return f.mdbClient
-}
-
-func (f fakeAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) db.OpenSearchClient {
-	return f.openSearchClient
-}
-
-func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) db.RDSClient {
-	return f.rdsClient
-}
-
-func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) db.RedshiftClient {
-	return f.redshiftClient
-}
-
-func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) db.RSSClient {
-	return f.rssClient
 }

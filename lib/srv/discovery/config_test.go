@@ -50,8 +50,6 @@ func TestConfigCheckAndSetDefaults(t *testing.T) {
 			cfgChange:     func(c *Config) {},
 			postCheckAndSetDefaultsFunc: func(t *testing.T, c *Config) {
 				require.NotNil(t, c.CloudClients)
-				require.NotNil(t, c.AWSConfigProvider)
-				require.NotNil(t, c.AWSDatabaseFetcherFactory)
 				require.NotNil(t, c.Log)
 				require.NotNil(t, c.clock)
 				require.NotNil(t, c.TriggerFetchC)

@@ -127,6 +127,7 @@ type Operation = {
 
 export interface InviteCollaboratorsDialogProps {
   onClose: (users?: User[]) => void;
+  open: boolean;
 }
 
 export interface EmailPasswordResetDialogProps {

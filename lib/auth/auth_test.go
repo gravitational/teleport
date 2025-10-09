@@ -89,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type testPack struct {
@@ -215,6 +214,10 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
+	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
+		return p, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -231,7 +234,7 @@ func newAuthSuite(t *testing.T) *testPack {
 }
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cryptosuitestest.PrecomputeRSAKeys(ctx)
@@ -681,17 +684,16 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, gotTLSCert.PublicKey, inTLSPub)
 	wantID := tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		OriginClusterName: s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
-		UserType:          "local",
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -725,7 +727,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -782,7 +783,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -809,17 +809,16 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		OriginClusterName: s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
-		UserType:          "local",
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -851,7 +850,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -878,17 +876,16 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-		OriginClusterName: s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
-		UserType:          "local",
+		Username:         user,
+		Groups:           []string{role.GetName()},
+		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:  []string{user},
+		KubernetesGroups: []string{"system:masters"},
+		Expires:          gotTLSCert.NotAfter,
+		RouteToCluster:   s.clusterName.GetClusterName(),
+		TeleportCluster:  s.clusterName.GetClusterName(),
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -1159,21 +1156,22 @@ func TestLocalControlStream(t *testing.T) {
 	const serverID = "test-server"
 
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	s := newAuthSuite(t)
 
 	stream := s.a.MakeLocalInventoryControlStream()
 	defer stream.Close()
 
-	err := stream.Send(ctx, &proto.UpstreamInventoryHello{
+	err := stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(*proto.DownstreamInventoryHello)
+		_, ok := msg.(proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
@@ -1195,7 +1193,8 @@ func TestLocalControlStream(t *testing.T) {
 
 	select {
 	case msg := <-stream.Recv():
-		require.IsType(t, *new(*proto.DownstreamInventoryPing), msg)
+		_, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
 	case <-stream.Done():
 		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
 	case <-time.After(time.Second * 10):
@@ -1206,12 +1205,11 @@ func TestLocalControlStream(t *testing.T) {
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
-	ctx := context.Background()
 
-	cn, err := s.a.GetClusterName(ctx)
+	cn, err := s.a.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
-	st, err := s.a.GetStaticTokens(ctx)
+	st, err := s.a.GetStaticTokens()
 	require.NoError(t, err)
 	require.Empty(t, st.GetStaticTokens())
 
@@ -1248,10 +1246,10 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check first auth server and make sure it returns the correct values
 	// (original cluster name, new static tokens)
-	cn, err = s.a.GetClusterName(ctx)
+	cn, err = s.a.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
-	st, err = s.a.GetStaticTokens(ctx)
+	st, err = s.a.GetStaticTokens()
 	require.NoError(t, err)
 	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
@@ -1260,7 +1258,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check second auth server and make sure it also has the correct values
 	// new static tokens
-	st, err = authServer.GetStaticTokens(ctx)
+	st, err = authServer.GetStaticTokens()
 	require.NoError(t, err)
 	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
@@ -1579,7 +1577,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devCred = "devicecred1"
 
 	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
+		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
 			fc.Advance(d)
 		}
 	}
@@ -2263,6 +2261,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
+			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -2898,7 +2897,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			cap: types.AuthPreferenceSpecV2{
 				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
 				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
 			},
@@ -2911,7 +2910,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
 				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
 			},
@@ -2944,7 +2943,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     1234,
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "unknown hardware key")
 			},
@@ -2978,7 +2977,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     87654321,
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "unknown hardware key")
 			},
@@ -2997,7 +2996,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
 				require.ErrorContains(t, err, "no known hardware keys")
 			},
@@ -3043,11 +3042,13 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		gotNames := map[string]struct{}{}
 		for ks, err := range p.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			gotNames[ks.GetCluster().GetName()] = struct{}{}
 		}
-		require.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+		assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
 	}, 15*time.Second, 100*time.Millisecond)
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
@@ -3788,6 +3789,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tokenID := "test-token-not-found"
@@ -3934,7 +3936,7 @@ func TestFilterResources(t *testing.T) {
 	const resourceCount = 100
 	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
 
-	for range resourceCount {
+	for i := 0; i < resourceCount; i++ {
 		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
 		require.NoError(t, err)
 		nodes = append(nodes, s)
@@ -3950,7 +3952,7 @@ func TestFilterResources(t *testing.T) {
 		{
 			name:  "ListResources fails",
 			cache: mockCache{resourcesError: fail},
-			errorAssertion: func(t require.TestingT, err error, i ...any) {
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.ErrorIs(t, err, fail)
 			},
@@ -3966,7 +3968,7 @@ func TestFilterResources(t *testing.T) {
 		{
 			name:  "fatal errors are propagated",
 			cache: mockCache{resources: nodes},
-			errorAssertion: func(t require.TestingT, err error, i ...any) {
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.ErrorIs(t, err, fail)
 			},
@@ -3985,6 +3987,7 @@ func TestFilterResources(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -4016,10 +4019,10 @@ func TestCAGeneration(t *testing.T) {
 	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+	keyStoreManager, err := keystore.NewManager(ctx, &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{},
-		RSAKeyPairSource: func(alg cryptosuites.Algorithm) (priv []byte, pub []byte, err error) {
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
 		},
 	})
@@ -4512,7 +4515,7 @@ func TestCleanupNotifications(t *testing.T) {
 	var createdNotifications []notificationInfo
 
 	createNotifications := func(username string, count int, expiryDuration time.Duration) {
-		for i := range count {
+		for i := 0; i < count; i++ {
 			var id string
 			if username != "" {
 				notification := newUserNotificationWithExpiry(t, username, fmt.Sprintf("%s-notification-%d", username, i+1), timestamppb.New(fakeClock.Now().Add(expiryDuration)))
@@ -4584,9 +4587,9 @@ func TestCleanupNotifications(t *testing.T) {
 		assert.Len(collectT, states, expectedStatesCount)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
 		// Expect 8 user notifications, 4 global notifications, and 16 states.
-		verifyNotificationCounts(t, 8, 4, 16)
+		verifyNotificationCounts(collectT, 8, 4, 16)
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Advance clock to make half of the notifications expire.
@@ -4594,9 +4597,9 @@ func TestCleanupNotifications(t *testing.T) {
 	// Run CleanupNotifications.
 	srv.Auth().CleanupNotifications(ctx)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
 		// Half of each should have been deleted.
-		verifyNotificationCounts(t, 4, 2, 8)
+		verifyNotificationCounts(collectT, 4, 2, 8)
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Advance clock to make the remaining notifications expire.
@@ -4604,9 +4607,9 @@ func TestCleanupNotifications(t *testing.T) {
 	// Run CleanupNotifications again.
 	srv.Auth().CleanupNotifications(ctx)
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
 		// No notifications nor states should remain.
-		verifyNotificationCounts(t, 0, 0, 0)
+		verifyNotificationCounts(collectT, 0, 0, 0)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
@@ -4646,6 +4649,33 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	client, err := testServer.NewClient(authtest.TestUser(testUsername))
 	require.NoError(t, err)
 
+	// Helper to create access lists with specific next audit dates
+	createAccessList := func(t *testing.T, name string, nextAuditDate time.Time) {
+		al, err := accesslist.NewAccessList(header.Metadata{
+			Name: name,
+		}, accesslist.Spec{
+			Title:       fmt.Sprintf("Access List %s", name),
+			Description: fmt.Sprintf("Test access list %s", name),
+			Owners: []accesslist.Owner{{
+				Name:           testUsername,
+				Description:    "",
+				MembershipKind: "",
+			}},
+			Audit: accesslist.Audit{
+				NextAuditDate: nextAuditDate,
+				Recurrence:    accesslist.Recurrence{},
+				Notifications: accesslist.Notifications{},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grant"},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = authServer.UpsertAccessList(ctx, al)
+		require.NoError(t, err)
+	}
+
 	// Create access lists with different expiry times
 	accessLists := []struct {
 		name      string
@@ -4669,20 +4699,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	for _, al := range accessLists {
-		createAccessList(t, authServer, al.name+"-static",
-			withType(accesslist.Static),
-			withOwners([]accesslist.Owner{{Name: testUsername}}),
-			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
-		)
-		createAccessList(t, authServer, al.name+"-scim",
-			withType(accesslist.SCIM),
-			withOwners([]accesslist.Owner{{Name: testUsername}}),
-			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
-		)
-		createAccessList(t, authServer, al.name,
-			withOwners([]accesslist.Owner{{Name: testUsername}}),
-			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
-		)
+		createAccessList(t, al.name, authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour))
 	}
 
 	// Run CreateAccessListReminderNotifications()
@@ -4704,63 +4721,6 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Notifications, 6)
-}
-
-type createAccessListOptions struct {
-	typ           accesslist.Type
-	nextAuditDate time.Time
-	owners        []accesslist.Owner
-}
-
-type createAccessListOpt func(*createAccessListOptions)
-
-func withType(typ accesslist.Type) createAccessListOpt {
-	return func(o *createAccessListOptions) {
-		o.typ = typ
-	}
-}
-
-func withNextAuditDate(nextAuditDate time.Time) createAccessListOpt {
-	return func(o *createAccessListOptions) {
-		o.nextAuditDate = nextAuditDate
-	}
-}
-
-func withOwners(owners []accesslist.Owner) createAccessListOpt {
-	return func(o *createAccessListOptions) {
-		o.owners = owners
-	}
-}
-
-func createAccessList(t *testing.T, authServer *auth.Server, name string, opts ...createAccessListOpt) {
-	t.Helper()
-	ctx := t.Context()
-
-	options := createAccessListOptions{}
-	for _, o := range opts {
-		o(&options)
-	}
-
-	al, err := accesslist.NewAccessList(header.Metadata{
-		Name: name,
-	}, accesslist.Spec{
-		Type:        options.typ,
-		Title:       fmt.Sprintf("Test Access List %s", name),
-		Description: fmt.Sprintf("Test Access List %s description", name),
-		Owners:      options.owners,
-		Audit: accesslist.Audit{
-			NextAuditDate: options.nextAuditDate,
-			Recurrence:    accesslist.Recurrence{},
-			Notifications: accesslist.Notifications{},
-		},
-		Grants: accesslist.Grants{
-			Roles: []string{"grant"},
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = authServer.UpsertAccessList(ctx, al)
-	require.NoError(t, err)
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {

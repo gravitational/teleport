@@ -18,6 +18,7 @@
 
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import React from 'react';
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import { render, screen, waitFor } from 'design/utils/testing';

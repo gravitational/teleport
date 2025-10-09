@@ -27,9 +27,7 @@ import {
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ApiError } from 'teleport/services/api/parseError';
 
 /**

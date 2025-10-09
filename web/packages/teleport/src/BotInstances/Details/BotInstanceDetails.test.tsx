@@ -17,30 +17,44 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
-import { ComponentProps, PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
+import { MemoryRouter, Router } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import {
+  fireEvent,
   render,
   screen,
   testQueryClient,
-  userEvent,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
 
-import 'shared/components/TextEditor/TextEditor.mock';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { Route } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 import {
   getBotInstanceError,
   getBotInstanceSuccess,
 } from 'teleport/test/helpers/botInstances';
 
 import { BotInstanceDetails } from './BotInstanceDetails';
+
+jest.mock('shared/components/TextEditor/TextEditor', () => {
+  return {
+    __esModule: true,
+    default: MockTextEditor,
+  };
+});
+
+jest.mock('design/utils/copyToClipboard', () => {
+  return {
+    __esModule: true,
+    copyToClipboard: jest.fn(),
+  };
+});
 
 const server = setupServer();
 
@@ -57,19 +71,85 @@ afterEach(async () => {
 
 afterAll(() => server.close());
 
+const withSuccessResponse = () => {
+  server.use(
+    getBotInstanceSuccess({
+      bot_instance: {
+        spec: {
+          instance_id: '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+        },
+      },
+      yaml: 'kind: bot_instance\nversion: v1\n',
+    })
+  );
+};
+
+const withErrorResponse = () => {
+  server.use(getBotInstanceError(500));
+};
+
 describe('BotIntanceDetails', () => {
-  it('Allows close action', async () => {
-    const onClose = jest.fn();
+  it('Allows back navigation', async () => {
+    const history = createMemoryHistory({
+      initialEntries: [
+        '/web/bot/test-bot-name/instance/4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+      ],
+    });
+    history.goBack = jest.fn();
+
     withSuccessResponse();
 
-    const { user } = renderComponent({ onClose });
+    renderComponent({ history });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    const closeButton = screen.getByLabelText('close');
-    await user.click(closeButton);
+    const backButton = screen.getByLabelText('back');
+    fireEvent.click(backButton);
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(history.goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('Shows the short instance id', async () => {
+    withSuccessResponse();
+
+    renderComponent();
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    expect(screen.getByText('4fa10e6')).toBeInTheDocument();
+  });
+
+  it('Allows the full instance id to be copied', async () => {
+    withSuccessResponse();
+
+    renderComponent();
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    const copyButton = screen.getByLabelText('copy');
+    fireEvent.click(copyButton);
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+    expect(copyToClipboard).toHaveBeenLastCalledWith(
+      '4fa10e68-f2e0-4cf9-ad5b-1458febcd827'
+    );
+  });
+
+  it('Shows a docs link', async () => {
+    const onClick = jest.fn(e => {
+      e.preventDefault();
+    });
+
+    withSuccessResponse();
+
+    renderComponent({ onDocsLinkClicked: onClick });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    const docsButton = screen.getByText('View Documentation');
+    fireEvent.click(docsButton);
+
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it('Shows full yaml', async () => {
@@ -91,92 +171,55 @@ describe('BotIntanceDetails', () => {
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(screen.getByText('something went wrong')).toBeInTheDocument();
-  });
-
-  it('Shows a permisison warning', async () => {
-    withErrorResponse();
-
-    renderComponent({
-      hasBotInstanceReadPermission: false,
-    });
-
     expect(
-      screen.getByText('You do not have permission to read Bot instances', {
-        exact: false,
-      })
+      screen.getByText('Error: 500', { exact: false })
     ).toBeInTheDocument();
-
-    expect(screen.getByText('bot_instance.read')).toBeInTheDocument();
   });
 });
 
-const renderComponent = (
-  options?: Partial<ComponentProps<typeof BotInstanceDetails>> & {
-    hasBotInstanceReadPermission?: boolean;
-  }
-) => {
-  const {
-    botName = 'test-bot-name',
-    instanceId = '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-    onClose = jest.fn(),
-    ...rest
-  } = options ?? {};
-  const user = userEvent.setup();
-  return {
-    ...render(
-      <BotInstanceDetails
-        botName={botName}
-        instanceId={instanceId}
-        onClose={onClose}
-      />,
-      {
-        wrapper: makeWrapper(rest),
-      }
-    ),
-    user,
-  };
+const renderComponent = async (options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+  onDocsLinkClicked?: (e: unknown) => void;
+}) => {
+  const { onDocsLinkClicked } = options ?? {};
+  render(
+    <BotInstanceDetails onDocsLinkClickedForTesting={onDocsLinkClicked} />,
+    {
+      wrapper: makeWrapper(options),
+    }
+  );
 };
 
-function makeWrapper(options?: { hasBotInstanceReadPermission?: boolean }) {
-  const { hasBotInstanceReadPermission = true } = options ?? {};
+function makeWrapper(options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+}) {
+  const {
+    history = createMemoryHistory({
+      initialEntries: [
+        '/web/bot/test-bot-name/instance/4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+      ],
+    }),
+  } = options ?? {};
 
-  const customAcl = makeAcl({
-    botInstances: {
-      ...defaultAccess,
-      read: hasBotInstanceReadPermission,
-    },
-  });
-
-  const ctx = createTeleportContext({
-    customAcl,
-  });
   return (props: PropsWithChildren) => {
     return (
-      <QueryClientProvider client={testQueryClient}>
-        <TeleportProviderBasic teleportCtx={ctx}>
+      <MemoryRouter>
+        <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
-            {props.children}
+            <Router history={history}>
+              <Route path={cfg.routes.botInstance}>{props.children}</Route>
+            </Router>
           </ConfiguredThemeProvider>
-        </TeleportProviderBasic>
-      </QueryClientProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
     );
   };
 }
 
-const withSuccessResponse = () => {
-  server.use(
-    getBotInstanceSuccess({
-      bot_instance: {
-        spec: {
-          instance_id: '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-        },
-      },
-      yaml: 'kind: bot_instance\nversion: v1\n',
-    })
+function MockTextEditor(props: { data?: [{ content: string }] }) {
+  return (
+    <div data-testid="mock-text-editor">
+      {props.data?.map(d => <div key={d.content}>{d.content}</div>)}
+    </div>
   );
-};
-
-const withErrorResponse = () => {
-  server.use(getBotInstanceError(500, 'something went wrong'));
-};
+}

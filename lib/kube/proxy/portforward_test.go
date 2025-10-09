@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -46,7 +47,6 @@ import (
 	"k8s.io/client-go/transport/spdy"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPortForwardKubeService(t *testing.T) {
@@ -220,13 +220,15 @@ func TestPortForwardKubeService(t *testing.T) {
 func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	kubeMock, err := testingkubemock.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		t.Context(),
+		ctx,
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -292,7 +294,7 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 	portPairs, err := forwarder.GetPorts()
 	require.NoError(t, err)
 
-	g, _ := errgroup.WithContext(t.Context())
+	g, _ := errgroup.WithContext(ctx)
 	for _, portPair := range portPairs {
 		p := portPair
 
@@ -397,6 +399,7 @@ type portForwarder interface {
 // connection, it will leak memory.
 func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 	t.Parallel()
+	logger := log.NewEntry(&log.Logger{Out: io.Discard})
 	const (
 		reqID = "reqID"
 		// portHeaderValue is the value of the port header in the stream.
@@ -412,7 +415,7 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 			context:       context.Background(),
 			onPortForward: func(addr string, success bool) {},
 		},
-		logger:                logtest.NewLogger(),
+		Entry:                 logger,
 		sourceConn:            sourceConn,
 		targetConn:            targetConn,
 		streamChan:            make(chan httpstream.Stream),
@@ -608,6 +611,7 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			kubeMock, err := testingkubemock.NewKubeAPIMock(

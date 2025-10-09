@@ -20,7 +20,6 @@ package integration
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -46,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -68,19 +66,12 @@ type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
 	server     *authtest.Server
-	clock      *clockwork.FakeClock
+	clock      clockwork.FakeClock
 	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
 	wtmpPath   string
 	btmpPath   string
-	wtmpdbPath string
-}
-
-func checkUserInFile(t assert.TestingT, utmp *uacc.UtmpBackend, uaccFile, username string, expectPresent bool) {
-	inFile, err := utmp.IsUserInFile(uaccFile, username)
-	assert.NoError(t, err)
-	assert.Equal(t, expectPresent, inFile)
 }
 
 // TestRootUTMPEntryExists verifies that user accounting is done on supported systems.
@@ -96,11 +87,6 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	ctx := context.Background()
 	s := newSrvCtx(ctx, t)
 	up, err := newUpack(ctx, s, teleportTestUser, []string{teleportTestUser, teleportFakeUser}, wildcardAllow)
-	require.NoError(t, err)
-
-	utmp, err := uacc.NewUtmpBackend(s.utmpPath, s.wtmpPath, s.btmpPath)
-	require.NoError(t, err)
-	wtmpdb, err := uacc.NewWtmpdbBackend(s.wtmpdbPath)
 	require.NoError(t, err)
 
 	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
@@ -132,14 +118,10 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
-			checkUserInFile(collect, utmp, s.utmpPath, teleportTestUser, true)
-			checkUserInFile(collect, utmp, s.wtmpPath, teleportTestUser, true)
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.utmpPath, teleportTestUser))
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.wtmpPath, teleportTestUser))
 			// Ensure than an entry was not written to btmp.
-			checkUserInFile(collect, utmp, s.btmpPath, teleportTestUser, false)
-
-			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportTestUser)
-			assert.NoError(collect, err)
-			assert.True(collect, inWtmpdb)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.btmpPath, teleportTestUser)), "unexpected error: %v", err)
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
 	})
 
@@ -171,18 +153,42 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		err = se.Shell()
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			checkUserInFile(t, utmp, s.btmpPath, teleportFakeUser, true)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			assert.NoError(collect, uacc.UserWithPtyInDatabase(s.btmpPath, teleportFakeUser))
 			// Ensure that entries were not written to utmp and wtmp
-			checkUserInFile(t, utmp, s.utmpPath, teleportFakeUser, false)
-			checkUserInFile(t, utmp, s.wtmpPath, teleportFakeUser, false)
-
-			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
-			require.NoError(t, err)
-			require.False(t, inWtmpdb)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.utmpPath, teleportFakeUser)), "unexpected error: %v", err)
+			assert.True(collect, trace.IsNotFound(uacc.UserWithPtyInDatabase(s.wtmpPath, teleportFakeUser)), "unexpected error: %v", err)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
+}
+
+// TestUsernameLimit tests that the maximum length of usernames is a hard error.
+func TestRootUsernameLimit(t *testing.T) {
+	if !isRoot() {
+		t.Skip("This test will be skipped because tests are not being run as root.")
+	}
+
+	dir := t.TempDir()
+	utmpPath := filepath.Join(dir, "utmp")
+	wtmpPath := filepath.Join(dir, "wtmp")
+
+	err := TouchFile(utmpPath)
+	require.NoError(t, err)
+	err = TouchFile(wtmpPath)
+	require.NoError(t, err)
+
+	// A 33 character long username.
+	username := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	host := [4]int32{0, 0, 0, 0}
+	tty := os.NewFile(uintptr(0), "/proc/self/fd/0")
+	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	require.True(t, trace.IsBadParameter(err))
+
+	// A 32 character long username.
+	username = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	err = uacc.Open(utmpPath, wtmpPath, username, "localhost", host, tty)
+	require.False(t, trace.IsBadParameter(err))
 }
 
 // upack holds all ssh signing artifacts needed for signing and checking user keys
@@ -191,7 +197,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -284,22 +290,12 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	utmpPath := filepath.Join(uaccDir, "utmp")
 	wtmpPath := filepath.Join(uaccDir, "wtmp")
 	btmpPath := filepath.Join(uaccDir, "btmp")
-	wtmpdbPath := filepath.Join(uaccDir, "wtmp.db")
 	require.NoError(t, TouchFile(utmpPath))
 	require.NoError(t, TouchFile(wtmpPath))
 	require.NoError(t, TouchFile(btmpPath))
-	require.NoError(t, TouchFile(wtmpdbPath))
 	s.utmpPath = utmpPath
 	s.wtmpPath = wtmpPath
 	s.btmpPath = btmpPath
-	s.wtmpdbPath = wtmpdbPath
-
-	// Initialize wtmpdb database.
-	db, err := sql.Open("sqlite3", wtmpdbPath)
-	require.NoError(t, err)
-	// Schema: https://github.com/thkukuk/wtmpdb/blob/272b109f5b3bdfb3008604461b4ddbff03c28b77/lib/sqlite.c#L128
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
-	require.NoError(t, err)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -346,10 +342,9 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
-		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath),
+		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.srv = srv

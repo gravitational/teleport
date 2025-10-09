@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,10 +70,6 @@ type SessionContext struct {
 	// User is the Teleport user.
 	User string
 
-	// UserOriginClusterName is the name of the cluster where the user is
-	// originally from.
-	UserOriginClusterName string
-
 	// PID is the process ID of Teleport when it re-executes itself. This is
 	// used by Teleport to find itself by cgroup.
 	PID int
@@ -85,11 +80,6 @@ type SessionContext struct {
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
 	Events map[string]bool
-
-	// UserRoles are the roles assigned to the user.
-	UserRoles []string
-	// UserTraits are the traits assigned to the user.
-	UserTraits wrappers.Traits
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.

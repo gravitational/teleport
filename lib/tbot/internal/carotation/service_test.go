@@ -20,19 +20,13 @@ package carotation
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
-}
 
 func Test_filterCAEvent(t *testing.T) {
 	clusterName := "example.com"
@@ -134,7 +128,7 @@ func Test_filterCAEvent(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ignoreReason := filterCAEvent(ctx, log, tt.event, clusterName)

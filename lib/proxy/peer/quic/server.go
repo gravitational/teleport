@@ -210,7 +210,7 @@ func (s *Server) Serve(transport *quic.Transport) error {
 	}
 }
 
-func (s *Server) handleConn(conn *quic.Conn) {
+func (s *Server) handleConn(conn quic.EarlyConnection) {
 	log := s.log.With(
 		"remote_addr", conn.RemoteAddr().String(),
 		"internal_id", uuid.NewString(),
@@ -251,7 +251,7 @@ func (s *Server) handleConn(conn *quic.Conn) {
 	}
 }
 
-func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Logger) {
+func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log *slog.Logger) {
 	log = log.With("stream_id", stream.StreamID())
 	log.DebugContext(conn.Context(), "handling stream")
 	defer log.DebugContext(conn.Context(), "done handling stream")

@@ -23,10 +23,7 @@ import styled, { useTheme } from 'styled-components';
 import { Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
-import {
-  ToastNotification,
-  ToastNotificationItem,
-} from 'shared/components/ToastNotification';
+import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -43,7 +40,7 @@ export function Tasks() {
   const history = useHistory();
   const { search } = useLocation();
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
-  const [notification, setNotification] = useState<ToastNotificationItem>();
+  const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
@@ -184,7 +181,7 @@ export function Tasks() {
           />
           {notification && (
             <NotificationContainer>
-              <ToastNotification
+              <Notification
                 key={notification.id}
                 item={notification}
                 onRemove={() => setNotification(undefined)}

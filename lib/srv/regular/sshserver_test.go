@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -53,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -81,7 +80,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // teleportTestUser is additional user used for tests
@@ -95,7 +93,7 @@ var wildcardAllow = types.Labels{
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	modules.SetInsecureTestMode(true)
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
@@ -121,7 +119,7 @@ type sshTestFixture struct {
 	up      *upack
 	signer  ssh.Signer
 	user    string
-	clock   *clockwork.FakeClock
+	clock   clockwork.FakeClock
 	testSrv *authtest.Server
 }
 
@@ -240,7 +238,6 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
 		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -321,7 +318,8 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 // requests a reply whether processing the request was successful or not.
 func TestTerminalSizeRequest(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	t.Run("Invalid session", func(t *testing.T) {
 		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte("1234"))
@@ -388,7 +386,8 @@ func TestTerminalSizeRequest(t *testing.T) {
 //     conditions on this code path.
 func TestMultipleExecCommands(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
@@ -872,26 +871,20 @@ func setPortForwarding(t *testing.T, ctx context.Context, f *sshTestFixture, leg
 // forwarding is built upon.
 func TestDirectTCPIP(t *testing.T) {
 	ctx := context.Background()
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
 
-	setup := func(t *testing.T) (*sshTestFixture, *httptest.Server, *url.URL) {
-		f := newFixtureWithoutDiskBasedLogging(t)
+	// Startup a test server that will reply with "hello, world\n"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+	defer ts.Close()
 
-		// Startup a test server that will reply with "hello, world\n"
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, "hello, world")
-		}))
-
-		// Extract the host:port the test HTTP server is running on.
-		u, err := url.Parse(ts.URL)
-		require.NoError(t, err)
-
-		return f, ts, u
-	}
+	// Extract the host:port the test HTTP server is running on.
+	u, err := url.Parse(ts.URL)
+	require.NoError(t, err)
 
 	t.Run("Local forwarding is successful", func(t *testing.T) {
-		f, ts, u := setup(t)
-		defer ts.Close()
-
 		// Build a http.Client that will dial through the server to establish the
 		// connection. That's why a custom dialer is used and the dialer uses
 		// s.clt.Dial (which performs the "direct-tcpip" request).
@@ -915,65 +908,38 @@ func TestDirectTCPIP(t *testing.T) {
 	})
 
 	t.Run("Local forwarding fails when access is denied", func(t *testing.T) {
-		f, ts, u := setup(t)
-		defer ts.Close()
-
-		// update rules before creating conn to ensure that permissions are calculated
-		// using the updated rules.
-		setPortForwarding(t, ctx, f, nil, nil, types.NewBoolOption(false))
-
-		// create a new client connection to the node
-		clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-		require.NoError(t, err)
-		defer clientConn.Close()
-
-		// create an http client that does forwarding through the node
 		httpClient := http.Client{
 			Transport: &http.Transport{
 				Dial: func(network string, addr string) (net.Conn, error) {
-					return clientConn.DialContext(context.Background(), "tcp", u.Host)
+					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
 				},
 			},
 		}
 
+		setPortForwarding(t, ctx, f, nil, nil, types.NewBoolOption(false))
 		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
 		//nolint:bodyclose // We expect an error here, no need to close.
-		_, err = httpClient.Get(ts.URL)
+		_, err := httpClient.Get(ts.URL)
 		require.Error(t, err)
 	})
 
 	t.Run("Local forwarding fails when access is denied by legacy config", func(t *testing.T) {
-		f, ts, u := setup(t)
-		defer ts.Close()
-
-		// update rules before creating conn to ensure that permissions are calculated
-		// using the updated rules.
-		setPortForwarding(t, ctx, f, types.NewBoolOption(false), nil, nil)
-
-		// create a new client connection to the node
-		clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-		require.NoError(t, err)
-		defer clientConn.Close()
-
-		// create an http client that does forwarding through the node
 		httpClient := http.Client{
 			Transport: &http.Transport{
 				Dial: func(network string, addr string) (net.Conn, error) {
-					return clientConn.DialContext(context.Background(), "tcp", u.Host)
+					return f.ssh.clt.DialContext(context.Background(), "tcp", u.Host)
 				},
 			},
 		}
 
+		setPortForwarding(t, ctx, f, types.NewBoolOption(false), nil, nil)
 		// Perform a HTTP GET to the test HTTP server through a "direct-tcpip" request.
 		//nolint:bodyclose // We expect an error here, no need to close.
-		_, err = httpClient.Get(ts.URL)
+		_, err := httpClient.Get(ts.URL)
 		require.Error(t, err)
 	})
 
 	t.Run("SessionJoinPrincipal cannot use direct-tcpip", func(t *testing.T) {
-		f, ts, u := setup(t)
-		defer ts.Close()
-
 		// Ensure that ssh client using SessionJoinPrincipal as Login, cannot
 		// connect using "direct-tcpip".
 		ctx := context.Background()
@@ -1040,15 +1006,8 @@ func TestTCPIPForward(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixtureWithoutDiskBasedLogging(t)
 			setPortForwarding(t, context.Background(), f, tc.legacyAllow, tc.remoteAllow, tc.localAllow)
-
-			// create a new client connection to the node which will have its permissions
-			// calculated with the updated rules.
-			clientConn, err := tracessh.Dial(context.Background(), "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-			require.NoError(t, err)
-			defer clientConn.Close()
-
 			// Request a listener from the server.
-			listener, err := clientConn.Listen("tcp", tc.listenAddr)
+			listener, err := f.ssh.clt.Listen("tcp", tc.listenAddr)
 			if tc.expectErr {
 				require.Error(t, err)
 				return
@@ -1108,7 +1067,7 @@ func TestAdvertiseAddr(t *testing.T) {
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	f.ssh.srv.setAdvertiseAddr(advIP)
-	require.Equal(t, net.JoinHostPort(advIP.String(), f.ssh.srvPort), f.ssh.srv.AdvertiseAddr())
+	require.Equal(t, fmt.Sprintf("%s:%s", advIP, f.ssh.srvPort), f.ssh.srv.AdvertiseAddr())
 
 	// IP and port advertiseAddr should fully override srvAddress.
 	f.ssh.srv.setAdvertiseAddr(advIPPort)
@@ -1142,13 +1101,7 @@ func TestAgentForwardPermission(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// create a new client connection to the node which will have its permissions
-	// calculated with the updated rules.
-	clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-	require.NoError(t, err)
-	defer clientConn.Close()
-
-	se, err := clientConn.NewSession(ctx)
+	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -1180,19 +1133,13 @@ func TestMaxSessions(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// create a new client connection to the node which will have its permissions
-	// calculated with the updated rules.
-	clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
-	require.NoError(t, err)
-	defer clientConn.Close()
-
-	for range maxSessions {
-		se, err := clientConn.NewSession(ctx)
+	for i := int64(0); i < maxSessions; i++ {
+		se, err := f.ssh.clt.NewSession(ctx)
 		require.NoError(t, err)
 		defer se.Close()
 	}
 
-	_, err = clientConn.NewSession(ctx)
+	_, err = f.ssh.clt.NewSession(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "too many session channels")
 
@@ -1389,7 +1336,7 @@ func TestX11Forward(t *testing.T) {
 		errCh <- x11EchoRequest(serverDisplay2)
 	}()
 
-	for range 4 {
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:
 			assert.NoError(t, err)
@@ -1438,7 +1385,10 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		defer clientConn.Close()
 
 		go func() {
-			_ = sshutils.ForwardRequests(ctx, sin, se)
+			err := sshutils.ForwardRequests(ctx, sin, se)
+			if err != nil {
+				log.WithError(err).Debug("Failed to forward ssh request from server during X11 forwarding")
+			}
 		}()
 
 		err = utils.ProxyConn(ctx, clientXConn, sch)
@@ -1481,9 +1431,9 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 		_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		require.Eventually(t, func() bool {
+		assert.Eventually(t, func() bool {
 			output, err := os.ReadFile(tmpFile.Name())
 			if err == nil && len(output) != 0 {
 				select {
@@ -1783,6 +1733,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
+	logger := logrus.WithField("test", "TestProxyRoundRobin")
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
@@ -1802,27 +1753,24 @@ func TestProxyRoundRobin(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
+		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
+	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
-		ClusterGetter:    reverseTunnelServer,
+		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -1856,7 +1804,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1907,14 +1854,14 @@ func TestProxyRoundRobin(t *testing.T) {
 	_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
 
 	// close first connection, and test it again
 	pool1.Stop()
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
 }
@@ -1928,6 +1875,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
+	logger := logrus.WithField("test", "TestProxyDirectAccess")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -1946,17 +1894,12 @@ func TestProxyDirectAccess(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
+		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
 
@@ -1967,8 +1910,9 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
-		ClusterGetter:    reverseTunnelServer,
+		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -2002,7 +1946,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -2218,7 +2161,6 @@ func TestLimiter(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -2351,6 +2293,7 @@ func TestGlobalRequestClusterDetails(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2508,11 +2451,13 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 
 	// echo all bytes back across the X11 channel
 	_, err = io.Copy(xch, xch)
-	if err != nil {
-		return trace.Wrap(err)
+	if err == nil {
+		xch.CloseWrite()
+	} else {
+		log.Errorf("X11 channel error: %v", err)
 	}
 
-	return trace.Wrap(xch.CloseWrite())
+	return nil
 }
 
 // startX11EchoServer starts a fake node which, for each incoming SSH connection, accepts an
@@ -2526,6 +2471,7 @@ func startX11EchoServer(ctx context.Context, t *testing.T, authSrv *auth.Server)
 		for {
 			conn, chs, _, err := node.accept()
 			if err != nil {
+				log.Warnf("X11 echo server closing: %v", err)
 				return
 			}
 			go func() {
@@ -2642,16 +2588,11 @@ func TestParseSubsystemRequest(t *testing.T) {
 			NewCachingAccessPoint: noCache,
 			DataDir:               t.TempDir(),
 			Emitter:               proxyClient,
+			Log:                   logrus.StandardLogger(),
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
-			EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-				return nil, errors.New("eice disabled in tests")
-			},
-			EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-				return nil, errors.New("eice disabled in tests")
-			},
 		})
 		require.NoError(t, err)
 
@@ -2665,8 +2606,9 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
 			ClusterName:      f.testSrv.ClusterName(),
+			Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 			LocalAccessPoint: proxyClient,
-			ClusterGetter:    reverseTunnelServer,
+			SiteGetter:       reverseTunnelServer,
 			TracerProvider:   tracing.NoopProvider(),
 		})
 		require.NoError(t, err)
@@ -2700,7 +2642,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
 			SetSessionController(sessionController),
-			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 		)
 		require.NoError(t, err)
 		require.NoError(t, proxy.Start())
@@ -2794,7 +2735,8 @@ func TestX11ProxySupport(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -2893,6 +2835,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	ctx := context.Background()
 
 	listener, _ := mustListen(t)
+	logger := logrus.WithField("test", "TestIgnorePuTTYSimpleChannel")
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -2911,16 +2854,11 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
+		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
 
@@ -2931,8 +2869,9 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
-		ClusterGetter:    reverseTunnelServer,
+		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -2966,7 +2905,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -3068,7 +3006,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-func TestEventMetadata(t *testing.T) {
+func TestTargetMetadata(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -3120,7 +3058,6 @@ func TestEventMetadata(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	}
 
 	sshSrv, err := New(
@@ -3136,7 +3073,7 @@ func TestEventMetadata(t *testing.T) {
 		serverOptions...)
 	require.NoError(t, err)
 
-	metadata := sshSrv.EventMetadata()
+	metadata := sshSrv.TargetMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
 	require.Empty(t, metadata.ServerAddr)
@@ -3152,7 +3089,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -3335,7 +3272,8 @@ func TestHostUserCreationProxy(t *testing.T) {
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	listener, _ := mustListen(t)
+	logger := logrus.WithField("test", "TestHostUserCreationProxy")
+	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
 	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
@@ -3354,27 +3292,24 @@ func TestHostUserCreationProxy(t *testing.T) {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
+		Log:                   logger,
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
+	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
 
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
 		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
 		LocalAccessPoint: proxyClient,
-		ClusterGetter:    reverseTunnelServer,
+		SiteGetter:       reverseTunnelServer,
 		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
@@ -3408,7 +3343,6 @@ func TestHostUserCreationProxy(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 
@@ -3427,17 +3361,13 @@ func TestHostUserCreationProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = reg.WriteSudoersFile(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
-			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		AccessChecker: &fakeAccessChecker{},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
-			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		AccessChecker: &fakeAccessChecker{},
 	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
@@ -3446,7 +3376,8 @@ func TestHostUserCreationProxy(t *testing.T) {
 func TestObtainFallbackUID(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	type testCase struct {
 		config     *types.StableUNIXUserConfig
@@ -3553,6 +3484,18 @@ func (f obtainUIDForUsernameFunc) ListStableUNIXUsers(ctx context.Context, in *s
 	return nil, trace.NotImplemented("ListStableUNIXUsers")
 }
 
+type fakeAccessChecker struct {
+	services.AccessChecker
+}
+
+func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	return []string{"test1", "test2", "test3"}, nil
+}
+
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
+	return &services.HostUsersInfo{}, nil
+}
+
 type fakeHostSudoers struct {
 	writeAttempts int
 }
@@ -3580,7 +3523,7 @@ func (f *fakeHostUsersBackend) functionCalled(name string) {
 	f.calls[name]++
 }
 
-func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo *decisionpb.HostUsersInfo, opts ...srv.UpsertHostUserOption) (io.Closer, error) {
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
 	f.functionCalled("UpsertUser")
 	return nil, trace.NotImplemented("")
 }

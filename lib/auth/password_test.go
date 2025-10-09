@@ -889,7 +889,7 @@ func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.C
 	ctx := context.Background()
 	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
 	require.Empty(t, loginAttempts)
-	for i := range defaults.MaxLoginAttempts {
+	for i := 0; i < defaults.MaxLoginAttempts; i++ {
 		err := s.a.ChangePassword(ctx, req)
 		require.Error(t, err)
 		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)

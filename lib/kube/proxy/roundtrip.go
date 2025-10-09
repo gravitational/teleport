@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -32,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -90,7 +90,7 @@ type roundTripperConfig struct {
 	// headers instead of relying on the certificate to transport it.
 	useIdentityForwarding bool
 	// log specifies the logger.
-	log *slog.Logger
+	log log.FieldLogger
 
 	proxier func(*http.Request) (*url.URL, error)
 }

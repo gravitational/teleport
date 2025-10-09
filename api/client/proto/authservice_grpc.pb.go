@@ -78,7 +78,6 @@ const (
 	AuthService_Ping_FullMethodName                                = "/proto.AuthService/Ping"
 	AuthService_GetResetPasswordToken_FullMethodName               = "/proto.AuthService/GetResetPasswordToken"
 	AuthService_CreateResetPasswordToken_FullMethodName            = "/proto.AuthService/CreateResetPasswordToken"
-	AuthService_ListResetPasswordTokens_FullMethodName             = "/proto.AuthService/ListResetPasswordTokens"
 	AuthService_GetUser_FullMethodName                             = "/proto.AuthService/GetUser"
 	AuthService_GetCurrentUser_FullMethodName                      = "/proto.AuthService/GetCurrentUser"
 	AuthService_GetCurrentUserRoles_FullMethodName                 = "/proto.AuthService/GetCurrentUserRoles"
@@ -191,7 +190,6 @@ const (
 	AuthService_DeleteTrustedCluster_FullMethodName                = "/proto.AuthService/DeleteTrustedCluster"
 	AuthService_GetToken_FullMethodName                            = "/proto.AuthService/GetToken"
 	AuthService_GetTokens_FullMethodName                           = "/proto.AuthService/GetTokens"
-	AuthService_GetStaticTokens_FullMethodName                     = "/proto.AuthService/GetStaticTokens"
 	AuthService_ListProvisionTokens_FullMethodName                 = "/proto.AuthService/ListProvisionTokens"
 	AuthService_CreateTokenV2_FullMethodName                       = "/proto.AuthService/CreateTokenV2"
 	AuthService_UpsertTokenV2_FullMethodName                       = "/proto.AuthService/UpsertTokenV2"
@@ -301,7 +299,6 @@ const (
 	AuthService_GetClusterMaintenanceConfig_FullMethodName         = "/proto.AuthService/GetClusterMaintenanceConfig"
 	AuthService_UpdateClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/UpdateClusterMaintenanceConfig"
 	AuthService_DeleteClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/DeleteClusterMaintenanceConfig"
-	AuthService_ValidateTrustedCluster_FullMethodName              = "/proto.AuthService/ValidateTrustedCluster"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -404,8 +401,6 @@ type AuthServiceClient interface {
 	//
 	// Only local users may be reset.
 	CreateResetPasswordToken(ctx context.Context, in *CreateResetPasswordTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
-	// ListResetPasswordTokens returns a page of user tokens.
-	ListResetPasswordTokens(ctx context.Context, in *ListResetPasswordTokenRequest, opts ...grpc.CallOption) (*ListResetPasswordTokenResponse, error)
 	// Deprecated: Do not use.
 	// GetUser gets a user resource by name.
 	//
@@ -705,10 +700,7 @@ type AuthServiceClient interface {
 	DeleteAllServerInfos(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
-	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
-	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -719,13 +711,8 @@ type AuthServiceClient interface {
 	DeleteTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.ProvisionTokenV2, error)
-	// Deprecated: Do not use.
 	// GetToken retrieves all tokens.
-	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-	// TODO(hugoShaka): DELETE IN 21.0.0
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
-	// GetStaticTokens retrieves all static tokens.
-	GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error)
 	// ListToken retrieves a paginated list of filtered provision tokens.
 	ListProvisionTokens(ctx context.Context, in *ListProvisionTokensRequest, opts ...grpc.CallOption) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
@@ -800,7 +787,6 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -815,7 +801,6 @@ type AuthServiceClient interface {
 	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
 	// ListDatabases returns a page of registered databases.
@@ -1026,10 +1011,6 @@ type AuthServiceClient interface {
 	UpdateClusterMaintenanceConfig(ctx context.Context, in *types.ClusterMaintenanceConfigV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
 	DeleteClusterMaintenanceConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
-	// by the proxy on behalf of a cluster that wishes to join to this one as a
-	// leaf cluster.
-	ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error)
 }
 
 type authServiceClient struct {
@@ -1512,16 +1493,6 @@ func (c *authServiceClient) CreateResetPasswordToken(ctx context.Context, in *Cr
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.UserTokenV3)
 	err := c.cc.Invoke(ctx, AuthService_CreateResetPasswordToken_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *authServiceClient) ListResetPasswordTokens(ctx context.Context, in *ListResetPasswordTokenRequest, opts ...grpc.CallOption) (*ListResetPasswordTokenResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListResetPasswordTokenResponse)
-	err := c.cc.Invoke(ctx, AuthService_ListResetPasswordTokens_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2662,7 +2633,6 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.TrustedClusterV2List)
@@ -2704,21 +2674,10 @@ func (c *authServiceClient) GetToken(ctx context.Context, in *types.ResourceRequ
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.ProvisionTokenV2List)
 	err := c.cc.Invoke(ctx, AuthService_GetTokens_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *authServiceClient) GetStaticTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.StaticTokensV2, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(types.StaticTokensV2)
-	err := c.cc.Invoke(ctx, AuthService_GetStaticTokens_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3023,7 +2982,6 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3List)
@@ -3094,7 +3052,6 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.DatabaseV3List)
@@ -3844,16 +3801,6 @@ func (c *authServiceClient) DeleteClusterMaintenanceConfig(ctx context.Context, 
 	return out, nil
 }
 
-func (c *authServiceClient) ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ValidateTrustedClusterResponse)
-	err := c.cc.Invoke(ctx, AuthService_ValidateTrustedCluster_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AuthServiceServer is the server API for AuthService service.
 // All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -3954,8 +3901,6 @@ type AuthServiceServer interface {
 	//
 	// Only local users may be reset.
 	CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error)
-	// ListResetPasswordTokens returns a page of user tokens.
-	ListResetPasswordTokens(context.Context, *ListResetPasswordTokenRequest) (*ListResetPasswordTokenResponse, error)
 	// Deprecated: Do not use.
 	// GetUser gets a user resource by name.
 	//
@@ -4255,10 +4200,7 @@ type AuthServiceServer interface {
 	DeleteAllServerInfos(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
-	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
-	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -4269,13 +4211,8 @@ type AuthServiceServer interface {
 	DeleteTrustedCluster(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// GetToken retrieves a token described by the given request.
 	GetToken(context.Context, *types.ResourceRequest) (*types.ProvisionTokenV2, error)
-	// Deprecated: Do not use.
 	// GetToken retrieves all tokens.
-	// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
-	// TODO(hugoShaka): DELETE IN 21.0.0
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
-	// GetStaticTokens retrieves all static tokens.
-	GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error)
 	// ListToken retrieves a paginated list of filtered provision tokens.
 	ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error)
 	// CreateTokenV2 creates a token in a backend.
@@ -4350,7 +4287,6 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -4365,7 +4301,6 @@ type AuthServiceServer interface {
 	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
 	// ListDatabases returns a page of registered databases.
@@ -4576,10 +4511,6 @@ type AuthServiceServer interface {
 	UpdateClusterMaintenanceConfig(context.Context, *types.ClusterMaintenanceConfigV1) (*emptypb.Empty, error)
 	// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
 	DeleteClusterMaintenanceConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
-	// by the proxy on behalf of a cluster that wishes to join to this one as a
-	// leaf cluster.
-	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 }
 
 // UnimplementedAuthServiceServer should be embedded to have
@@ -4714,9 +4645,6 @@ func (UnimplementedAuthServiceServer) GetResetPasswordToken(context.Context, *Ge
 }
 func (UnimplementedAuthServiceServer) CreateResetPasswordToken(context.Context, *CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateResetPasswordToken not implemented")
-}
-func (UnimplementedAuthServiceServer) ListResetPasswordTokens(context.Context, *ListResetPasswordTokenRequest) (*ListResetPasswordTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListResetPasswordTokens not implemented")
 }
 func (UnimplementedAuthServiceServer) GetUser(context.Context, *GetUserRequest) (*types.UserV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUser not implemented")
@@ -5054,9 +4982,6 @@ func (UnimplementedAuthServiceServer) GetToken(context.Context, *types.ResourceR
 func (UnimplementedAuthServiceServer) GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTokens not implemented")
 }
-func (UnimplementedAuthServiceServer) GetStaticTokens(context.Context, *emptypb.Empty) (*types.StaticTokensV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetStaticTokens not implemented")
-}
 func (UnimplementedAuthServiceServer) ListProvisionTokens(context.Context, *ListProvisionTokensRequest) (*ListProvisionTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProvisionTokens not implemented")
 }
@@ -5383,9 +5308,6 @@ func (UnimplementedAuthServiceServer) UpdateClusterMaintenanceConfig(context.Con
 }
 func (UnimplementedAuthServiceServer) DeleteClusterMaintenanceConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClusterMaintenanceConfig not implemented")
-}
-func (UnimplementedAuthServiceServer) ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ValidateTrustedCluster not implemented")
 }
 func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
 
@@ -6080,24 +6002,6 @@ func _AuthService_CreateResetPasswordToken_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).CreateResetPasswordToken(ctx, req.(*CreateResetPasswordTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_ListResetPasswordTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListResetPasswordTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).ListResetPasswordTokens(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_ListResetPasswordTokens_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ListResetPasswordTokens(ctx, req.(*ListResetPasswordTokenRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8057,24 +7961,6 @@ func _AuthService_GetTokens_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_GetStaticTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).GetStaticTokens(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_GetStaticTokens_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetStaticTokens(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AuthService_ListProvisionTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListProvisionTokensRequest)
 	if err := dec(in); err != nil {
@@ -10023,24 +9909,6 @@ func _AuthService_DeleteClusterMaintenanceConfig_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_ValidateTrustedCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ValidateTrustedClusterRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).ValidateTrustedCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_ValidateTrustedCluster_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ValidateTrustedCluster(ctx, req.(*ValidateTrustedClusterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -10179,10 +10047,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateResetPasswordToken",
 			Handler:    _AuthService_CreateResetPasswordToken_Handler,
-		},
-		{
-			MethodName: "ListResetPasswordTokens",
-			Handler:    _AuthService_ListResetPasswordTokens_Handler,
 		},
 		{
 			MethodName: "GetUser",
@@ -10603,10 +10467,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTokens",
 			Handler:    _AuthService_GetTokens_Handler,
-		},
-		{
-			MethodName: "GetStaticTokens",
-			Handler:    _AuthService_GetStaticTokens_Handler,
 		},
 		{
 			MethodName: "ListProvisionTokens",
@@ -11035,10 +10895,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteClusterMaintenanceConfig",
 			Handler:    _AuthService_DeleteClusterMaintenanceConfig_Handler,
-		},
-		{
-			MethodName: "ValidateTrustedCluster",
-			Handler:    _AuthService_ValidateTrustedCluster_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

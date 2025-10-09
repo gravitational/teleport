@@ -4,14 +4,7 @@ description: How to access AWS with Teleport application access.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - aws
 ---
-
-<Admonition type="tip">
-If you're using AWS IAM Roles Anywhere, see the [corresponding guide](aws-console-roles-anywhere.mdx) that provides
-the recommended way to manage access to AWS Console and CLI-based tooling.
-</Admonition>
 
 You can protect the AWS Management Console and AWS APIs with Teleport. This
 makes it possible to manage access to AWS infrastructure with Teleport features
@@ -794,20 +787,6 @@ In such cases, it is recommended to deploy the Application Service on an EC2
 instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
-
-### Missing X-Forwarded-Host HTTP header
-
-You may encounter the error `proxied requests must include X-Forwarded-Host header`
-when making requests to your `tsh` local proxy. This is because Teleport
-expects the HTTP requests to include the `X-Forwarded-Host` header, containing
-a valid AWS endpoint.
-
-Ensure the application using the Teleport AWS local proxy supports HTTPS proxy
-setting. Passing the local proxy address to applications as the AWS endpoint URL
-is no longer supported.
-
-If you were previously using the `--endpoint-url` flag on `tsh proxy aws`
-command, you must update your applications to use the local HTTPS proxy instead.
 
 ## Next steps
 

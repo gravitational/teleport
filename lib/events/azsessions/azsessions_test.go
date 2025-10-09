@@ -28,11 +28,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -61,9 +61,6 @@ func TestStreams(t *testing.T) {
 	})
 	t.Run("UploadDownload", func(t *testing.T) {
 		test.UploadDownload(t, handler)
-	})
-	t.Run("UploadDownloadSummary", func(t *testing.T) {
-		test.UploadDownloadSummary(t, handler)
 	})
 	t.Run("DownloadNotFound", func(t *testing.T) {
 		test.DownloadNotFound(t, handler)

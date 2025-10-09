@@ -807,7 +807,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				// request should fail
 				_, err = a.RegisterUsingToken(ctx, &request)
 				expectedErr := &trace.AccessDeniedError{}
-				require.ErrorAs(t, err, &expectedErr, err)
+				require.ErrorAs(t, err, &expectedErr)
 			}
 		})
 	}

@@ -25,17 +25,17 @@ import (
 	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
@@ -365,7 +365,7 @@ func requireOverrideLabelSkipsRenaming(t *testing.T, r types.ResourceWithLabels,
 
 func makeAuroraPrimaryDB(t *testing.T, name, region, accountID, overrideLabel string) types.Database {
 	t.Helper()
-	cluster := &rdstypes.DBCluster{
+	cluster := &rds.DBCluster{
 		DBClusterArn:                     aws.String(fmt.Sprintf("arn:aws:rds:%s:%s:cluster:%v", region, accountID, name)),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
@@ -373,29 +373,29 @@ func makeAuroraPrimaryDB(t *testing.T, name, region, accountID, overrideLabel st
 		Engine:                           aws.String("aurora-mysql"),
 		EngineVersion:                    aws.String("8.0.0"),
 		Endpoint:                         aws.String("localhost"),
-		Port:                             aws.Int32(3306),
-		TagList: awstesthelpers.LabelsToRDSTags(map[string]string{
+		Port:                             aws.Int64(3306),
+		TagList: libcloudaws.LabelsToTags[rds.Tag](map[string]string{
 			overrideLabel: name,
 		}),
 	}
-	database, err := NewDatabaseFromRDSCluster(cluster, []rdstypes.DBInstance{})
+	database, err := NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{})
 	require.NoError(t, err)
 	return database
 }
 
 func makeRDSInstanceDB(t *testing.T, name, region, accountID, overrideLabel string) types.Database {
 	t.Helper()
-	instance := &rdstypes.DBInstance{
+	instance := &rds.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%s:%s:db:%v", region, accountID, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String(services.RDSEnginePostgres),
 		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rdstypes.Endpoint{
+		Endpoint: &rds.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int32(5432),
+			Port:    aws.Int64(5432),
 		},
-		TagList: awstesthelpers.LabelsToRDSTags(map[string]string{
+		TagList: libcloudaws.LabelsToTags[rds.Tag](map[string]string{
 			overrideLabel: name,
 		}),
 	}
@@ -490,6 +490,7 @@ func makeAzureRedisEnterpriseDB(t *testing.T, name, region, group, subscription 
 func labelsToAzureTags(labels map[string]string) map[string]*string {
 	tags := make(map[string]*string, len(labels))
 	for k, v := range labels {
+		v := v
 		tags[k] = &v
 	}
 	return tags
@@ -497,14 +498,15 @@ func labelsToAzureTags(labels map[string]string) map[string]*string {
 
 func makeEKSKubeCluster(t *testing.T, name, region, accountID, overrideLabel string) types.KubeCluster {
 	t.Helper()
-	eksCluster := &ekstypes.Cluster{
-		Name: aws.String(name),
-		Arn:  aws.String(fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, name)),
-		Tags: map[string]string{
-			overrideLabel: name,
+	eksCluster := &eks.Cluster{
+		Name:   aws.String(name),
+		Arn:    aws.String(fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, accountID, name)),
+		Status: aws.String(eks.ClusterStatusActive),
+		Tags: map[string]*string{
+			overrideLabel: aws.String(name),
 		},
 	}
-	kubeCluster, err := NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
+	kubeCluster, err := NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAWS())
 	return kubeCluster

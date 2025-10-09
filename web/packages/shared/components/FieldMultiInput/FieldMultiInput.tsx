@@ -48,15 +48,7 @@ type StringListValidationResult = ValidationResult & {
 export type FieldMultiInputProps = {
   label?: string;
   value: string[];
-  /**
-   * Disables and mutes all controls and values.
-   */
   disabled?: boolean;
-  /**
-   * Disables inputs and hides controls
-   * but does not mute values.
-   */
-  readOnly?: boolean;
   /** Adds a required field indicator to the label. */
   required?: boolean;
   tooltipContent?: ReactNode;
@@ -77,7 +69,6 @@ export function FieldMultiInput({
   label,
   value,
   disabled,
-  readOnly,
   required,
   tooltipContent,
   tooltipSticky,
@@ -98,7 +89,7 @@ export function FieldMultiInput({
 
   const theme = useTheme();
   // Index of the input to be focused after the next rendering.
-  const toFocus = useRef<number | undefined>(undefined);
+  const toFocus = useRef<number | undefined>();
 
   const setFocus = (element: HTMLInputElement) => {
     element?.focus();
@@ -173,35 +164,28 @@ export function FieldMultiInput({
                   }
                   onKeyDown={e => handleKeyDown(i, e)}
                   mb={0}
-                  readonly={readOnly}
-                  disabled={disabled}
                 />
               </Box>
-              {!readOnly && (
-                <ButtonIcon
-                  size={0}
-                  title="Remove Item"
-                  onClick={() => removeItem(i)}
-                  disabled={disabled}
-                >
-                  <Icon.Cross size="small" color={theme.colors.text.muted} />
-                </ButtonIcon>
-              )}
+              <ButtonIcon
+                size="0"
+                title="Remove Item"
+                onClick={() => removeItem(i)}
+                disabled={disabled}
+              >
+                <Icon.Cross size="small" color={theme.colors.text.muted} />
+              </ButtonIcon>
             </Flex>
           );
         })}
-        {!readOnly && (
-          <ButtonSecondary
-            alignSelf="start"
-            size="small"
-            inputAlignment
-            onClick={() => insertItem(value.length)}
-            disabled={disabled}
-          >
-            <Icon.Plus size="small" mr={2} />
-            Add More
-          </ButtonSecondary>
-        )}
+        <ButtonSecondary
+          alignSelf="start"
+          size="small"
+          inputAlignment
+          onClick={() => insertItem(value.length)}
+        >
+          <Icon.Plus size="small" mr={2} />
+          Add More
+        </ButtonSecondary>
       </Fieldset>
     </Box>
   );

@@ -23,10 +23,9 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net/url"
-	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
-	"github.com/google/safetext/shsprintf"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -51,16 +50,12 @@ type AzureRunRequest struct {
 	ScriptName      string
 	PublicProxyAddr string
 	ClientID        string
-	InstallSuffix   string
-	UpdateGroup     string
-
-	randReader func(b []byte) (n int, err error)
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
 // commands have completed.
 func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
-	script, err := getInstallerScript(req)
+	script, err := getInstallerScript(req.ScriptName, req.PublicProxyAddr, req.ClientID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -70,11 +65,12 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	g.SetLimit(10)
 
 	for _, inst := range req.Instances {
+		inst := inst
 		g.Go(func() error {
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,
 				ResourceGroup: req.ResourceGroup,
-				VMName:        azure.StringVal(inst.Name),
+				VMName:        aws.StringValue(inst.Name),
 				Parameters:    req.Params,
 				Script:        script,
 			}
@@ -84,14 +80,14 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	return trace.Wrap(g.Wait())
 }
 
-func getInstallerScript(req AzureRunRequest) (string, error) {
-	installerURL, err := url.Parse(fmt.Sprintf("https://%s/v1/webapi/scripts/installer/%v", req.PublicProxyAddr, req.ScriptName))
+func getInstallerScript(installerName, publicProxyAddr, clientID string) (string, error) {
+	installerURL, err := url.Parse(fmt.Sprintf("https://%s/v1/webapi/scripts/installer/%v", publicProxyAddr, installerName))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if req.ClientID != "" {
+	if clientID != "" {
 		q := installerURL.Query()
-		q.Set("azure-client-id", req.ClientID)
+		q.Set("azure-client-id", clientID)
 		installerURL.RawQuery = q.Encode()
 	}
 
@@ -101,28 +97,8 @@ func getInstallerScript(req AzureRunRequest) (string, error) {
 	// work around this, we generate a random string and append it as a comment
 	// to the script, forcing Azure to see each invocation as unique.
 	nonce := make([]byte, 8)
-	switch {
-	case req.randReader != nil:
-		_, _ = req.randReader(nonce)
-	default:
-		// No big deal if rand.Read fails, the script is still valid.
-		_, _ = rand.Read(nonce)
-	}
+	// No big deal if rand.Read fails, the script is still valid.
+	_, _ = rand.Read(nonce)
 	script := fmt.Sprintf("curl -s -L %s| bash -s $@ #%x", installerURL, nonce)
-
-	var envVars []string
-	if req.InstallSuffix != "" {
-		safeInstallSuffix := shsprintf.EscapeDefaultContext(req.InstallSuffix)
-		envVars = append(envVars, fmt.Sprintf("TELEPORT_INSTALL_SUFFIX=%q", safeInstallSuffix))
-	}
-	if req.UpdateGroup != "" {
-		safeUpdateGroup := shsprintf.EscapeDefaultContext(req.UpdateGroup)
-		envVars = append(envVars, fmt.Sprintf("TELEPORT_UPDATE_GROUP=%q", safeUpdateGroup))
-	}
-
-	if len(envVars) > 0 {
-		script = fmt.Sprintf("export %s; %s", strings.Join(envVars, " "), script)
-	}
-
 	return script, nil
 }

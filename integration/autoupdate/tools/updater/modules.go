@@ -62,10 +62,6 @@ func init() {
 
 type TestModules struct{}
 
-func (p *TestModules) GenerateLongTermResourceGrouping(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	return &types.LongTermResourceGrouping{}, nil
-}
-
 func (p *TestModules) GenerateAccessRequestPromotions(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
@@ -116,7 +112,7 @@ func (p *TestModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *TestModules) AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
+func (p *TestModules) AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -79,6 +80,7 @@ type AWSOIDCServiceConfig struct {
 	IntegrationService    *Service
 	Authorizer            authz.Authorizer
 	Cache                 CacheAWSOIDC
+	TokenCreator          TokenCreator
 	Clock                 clockwork.Clock
 	ProxyPublicAddrGetter func() string
 	Logger                *slog.Logger
@@ -97,6 +99,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 
 	if s.Cache == nil {
 		return trace.BadParameter("cache is required")
+	}
+
+	if s.TokenCreator == nil {
+		return trace.BadParameter("token creator is required")
 	}
 
 	if s.Clock == nil {
@@ -124,6 +130,7 @@ type AWSOIDCService struct {
 	clock                 clockwork.Clock
 	proxyPublicAddrGetter func() string
 	cache                 CacheAWSOIDC
+	tokenCreator          TokenCreator
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -131,11 +138,14 @@ type CacheAWSOIDC interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 
+	// GetClusterName returns the current cluster name.
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+}
+
+// TokenCreator is a subset of the auth server methods used to create tokens.
+type TokenCreator interface {
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
-
-	// GetClusterName returns the current cluster name.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -151,6 +161,7 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
 		clock:                 cfg.Clock,
 		cache:                 cfg.Cache,
+		tokenCreator:          cfg.TokenCreator,
 	}, nil
 }
 
@@ -199,8 +210,6 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 }
 
 // ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEICERequest) (*integrationpb.ListEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -250,8 +259,6 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 }
 
 // CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -272,7 +279,7 @@ func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -454,7 +461,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -464,7 +471,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -509,7 +516,7 @@ func (s *AWSOIDCService) ListDeployedDatabaseServices(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -571,14 +578,14 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.tokenCreator.UpsertToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	features := modules.GetModules().Features()
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -624,7 +631,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -634,7 +641,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -664,8 +671,6 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 }
 
 // ListEC2 returns a paginated list of AWS EC2 instances.
-//
-// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

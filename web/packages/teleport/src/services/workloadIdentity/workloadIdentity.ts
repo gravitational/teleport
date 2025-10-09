@@ -26,24 +26,20 @@ export async function listWorkloadIdentities(
   variables: {
     pageToken: string;
     pageSize: number;
-    sortField: string;
-    sortDir: string;
+    sort?: string;
     searchTerm?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, sortField, sortDir, searchTerm } = variables;
+  const { pageToken, pageSize, sort, searchTerm } = variables;
 
   const path = cfg.getWorkloadIdentityUrl({ action: 'list' });
   const qs = new URLSearchParams();
 
   qs.set('page_size', pageSize.toFixed());
   qs.set('page_token', pageToken);
-  if (sortField) {
-    qs.set('sort_field', sortField);
-  }
-  if (sortDir) {
-    qs.set('sort_dir', sortDir);
+  if (sort) {
+    qs.set('sort', sort);
   }
   if (searchTerm) {
     qs.set('search', searchTerm);

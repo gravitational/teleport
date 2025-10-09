@@ -29,11 +29,7 @@ import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAsync';
-import {
-  AccessRequest,
-  RequestKind,
-  RequestState,
-} from 'shared/services/accessRequests';
+import { AccessRequest, RequestState } from 'shared/services/accessRequests';
 
 import { AccessDurationReview } from '../../../AccessDuration';
 import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
@@ -302,13 +298,9 @@ function makeReviewStateOptions(
     );
   }
 
-  const opts: ReviewStateOption[] = [
+  return [
     { value: 'DENIED', label: <>Reject request</> },
-  ];
-
-  // Don't allow approving short-term access for long-term requests.
-  if (request.requestKind !== RequestKind.LongTerm) {
-    opts.push({
+    {
       value: 'APPROVED',
       label: (
         <>
@@ -316,19 +308,16 @@ function makeReviewStateOptions(
           {shortTermDuration ? ` (${shortTermDuration})` : ''}
         </>
       ),
-    });
-  }
-
-  opts.push({
-    value: 'PROMOTED',
-    disabled:
-      fetchSuggestedAccessListsAttempt.status === 'error' ||
-      (fetchSuggestedAccessListsAttempt.status === 'success' &&
-        fetchSuggestedAccessListsAttempt.data.length === 0),
-    label: <>{promotedContent}</>,
-  });
-
-  return opts;
+    },
+    {
+      value: 'PROMOTED',
+      disabled:
+        fetchSuggestedAccessListsAttempt.status === 'error' ||
+        (fetchSuggestedAccessListsAttempt.status === 'success' &&
+          fetchSuggestedAccessListsAttempt.data.length === 0),
+      label: <>{promotedContent}</>,
+    },
+  ];
 }
 
 const TextMutedNoEllipsis = styled.div`

@@ -26,15 +26,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSQLManagedServerFetcher(t *testing.T) {
-	logger := logtest.NewLogger()
+	logger := utils.NewLoggerForTests()
 	fetcher := &azureManagedSQLServerFetcher{}
 
 	t.Run("NewDatabaseFromServer", func(t *testing.T) {
-		ctx := t.Context()
 		// List of provisioning states that are used to identify a database is
 		// available and can be discovered.
 		availableStates := []armsql.ManagedInstancePropertiesProvisioningState{
@@ -47,7 +46,7 @@ func TestSQLManagedServerFetcher(t *testing.T) {
 		// For available states, it should return a parsed database.
 		for _, state := range availableStates {
 			t.Run(string(state), func(t *testing.T) {
-				require.NotNil(t, fetcher.NewDatabaseFromServer(ctx, makeManagedSQLInstance(state), logger), "expected to have a database, but got nil")
+				require.NotNil(t, fetcher.NewDatabaseFromServer(makeManagedSQLInstance(state), logger), "expected to have a database, but got nil")
 			})
 		}
 
@@ -59,14 +58,13 @@ func TestSQLManagedServerFetcher(t *testing.T) {
 			}
 
 			t.Run(string(state), func(t *testing.T) {
-				require.Nil(t, fetcher.NewDatabaseFromServer(ctx, makeManagedSQLInstance(state), logger), "expected to have nil, but got a database")
+				require.Nil(t, fetcher.NewDatabaseFromServer(makeManagedSQLInstance(state), logger), "expected to have nil, but got a database")
 			})
 		}
 
 		t.Run("RandomState", func(t *testing.T) {
 			require.NotNil(t,
 				fetcher.NewDatabaseFromServer(
-					ctx,
 					makeManagedSQLInstance("RandomState"),
 					logger,
 				),

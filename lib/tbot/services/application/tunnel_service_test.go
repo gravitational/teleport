@@ -37,14 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestE2E_ApplicationTunnelService(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	// Spin up a test HTTP server
 	wantStatus := http.StatusTeapot
@@ -148,11 +148,15 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 			Host:   botListener.Addr().String(),
 		}
 		resp, err := http.Get(proxyUrl.String())
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		defer resp.Body.Close()
-		require.Equal(t, wantStatus, resp.StatusCode)
+		assert.Equal(t, wantStatus, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Equal(t, wantBody, body)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, wantBody, body)
 	}, 10*time.Second, 100*time.Millisecond)
 }

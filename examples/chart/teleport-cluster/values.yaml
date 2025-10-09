@@ -129,11 +129,12 @@ authentication:
   # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
   lockingMode: ""
 
-  # DEPRECATED: Second factor requirements for users of the Teleport cluster.
-  # Controls the `auth_config.authentication.second_factor` field in `teleport.yaml`.
-  # Possible values are 'off', 'on', 'otp', 'optional' and 'webauthn'.
-  # This field is kept for backward compatibility purposes, you should use
-  # `secondFactors` instead.
+  # Second factor requirements for users of the Teleport cluster. Controls the
+  # `auth_config.authentication.second_factor` field in `teleport.yaml`.
+  # Possible values are 'off', 'on', 'otp', 'optional' and 'webauthn'. This
+  # field is kept for backward compatibility purposes, you should use
+  # `secondFactors` instead, after the cluster has been fully upgraded to
+  # version 17.0.0 or later.
   #
   # WARNING:
   #   If you set `publicAddr` for users to access the cluster under a domain different
@@ -150,12 +151,13 @@ authentication:
   #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
   #
   #   Changing the RP ID will invalidate all already registered webauthn second factors.
-  # secondFactor: ""
+  secondFactor: "on"
 
-  # Second factor requirements for users of the Teleport cluster.
-  # Controls the `auth_config.authentication.second_factors` field in `teleport.yaml`.
-  # This is a list whose possible item values are item values are 'otp', 'sso' and 'webauthn'.
-  # This should be preferred over `secondFactor`.
+  # Second factor requirements for users of the Teleport cluster. Controls the
+  # `auth_config.authentication.second_factors` field in `teleport.yaml`. This
+  # is a list whose possible item values are item values are 'otp', 'sso' and
+  # 'webauthn'. This should be preferred over `secondFactor` once the cluster
+  # has been fully upgraded to version 17.0.0 or later.
   #
   # WARNING:
   #   If you set `publicAddr` for users to access the cluster under a domain different
@@ -172,7 +174,7 @@ authentication:
   #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
   #
   #   Changing the RP ID will invalidate all already registered webauthn second factors.
-  secondFactors: ["otp", "webauthn"]
+  # secondFactors: ["otp", "webauthn"]
 
   # (Optional) When using webauthn this allows to restrict which vendor and key models can be used.
   # webauthn:

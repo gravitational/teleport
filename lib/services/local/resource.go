@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -74,7 +73,14 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	var extItems []backend.Item
 	var err error
 
-	switch r := resource.(type) {
+	// Unwrap "new style" resources.
+	// We always want to switch over the underlying type.
+	var res any = resource
+	if w, ok := res.(types.Resource153Unwrapper); ok {
+		res = w.Unwrap()
+	}
+
+	switch r := res.(type) {
 	case types.User:
 		item, err = itemFromUser(r)
 		if auth := r.GetLocalAuth(); err == nil && auth != nil {
@@ -100,12 +106,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromClusterNetworkingConfig(r)
 	case types.AuthPreference:
 		item, err = itemFromAuthPreference(r)
-	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
-		item, err = itemFromAutoUpdateConfig(r.UnwrapT())
-	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
-		item, err = itemFromAutoUpdateVersion(r.UnwrapT())
-	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
-		item, err = itemFromHealthCheckConfig(r.UnwrapT())
+	case *autoupdatev1pb.AutoUpdateConfig:
+		item, err = itemFromAutoUpdateConfig(r)
+	case *autoupdatev1pb.AutoUpdateVersion:
+		item, err = itemFromAutoUpdateVersion(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}

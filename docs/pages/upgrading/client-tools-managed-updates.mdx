@@ -49,7 +49,7 @@ Allows mirroring the CDN in a private network or using custom builds.
 Only one process can acquire the lock to update client tools, while other processes wait for the lock to be released.
 If the first process cancels the update, the next process in line will initiate the update.
 
-### Multi-cluster support and multi-version caching
+### Multi-cluster support and multi-version caching (v17.6.0+)
 
 Client tools managed updates support multi-cluster environments. When you log in to different clusters that use
 different versions (including different major versions), the client makes a request to the `/v1/webapi/find` endpoint
@@ -132,6 +132,9 @@ If there is no active session, but a versioned binary exists in the tools direct
 ## Configuring client tool managed updates
 
 ### Cluster-wide using `tctl`
+
+To configure client tool managed updates in your cluster, you must have access to the
+`autoupdate_config` and `autoupdate_version` resources. By default, the `editor` role can modify both resources. Note that `autoupdate_version` is managed for you on Cloud clusters, and cannot be edited.
 
 To enable or disable client tools managed updates in the cluster, use the following command:
 

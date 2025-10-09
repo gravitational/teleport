@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/datadog"
 )
@@ -327,6 +328,6 @@ func (d *FakeDatadog) GetOncallTeams() (map[string][]string, bool) {
 
 func panicIf(err error) {
 	if err != nil {
-		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
+		log.Panicf("%v at %v", err, string(debug.Stack()))
 	}
 }

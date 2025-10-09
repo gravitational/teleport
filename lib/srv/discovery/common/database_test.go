@@ -24,15 +24,16 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
-	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
-	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -42,7 +43,6 @@ import (
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -217,7 +217,7 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstance(t *testing.T) {
-	instance := &rdstypes.DBInstance{
+	instance := &rds.DBInstance{
 		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 		DBInstanceIdentifier:             aws.String("instance-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
@@ -225,11 +225,11 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 		Engine:                           aws.String(services.RDSEnginePostgres),
 		EngineVersion:                    aws.String("13.0"),
-		Endpoint: &rdstypes.Endpoint{
+		Endpoint: &rds.Endpoint{
 			Address: aws.String("localhost"),
-			Port:    aws.Int32(5432),
+			Port:    aws.Int64(5432),
 		},
-		TagList: []rdstypes.Tag{{
+		TagList: []*rds.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
@@ -268,7 +268,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 
 // TestDatabaseFromRDSV2Instance tests converting an RDS instance (from aws sdk v2/rds) to a database resource.
 func TestDatabaseFromRDSV2Instance(t *testing.T) {
-	instance := &rdstypes.DBInstance{
+	instance := &rdsTypesV2.DBInstance{
 		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 		DBInstanceIdentifier:             aws.String("instance-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
@@ -277,16 +277,16 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 		Engine:                           aws.String(services.RDSEnginePostgres),
 		EngineVersion:                    aws.String("13.0"),
-		Endpoint: &rdstypes.Endpoint{
+		Endpoint: &rdsTypesV2.Endpoint{
 			Address: aws.String("localhost"),
 			Port:    aws.Int32(5432),
 		},
-		TagList: []rdstypes.Tag{{
+		TagList: []rdsTypesV2.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
-		DBSubnetGroup: &rdstypes.DBSubnetGroup{
-			Subnets: []rdstypes.Subnet{
+		DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
+			Subnets: []rdsTypesV2.Subnet{
 				{SubnetIdentifier: aws.String("")},
 				{SubnetIdentifier: aws.String("subnet-1234567890abcdef0")},
 				{SubnetIdentifier: aws.String("subnet-1234567890abcdef1")},
@@ -294,7 +294,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			},
 			VpcId: aws.String("vpc-asd"),
 		},
-		VpcSecurityGroups: []rdstypes.VpcSecurityGroupMembership{
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
 			{VpcSecurityGroupId: aws.String("")},
 			{VpcSecurityGroupId: aws.String("sg-1")},
 			{VpcSecurityGroupId: aws.String("sg-2")},
@@ -348,7 +348,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			newName := "override-1"
 			instance := instance
 			instance.TagList = append(instance.TagList,
-				rdstypes.Tag{
+				rdsTypesV2.Tag{
 					Key:   aws.String(overrideLabel),
 					Value: aws.String(newName),
 				},
@@ -365,7 +365,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
-		instance := &rdstypes.DBInstance{
+		instance := &rds.DBInstance{
 			DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
 			DBInstanceIdentifier:             aws.String("instance-1"),
 			DBClusterIdentifier:              aws.String("cluster-1"),
@@ -373,11 +373,11 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 			IAMDatabaseAuthenticationEnabled: aws.Bool(true),
 			Engine:                           aws.String(services.RDSEnginePostgres),
 			EngineVersion:                    aws.String("13.0"),
-			Endpoint: &rdstypes.Endpoint{
+			Endpoint: &rds.Endpoint{
 				Address: aws.String("localhost"),
-				Port:    aws.Int32(5432),
+				Port:    aws.Int64(5432),
 			},
-			TagList: []rdstypes.Tag{
+			TagList: []*rds.Tag{
 				{Key: aws.String("key"), Value: aws.String("val")},
 				{Key: aws.String(overrideLabel), Value: aws.String("override-1")},
 			},
@@ -421,8 +421,8 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 // TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
 func TestDatabaseFromRDSCluster(t *testing.T) {
 	vpcid := uuid.NewString()
-	dbInstanceMembers := []rdstypes.DBInstance{{DBSubnetGroup: &rdstypes.DBSubnetGroup{VpcId: aws.String(vpcid)}}}
-	cluster := &rdstypes.DBCluster{
+	dbInstanceMembers := []*rds.DBInstance{{DBSubnetGroup: &rds.DBSubnetGroup{VpcId: aws.String(vpcid)}}}
+	cluster := &rds.DBCluster{
 		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
@@ -431,12 +431,12 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		EngineVersion:                    aws.String("8.0.0"),
 		Endpoint:                         aws.String("localhost"),
 		ReaderEndpoint:                   aws.String("reader.host"),
-		Port:                             aws.Int32(3306),
-		CustomEndpoints: []string{
-			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
-			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
+		Port:                             aws.Int64(3306),
+		CustomEndpoints: []*string{
+			aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+			aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 		},
-		TagList: []rdstypes.Tag{{
+		TagList: []*rds.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
@@ -549,9 +549,9 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 
 	t.Run("bad custom endpoints ", func(t *testing.T) {
 		badCluster := *cluster
-		badCluster.CustomEndpoints = []string{
-			"badendpoint1",
-			"badendpoint2",
+		badCluster.CustomEndpoints = []*string{
+			aws.String("badendpoint1"),
+			aws.String("badendpoint2"),
 		}
 		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster, dbInstanceMembers)
 		require.Error(t, err)
@@ -561,7 +561,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 // TestDatabaseFromRDSV2Cluster tests converting an RDS cluster to a database resource.
 // It uses the V2 of the aws sdk.
 func TestDatabaseFromRDSV2Cluster(t *testing.T) {
-	cluster := &rdstypes.DBCluster{
+	cluster := &rdsTypesV2.DBCluster{
 		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 		DBClusterIdentifier:              aws.String("cluster-1"),
 		DbClusterResourceId:              aws.String("resource-1"),
@@ -572,7 +572,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		Endpoint:                         aws.String("localhost"),
 		ReaderEndpoint:                   aws.String("reader.host"),
 		Port:                             aws.Int32(3306),
-		VpcSecurityGroups: []rdstypes.VpcSecurityGroupMembership{
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
 			{VpcSecurityGroupId: aws.String("")},
 			{VpcSecurityGroupId: aws.String("sg-1")},
 			{VpcSecurityGroupId: aws.String("sg-2")},
@@ -581,7 +581,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
 			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
 		},
-		TagList: []rdstypes.Tag{{
+		TagList: []rdsTypesV2.Tag{{
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
@@ -630,7 +630,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 				newName := "override-1"
 
 				cluster.TagList = append(cluster.TagList,
-					rdstypes.Tag{
+					rdsTypesV2.Tag{
 						Key:   aws.String(overrideLabel),
 						Value: aws.String(newName),
 					},
@@ -645,10 +645,10 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 	})
 
 	t.Run("DB Cluster uses network information from DB Instance when available", func(t *testing.T) {
-		instance := &rdstypes.DBInstance{
-			DBSubnetGroup: &rdstypes.DBSubnetGroup{
+		instance := &rdsTypesV2.DBInstance{
+			DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
 				VpcId: aws.String("vpc-123"),
-				Subnets: []rdstypes.Subnet{
+				Subnets: []rdsTypesV2.Subnet{
 					{SubnetIdentifier: aws.String("subnet-123")},
 					{SubnetIdentifier: aws.String("subnet-456")},
 				},
@@ -699,9 +699,9 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 
 // TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
 func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
-	dbInstanceMembers := []rdstypes.DBInstance{{DBSubnetGroup: &rdstypes.DBSubnetGroup{VpcId: aws.String("vpc-123")}}}
+	dbInstanceMembers := []*rds.DBInstance{{DBSubnetGroup: &rds.DBSubnetGroup{VpcId: aws.String("vpc-123")}}}
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
-		cluster := &rdstypes.DBCluster{
+		cluster := &rds.DBCluster{
 			DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
 			DBClusterIdentifier:              aws.String("cluster-1"),
 			DbClusterResourceId:              aws.String("resource-1"),
@@ -710,12 +710,12 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			EngineVersion:                    aws.String("8.0.0"),
 			Endpoint:                         aws.String("localhost"),
 			ReaderEndpoint:                   aws.String("reader.host"),
-			Port:                             aws.Int32(3306),
-			CustomEndpoints: []string{
-				"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
-				"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
+			Port:                             aws.Int64(3306),
+			CustomEndpoints: []*string{
+				aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+				aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 			},
-			TagList: []rdstypes.Tag{
+			TagList: []*rds.Tag{
 				{Key: aws.String("key"), Value: aws.String("val")},
 				{Key: aws.String(overrideLabel), Value: aws.String("mycluster-2")},
 			},
@@ -831,9 +831,9 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 
 		t.Run("bad custom endpoints ", func(t *testing.T) {
 			badCluster := *cluster
-			badCluster.CustomEndpoints = []string{
-				"badendpoint1",
-				"badendpoint2",
+			badCluster.CustomEndpoints = []*string{
+				aws.String("badendpoint1"),
+				aws.String("badendpoint2"),
 			}
 			_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster, dbInstanceMembers)
 			require.Error(t, err)
@@ -896,7 +896,7 @@ func TestNewDatabasesFromDocumentDBCluster(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		inputCluster  *rdstypes.DBCluster
+		inputCluster  *rds.DBCluster
 		wantDatabases types.Databases
 	}{
 		{
@@ -929,26 +929,26 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 	}{
 		{
 			desc:         "mysql",
-			engineFamily: string(rdstypes.EngineFamilyMysql),
+			engineFamily: rds.EngineFamilyMysql,
 			wantProtocol: "mysql",
 			wantPort:     3306,
 		},
 		{
 			desc:         "postgres",
-			engineFamily: string(rdstypes.EngineFamilyPostgresql),
+			engineFamily: rds.EngineFamilyPostgresql,
 			wantProtocol: "postgres",
 			wantPort:     5432,
 		},
 		{
 			desc:         "sqlserver",
-			engineFamily: string(rdstypes.EngineFamilySqlserver),
+			engineFamily: rds.EngineFamilySqlserver,
 			wantProtocol: "sqlserver",
 			wantPort:     1433,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			dbProxy := &rdstypes.DBProxy{
+			dbProxy := &rds.DBProxy{
 				DBProxyArn:   aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy:prx-abcdef"),
 				DBProxyName:  aws.String("testproxy"),
 				EngineFamily: aws.String(test.engineFamily),
@@ -956,15 +956,15 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 				VpcId:        aws.String("test-vpc-id"),
 			}
 
-			dbProxyEndpoint := &rdstypes.DBProxyEndpoint{
+			dbProxyEndpoint := &rds.DBProxyEndpoint{
 				Endpoint:            aws.String("custom.proxy.rds.test"),
 				DBProxyEndpointName: aws.String("custom"),
 				DBProxyName:         aws.String("testproxy"),
 				DBProxyEndpointArn:  aws.String("arn:aws:rds:ca-central-1:123456789012:db-proxy-endpoint:prx-endpoint-abcdef"),
-				TargetRole:          rdstypes.DBProxyEndpointTargetRoleReadOnly,
+				TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
 			}
 
-			tags := []rdstypes.Tag{{
+			tags := []*rds.Tag{{
 				Key:   aws.String("key"),
 				Value: aws.String("val"),
 			}}
@@ -1059,7 +1059,7 @@ func TestAuroraMySQLVersion(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.engineVersion, func(t *testing.T) {
-			require.Equal(t, test.expectedMySQLVersion, libcloudaws.AuroraMySQLVersion(&rdstypes.DBCluster{EngineVersion: aws.String(test.engineVersion)}))
+			require.Equal(t, test.expectedMySQLVersion, libcloudaws.AuroraMySQLVersion(&rds.DBCluster{EngineVersion: aws.String(test.engineVersion)}))
 		})
 	}
 }
@@ -1099,7 +1099,7 @@ func TestIsRDSClusterSupported(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cluster := &rdstypes.DBCluster{
+			cluster := &rds.DBCluster{
 				DBClusterArn:        aws.String("arn:aws:rds:us-east-1:123456789012:cluster:test"),
 				DBClusterIdentifier: aws.String(test.name),
 				DbClusterResourceId: aws.String(uuid.New().String()),
@@ -1149,7 +1149,7 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cluster := &rdstypes.DBInstance{
+			cluster := &rds.DBInstance{
 				DBInstanceArn:       aws.String("arn:aws:rds:us-east-1:123456789012:instance:test"),
 				DBClusterIdentifier: aws.String(test.name),
 				DbiResourceId:       aws.String(uuid.New().String()),
@@ -1182,14 +1182,14 @@ func TestAzureTagsToLabels(t *testing.T) {
 // TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
 func TestDatabaseFromRedshiftCluster(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		cluster := &redshifttypes.Cluster{
+		cluster := &redshift.Cluster{
 			ClusterIdentifier:   aws.String("mycluster"),
 			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-			Endpoint: &redshifttypes.Endpoint{
+			Endpoint: &redshift.Endpoint{
 				Address: aws.String("localhost"),
-				Port:    aws.Int32(5439),
+				Port:    aws.Int64(5439),
 			},
-			Tags: []redshifttypes.Tag{
+			Tags: []*redshift.Tag{
 				{
 					Key:   aws.String("key"),
 					Value: aws.String("val"),
@@ -1231,14 +1231,14 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("success with name override via"+overrideLabel, func(t *testing.T) {
-			cluster := &redshifttypes.Cluster{
+			cluster := &redshift.Cluster{
 				ClusterIdentifier:   aws.String("mycluster"),
 				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-				Endpoint: &redshifttypes.Endpoint{
+				Endpoint: &redshift.Endpoint{
 					Address: aws.String("localhost"),
-					Port:    aws.Int32(5439),
+					Port:    aws.Int64(5439),
 				},
-				Tags: []redshifttypes.Tag{
+				Tags: []*redshift.Tag{
 					{
 						Key:   aws.String("key"),
 						Value: aws.String("val"),
@@ -1284,7 +1284,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		})
 
 		t.Run("missing endpoint", func(t *testing.T) {
-			_, err := NewDatabaseFromRedshiftCluster(&redshifttypes.Cluster{
+			_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
 				ClusterIdentifier: aws.String("still-creating"),
 			})
 			require.Error(t, err)
@@ -1294,21 +1294,21 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 }
 
 func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
-	cluster := &ectypes.ReplicationGroup{
+	cluster := &elasticache.ReplicationGroup{
 		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
 		ClusterEnabled:           aws.Bool(true),
-		ConfigurationEndpoint: &ectypes.Endpoint{
+		ConfigurationEndpoint: &elasticache.Endpoint{
 			Address: aws.String("configuration.localhost"),
-			Port:    aws.Int32(6379),
+			Port:    aws.Int64(6379),
 		},
-		UserGroupIds: []string{"my-user-group"},
-		NodeGroups: []ectypes.NodeGroup{
+		UserGroupIds: []*string{aws.String("my-user-group")},
+		NodeGroups: []*elasticache.NodeGroup{
 			{
 				NodeGroupId: aws.String("0001"),
-				NodeGroupMembers: []ectypes.NodeGroupMember{
+				NodeGroupMembers: []*elasticache.NodeGroupMember{
 					{
 						CacheClusterId: aws.String("my-cluster-0001-001"),
 					},
@@ -1319,7 +1319,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 			},
 			{
 				NodeGroupId: aws.String("0002"),
-				NodeGroupMembers: []ectypes.NodeGroupMember{
+				NodeGroupMembers: []*elasticache.NodeGroupMember{
 					{
 						CacheClusterId: aws.String("my-cluster-0002-001"),
 					},
@@ -1366,21 +1366,21 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("via "+overrideLabel, func(t *testing.T) {
-			cluster := &ectypes.ReplicationGroup{
+			cluster := &elasticache.ReplicationGroup{
 				ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 				ReplicationGroupId:       aws.String("my-cluster"),
 				Status:                   aws.String("available"),
 				TransitEncryptionEnabled: aws.Bool(true),
 				ClusterEnabled:           aws.Bool(true),
-				ConfigurationEndpoint: &ectypes.Endpoint{
+				ConfigurationEndpoint: &elasticache.Endpoint{
 					Address: aws.String("configuration.localhost"),
-					Port:    aws.Int32(6379),
+					Port:    aws.Int64(6379),
 				},
-				UserGroupIds: []string{"my-user-group"},
-				NodeGroups: []ectypes.NodeGroup{
+				UserGroupIds: []*string{aws.String("my-user-group")},
+				NodeGroups: []*elasticache.NodeGroup{
 					{
 						NodeGroupId: aws.String("0001"),
-						NodeGroupMembers: []ectypes.NodeGroupMember{
+						NodeGroupMembers: []*elasticache.NodeGroupMember{
 							{
 								CacheClusterId: aws.String("my-cluster-0001-001"),
 							},
@@ -1391,7 +1391,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 					},
 					{
 						NodeGroupId: aws.String("0002"),
-						NodeGroupMembers: []ectypes.NodeGroupMember{
+						NodeGroupMembers: []*elasticache.NodeGroupMember{
 							{
 								CacheClusterId: aws.String("my-cluster-0002-001"),
 							},
@@ -1442,23 +1442,23 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 }
 
 func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
-	cluster := &ectypes.ReplicationGroup{
+	cluster := &elasticache.ReplicationGroup{
 		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 		ReplicationGroupId:       aws.String("my-cluster"),
 		Status:                   aws.String("available"),
 		TransitEncryptionEnabled: aws.Bool(true),
 		ClusterEnabled:           aws.Bool(false),
-		UserGroupIds:             []string{"my-user-group"},
-		NodeGroups: []ectypes.NodeGroup{
+		UserGroupIds:             []*string{aws.String("my-user-group")},
+		NodeGroups: []*elasticache.NodeGroup{
 			{
 				NodeGroupId: aws.String("0001"),
-				PrimaryEndpoint: &ectypes.Endpoint{
+				PrimaryEndpoint: &elasticache.Endpoint{
 					Address: aws.String("primary.localhost"),
-					Port:    aws.Int32(6379),
+					Port:    aws.Int64(6379),
 				},
-				ReaderEndpoint: &ectypes.Endpoint{
+				ReaderEndpoint: &elasticache.Endpoint{
 					Address: aws.String("reader.localhost"),
-					Port:    aws.Int32(6379),
+					Port:    aws.Int64(6379),
 				},
 			},
 		},
@@ -1525,23 +1525,23 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("via "+overrideLabel, func(t *testing.T) {
-			cluster := &ectypes.ReplicationGroup{
+			cluster := &elasticache.ReplicationGroup{
 				ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
 				ReplicationGroupId:       aws.String("my-cluster"),
 				Status:                   aws.String("available"),
 				TransitEncryptionEnabled: aws.Bool(true),
 				ClusterEnabled:           aws.Bool(false),
-				UserGroupIds:             []string{"my-user-group"},
-				NodeGroups: []ectypes.NodeGroup{
+				UserGroupIds:             []*string{aws.String("my-user-group")},
+				NodeGroups: []*elasticache.NodeGroup{
 					{
 						NodeGroupId: aws.String("0001"),
-						PrimaryEndpoint: &ectypes.Endpoint{
+						PrimaryEndpoint: &elasticache.Endpoint{
 							Address: aws.String("primary.localhost"),
-							Port:    aws.Int32(6379),
+							Port:    aws.Int64(6379),
 						},
-						ReaderEndpoint: &ectypes.Endpoint{
+						ReaderEndpoint: &elasticache.Endpoint{
 							Address: aws.String("reader.localhost"),
-							Port:    aws.Int32(6379),
+							Port:    aws.Int64(6379),
 						},
 					},
 				},
@@ -1613,15 +1613,15 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 }
 
 func TestDatabaseFromMemoryDBCluster(t *testing.T) {
-	cluster := &memorydbtypes.Cluster{
+	cluster := &memorydb.Cluster{
 		ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
 		Name:       aws.String("my-cluster"),
 		Status:     aws.String("available"),
 		TLSEnabled: aws.Bool(true),
 		ACLName:    aws.String("my-user-group"),
-		ClusterEndpoint: &memorydbtypes.Endpoint{
+		ClusterEndpoint: &memorydb.Endpoint{
 			Address: aws.String("memorydb.localhost"),
-			Port:    6379,
+			Port:    aws.Int64(6379),
 		},
 	}
 	extraLabels := map[string]string{"key": "value"}
@@ -1659,7 +1659,7 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 
 func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
-	tags := awstesthelpers.LabelsToRedshiftServerlessTags(map[string]string{"env": "prod"})
+	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup",
 		Description: "Redshift Serverless workgroup in eu-west-2",
@@ -1694,7 +1694,7 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 	workgroup := mocks.RedshiftServerlessWorkgroup("my-workgroup", "eu-west-2")
 	endpoint := mocks.RedshiftServerlessEndpointAccess(workgroup, "my-endpoint", "eu-west-2")
-	tags := awstesthelpers.LabelsToRedshiftServerlessTags(map[string]string{"env": "prod"})
+	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](map[string]string{"env": "prod"})
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-workgroup-my-endpoint",
 		Description: "Redshift Serverless endpoint in eu-west-2",
@@ -1734,15 +1734,15 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
 		t.Run("via "+overrideLabel, func(t *testing.T) {
-			cluster := &memorydbtypes.Cluster{
+			cluster := &memorydb.Cluster{
 				ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
 				Name:       aws.String("my-cluster"),
 				Status:     aws.String("available"),
 				TLSEnabled: aws.Bool(true),
 				ACLName:    aws.String("my-user-group"),
-				ClusterEndpoint: &memorydbtypes.Endpoint{
+				ClusterEndpoint: &memorydb.Endpoint{
 					Address: aws.String("memorydb.localhost"),
-					Port:    6379,
+					Port:    aws.Int64(6379),
 				},
 			}
 			extraLabels := map[string]string{
@@ -1785,16 +1785,15 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 }
 
 func TestExtraElastiCacheLabels(t *testing.T) {
-	cluster := &ectypes.ReplicationGroup{
+	cluster := &elasticache.ReplicationGroup{
 		ReplicationGroupId: aws.String("my-redis"),
-		Engine:             aws.String("redis"),
 	}
-	tags := []ectypes.Tag{
+	tags := []*elasticache.Tag{
 		{Key: aws.String("key1"), Value: aws.String("value1")},
 		{Key: aws.String("key2"), Value: aws.String("value2")},
 	}
 
-	nodes := []ectypes.CacheCluster{
+	nodes := []*elasticache.CacheCluster{
 		{
 			ReplicationGroupId:   aws.String("some-other-redis"),
 			EngineVersion:        aws.String("8.8.8"),
@@ -1807,7 +1806,7 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 		},
 	}
 
-	subnetGroups := []ectypes.CacheSubnetGroup{
+	subnetGroups := []*elasticache.CacheSubnetGroup{
 		{
 			CacheSubnetGroupName: aws.String("some-other-subnet-group"),
 			VpcId:                aws.String("some-other-vpc"),
@@ -1820,9 +1819,9 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		inputTags         []ectypes.Tag
-		inputNodes        []ectypes.CacheCluster
-		inputSubnetGroups []ectypes.CacheSubnetGroup
+		inputTags         []*elasticache.Tag
+		inputNodes        []*elasticache.CacheCluster
+		inputSubnetGroups []*elasticache.CacheSubnetGroup
 		expectLabels      map[string]string
 	}{
 		{
@@ -1833,7 +1832,6 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			expectLabels: map[string]string{
 				"key1":           "value1",
 				"key2":           "value2",
-				"engine":         "redis",
 				"engine-version": "6.6.6",
 				"vpc-id":         "my-vpc",
 			},
@@ -1844,7 +1842,6 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			inputNodes:        nodes,
 			inputSubnetGroups: subnetGroups,
 			expectLabels: map[string]string{
-				"engine":         "redis",
 				"engine-version": "6.6.6",
 				"vpc-id":         "my-vpc",
 			},
@@ -1857,9 +1854,8 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 
 			// Without subnet group name from nodes, VPC ID cannot be found.
 			expectLabels: map[string]string{
-				"key1":   "value1",
-				"key2":   "value2",
-				"engine": "redis",
+				"key1": "value1",
+				"key2": "value2",
 			},
 		},
 		{
@@ -1870,7 +1866,6 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 			expectLabels: map[string]string{
 				"key1":           "value1",
 				"key2":           "value2",
-				"engine":         "redis",
 				"engine-version": "6.6.6",
 			},
 		},
@@ -1884,69 +1879,14 @@ func TestExtraElastiCacheLabels(t *testing.T) {
 	}
 }
 
-func TestExtraElastiCacheServerlessLabels(t *testing.T) {
-	cache := &ectypes.ServerlessCache{
-		ServerlessCacheName: aws.String("my-redis"),
-		Engine:              aws.String("redis"),
-		MajorEngineVersion:  aws.String("7"),
-		FullEngineVersion:   aws.String("7.1"),
-		SubnetIds:           []string{"subnet-a", "subnet-b"},
-	}
-	tags := []ectypes.Tag{
-		{Key: aws.String("key1"), Value: aws.String("value1")},
-		{Key: aws.String("key2"), Value: aws.String("value2")},
-	}
-
-	tests := []struct {
-		name         string
-		inputTags    []ectypes.Tag
-		inputSubnets map[string]ec2types.Subnet
-		expectLabels map[string]string
-	}{
-		{
-			name:      "all tags and vpc label",
-			inputTags: tags,
-			inputSubnets: map[string]ec2types.Subnet{
-				"subnet-x": {VpcId: aws.String("vpc1")},
-				"subnet-a": {VpcId: aws.String("vpc2")},
-				"subnet-b": {VpcId: aws.String("vpc2")},
-			},
-			expectLabels: map[string]string{
-				"key1":           "value1",
-				"key2":           "value2",
-				"engine":         "redis",
-				"engine-version": "7.1",
-				"vpc-id":         "vpc2",
-			},
-		},
-		{
-			name:         "no resource tags no vpc label",
-			inputTags:    nil,
-			inputSubnets: nil,
-			expectLabels: map[string]string{
-				"engine":         "redis",
-				"engine-version": "7.1",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			actualLabels := ExtraElastiCacheServerlessLabels(cache, test.inputTags, test.inputSubnets)
-			require.Equal(t, test.expectLabels, actualLabels)
-		})
-	}
-}
-
 func TestExtraMemoryDBLabels(t *testing.T) {
-	cluster := &memorydbtypes.Cluster{
+	cluster := &memorydb.Cluster{
 		Name:            aws.String("my-cluster"),
 		SubnetGroupName: aws.String("my-subnet-group"),
-		Engine:          aws.String("redis"),
 		EngineVersion:   aws.String("6.6.6"),
 	}
 
-	allSubnetGroups := []memorydbtypes.SubnetGroup{
+	allSubnetGroups := []*memorydb.SubnetGroup{
 		{
 			Name:  aws.String("other-subnet-group"),
 			VpcId: aws.String("other-vpc-id"),
@@ -1957,7 +1897,7 @@ func TestExtraMemoryDBLabels(t *testing.T) {
 		},
 	}
 
-	resourceTags := []memorydbtypes.Tag{
+	resourceTags := []*memorydb.Tag{
 		{Key: aws.String("key1"), Value: aws.String("value1")},
 		{Key: aws.String("key2"), Value: aws.String("value2")},
 	}
@@ -1965,7 +1905,6 @@ func TestExtraMemoryDBLabels(t *testing.T) {
 	expected := map[string]string{
 		"key1":           "value1",
 		"key2":           "value2",
-		"engine":         "redis",
 		"engine-version": "6.6.6",
 		"vpc-id":         "my-vpc-id",
 	}
@@ -2022,6 +1961,7 @@ func TestGetLabelEngineVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2051,7 +1991,7 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 				},
 			},
 			expectedErr: require.NoError,
-			expectedDB: func(t require.TestingT, i any, _ ...any) {
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
@@ -2106,7 +2046,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 				},
 			},
 			expectedErr: require.NoError,
-			expectedDB: func(t require.TestingT, i any, _ ...any) {
+			expectedDB: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				db, ok := i.(types.Database)
 				require.True(t, ok, "expected types.Database, got %T", i)
 
@@ -2183,6 +2123,7 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			rid := makeAzureResourceID(subID, group, provider, tt.serverName)
@@ -2260,6 +2201,7 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			rid := makeAzureResourceID(subID, group, provider, tt.serverName)
@@ -2368,6 +2310,7 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			db, err := types.NewDatabaseV3(types.Metadata{
@@ -2407,45 +2350,4 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 func makeAzureResourceID(subID, group, provider, resourceName string) string {
 	return fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subID, group, provider, resourceName)
-}
-
-func TestNewDatabaseFromElastiCacheServerlessCache(t *testing.T) {
-	cache := &ectypes.ServerlessCache{
-		ARN:                 aws.String("arn:aws:elasticache:ca-central-1:123456789012:serverlesscache:my-cache"),
-		ServerlessCacheName: aws.String("my-cache"),
-		Status:              aws.String("available"),
-		UserGroupId:         aws.String("my-user-group"),
-		Endpoint: &ectypes.Endpoint{
-			Address: aws.String("my-cache-abc123.serverless.cac1.cache.amazonaws.com"),
-			Port:    aws.Int32(6379),
-		},
-	}
-	extraLabels := map[string]string{"key": "value"}
-
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my-cache",
-		Description: "ElastiCache Serverless cache in ca-central-1",
-		Labels: map[string]string{
-			types.DiscoveryLabelAccountID: "123456789012",
-			types.CloudLabel:              types.CloudAWS,
-			types.DiscoveryLabelRegion:    "ca-central-1",
-			"key":                         "value",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      "my-cache-abc123.serverless.cac1.cache.amazonaws.com:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			Region:    "ca-central-1",
-			ElastiCacheServerless: types.ElastiCacheServerless{
-				CacheName: "my-cache",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	actual, err := NewDatabaseFromElastiCacheServerlessCache(cache, extraLabels)
-	require.NoError(t, err)
-	require.NotNil(t, actual)
-	require.Equal(t, expected, actual)
 }

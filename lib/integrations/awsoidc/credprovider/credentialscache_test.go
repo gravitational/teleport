@@ -28,6 +28,7 @@ import (
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -73,6 +74,8 @@ func (f *fakeSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *s
 }
 
 func TestCredentialsCache(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -208,8 +211,8 @@ func TestCredentialsCache(t *testing.T) {
 					expectedExpiry := clock.Now().Add(TokenLifetime)
 					require.EventuallyWithT(t, func(t *assert.CollectT) {
 						creds, err := cacheUnderTest.Retrieve(ctx)
-						require.NoError(t, err)
-						require.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
+						assert.NoError(t, err)
+						assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
 					}, waitFor, tick)
 					credentialsUpdated = true
 				}

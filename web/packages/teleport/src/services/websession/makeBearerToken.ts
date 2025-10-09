@@ -24,7 +24,6 @@ export default function makeBearerToken(json: any): BearerToken {
     expiresIn: json.expires_in,
     created: new Date().getTime(),
     sessionExpires: json.sessionExpires,
-    sessionExpiresIn: json.sessionExpiresIn,
     sessionInactiveTimeout: json.sessionInactiveTimeout,
   };
 }

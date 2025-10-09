@@ -132,6 +132,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		Questionnaire:              true,
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
+		CloudAnonymizationKey:      []byte("001"),
 		Entitlements: map[string]*proto.EntitlementInfo{
 			string(entitlements.AccessLists):                {Enabled: true, Limit: 111},
 			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 2113},

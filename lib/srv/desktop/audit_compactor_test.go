@@ -1,3 +1,5 @@
+//go:build go1.24 && enablesynctest
+
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -26,10 +28,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types/events"
 )
 
 func newReadEvent(path string, directory directoryID, offset uint64, length uint32) *events.DesktopSharedDirectoryRead {
@@ -68,8 +69,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("basic", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			// Read sequence A
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100))
@@ -136,8 +137,9 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("complex", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
+
 			// Three separate reads (with different lengths) of the same file
 			// Read sequence A
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
@@ -169,8 +171,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("expirations", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			// 2 sequential reads
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100))
@@ -209,7 +211,7 @@ func TestAuditCompactor(t *testing.T) {
 			// a single consolidated event
 			eventsLock.Lock()
 			require.Len(t, auditEvents, 1)
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, length*uint32(count)))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, uint32(length*uint32(count))))
 			eventsLock.Unlock()
 
 		})
@@ -218,8 +220,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("mix-reads-writes", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			// 3 sequential reads
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100))
@@ -238,8 +240,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("mix-files-and-directories", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			// Identical offsets and lengths, but different path and/or directoryID
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 2, 0, 100))
@@ -260,8 +262,8 @@ func TestAuditCompactor(t *testing.T) {
 	})
 
 	t.Run("racy-flush", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			auditEvents := make(chan events.AuditEvent)
 			compactor.emitFn = func(_ context.Context, ae events.AuditEvent) {
 				auditEvents <- ae
@@ -289,7 +291,7 @@ func TestAuditCompactor(t *testing.T) {
 				newReadEvent("baz", 1, 0, 100),
 				newReadEvent("caz", 1, 0, 100),
 			}
-			for range len(expectedEvents) {
+			for _ = range len(expectedEvents) {
 				assert.False(t, flushDone)
 				assert.Contains(t, expectedEvents, <-auditEvents)
 				synctest.Wait()

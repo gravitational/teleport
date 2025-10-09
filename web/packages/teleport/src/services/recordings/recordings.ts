@@ -20,115 +20,36 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { makeRecording } from './makeRecording';
-import type {
-  RecordingsQuery,
-  RecordingsResponse,
-  RecordingType,
-  SessionRecordingThumbnail,
-} from './types';
-
-const maxFetchLimit = 5000;
+import { RecordingsQuery, RecordingsResponse } from './types';
 
 export default class RecordingsService {
-  /**
-   * @deprecated Use standalone `fetchRecordings` function defined below this class instead.
-   */
+  maxFetchLimit = 5000;
+
   fetchRecordings(
     clusterId: string,
     params: RecordingsQuery
   ): Promise<RecordingsResponse> {
-    return fetchRecordings({ clusterId, params });
+    const start = params.from.toISOString();
+    const end = params.to.toISOString();
+
+    const url = cfg.getClusterEventsRecordingsUrl(clusterId, {
+      start,
+      end,
+      limit: this.maxFetchLimit,
+      startKey: params.startKey || undefined,
+    });
+
+    return api.get(url).then(json => {
+      const events = json.events || [];
+
+      return { recordings: events.map(makeRecording), startKey: json.startKey };
+    });
   }
 
-  /**
-   * @deprecated Use `fetchSessionRecordingDuration` instead.
-   */
   fetchRecordingDuration(
     clusterId: string,
     sessionId: string
   ): Promise<{ durationMs: number; recordingType: string }> {
-    return fetchSessionRecordingDuration({
-      clusterId,
-      sessionId,
-    });
+    return api.get(cfg.getSessionDurationUrl(clusterId, sessionId));
   }
 }
-
-interface FetchSessionRecordingDurationVariables {
-  clusterId: string;
-  sessionId: string;
-}
-
-interface FetchSessionRecordingDurationResponse {
-  durationMs: number;
-  recordingType: RecordingType;
-}
-
-export async function fetchSessionRecordingDuration({
-  clusterId,
-  sessionId,
-}: FetchSessionRecordingDurationVariables): Promise<FetchSessionRecordingDurationResponse> {
-  const url = cfg.getSessionDurationUrl(clusterId, sessionId);
-  const response = await api.get(url);
-
-  if (!response) {
-    throw new Error('Failed to fetch session recording duration');
-  }
-
-  return response;
-}
-
-interface FetchRecordingsVariables {
-  clusterId: string;
-  params: RecordingsQuery;
-}
-
-export async function fetchRecordings(
-  { clusterId, params }: FetchRecordingsVariables,
-  signal?: AbortSignal
-): Promise<RecordingsResponse> {
-  const start = params.from.toISOString();
-  const end = params.to.toISOString();
-
-  const url = cfg.getClusterEventsRecordingsUrl(clusterId, {
-    start,
-    end,
-    limit: maxFetchLimit,
-    startKey: params.startKey || undefined,
-  });
-
-  const json = await api.get(url, signal);
-
-  const events = json.events || [];
-
-  return { recordings: events.map(makeRecording), startKey: json.startKey };
-}
-
-interface FetchRecordingThumbnailVariables {
-  clusterId: string;
-  sessionId: string;
-}
-
-export async function fetchRecordingThumbnail(
-  { clusterId, sessionId }: FetchRecordingThumbnailVariables,
-  signal?: AbortSignal
-): Promise<SessionRecordingThumbnail> {
-  const url = cfg.getSessionRecordingThumbnailUrl(clusterId, sessionId);
-  const response = await api.get(url, signal);
-
-  if (!response) {
-    throw new Error('Failed to fetch recording thumbnail');
-  }
-
-  return response as SessionRecordingThumbnail;
-}
-
-export const RECORDING_TYPES_WITH_THUMBNAILS: RecordingType[] = ['ssh', 'k8s'];
-export const RECORDING_TYPES_WITH_METADATA: RecordingType[] = ['ssh', 'k8s'];
-
-export const VALID_RECORDING_TYPES: RecordingType[] = [
-  'ssh',
-  'k8s',
-  'desktop',
-  'database',
-];

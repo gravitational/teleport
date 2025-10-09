@@ -4,7 +4,6 @@ description: In this getting started guide, learn how to connect an application 
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -158,6 +157,7 @@ header or move this page.
 */}
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
+It should also be unique across root and leaf clusters if you are deploying in a trusted clusters environment.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -326,7 +326,7 @@ rewritten:
 - Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as
-[role templates](../../../zero-trust-access/rbac-get-started/role-templates.mdx). In the
+[role templates](../../../zero-trust-access/access-controls/guides/role-templates.mdx). In the
 example above, `X-Internal-Trait` header will be populated with the value of
 internal user trait `logins` and `X-External-Trait` header will get the value of
 the user's external `env` trait coming from the identity provider.

@@ -61,7 +61,7 @@ discovery_service:
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
 // representation of a parsed YAML file.
-type cfgMap map[any]any
+type cfgMap map[interface{}]interface{}
 
 // editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
@@ -80,8 +80,8 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -237,8 +237,8 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "u2f",
 					"u2f": cfgMap{
 						"app_id": "https://graviton:3080",
-						"facets": []any{"https://graviton:3080"},
-						"device_attestation_cas": []any{
+						"facets": []interface{}{"https://graviton:3080"},
+						"device_attestation_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
 						},
@@ -267,11 +267,11 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "webauthn",
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
-						"attestation_allowed_cas": []any{
+						"attestation_allowed_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
 						},
-						"attestation_denied_cas": []any{
+						"attestation_denied_cas": []interface{}{
 							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
 							"testdata/u2f_attestation_ca.pam",
 						},
@@ -301,7 +301,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "on",
 					"u2f": cfgMap{
 						"app_id": "https://example.com",
-						"facets": []any{
+						"facets": []interface{}{
 							"https://example.com",
 						},
 					},
@@ -458,7 +458,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"signature_algorithm_suite": "balanced-v0",
 				}
 			},
-			expectError: func(t require.TestingT, err error, msgAndArgs ...any) {
+			expectError: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.ErrorContains(t, err, "invalid value: balanced-v0")
 			},
 		}, {
@@ -1021,7 +1021,7 @@ func TestHardwareKeyConfig(t *testing.T) {
 					},
 				}
 			},
-			expectParseError: func(t require.TestingT, err error, i ...any) {
+			expectParseError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1198,7 +1198,7 @@ func TestX11Config(t *testing.T) {
 					"max_display":    100,
 				}
 			},
-			expectConfigError: func(t require.TestingT, err error, i ...any) {
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1285,49 +1285,6 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
 		require.Equal(t, "no", fc.Auth.EnabledFlag)
 		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-	})
-
-	t.Run("App role with MCP Demo server", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			MCPDemoServer: true,
-		})
-		require.NoError(t, err)
-		require.Equal(t, "no", fc.SSH.EnabledFlag)
-		require.Equal(t, "no", fc.Proxy.EnabledFlag)
-		require.Equal(t, "no", fc.Auth.EnabledFlag)
-		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-		require.True(t, fc.Apps.MCPDemoServer)
-	})
-
-	t.Run("App name and MCP Demo Server", func(t *testing.T) {
-		_, err := MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			AppURI:        "localhost:8080",
-			MCPDemoServer: true,
-		})
-		require.Error(t, err)
-
-		_, err = MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			AppName:       "nginx",
-			MCPDemoServer: true,
-		})
-		require.Error(t, err)
-
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			AppURI:        "localhost:8080",
-			AppName:       "nginx",
-			MCPDemoServer: true,
-		})
-		require.NoError(t, err)
-
-		require.Equal(t, "no", fc.SSH.EnabledFlag)
-		require.Equal(t, "no", fc.Proxy.EnabledFlag)
-		require.Equal(t, "no", fc.Auth.EnabledFlag)
-		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-		require.True(t, fc.Apps.MCPDemoServer)
 	})
 
 	t.Run("Proxy role", func(t *testing.T) {

@@ -19,7 +19,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -38,10 +37,10 @@ import (
 )
 
 func TestAddRoleDefaults(t *testing.T) {
-	noChange := func(t require.TestingT, err error, i ...any) {
+	noChange := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
-	notModifying := func(t require.TestingT, err error, i ...any) {
+	notModifying := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
 	}
 
@@ -145,9 +144,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
-						MCP: &types.MCPPermissions{
-							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
-						},
 					},
 				},
 			},
@@ -183,9 +179,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
-						MCP: &types.MCPPermissions{
-							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
-						},
 					},
 				},
 			},
@@ -204,9 +197,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
-						MCP: &types.MCPPermissions{
-							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
-						},
 					},
 				},
 			},
@@ -226,9 +216,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
-						MCP: &types.MCPPermissions{
-							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
-						},
 					},
 				},
 			},
@@ -666,7 +653,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "terraform provider (bugfix of the missing resources)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -712,7 +699,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -762,7 +749,6 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindGitServer, RW()),
 							types.NewRule(types.KindAutoUpdateConfig, RW()),
 							types.NewRule(types.KindAutoUpdateVersion, RW()),
-							types.NewRule(types.KindHealthCheckConfig, RW()),
 						},
 					},
 				},
@@ -772,7 +758,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "access-plugin (default roles match preset rules)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetAccessPluginRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -785,7 +771,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetAccessPluginRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -813,7 +799,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "list-access-request-resources (default roles match preset rules)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetListAccessRequestResourcesRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -826,7 +812,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V8,
+				Version: types.V7,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetListAccessRequestResourcesRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -862,7 +848,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				})
 			}
 
-			role, err := AddRoleDefaults(context.Background(), test.role)
+			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))

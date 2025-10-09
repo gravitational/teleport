@@ -20,7 +20,6 @@ package backend
 
 import (
 	"context"
-	"iter"
 	"testing"
 	"time"
 
@@ -165,7 +164,7 @@ func BenchmarkIsKeySafe(b *testing.B) {
 		NewKey("@_:.-+"),
 	}
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		for _, key := range keys {
 			IsKeySafe(key)
 		}
@@ -186,12 +185,6 @@ func (n *nopBackend) GetRange(_ context.Context, startKey, endKey Key, limit int
 	return &GetResult{Items: []Item{
 		{Key: NewKey("foo"), Value: []byte("bar")},
 	}}, nil
-}
-
-func (n *nopBackend) Items(context.Context, ItemsParams) iter.Seq2[Item, error] {
-	return func(yield func(Item, error) bool) {
-		yield(Item{Key: NewKey("foo"), Value: []byte("bar")}, nil)
-	}
 }
 
 func (n *nopBackend) Create(_ context.Context, _ Item) (*Lease, error) {

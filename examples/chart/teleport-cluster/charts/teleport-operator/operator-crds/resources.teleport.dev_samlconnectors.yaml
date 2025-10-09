@@ -1,6 +1,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  creationTimestamp: null
   name: teleportsamlconnectors.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -196,14 +197,6 @@ spec:
               sso:
                 description: SSO is the URL of the identity provider's SSO service.
                 type: string
-              user_matchers:
-                description: UserMatchers is a set of glob patterns to narrow down
-                  which username(s) this auth connector should match for identifier-first
-                  login.
-                items:
-                  type: string
-                nullable: true
-                type: array
             type: object
           status:
             description: Status defines the observed state of the Teleport resource

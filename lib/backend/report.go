@@ -21,7 +21,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"iter"
 	"log/slog"
 	"slices"
 	"strings"
@@ -158,39 +157,6 @@ func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int
 		}
 	}
 	return res, err
-}
-
-func (s *Reporter) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
-	ctx, span := s.Tracer.Start(
-		ctx,
-		"backend/Items",
-		oteltrace.WithAttributes(
-			attribute.Int("limit", params.Limit),
-			attribute.String("start_key", params.StartKey.String()),
-			attribute.String("end_key", params.EndKey.String()),
-		),
-	)
-	defer span.End()
-
-	return func(yield func(Item, error) bool) {
-		var count int
-		defer func() {
-			s.trackRequest(ctx, types.OpGet, params.StartKey, params.EndKey)
-			backendmetrics.StreamingRequests.WithLabelValues(s.Component).Inc()
-			backendmetrics.Reads.WithLabelValues(s.Component).Add(float64(count))
-
-		}()
-		for item, err := range s.Backend.Items(ctx, params) {
-			if err != nil {
-				backendmetrics.StreamingRequestsFailed.WithLabelValues(s.Component).Inc()
-			}
-
-			count++
-			if !yield(item, err) || err != nil {
-				return
-			}
-		}
-	}
 }
 
 // Create creates item if it does not exist

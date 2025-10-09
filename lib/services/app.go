@@ -22,14 +22,9 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"iter"
-	"log/slog"
-	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -38,9 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,8 +43,6 @@ type AppGetter interface {
 	GetApps(context.Context) ([]types.Application, error)
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
@@ -266,7 +257,7 @@ func GetServiceFQDN(service corev1.Service) string {
 func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
+		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
 		Path:   path,
 	}).String()
 }
@@ -359,28 +350,4 @@ func getClusterDomain() string {
 		return envDomain
 	}
 	return "cluster.local"
-}
-
-// RewriteHeadersAndApplyValueTraits rewrites the provided request's headers
-// while applying value traits to them.
-func RewriteHeadersAndApplyValueTraits(r *http.Request, rewrites iter.Seq[*types.Header], traits wrappers.Traits, log *slog.Logger) {
-	for header := range rewrites {
-		values, err := ApplyValueTraits(header.Value, traits)
-		if err != nil {
-			log.DebugContext(r.Context(), "Failed to apply traits",
-				"header_value", header.Value,
-				"error", err,
-			)
-			continue
-		}
-		r.Header.Del(header.Name)
-		for _, value := range values {
-			switch http.CanonicalHeaderKey(header.Name) {
-			case teleport.HostHeader:
-				r.Host = value
-			default:
-				r.Header.Add(header.Name, value)
-			}
-		}
-	}
 }

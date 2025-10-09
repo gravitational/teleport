@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -140,7 +139,6 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		},
 		UserMetadata:          userMetadata,
 		SessionMetadata:       d.getSessionMetadata(),
-		ConnectionMetadata:    d.getConnectionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopAddr:           d.desktop.GetAddr(),
 		Domain:                d.desktop.GetDomain(),
@@ -152,14 +150,7 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		Recorded:              recorded,
 
 		// There can only be 1 participant, desktop sessions are not join-able.
-		Participants: []string{
-			services.UsernameForCluster(
-				services.UsernameForClusterConfig{
-					User:              d.identity.Username,
-					OriginClusterName: d.identity.OriginClusterName,
-					LocalClusterName:  d.clusterName,
-				},
-			)},
+		Participants: []string{userMetadata.User},
 	}
 }
 
@@ -407,13 +398,13 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopName:   d.desktop.GetName(),
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
 		Length:        m.WriteDataLength,
 		Offset:        offset,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 

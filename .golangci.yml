@@ -1,6 +1,6 @@
 version: '2'
 run:
-  go: '1.25'
+  go: '1.24'
   timeout: 15m
 linters:
   default: none
@@ -112,29 +112,7 @@ linters:
             - github.com/gravitational/teleport/integrations
           deny:
             - pkg: github.com/gravitational/teleport/integration
-              desc: integration test should not be imported outside of intergation tests
-            - pkg: github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest
-              desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/utils/mcptest
-              desc: testing packages should not be imported outside of _test.go files
-        logging:
-          deny:
-            - pkg: github.com/sirupsen/logrus
-              desc: use "log/slog" instead
-            - pkg: github.com/siddontang/go-log/log
-              desc: use "log/slog" instead
-            - pkg: github.com/siddontang/go/log
-              desc: use "log/slog" instead
-            - pkg: github.com/mailgun/log
-              desc: use "log/slog" instead
-            - pkg: github.com/saferwall/pe/log
-              desc: use "log/slog" instead
-            - pkg: golang.org/x/exp/slog
-              desc: use "log/slog" instead
-            - pkg: github.com/aws/aws-sdk-go/
-              desc: 'use "aws-sdk-go-v2" instead'
-            - pkg: github.com/aws/aws-sdk-go$
-              desc: 'use "aws-sdk-go-v2" instead'
+              desc: integration test should not be imported outside of integration tests
         main:
           deny:
             - pkg: io/ioutil
@@ -147,6 +125,10 @@ linters:
               desc: use "github.com/google/uuid" instead
             - pkg: github.com/pborman/uuid
               desc: use "github.com/google/uuid" instead
+            - pkg: github.com/siddontang/go-log/log
+              desc: use "github.com/sirupsen/logrus" instead
+            - pkg: github.com/siddontang/go/log
+              desc: use "github.com/sirupsen/logrus" instead
             - pkg: github.com/tj/assert
               desc: use "github.com/stretchr/testify/assert" instead
             - pkg: go.uber.org/atomic
@@ -156,15 +138,11 @@ linters:
             - pkg: golang.org/x/exp/slices
               desc: use "slices" instead
             - pkg: github.com/hashicorp/go-version
-              desc: use "coreos/go-semver/semver" instead
-            - pkg: golang.org/x/mod/semver
-              desc: use "coreos/go-semver/semver" instead
+              desc: use golang.org/x/mod/semver or coreos/go-semver/semver instead
             - pkg: github.com/microsoftgraph/msgraph-sdk-go
               desc: use "github.com/gravitational/teleport/lib/msgraph" instead
             - pkg: github.com/cloudflare/cfssl
               desc: use "crypto" or "x/crypto" instead
-            - pkg: golang.org/x/net/context
-              desc: use "context" instead
             - pkg: github.com/gogo/protobuf/jsonpb
               desc: gogoproto jsonpb has inconsistent interactions with any
                 message that directly or indirectly makes use of
@@ -178,12 +156,6 @@ linters:
                 google.golang.org/protobuf/protoadapt instead, or, better yet,
                 see if you can move the code generation for that message to the
                 modern protoc-gen-go.
-        oidc:
-          deny:
-            - pkg: github.com/coreos/go-oidc
-              desc: 'github.com/zitadel/oidc/v3 should be used instead'
-            - pkg: github.com/zitadel/oidc$
-              desc: 'github.com/zitadel/oidc/v3 should be used instead'
         test_packages:
           files:
             - '!$test'
@@ -191,7 +163,6 @@ linters:
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/jamf/testenv/**'
-            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
@@ -215,19 +186,17 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/tool/teleport/testenv
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/redis/protocoltest
-              desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest
-              desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest
-              desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/utils/logtesttest
+            - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/auth/authtest
               desc: testing packages should not be imported outside of _test.go files
-            - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
+            - pkg: github.com/testcontainers/testcontainers-go
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/testcontainers/testcontainers-go/modules/postgres
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/testcontainers/testcontainers-go/modules/mysql
               desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
@@ -245,7 +214,6 @@ linters:
             - '!**/lib/services/suite/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
-            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
             - '!**/integration/appaccess/fixtures.go'
             - '!**/integration/appaccess/jwt.go'
@@ -269,7 +237,6 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
-            - '!**/e/lib/intune/testenv/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -283,7 +250,6 @@ linters:
             - '!**/e/lib/devicetrust/storage/storage.go'
             - '!**/e/lib/idp/saml/testenv/**'
             - '!**/e/lib/jamf/testenv/**'
-            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/okta/api/oktaapitest/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
@@ -307,7 +273,6 @@ linters:
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
-            - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
           deny:
             - pkg: testing

@@ -69,24 +69,6 @@ func sessionName(sid session.ID) string {
 	return sid.String()
 }
 
-// summaryName returns the name of the blob that contains the summary for a
-// given session.
-func summaryName(sid session.ID) string {
-	return sid.String() + ".summary.json"
-}
-
-// metadataName returns the name of the blob that contains the metadata for a
-// given session.
-func metadataName(sid session.ID) string {
-	return sid.String() + ".metadata"
-}
-
-// thumbnailName returns the name of the blob that contains the thumbnail for a
-// given session.
-func thumbnailName(sid session.ID) string {
-	return sid.String() + ".thumbnail"
-}
-
 // uploadMarkerPrefix is the prefix of the names of the upload marker blobs.
 // Listing blobs with this prefix will return an empty blob for each upload.
 const uploadMarkerPrefix = "upload/"
@@ -269,21 +251,6 @@ func (h *Handler) sessionBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(sessionName(sessionID))
 }
 
-// summaryBlob returns a BlockBlobClient for the blob of the session summary.
-func (h *Handler) summaryBlob(sessionID session.ID) *blockblob.Client {
-	return h.session.NewBlockBlobClient(summaryName(sessionID))
-}
-
-// metadataBlob returns a BlockBlobClient for the blob of the session metadata.
-func (h *Handler) metadataBlob(sessionID session.ID) *blockblob.Client {
-	return h.session.NewBlockBlobClient(metadataName(sessionID))
-}
-
-// thumbnailBlob returns a BlockBlobClient for the blob of the session thumbnail.
-func (h *Handler) thumbnailBlob(sessionID session.ID) *blockblob.Client {
-	return h.session.NewBlockBlobClient(thumbnailName(sessionID))
-}
-
 // uploadMarkerBlob returns a BlockBlobClient for the marker blob of the stream
 // upload.
 func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) *blockblob.Client {
@@ -296,77 +263,43 @@ func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) *blockb
 	return h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
 }
 
-// Upload implements [events.UploadHandler] and uploads a session recording.
+// Upload implements [events.UploadHandler].
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadBlob(ctx, sessionID, h.sessionBlob(sessionID), reader)
-}
+	sessionBlob := h.sessionBlob(sessionID)
 
-// UploadSummary implements [events.UploadHandler] and uploads a session
-// summary.
-func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
-}
-
-// UploadMetadata implements [events.UploadHandler] and uploads the session
-// metadata.
-func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadBlob(ctx, sessionID, h.metadataBlob(sessionID), reader)
-}
-
-// UploadThumbnail implements [events.UploadHandler] and uploads the session
-// thumbnail.
-func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), reader)
-}
-
-func (h *Handler) uploadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, reader io.Reader) (string, error) {
-	if _, err := cErr(blob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
+	if _, err := cErr(sessionBlob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
 		AccessConditions: &blobDoesNotExist,
 	})); err != nil {
 		return "", trace.Wrap(err)
 	}
-	h.log.DebugContext(ctx, "Blob uploaded.", fieldSessionID, sessionID)
+	h.log.DebugContext(ctx, "Uploaded session.", fieldSessionID, sessionID)
 
-	return blob.URL(), nil
+	return sessionBlob.URL(), nil
 }
 
-// Download implements [events.UploadHandler] and downloads a session recording.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writer)
-}
-
-// DownloadSummary implements [events.UploadHandler] and downloads a session summary.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
-}
-
-// DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadBlob(ctx, sessionID, h.metadataBlob(sessionID), writer)
-}
-
-// DownloadThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), writer)
-}
-
-func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writer events.RandomAccessWriter) error {
-	resp, err := cErr(blob.DownloadStream(ctx, nil))
+// Download implements [events.UploadHandler].
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
+	resp, err := cErr(h.sessionBlob(sessionID).DownloadStream(ctx, nil))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			h.log.WarnContext(ctx, "Error closing downloaded blob.", "error", err, fieldSessionID, sessionID)
+			h.log.WarnContext(ctx, "Error closing downloaded session blob.", "error", err, fieldSessionID, sessionID)
 		}
 	}()
+
+	writer, ok := writerAt.(io.Writer)
+	if !ok {
+		writer = io.NewOffsetWriter(writerAt, 0)
+	}
 
 	if _, err := io.Copy(writer, resp.Body); err != nil {
 		return trace.ConvertSystemError(cErr0(err))
 	}
 
-	h.log.DebugContext(ctx, "Blob downloaded.", fieldSessionID, sessionID)
+	h.log.DebugContext(ctx, "Downloaded session.", fieldSessionID, sessionID)
 	return nil
 }
 
@@ -478,7 +411,10 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			return trace.Wrap(err)
 		}
 
-		m := min(len(parts[i:]), batchSize)
+		m := batchSize
+		if len(parts[i:]) < batchSize {
+			m = len(parts[i:])
+		}
 
 		for _, part := range parts[i : i+m] {
 			if err := batch.Delete(partName(upload, part.Number), nil); err != nil {

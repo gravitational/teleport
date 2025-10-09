@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -49,8 +49,8 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// Logger is a component logger
-	Logger *slog.Logger
+	// Log is a component logger
+	Log *logrus.Entry
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.
@@ -153,7 +153,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
-			clusterName, err := authClient.GetClusterName(groupCtx)
+			clusterName, err := authClient.GetClusterName()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -192,7 +192,9 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return roles, nil
 	})
 	if err != nil {
-		c.Logger.WarnContext(ctx, "Failed to calculate trusted device requirement", "error", err)
+		c.Log.
+			WithError(err).
+			Warn("Failed to calculate trusted device requirement")
 	}
 
 	roleSet := services.NewRoleSet(roles...)
@@ -386,14 +388,4 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
 			trace.BadParameter("unknown user type %q", userType)
 	}
-}
-
-// Server describes an SSH node.
-type Server struct {
-	// URI is the cluster URI
-	URI uri.ResourceURI
-	// Subset of logins allowed by the certificate and RBAC rules.
-	Logins []string
-
-	types.Server
 }

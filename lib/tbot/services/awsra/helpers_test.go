@@ -23,7 +23,6 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -43,15 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
-}
 
 type testYAMLCase[T any] struct {
 	name string
@@ -194,8 +187,10 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 
 func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) error {
-		testenv.WithClusterName("root")(o)
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
+		if err := testenv.WithClusterName("root")(o); err != nil {
+			return err
+		}
+		if err := testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
@@ -203,8 +198,9 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
-		})(o)
-
+		})(o); err != nil {
+			return err
+		}
 		return nil
 	}
 }

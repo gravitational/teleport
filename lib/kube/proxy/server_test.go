@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -44,7 +45,6 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServeConfigureError(t *testing.T) {
@@ -111,9 +111,10 @@ func TestMTLSClientCAs(t *testing.T) {
 	}
 	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
 	userCert := genCert(t, "user")
+	log := logrus.New()
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: logtest.NewLogger(),
+			Log: log,
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -122,10 +123,9 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
-			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
-		log: logtest.NewLogger(),
+		log: logrus.NewEntry(log),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -182,7 +182,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	// 100 additional CAs registered, all CAs should be sent to the client in
 	// the handshake.
 	t.Run("100 CAs", func(t *testing.T) {
-		for i := range 100 {
+		for i := 0; i < 100; i++ {
 			addCA(t, fmt.Sprintf("cluster-%d", i))
 		}
 		testDial(t, 101)
@@ -207,7 +207,7 @@ func TestGetServerInfo(t *testing.T) {
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: logtest.NewLogger(),
+			Log: logrus.New(),
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",

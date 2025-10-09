@@ -25,8 +25,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const ownerUser = "owner"
@@ -580,8 +579,7 @@ func TestAccessLists(t *testing.T) {
 			})
 
 			ctx := context.Background()
-			svc, backendSvc, err := initGeneratorSvc()
-			require.NoError(t, err)
+			svc, backendSvc := initGeneratorSvc(t)
 
 			for _, accessList := range test.accessLists {
 				_, err = backendSvc.UpsertAccessList(ctx, accessList)
@@ -634,8 +632,7 @@ func TestAccessLists(t *testing.T) {
 
 func TestGitHubIdentity(t *testing.T) {
 	ctx := context.Background()
-	svc, backendSvc, err := initGeneratorSvc()
-	require.NoError(t, err)
+	svc, backendSvc := initGeneratorSvc(t)
 
 	noGitHubIdentity, err := types.NewUser("alice")
 	require.NoError(t, err)
@@ -718,25 +715,22 @@ func (s *svc) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventR
 	return nil
 }
 
-func initGeneratorSvc() (*Generator, *svc, error) {
+func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
+	t.Helper()
+
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Clock: clock,
 	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	accessListsSvc, err := local.NewAccessListService(mem, clock)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 	accessSvc := local.NewAccessService(mem)
 	ulsService, err := local.NewUserLoginStateService(mem)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
+	log := logrus.WithField("test", "logger")
 	svc := &svc{
 		AccessLists:     accessListsSvc,
 		Access:          accessSvc,
@@ -746,17 +740,15 @@ func initGeneratorSvc() (*Generator, *svc, error) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	generator, err := NewGenerator(GeneratorConfig{
-		Log:         logtest.NewLogger(),
+		Log:         log,
 		AccessLists: svc,
 		Access:      svc,
 		UsageEvents: svc,
 		Clock:       clock,
 		Emitter:     emitter,
 	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return generator, svc, nil
+	require.NoError(t, err)
+	return generator, svc
 }
 
 func grants(roles []string, traits trait.Traits) accesslist.Grants {

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -50,8 +49,6 @@ type GCPRunRequest struct {
 	ScriptName      string
 	PublicProxyAddr string
 	SSHKeyAlgo      cryptosuites.Algorithm
-	InstallSuffix   string
-	UpdateGroup     string
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
@@ -63,6 +60,7 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 	g.SetLimit(10)
 
 	for _, inst := range req.Instances {
+		inst := inst
 		g.Go(func() error {
 			runRequest := gcp.RunCommandRequest{
 				Client: req.Client,
@@ -71,7 +69,11 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 					Zone:      inst.Zone,
 					Name:      inst.Name,
 				},
-				Script:     getGCPInstallerScript(req),
+				Script: getGCPInstallerScript(
+					req.ScriptName,
+					req.PublicProxyAddr,
+					req.Params,
+				),
 				SSHKeyAlgo: req.SSHKeyAlgo,
 			}
 			return trace.Wrap(gcp.RunCommand(ctx, &runRequest))
@@ -80,25 +82,10 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 	return trace.Wrap(g.Wait())
 }
 
-func getGCPInstallerScript(req GCPRunRequest) string {
-	script := fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%s | bash -s %s",
-		req.PublicProxyAddr,
-		req.ScriptName,
-		strings.Join(req.Params, " "),
+func getGCPInstallerScript(installerName, publicProxyAddr string, params []string) string {
+	return fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%s | bash -s %s",
+		publicProxyAddr,
+		installerName,
+		strings.Join(params, " "),
 	)
-
-	var envVars []string
-	if req.InstallSuffix != "" {
-		safeInstallSuffix := shsprintf.EscapeDefaultContext(req.InstallSuffix)
-		envVars = append(envVars, fmt.Sprintf("TELEPORT_INSTALL_SUFFIX=%q", safeInstallSuffix))
-	}
-	if req.UpdateGroup != "" {
-		safeUpdateGroup := shsprintf.EscapeDefaultContext(req.UpdateGroup)
-		envVars = append(envVars, fmt.Sprintf("TELEPORT_UPDATE_GROUP=%q", safeUpdateGroup))
-	}
-
-	if len(envVars) > 0 {
-		script = fmt.Sprintf("export %s; %s", strings.Join(envVars, " "), script)
-	}
-	return script
 }

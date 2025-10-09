@@ -20,7 +20,6 @@ package backend
 
 import (
 	"context"
-	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -97,10 +96,6 @@ func NewSanitizer(backend Backend) *Sanitizer {
 // GetRange returns query range
 func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
-}
-
-func (s *Sanitizer) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
-	return s.backend.Items(ctx, params)
 }
 
 // Create creates item if it does not exist

@@ -313,7 +313,6 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
-		require.False(t, syncSettings.GetEnableSystemLogExport())
 		require.False(t, syncSettings.GetAssignDefaultRoles())
 	})
 
@@ -324,7 +323,6 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.False(t, syncSettings.GetEnableAppGroupSync())
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
-		require.False(t, syncSettings.GetEnableSystemLogExport())
 		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 
@@ -337,7 +335,6 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.True(t, syncSettings.GetEnableAppGroupSync()) // true by default
 		require.False(t, syncSettings.GetEnableAccessListSync())
 		require.True(t, syncSettings.GetEnableBidirectionalSync())
-		require.False(t, syncSettings.GetEnableSystemLogExport())
 		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 
@@ -365,7 +362,6 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.True(t, syncSettings.GetEnableAppGroupSync())
 		require.True(t, syncSettings.GetEnableAccessListSync())
 		require.True(t, syncSettings.GetEnableBidirectionalSync()) // true by default
-		require.False(t, syncSettings.GetEnableSystemLogExport())
 		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 
@@ -374,14 +370,12 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 			SyncUsers:                true,
 			SyncAccessLists:          true,
 			DisableBidirectionalSync: true,
-			EnableSystemLogExport:    true,
 		}
 
 		require.True(t, syncSettings.GetEnableUserSync())
 		require.True(t, syncSettings.GetEnableAppGroupSync())
 		require.True(t, syncSettings.GetEnableAccessListSync())
 		require.False(t, syncSettings.GetEnableBidirectionalSync())
-		require.True(t, syncSettings.GetEnableSystemLogExport())
 		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
 }

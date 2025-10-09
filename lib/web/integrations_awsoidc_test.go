@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -164,6 +164,111 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
+			tc.errCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Contains(t, string(resp.Bytes()),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
+			)
+		})
+	}
+}
+
+func TestBuildEICEConfigureIAMScript(t *testing.T) {
+	t.Parallel()
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	// Unauthenticated client for script downloading.
+	publicClt := env.proxies[0].newClient(t)
+	pathVars := []string{
+		"webapi",
+		"scripts",
+		"integrations",
+		"configure",
+		"eice-iam.sh",
+	}
+	endpoint := publicClt.Endpoint(pathVars...)
+
+	tests := []struct {
+		name                 string
+		reqRelativeURL       string
+		reqQuery             url.Values
+		errCheck             require.ErrorAssertionFunc
+		expectedTeleportArgs string
+	}{
+		{
+			name: "valid",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure eice-iam " +
+				"--aws-region=us-east-1 " +
+				"--role=myRole " +
+				"--aws-account-id=123456789012",
+		},
+		{
+			name: "valid with symbols in role",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"Test+1=2,3.4@5-6_7"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure eice-iam " +
+				"--aws-region=us-east-1 " +
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
+				"--aws-account-id=123456789012",
+		},
+		{
+			name: "missing aws-region",
+			reqQuery: url.Values{
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing account id",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"myRole"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing role",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"us-east-1"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "trying to inject escape sequence into query params",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":         []string{"role"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -294,6 +399,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -603,6 +709,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, scriptEndpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -1136,7 +1243,10 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 
 	sliceStart := pageSize * (requestedPage - 1)
-	sliceEnd := min(pageSize*requestedPage, totalResources)
+	sliceEnd := pageSize * requestedPage
+	if sliceEnd > totalResources {
+		sliceEnd = totalResources
+	}
 
 	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
 	if sliceEnd < totalResources {
@@ -1148,7 +1258,7 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 
 func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 	ctx := context.Background()
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 
 	for _, tt := range []struct {
 		name              string
@@ -1299,7 +1409,7 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 			},
 			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
 				var ret []ui.AWSOIDCDeployedDatabaseService
-				for i := range 1_024 {
+				for i := 0; i < 1_024; i++ {
 					ret = append(ret, ui.AWSOIDCDeployedDatabaseService{
 						Name:                fmt.Sprintf("database-service-vpc-%d", i),
 						DashboardURL:        "url",
@@ -1341,7 +1451,7 @@ func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabel
 
 func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
 	var ret []*integrationv1.DeployedDatabaseService
-	for i := range count {
+	for i := 0; i < count; i++ {
 		ret = append(ret, &integrationv1.DeployedDatabaseService{
 			Name:                fmt.Sprintf("database-service-vpc-%d", i),
 			ServiceDashboardUrl: "url",

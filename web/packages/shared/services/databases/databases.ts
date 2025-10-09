@@ -25,7 +25,6 @@ export type DbType =
   | 'gcp'
   | 'azure'
   | 'elasticache'
-  | 'elasticache-serverless'
   | 'memorydb'
   | 'keyspace'
   | 'cassandra'
@@ -101,9 +100,6 @@ export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
     case 'elasticache':
       output.title = 'Amazon ElastiCache';
       return output;
-    case 'elasticache-serverless':
-      output.title = 'Amazon ElastiCache Serverless';
-      return output;
     case 'memorydb':
       output.title = 'Amazon MemoryDB';
       return output;
@@ -135,32 +131,3 @@ export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
 };
 
 export type DatabaseInfo = ReturnType<typeof formatDatabaseInfo>;
-
-export type DbNameRequirement = 'unsupported' | 'optional' | 'required';
-
-const dbNameRequirementsByProtocol: Record<DbProtocol, DbNameRequirement> = {
-  mongodb: 'required',
-  oracle: 'required',
-  postgres: 'required',
-  spanner: 'required',
-  sqlserver: 'required',
-
-  cassandra: 'unsupported',
-  clickhouse: 'unsupported',
-  'clickhouse-http': 'unsupported',
-  dynamodb: 'unsupported',
-  elasticsearch: 'unsupported',
-  opensearch: 'unsupported',
-  redis: 'unsupported',
-
-  cockroachdb: 'optional',
-  mysql: 'optional',
-  snowflake: 'optional',
-};
-
-export const getDbNameRequirement = (
-  protocol: DbProtocol
-): DbNameRequirement => {
-  // default to 'optional'
-  return dbNameRequirementsByProtocol[protocol] ?? 'optional';
-};

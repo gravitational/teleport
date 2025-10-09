@@ -147,11 +147,6 @@ export interface AlertProps
     WidthProps,
     ColorProps {
   linkColor?: string;
-  /**
-   * If specified, the alert's contents will wrap for narrower screens
-   * or vertical layouts.
-   */
-  wrapContents?: boolean;
 }
 
 interface ThemedAlertProps extends AlertPropsWithRequiredKind {
@@ -185,7 +180,6 @@ export const Alert = ({
   bg,
   onDismiss,
   alignItems = 'center',
-  wrapContents = false,
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
@@ -202,12 +196,8 @@ export const Alert = ({
 
   return (
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
-      <InnerContainer
-        kind={kind}
-        alignItems={alignItems}
-        wrapContents={wrapContents}
-      >
-        <IconContainer kind={kind} wrapContents={wrapContents}>
+      <InnerContainer kind={kind} alignItems={alignItems}>
+        <IconContainer kind={kind}>
           <StatusIcon
             kind={iconKind(kind)}
             customIcon={icon}
@@ -222,7 +212,6 @@ export const Alert = ({
             // Thanks to it, each error line is nicely indented with tab,
             //  instead od being treated as a one, long line.
             white-space: pre-wrap;
-            flex-shrink: ${wrapContents ? 0 : 1};
           `}
         >
           <Text typography="h3">{children}</Text>
@@ -235,7 +224,6 @@ export const Alert = ({
           dismissible={dismissible}
           dismissed={dismissed}
           onDismiss={onDismissClick}
-          wrapContents={wrapContents}
         />
       </InnerContainer>
     </OuterContainer>
@@ -265,18 +253,13 @@ const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
 
 /** Renders a transparent color overlay. */
 const InnerContainer = styled.div<
-  Pick<
-    WithRequired<AlertProps, 'kind' | 'alignItems'>,
-    'kind' | 'alignItems' | 'wrapContents'
-  >
+  Pick<WithRequired<AlertProps, 'kind' | 'alignItems'>, 'kind' | 'alignItems'>
 >`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
   display: flex;
   align-items: ${p => p.alignItems};
-  gap: ${p => (p.wrapContents ? p.theme.space[3] : 0)}px;
-  flex-wrap: ${p => (p.wrapContents ? 'wrap' : 'initial')};
 
   ${backgroundColor}
 `;
@@ -324,22 +307,10 @@ const iconContainerStyles = ({
   }
 };
 
-const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
+const IconContainer = styled.div<{ kind: AlertKind }>`
   border-radius: 50%;
   line-height: 0;
-
-  ${p =>
-    p.wrapContents
-      ? `
-  align-self: flex-start;
-  margin-right: 0;
-  margin-top: ${p.theme.space[1]}px;
-  flex-shrink: 0;
-  flex-grow: 0;
-`
-      : `
-  margin-right: ${p.theme.space[3]}px;
-`}
+  margin-right: ${p => p.theme.space[3]}px;
 
   ${iconContainerStyles}
 `;
@@ -359,7 +330,6 @@ const ActionButtons = ({
   dismissible,
   dismissed,
   onDismiss,
-  wrapContents,
 }: {
   kind: AlertKind | BannerKind;
   primaryAction?: Action;
@@ -367,16 +337,11 @@ const ActionButtons = ({
   dismissible?: boolean;
   dismissed: boolean;
   onDismiss: () => void;
-  wrapContents?: boolean;
 }) => {
   if (!(primaryAction || secondaryAction || dismissible)) return;
 
   return (
-    <Flex
-      ml={wrapContents ? 7 : 5}
-      gap={2}
-      flexBasis={wrapContents ? '100%' : 'auto'}
-    >
+    <Flex ml={5} gap={2}>
       {primaryAction && (
         <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
       )}

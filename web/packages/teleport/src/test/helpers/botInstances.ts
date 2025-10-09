@@ -51,19 +51,7 @@ export const getBotInstanceSuccess = (mock: GetBotInstanceResponse) =>
     return HttpResponse.json(mock);
   });
 
-export const getBotInstanceError = (
-  status: number,
-  error: string | null = null
-) =>
+export const getBotInstanceError = (status: number) =>
   http.get(cfg.api.botInstance.read, () => {
-    return HttpResponse.json({ error: { message: error } }, { status });
+    return new HttpResponse(null, { status });
   });
-
-export const getBotInstanceForever = () =>
-  http.get(
-    cfg.api.botInstance.read,
-    () =>
-      new Promise(() => {
-        /* never resolved */
-      })
-  );

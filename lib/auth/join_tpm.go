@@ -45,7 +45,7 @@ func (a *Server) RegisterUsingTPMMethod(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, joinFailureMetadata, initReq.JoinRequest,
+				err, provisionToken, joinFailureMetadata, initReq.JoinRequest,
 			)
 		}
 	}()
@@ -112,14 +112,20 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, &workloadidentityv1pb.JoinAttrs{
-			Tpm: validatedEK.JoinAttrs(),
-		})
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
+		certs, _, err := a.generateCertsBot(
+			ctx,
+			ptv2,
+			initReq.JoinRequest,
+			validatedEK,
+			&workloadidentityv1pb.JoinAttrs{
+				Tpm: validatedEK.JoinAttrs(),
+			},
+		)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}
-	params := makeHostCertsParams(initReq.JoinRequest, validatedEK)
-	certs, err := a.GenerateHostCertsForJoin(ctx, ptv2, params)
+	certs, err := a.generateCerts(
+		ctx, ptv2, initReq.JoinRequest, validatedEK,
+	)
 	return certs, trace.Wrap(err, "generating certs for host")
 }
 

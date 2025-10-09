@@ -39,7 +39,7 @@ func TestSSHConfigurator(t *testing.T) {
 	homePath := t.TempDir()
 
 	// This test gives a fake clock only to the SSH configurator and a real
-	// clock to everything else, so that fakeClock.BlockUntilContext will
+	// clock to everything else, so that fakeClock.BlockUntil will
 	// reliably only capture the SSH configuration loop and nothing else.
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	realClock := clockwork.NewRealClock()
@@ -96,7 +96,7 @@ func TestSSHConfigurator(t *testing.T) {
 
 	// Wait until the configurator has had a chance to write the initial config
 	// file and then get blocked in the loop.
-	fakeClock.BlockUntilContext(ctx, 1)
+	fakeClock.BlockUntil(1)
 	// Assert the config file contains both root clusters reported by
 	// fakeClientApp.
 	assertConfigFile("*.cluster1 *.cluster2 *.leaf1")
@@ -105,9 +105,9 @@ func TestSSHConfigurator(t *testing.T) {
 	// the config the test waits until the loop is blocked on the clock, then
 	// advances the clock, then waits until the loop is blocked again.
 	advance := func() {
-		fakeClock.BlockUntilContext(ctx, 1)
+		fakeClock.BlockUntil(1)
 		fakeClock.Advance(sshConfigurationUpdateInterval)
-		fakeClock.BlockUntilContext(ctx, 1)
+		fakeClock.BlockUntil(1)
 	}
 
 	// Add a new root and leaf cluster, allow the configuration loop to run,
@@ -200,7 +200,7 @@ Include "%s"
 					[]byte(tc.userOpenSSHConfigContents), filePerms))
 			}
 
-			err := AutoConfigureOpenSSH(t.Context(), profilePath, withUserSSHConfigPathOverride(userOpenSSHConfigPath))
+			err := AutoConfigureOpenSSH(context.Background(), profilePath, withUserSSHConfigPathOverride(userOpenSSHConfigPath))
 
 			if tc.expectAlreadyIncludedError {
 				assert.ErrorIs(t, err, trace.AlreadyExists("%s is already included in %s",

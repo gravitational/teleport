@@ -18,15 +18,9 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { ButtonPrimary } from 'design/Button';
 import { ListThin } from 'design/Icon';
-import { act, fireEvent, render, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
-import {
-  autoRemoveDurationMs,
-  ToastNotificationProvider,
-  useToastNotifications,
-} from 'shared/components/ToastNotification';
 
 import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
@@ -80,36 +74,29 @@ test('renders', () => {
     <MemoryRouter>
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
-          <ToastNotificationProvider>
-            <Main {...props} />
-          </ToastNotificationProvider>
+          <Main {...props} />
         </ContextProvider>
       </LayoutContextProvider>
     </MemoryRouter>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
-  expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(0);
 });
 
 test('toggle rendering of info guide panel', async () => {
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = createTeleportContext();
 
-  const testFeature = new FeatureTest();
-
   const props: MainProps = {
-    features: [...getOSSFeatures(), testFeature],
+    features: [...getOSSFeatures(), new FeatureTestInfoGuide()],
   };
 
   render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <ToastNotificationProvider>
-          <LayoutContextProvider>
-            <Main {...props} />
-          </LayoutContextProvider>
-        </ToastNotificationProvider>
+        <LayoutContextProvider>
+          <Main {...props} />
+        </LayoutContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );
@@ -121,7 +108,7 @@ test('toggle rendering of info guide panel', async () => {
 
   // render the component that has the guide info button
   fireEvent.click(screen.queryAllByText('Zero Trust Access')[0]);
-  fireEvent.click(screen.getByTestId(testFeature.route.path));
+  fireEvent.click(screen.getByText(/test info guide/i));
   expect(screen.getByText(/info guide title/i)).toBeInTheDocument();
 
   // test opening of panel
@@ -133,70 +120,53 @@ test('toggle rendering of info guide panel', async () => {
   expect(screen.queryByText(/i am the guide/i)).not.toBeInTheDocument();
 });
 
-test('notification render and auto dismissal', async () => {
-  jest.useFakeTimers();
+test('displays invite collaborators feedback if present', () => {
   mockUserContextProviderWith(makeTestUserContext());
-  const ctx = createTeleportContext();
-
-  const testFeature = new FeatureTest();
+  const ctx = setupContext();
 
   const props: MainProps = {
-    features: [...getOSSFeatures(), testFeature],
+    features: getOSSFeatures(),
+    inviteCollaboratorsFeedback: <div>Passed Component!</div>,
   };
 
   render(
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <ToastNotificationProvider>
-          <LayoutContextProvider>
-            <Main {...props} />
-          </LayoutContextProvider>
-        </ToastNotificationProvider>
-      </ContextProvider>
+      <LayoutContextProvider>
+        <ContextProvider ctx={ctx}>
+          <Main {...props} />
+        </ContextProvider>
+      </LayoutContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('Passed Component!')).toBeInTheDocument();
+});
+
+test('renders without invite collaborators feedback enabled', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+
+  const props: MainProps = {
+    features: getOSSFeatures(),
+  };
+  expect(props.inviteCollaboratorsFeedback).toBeUndefined();
+
+  render(
+    <MemoryRouter>
+      <LayoutContextProvider>
+        <ContextProvider ctx={ctx}>
+          <Main {...props} />
+        </ContextProvider>
+      </LayoutContextProvider>
     </MemoryRouter>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
-
-  // render the component that has the add note button
-  fireEvent.click(screen.queryAllByText('Zero Trust Access')[0]);
-  fireEvent.click(screen.getByTestId(testFeature.route.path));
-
-  expect(screen.queryAllByText(/some note/i)).toHaveLength(0);
-
-  fireEvent.click(screen.getByText(/add notification/i));
-  fireEvent.click(screen.getByText(/add notification/i));
-
-  expect(screen.getByText(/some note 1/i)).toBeInTheDocument();
-  expect(screen.getByText(/some note 2/i)).toBeInTheDocument();
-  expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(2);
-
-  // wait for notes to auto disappear
-  act(() => jest.advanceTimersByTime(autoRemoveDurationMs + 3_000));
-
-  expect(screen.queryByText(/some note 1/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(/some note 2/i)).not.toBeInTheDocument();
-  expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(0);
-
-  jest.useRealTimers();
 });
 
-let note = 1;
-const TestComponent = () => {
-  const toastNotification = useToastNotifications();
+const TestInfoGuide = () => {
   return (
     <div>
-      <ButtonPrimary
-        onClick={() => {
-          toastNotification.add({
-            severity: 'success',
-            content: `some note ${note}`,
-          });
-          note += 1;
-        }}
-      >
-        add notification
-      </ButtonPrimary>
       <InfoGuideButton config={{ guide: <div>I am the guide</div> }}>
         Info Guide Title
       </InfoGuideButton>
@@ -204,22 +174,22 @@ const TestComponent = () => {
   );
 };
 
-class FeatureTest implements TeleportFeature {
+class FeatureTestInfoGuide implements TeleportFeature {
   category = NavigationCategory.Audit;
 
   route = {
-    title: 'Testing Route Title',
-    path: '/web/testing',
-    component: TestComponent,
+    title: 'Test Info Guide',
+    path: '/web/testinfoguide',
+    component: TestInfoGuide,
   };
 
   navigationItem = {
-    title: 'Testing Navigation Title' as any,
+    title: 'Test Info Guide' as any,
     icon: ListThin,
     getLink() {
-      return '/web/testing';
+      return '/web/testinfoguide';
     },
-    searchableTags: ['test testing'],
+    searchableTags: ['test info guide'],
   };
 
   hasAccess() {

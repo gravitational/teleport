@@ -28,7 +28,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -75,7 +74,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
 	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
-	scope := p.cfg.Extensions.GetScope()
+
 	// No prompt to run, no-op.
 	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
@@ -100,12 +99,11 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			defer wg.Done()
 
 			resp, err := p.promptMFA(ctx, &api.PromptMFARequest{
-				ClusterUri:    p.resourceURI.GetClusterURI().String(),
-				Reason:        p.cfg.PromptReason,
-				Totp:          promptOTP,
-				Webauthn:      promptWebauthn,
-				Sso:           ssoChallenge,
-				PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				ClusterUri: p.resourceURI.GetClusterURI().String(),
+				Reason:     p.cfg.PromptReason,
+				Totp:       promptOTP,
+				Webauthn:   promptWebauthn,
+				Sso:        ssoChallenge,
 			})
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
 

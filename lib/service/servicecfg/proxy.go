@@ -236,7 +236,7 @@ func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
 	}
 
 	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(net.JoinHostPort(ip.String(), strconv.Itoa(port)))
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

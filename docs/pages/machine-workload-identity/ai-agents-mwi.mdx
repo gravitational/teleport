@@ -4,19 +4,18 @@ description: Managing AI Agents with Machine & Workload Identity
 labels:
  - conceptual
  - mwi
- - ai
 ---
 
-Teleport enables you to enforce access and privileges for agents.
+With Teleport, you can enforce access and privileges for agents.
 
-Security must be enforced deterministically. AI agents cannot be trusted to follow high-level instructions like "don't delete production". 
-Teleport solves this by issuing each agent its own identity and requiring the agent's actions (for example, database queries) to flow through the Teleport Proxy Service. 
+Security must be enforced deterministically; AI agents cannot be trusted to follow high-level instructions like "don't delete production". 
+Teleport solves this by issuing each agent its own identity and requiring the agent's actions (for example, database queries) to flow through the Teleport proxy. 
 This allows Teleport to apply Role-Based Access Control (RBAC) at both the network and protocol level.
 
-Teleport can secure infrastructure components such as SSH servers, Kubernetes clusters, databases, or MCP servers, when accessed by agents. 
-All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](../reference/deployment/monitoring/audit.mdx).
+Teleport can secure any type of infrastructure it supports, such as SSH servers, Kubernetes clusters, databases, or MCP servers, when accessed by agents. 
+All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](/reference/monitoring/audit.mdx).
 
-## Interested in a Design Partnership?
+## Interested in a design partnership?
 
 <Admonition type="tip" title="Exploring AI Agents with MWI?">
 If you're exploring how to secure AI Agents with Teleport Machine & Workload Identity, we'd love to hear from you. 

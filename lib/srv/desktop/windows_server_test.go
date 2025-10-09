@@ -36,14 +36,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func TestMain(m *testing.M) {
@@ -53,17 +52,13 @@ func TestMain(m *testing.M) {
 
 func TestConfigWildcardBaseDN(t *testing.T) {
 	cfg := &WindowsServiceConfig{
-		Discovery: []servicecfg.LDAPDiscoveryConfig{
-			{
-				BaseDN: "*",
-			},
-		},
-		LDAPConfig: servicecfg.LDAPConfig{
+		DiscoveryBaseDN: "*",
+		LDAPConfig: windows.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
 	require.NoError(t, cfg.checkAndSetDiscoveryDefaults())
-	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.Discovery[0].BaseDN)
+	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.DiscoveryBaseDN)
 }
 
 func TestConfigDesktopDiscovery(t *testing.T) {
@@ -103,12 +98,8 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := &WindowsServiceConfig{
-				Discovery: []servicecfg.LDAPDiscoveryConfig{
-					{
-						BaseDN:  test.baseDN,
-						Filters: test.filters,
-					},
-				},
+				DiscoveryBaseDN:      test.baseDN,
+				DiscoveryLDAPFilters: test.filters,
 			}
 			test.assert(t, cfg.checkAndSetDiscoveryDefaults())
 		})
@@ -139,7 +130,7 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 
-	ca, err := authServer.AuthServer.GetCertAuthorities(t.Context(), types.UserCA, false)
+	ca, err := authServer.AuthServer.GetCertAuthorities(context.Background(), types.UserCA, false)
 	require.NoError(t, err)
 	require.Len(t, ca, 1)
 
@@ -175,13 +166,16 @@ func TestGenerateCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
-				Username:           user,
-				Domain:             domain,
-				TTL:                5 * time.Minute,
-				ClusterName:        clusterName,
-				ActiveDirectorySID: test.activeDirectorySID,
-			})
+			certb, keyb, err := windows.GenerateWindowsDesktopCredentials(
+				ctx,
+				&windows.GenerateCredentialsRequest{
+					AuthClient:         client,
+					Username:           user,
+					Domain:             domain,
+					TTL:                5 * time.Minute,
+					ClusterName:        clusterName,
+					ActiveDirectorySID: test.activeDirectorySID,
+				})
 			require.NoError(t, err)
 			require.NotNil(t, certb)
 			require.NotNil(t, keyb)
@@ -199,27 +193,27 @@ func TestGenerateCredentials(t *testing.T) {
 			foundAdUserMapping := false
 			for _, extension := range cert.Extensions {
 				switch {
-				case extension.Id.Equal(winpki.EnhancedKeyUsageExtensionOID):
+				case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
 					foundKeyUsage = true
 					var oids []asn1.ObjectIdentifier
 					_, err = asn1.Unmarshal(extension.Value, &oids)
 					require.NoError(t, err)
 					require.Len(t, oids, 2)
-					require.Contains(t, oids, winpki.ClientAuthenticationOID)
-					require.Contains(t, oids, winpki.SmartcardLogonOID)
-				case extension.Id.Equal(winpki.SubjectAltNameExtensionOID):
+					require.Contains(t, oids, windows.ClientAuthenticationOID)
+					require.Contains(t, oids, windows.SmartcardLogonOID)
+				case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
 					foundAltName = true
-					var san winpki.SubjectAltName[winpki.UPN]
+					var san windows.SubjectAltName[windows.UPN]
 					_, err = asn1.Unmarshal(extension.Value, &san)
 					require.NoError(t, err)
-					require.Equal(t, winpki.UPNOtherNameOID, san.OtherName.OID)
+					require.Equal(t, windows.UPNOtherNameOID, san.OtherName.OID)
 					require.Equal(t, user+"@"+domain, san.OtherName.Value.Value)
-				case extension.Id.Equal(winpki.ADUserMappingExtensionOID):
+				case extension.Id.Equal(windows.ADUserMappingExtensionOID):
 					foundAdUserMapping = true
-					var adUserMapping winpki.SubjectAltName[winpki.ADSid]
+					var adUserMapping windows.SubjectAltName[windows.ADSid]
 					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
 					require.NoError(t, err)
-					require.Equal(t, winpki.ADUserMappingInternalOID, adUserMapping.OtherName.OID)
+					require.Equal(t, windows.ADUserMappingInternalOID, adUserMapping.OtherName.OID)
 					require.Equal(t, []byte(testSID), adUserMapping.OtherName.Value.Value)
 
 				}

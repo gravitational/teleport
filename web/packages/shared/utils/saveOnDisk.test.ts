@@ -27,6 +27,7 @@ test('saveOnDisk', async () => {
   jest.spyOn(document.body, 'appendChild').mockImplementation();
   jest.spyOn(document.body, 'removeChild').mockImplementation();
   const blob = jest.spyOn(global, 'Blob').mockImplementation();
+  // eslint-disable-next-line jest/prefer-spy-on
   window.URL.createObjectURL = jest.fn();
 
   saveOnDisk('testcontent', 'testfile.txt', 'plain/text');

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ToastNotificationItemContent } from 'shared/components/ToastNotification';
+import { NotificationItemContent } from 'shared/components/Notification';
 
 import {
   cannotProxyVnetConnectionReasonIsCertReissueError,
@@ -47,7 +47,7 @@ export class TshdNotificationsService {
 
   private getNotificationContent(
     request: SendNotificationRequest
-  ): ToastNotificationItemContent {
+  ): NotificationItemContent {
     const { subject } = request;
     // switch followed by a type guard is awkward, but it helps with ensuring that we get type
     // errors whenever a new request reason is added.

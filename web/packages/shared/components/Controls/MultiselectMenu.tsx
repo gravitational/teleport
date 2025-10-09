@@ -29,7 +29,7 @@ import {
 } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { ChevronDown } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 type Option<T> = {
   value: T;
@@ -44,22 +44,9 @@ type MultiselectMenuProps<T extends readonly Option<any>[]> = {
   onChange: (selected: Extract<T[number], Option<any>>['value'][]) => void;
   label: string | ReactNode;
   tooltip: string;
-  /**
-   * If true, renders inner control buttons (eg: apply, cancel),
-   * and changes made to dropdown don't take affect until user
-   * explicitly clicks on these inner control buttons.
-   *
-   * If false, no inner control buttons are rendered and changes
-   * take affect immediately.
-   */
   buffered?: boolean;
   showIndicator?: boolean;
   showSelectControls?: boolean;
-  /**
-   * If true, disables the button that
-   * opens the dropdown menu.
-   */
-  disabled?: boolean;
 };
 
 export const MultiselectMenu = <T extends readonly Option<any>[]>({
@@ -71,7 +58,6 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
   buffered = false,
   showIndicator = true,
   showSelectControls = true,
-  disabled = false,
 }: MultiselectMenuProps<T>) => {
   type Value = Extract<T[number], Option<any>>['value'];
 
@@ -130,14 +116,9 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
           onClick={handleOpen}
           aria-haspopup="true"
           aria-expanded={!!anchorEl}
-          disabled={disabled}
         >
           {label} {selected?.length > 0 ? `(${selected?.length})` : ''}
-          <ChevronDown
-            ml={2}
-            size="small"
-            color={disabled ? 'text.disabled' : 'text.slightlyMuted'}
-          />
+          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
           {selected?.length > 0 && showIndicator && <FiltersExistIndicator />}
         </ButtonSecondary>
       </HoverTooltip>
@@ -203,30 +184,20 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
             </>
           );
           return (
-            <HoverTooltip
+            <MenuItem
+              disabled={opt.disabled}
+              px={2}
               key={opt.value}
-              tipContent={(opt.disabled && opt.disabledTooltip) || undefined}
+              onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
             >
-              <MenuItem
-                disabled={opt.disabled}
-                px={2}
-                onClick={e => {
-                  const target = e.target as HTMLElement;
-                  // Check if the click originated from the checkbox
-                  if (
-                    (target as HTMLInputElement).type === 'checkbox' ||
-                    target.closest('input[type="checkbox"]')
-                  ) {
-                    return; // Don't handle if click came from checkbox
-                  }
-                  if (!opt.disabled) {
-                    handleSelect(opt.value);
-                  }
-                }}
-              >
-                {$checkbox}
-              </MenuItem>
-            </HoverTooltip>
+              {opt.disabled && opt.disabledTooltip ? (
+                <HoverTooltip tipContent={opt.disabledTooltip}>
+                  {$checkbox}
+                </HoverTooltip>
+              ) : (
+                $checkbox
+              )}
+            </MenuItem>
           );
         })}
         {buffered && (
@@ -264,7 +235,7 @@ const MultiselectMenuOptionsContainer = styled(Flex)<{
   z-index: 1;
 `;
 
-export const FiltersExistIndicator = styled.div`
+const FiltersExistIndicator = styled.div`
   position: absolute;
   top: -4px;
   right: -4px;

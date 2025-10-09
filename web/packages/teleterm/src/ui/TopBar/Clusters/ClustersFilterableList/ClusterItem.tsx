@@ -37,7 +37,7 @@ export function ClusterItem(props: ClusterItemProps) {
     index: props.index,
     onRun: props.onSelect,
   });
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   const clusterName = props.item.name;
 

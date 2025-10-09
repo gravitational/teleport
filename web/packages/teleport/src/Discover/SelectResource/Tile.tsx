@@ -17,10 +17,9 @@
  */
 
 import { useState, type ComponentPropsWithoutRef } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Link as ExternalLink, Flex, Text } from 'design';
+import { Box, Flex, Link, Text } from 'design';
 import { NewTab } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { PinningSupport } from 'shared/components/UnifiedResources';
@@ -72,9 +71,7 @@ export function Tile({
     onSelectResource(resourceSpec);
   };
 
-  let resourceCardProps: ComponentPropsWithoutRef<
-    'button' | typeof ExternalLink | typeof InternalLink
-  >;
+  let resourceCardProps: ComponentPropsWithoutRef<'button' | typeof Link>;
 
   if (resourceSpec.kind === ResourceKind.Application && resourceSpec.isDialog) {
     resourceCardProps = {
@@ -84,19 +81,11 @@ export function Tile({
     };
   } else if (resourceSpec.unguidedLink) {
     resourceCardProps = {
-      as: ExternalLink,
+      as: Link,
       href: resourceSpec.hasAccess ? resourceSpec.unguidedLink : null,
       target: '_blank',
       style: { textDecoration: 'none' },
       role: 'link',
-    };
-  } else if (resourceSpec.guidedLink) {
-    resourceCardProps = {
-      as: InternalLink,
-      to: {
-        pathname: resourceSpec.hasAccess ? resourceSpec.guidedLink : null,
-      },
-      style: { textDecoration: 'none' },
     };
   } else {
     resourceCardProps = {

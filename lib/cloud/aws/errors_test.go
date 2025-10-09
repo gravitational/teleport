@@ -23,9 +23,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -36,18 +37,6 @@ func TestConvertRequestFailureError(t *testing.T) {
 
 	fakeRequestID := "11111111-2222-3333-3333-333333333334"
 
-	newResponseError := func(code int) error {
-		return &awshttp.ResponseError{
-			RequestID: fakeRequestID,
-			ResponseError: &smithyhttp.ResponseError{
-				Response: &smithyhttp.Response{Response: &http.Response{
-					StatusCode: code,
-				}},
-				Err: trace.Errorf("inner"),
-			},
-		}
-	}
-
 	tests := []struct {
 		name           string
 		inputError     error
@@ -56,35 +45,27 @@ func TestConvertRequestFailureError(t *testing.T) {
 	}{
 		{
 			name:        "StatusForbidden",
-			inputError:  newResponseError(http.StatusForbidden),
+			inputError:  awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusForbidden, fakeRequestID),
 			wantIsError: trace.IsAccessDenied,
 		},
 		{
 			name:        "StatusConflict",
-			inputError:  newResponseError(http.StatusConflict),
+			inputError:  awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusConflict, fakeRequestID),
 			wantIsError: trace.IsAlreadyExists,
 		},
 		{
 			name:        "StatusNotFound",
-			inputError:  newResponseError(http.StatusNotFound),
+			inputError:  awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusNotFound, fakeRequestID),
 			wantIsError: trace.IsNotFound,
 		},
 		{
 			name:           "StatusBadRequest",
-			inputError:     newResponseError(http.StatusBadRequest),
+			inputError:     awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusBadRequest, fakeRequestID),
 			wantUnmodified: true,
 		},
 		{
-			name: "StatusBadRequest with AccessDeniedException",
-			inputError: &awshttp.ResponseError{
-				RequestID: fakeRequestID,
-				ResponseError: &smithyhttp.ResponseError{
-					Response: &smithyhttp.Response{Response: &http.Response{
-						StatusCode: http.StatusBadRequest,
-					}},
-					Err: trace.Errorf("AccessDeniedException"),
-				},
-			},
+			name:        "StatusBadRequest with AccessDeniedException",
+			inputError:  awserr.NewRequestFailure(awserr.New("AccessDeniedException", "message", nil), http.StatusBadRequest, fakeRequestID),
 			wantIsError: trace.IsAccessDenied,
 		},
 		{
@@ -93,9 +74,20 @@ func TestConvertRequestFailureError(t *testing.T) {
 			wantUnmodified: true,
 		},
 		{
+			name: "v2 sdk error",
+			inputError: &awshttp.ResponseError{
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusNotFound,
+					}},
+					Err: trace.Errorf(""),
+				},
+			},
+			wantIsError: trace.IsNotFound,
+		},
+		{
 			name: "v2 sdk error for ecs ClusterNotFoundException",
 			inputError: &awshttp.ResponseError{
-				RequestID: fakeRequestID,
 				ResponseError: &smithyhttp.ResponseError{
 					Response: &smithyhttp.Response{Response: &http.Response{
 						StatusCode: http.StatusBadRequest,
@@ -136,7 +128,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.EntityAlreadyExistsException{
 				Message: aws.String("resource exists"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
 			},
 		},
@@ -145,7 +137,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.NoSuchEntityException{
 				Message: aws.String("resource not found"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
 			},
 		},
@@ -154,7 +146,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.MalformedPolicyDocumentException{
 				Message: aws.String("malformed document"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got %v", err)
 			},
 		},
@@ -168,7 +160,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got %v", err)
 			},
 		},
@@ -182,7 +174,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
 			},
 		},
@@ -196,13 +188,13 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.errCheck(t, ConvertIAMError(tt.inErr))
+			tt.errCheck(t, ConvertIAMv2Error(tt.inErr))
 		})
 	}
 }

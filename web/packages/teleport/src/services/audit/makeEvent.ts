@@ -2130,29 +2130,6 @@ export const formatters: Formatters = {
       return `Stable UNIX user for username [${username}] was created`;
     },
   },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
-    type: 'aws_identity_center.resource_sync.success',
-    desc: 'AWS IAM Identity Center Resource Sync Completed',
-    format: ({
-      total_user_groups,
-      total_accounts,
-      total_account_assignments,
-      total_permission_sets,
-    }) => {
-      // user groups only imported once.
-      if (total_user_groups > 0) {
-        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
-      }
-      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
-    type: 'aws_identity_center.resource_sync.failed',
-    desc: 'AWS IAM Identity Center Resource Sync Failed',
-    format: ({ message }) => {
-      return message;
-    },
-  },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
     desc: 'Automatic Update Config Created',
@@ -2195,27 +2172,6 @@ export const formatters: Formatters = {
       return `User ${user} deleted the Automatic Update Version`;
     },
   },
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
-    type: 'health_check_config.create',
-    desc: 'Health Check Config Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
-    type: 'health_check_config.update',
-    desc: 'Health Check Config Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
-    type: 'health_check_config.delete',
-    desc: 'Health Check Config Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a health check config [${name}]`;
-    },
-  },
   [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
     type: 'auto_update_agent_rollout.trigger',
     desc: 'Automatic Update Agent Rollout Triggered',
@@ -2235,85 +2191,6 @@ export const formatters: Formatters = {
     desc: 'Automatic Update Agent Rollout Rollback',
     format: ({ user, groups }) => {
       return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.MCP_SESSION_START]: {
-    type: 'mcp.session.start',
-    desc: 'MCP Session Started',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has connected to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_END]: {
-    type: 'mcp.session.end',
-    desc: 'MCP Session Ended',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has disconnected from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_END_FAILURE]: {
-    type: 'mcp.session.end',
-    desc: 'MCP Session End Failure',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] failed to disconnect from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request Failure',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] failed to send an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] failed to send an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_NOTIFICATION]: {
-    type: 'mcp.session.notification',
-    desc: 'MCP Session Notification',
-    format: ({ user, app_name, message }) => {
-      return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: {
-    type: 'mcp.session.notification',
-    desc: 'MCP Session Notification Failure',
-    format: ({ user, app_name, message }) => {
-      return `User [${user}] failed to send an MCP notification [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: {
-    type: 'mcp.session.listen_sse_stream',
-    desc: 'MCP Session Listen',
-    format: ({ user, app_name }) => {
-      return `User [${user}] has started listening events from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: {
-    type: 'mcp.session.listen_sse_stream',
-    desc: 'MCP Session Listen Failure',
-    format: ({ user, app_name }) => {
-      return `User [${user}] failed to listen events from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: {
-    type: 'mcp.session.invalid_http_request',
-    desc: 'MCP Session Invalid Request',
-    format: ({ user, app_name }) => {
-      return `User [${user}] attempted to send an invalid request to MCP server [${app_name}]`;
     },
   },
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
@@ -2340,66 +2217,6 @@ export const formatters: Formatters = {
     format: ({ token_name, error }) => {
       return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
     },
-  },
-  [eventCodes.SCIM_RESOURCE_LIST]: {
-    type: 'scim.list',
-    desc: 'SCIM Resource Listing Succeeded',
-    format: ({ integration, resource_type }) =>
-      `[${integration}] [${resource_type}] listing succeeded`,
-  },
-  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: {
-    type: 'scim.list',
-    desc: 'SCIM Resource Listing Failed',
-    format: ({ integration, resource_type }) =>
-      `[${integration}] [${resource_type}] listing failed`,
-  },
-  [eventCodes.SCIM_RESOURCE_GET]: {
-    type: 'scim.get',
-    desc: 'SCIM Resource Fetch Succeeded',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
-  },
-  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: {
-    type: 'scim.get',
-    desc: 'SCIM Resource Fetch Failed',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
-  },
-  [eventCodes.SCIM_RESOURCE_CREATE]: {
-    type: 'scim.create',
-    desc: 'SCIM Resource Creation Succeeded',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
-  },
-  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: {
-    type: 'scim.create',
-    desc: 'SCIM Resource Creation Failed',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
-  },
-  [eventCodes.SCIM_RESOURCE_UPDATE]: {
-    type: 'scim.update',
-    desc: 'SCIM Update Succeeded',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
-  },
-  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: {
-    type: 'scim.update',
-    desc: 'SCIM Update Failed',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
-  },
-  [eventCodes.SCIM_RESOURCE_DELETE]: {
-    type: 'scim.delete',
-    desc: 'SCIM Delete Succeeded',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] succeeded`,
-  },
-  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: {
-    type: 'scim.delete',
-    desc: 'SCIM Delete Failed',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
 };
 

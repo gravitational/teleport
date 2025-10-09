@@ -4,8 +4,6 @@ description: How to install and configure Machine ID on Azure DevOps.
 tags:
  - how-to
  - mwi
- - infrastructure-identity
- - azure
 ---
 
 In this guide, you will configure Machine ID's agent, `tbot`, to run within a
@@ -109,7 +107,7 @@ Replace:
 
 You can find a full list of the token configuration options for Azure DevOps
 joining on the
-[join methods reference page.](../../../reference/deployment/join-methods.mdx#azure-devops-azure_devops)
+[join methods reference page.](../../../reference/join-methods.mdx#azure-devops-azure_devops)
 
 Apply this to your Teleport cluster using `tctl`:
 
@@ -175,9 +173,6 @@ steps:
 
 Replace <Var name="example.teleport.sh"/> with the address of your Teleport Proxy Service.
 
-Note the inclusion of the `SYSTEM_ACCESSTOKEN` environment variable. This
-variable must be populated in any step where `tbot` is run.
-
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
 telemetry. This helps us shape the future development of `tbot`. You can disable
 this by omitting this.
@@ -195,9 +190,9 @@ exit.
 ## Further steps
 
 - For more information about the Azure DevOps join method, read the
-  [join method reference page.](../../../reference/deployment/join-methods.mdx#azure-devops-azure_devops)
+  [join method reference page.](../../../reference/join-methods.mdx#azure-devops-azure_devops)
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
 your environment.
-- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
 all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)

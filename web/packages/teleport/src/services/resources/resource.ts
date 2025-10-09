@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AuthProvider } from 'shared/services';
-
 import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
@@ -121,14 +119,6 @@ class ResourceService {
     );
   }
 
-  async getUserMatchedAuthConnectors(
-    username: string
-  ): Promise<AuthProvider[]> {
-    return api
-      .post(cfg.api.authConnectorsPath, { username })
-      .then(res => res.connectors || []);
-  }
-
   async fetchRoles(
     params?: UrlListRolesParams,
     signal?: AbortSignal
@@ -136,7 +126,7 @@ class ResourceService {
     items: RoleResource[];
     startKey: string;
   }> {
-    return await api.get(cfg.getRoleUrl({ action: 'list', params }), signal);
+    return await api.get(cfg.getListRolesUrl(params), signal);
   }
 
   async fetchRequestableRoles(
@@ -166,16 +156,9 @@ class ResourceService {
       .then(res => makeResourceList<'role'>(res));
   }
 
-  /**
-   * @deprecated use standalone fetchRole function defined below this class
-   */
   async fetchRole(name: string): Promise<RoleResource> {
     return makeResource<'role'>(
-      await api.get(
-        cfg.getRoleUrl({ action: 'get', name }),
-        undefined,
-        undefined
-      )
+      await api.get(cfg.getRoleUrl(name), undefined, undefined)
     );
   }
 
@@ -188,7 +171,7 @@ class ResourceService {
   createRole(content: string, mfaResponse?: MfaChallengeResponse) {
     return api
       .post(
-        cfg.api.role.create,
+        cfg.getRoleUrl(),
         { content },
         undefined /* abort signal */,
         mfaResponse
@@ -208,12 +191,9 @@ class ResourceService {
       .then(res => makeResource<'trusted_cluster'>(res));
   }
 
-  /**
-   * @deprecated use standalone updateRole function defined below this class
-   */
   updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRoleUrl({ action: 'update', name }), { content })
+      .put(cfg.getRoleUrl(name), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -234,7 +214,7 @@ class ResourceService {
   }
 
   deleteRole(name: string) {
-    return api.delete(cfg.getRoleUrl({ action: 'delete', name }));
+    return api.delete(cfg.getRoleUrl(name));
   }
 
   deleteGithubConnector(name: string) {
@@ -249,7 +229,7 @@ export async function fetchRole(
   signal?: AbortSignal
 ): Promise<RoleResource> {
   return makeResource<'role'>(
-    await api.get(cfg.getRoleUrl({ action: 'get', name }), signal, undefined)
+    await api.get(cfg.getRoleUrl(name), signal, undefined)
   );
 }
 
@@ -281,7 +261,7 @@ export async function updateRole({
   content: string;
 }): Promise<RoleResource> {
   return api
-    .put(cfg.getRoleUrl({ action: 'update', name }), { content })
+    .put(cfg.getRoleUrl(name), { content })
     .then(res => makeResource<'role'>(res));
 }
 

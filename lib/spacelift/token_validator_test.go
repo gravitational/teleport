@@ -30,10 +30,8 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -90,7 +88,7 @@ func (f *fakeIDP) audience() string {
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 	// mimic https://teleport-noah-dev.app.spacelift.io/.well-known/openid-configuration
-	response := map[string]any{
+	response := map[string]interface{}{
 		"claims_supported": []string{
 			"aud",
 			"callerId",
@@ -152,7 +150,7 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]any{
+	customClaims := map[string]interface{}{
 		"spaceId": spaceID,
 	}
 	token, err := jwt.Signed(f.signer).
@@ -248,6 +246,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
+				Clock:    clockwork.NewRealClock(),
 				insecure: true,
 			})
 
@@ -257,9 +256,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }

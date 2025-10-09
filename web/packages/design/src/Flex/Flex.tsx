@@ -17,7 +17,6 @@
  */
 
 import styled from 'styled-components';
-import { flexShrink, type FlexShrinkProps } from 'styled-system';
 
 import {
   alignItems,
@@ -52,8 +51,7 @@ export interface FlexProps
     BoxShadowProps,
     RowGapProps,
     ColumnGapProps,
-    GapProps,
-    FlexShrinkProps {
+    GapProps {
   /**
    * Uses inline-flex instead of just flex as the display property.
    */
@@ -73,7 +71,6 @@ const Flex = styled(Box)<FlexProps>`
   ${rowGap}
   ${columnGap}
   ${gap}
-  ${flexShrink}
 
   ${props =>
     props.fullWidth &&
@@ -113,19 +110,20 @@ export default Flex;
  *   </Stack>
  * </Stack>
  */
-export const Stack = styled(Flex).attrs(props => ({
+export const Stack = styled(Flex).attrs({
   flexDirection: 'column',
-  gap: 1,
-  // align-items: flex-start lets children keep their original size. Otherwise elements like buttons
-  // would occupy all available horizontal space instead of the minimal amount of space they need.
-  //
-  // This is set as a default prop, as in some cases it might be necessary to override align-items.
-  alignItems: 'flex-start',
-  ...props,
-}))`
+})`
   & > * {
     // Prevents children from shrinking, within a stack we pretty much never want that to happen.
     // Individual children can override this.
     flex-shrink: 0;
   }
 `;
+Stack.defaultProps = {
+  gap: 1,
+  // align-items: flex-start lets children keep their original size. Otherwise elements like buttons
+  // would occupy all available horizontal space instead of the minimal amount of space they need.
+  //
+  // This is set as a default prop, as in some cases it might be necessary to override align-items.
+  alignItems: 'flex-start',
+};

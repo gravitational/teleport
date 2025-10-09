@@ -210,77 +210,6 @@ func TestAccessListReminders_Single(t *testing.T) {
 	}
 }
 
-func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
-
-	server := newTestAuth(t)
-
-	as := server.Auth()
-	t.Cleanup(func() {
-		require.NoError(t, as.Close())
-	})
-
-	bot := &mockMessagingBot{
-		recipients: map[string]*common.Recipient{
-			"static-owner": {Name: "static-owner", ID: "static-owner"},
-		},
-	}
-	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
-	app.Clock = clock
-	ctx := context.Background()
-	go func() {
-		app.Run(ctx)
-	}()
-
-	ready, err := app.WaitReady(ctx)
-	require.NoError(t, err)
-	require.True(t, ready)
-
-	t.Cleanup(func() {
-		app.Terminate()
-		<-app.Done()
-		require.NoError(t, app.Err())
-	})
-
-	for _, typ := range []accesslist.Type{
-		accesslist.SCIM,
-		accesslist.Static,
-	} {
-		t.Run(string(typ), func(t *testing.T) {
-			const testAccessListName = "test-non-reviewable-access-list"
-
-			// Clean up the AccessList. A single one has to be reused, otherwise:
-			// cluster has reached its limit for creating access lists, please contact
-			// the cluster administrator
-			err := as.DeleteAccessList(ctx, testAccessListName)
-			require.True(t, err == nil || trace.IsNotFound(err), "err = %s", err)
-
-			nonReviewableAccessList, err := accesslist.NewAccessList(header.Metadata{
-				Name: testAccessListName,
-			}, accesslist.Spec{
-				Type:   typ,
-				Title:  "test static access list",
-				Owners: []accesslist.Owner{{Name: "static-owner"}},
-				Grants: accesslist.Grants{
-					Roles: []string{"role"},
-				},
-				Audit: accesslist.Audit{},
-			})
-			require.NoError(t, err)
-
-			accessLists := []*accesslist.AccessList{nonReviewableAccessList}
-
-			// No notifications for today
-			advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
-
-			// Advance by one week, expect no notifications.
-			advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
-		})
-	}
-}
-
 func TestAccessListReminders_Batched(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -432,7 +361,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 func advanceAndLookForRecipients(t *testing.T,
 	bot *mockMessagingBot,
 	alSvc services.AccessLists,
-	clock *clockwork.FakeClock,
+	clock clockwork.FakeClock,
 	advance time.Duration,
 	accessLists []*accesslist.AccessList,
 	recipients ...string) {

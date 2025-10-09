@@ -20,11 +20,12 @@ package lib
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Terminable interface {
@@ -47,9 +48,9 @@ func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 	gracefulShutdown := func() {
 		tctx, tcancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer tcancel()
-		slog.InfoContext(tctx, "Attempting graceful shutdown")
+		log.Infof("Attempting graceful shutdown...")
 		if err := app.Shutdown(tctx); err != nil {
-			slog.InfoContext(tctx, "Graceful shutdown failed, attempting fast shutdown")
+			log.Infof("Graceful shutdown failed. Trying fast shutdown...")
 			app.Close()
 		}
 	}

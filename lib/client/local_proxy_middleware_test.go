@@ -70,11 +70,6 @@ func TestCertChecker(t *testing.T) {
 	certIssuer.issueErr = trace.BadParameter("failed to issue cert")
 	_, err = certChecker.GetOrIssueCert(ctx)
 	require.ErrorIs(t, err, certIssuer.issueErr, "expected error %v but got %v", certIssuer.issueErr, err)
-
-	// If the problem is solved, the error is clean up.
-	certIssuer.issueErr = nil
-	_, err = certChecker.GetOrIssueCert(ctx)
-	require.NoError(t, err)
 }
 
 func TestLocalCertGenerator(t *testing.T) {

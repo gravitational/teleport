@@ -99,21 +99,6 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Clone returns a copy of the member.
-func (u *UserLoginState) Clone() *UserLoginState {
-	if u == nil {
-		return nil
-	}
-	out := &UserLoginState{}
-	deriveDeepCopyUserLoginState(out, u)
-	return out
-}
-
-// IsEqual compares two user login states for equality.
-func (u *UserLoginState) IsEqual(i *UserLoginState) bool {
-	return deriveTeleportEqualUserLoginState(u, i)
-}
-
 // GetOriginalRoles returns the original roles that the user login state was derived from.
 func (u *UserLoginState) GetOriginalRoles() []string {
 	return u.Spec.OriginalRoles
@@ -167,17 +152,4 @@ func (u *UserLoginState) GetGithubIdentities() []types.ExternalIdentity {
 		UserID:   u.Spec.GitHubIdentity.UserID,
 		Username: u.Spec.GitHubIdentity.Username,
 	}}
-}
-
-// SetGithubIdentities sets the list of connected GitHub identities.
-// Note that currently only one identity is kept in UserLoginState.
-func (u *UserLoginState) SetGithubIdentities(identities []types.ExternalIdentity) {
-	if len(identities) == 0 {
-		u.Spec.GitHubIdentity = nil
-	} else {
-		u.Spec.GitHubIdentity = &ExternalIdentity{
-			UserID:   identities[0].UserID,
-			Username: identities[0].Username,
-		}
-	}
 }

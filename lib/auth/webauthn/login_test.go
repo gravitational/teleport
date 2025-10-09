@@ -34,7 +34,6 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -442,7 +441,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
@@ -689,7 +688,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 			{
 				name:         "NOK challenge extensions not provided",
 				challengeExt: nil,
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "extensions must be supplied")
 				},
@@ -700,7 +699,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "cannot allow reuse")
 				},
@@ -710,7 +709,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				challengeExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 				},
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "passwordless challenge scope")
 				},
@@ -748,7 +747,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},
 				requiredExt: nil,
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "extensions must be supplied")
 				},
@@ -760,7 +759,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				requiredExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "is not satisfied")
 				},
@@ -772,7 +771,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				requiredExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "is not satisfied")
 				},
@@ -802,7 +801,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
-				assertErr: func(t require.TestingT, err error, i ...any) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "reuse is not permitted")
 				},

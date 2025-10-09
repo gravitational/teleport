@@ -35,7 +35,7 @@ export function CopyButton({
 }) {
   const copySuccess = 'Copied!';
   const copyDefault = 'Click to copy';
-  const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const timeout = useRef<ReturnType<typeof setTimeout>>();
   const copyAnchorEl = useRef(null);
   const [copiedText, setCopiedText] = useState(copyDefault);
 
@@ -66,7 +66,7 @@ export function CopyButton({
     <Box mr={mr} ml={ml}>
       <HoverTooltip tipContent={copiedText}>
         <ButtonIcon
-          ref={copyAnchorEl}
+          setRef={copyAnchorEl}
           size={0}
           onClick={handleCopy}
           aria-label="copy"

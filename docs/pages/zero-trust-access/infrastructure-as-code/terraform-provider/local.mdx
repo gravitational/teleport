@@ -1,13 +1,12 @@
 ---
 title: Run the Teleport Terraform Provider Locally
-sidebar_label: Local Demos
 description: How to manage dynamic resources using the Teleport Terraform provider from your workstation.
 tags:
  - how-to
  - zero-trust
 ---
 
-This guide covers how to run the Teleport Terraform provider from your local computer,
+This guide covers how to run the Teleport terraform provider from your local computer,
 where you are already logged in Teleport as yourself.
 
 This guide does not cover running Teleport in remote environments such as a cloud VM, an on-prem server,
@@ -58,7 +57,7 @@ provider. The bot will exist for one hour and will be granted the default `terra
 resource the TF provider supports.
 
 `tctl` will then obtain credentials for the temporary bot and export them in your shell's environment variables.
-If [MFA for Administrative Actions](../../authentication/mfa-for-admin-actions.mdx)
+If [MFA for Administrative Actions](../../access-controls/guides/mfa-for-admin-actions.mdx)
 is enabled on your cluster, `tctl` will prompt for your MFA.
 
 Run the following command, do not remove the `eval` as it is required to load credentials in your shell:
@@ -163,7 +162,7 @@ Do not forget to obtain new temporary credentials every hour by re-running `eval
   Provider to create Teleport users and grant them roles.
 - Consult the list of Terraform-supported
   resources [in the Terraform
-  reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
+  reference](../../../reference/terraform-provider/terraform-provider.mdx).
 - Once you have working Terraform code that configures your Teleport cluster,
   you might want to run it in the CI or from a bastion instead of running it
   locally. To do this, please follow the dedicated guides:

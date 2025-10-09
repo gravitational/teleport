@@ -38,11 +38,8 @@ export function AdvancedSearchToggle(props: {
       px={props.px}
       className={props.className}
     >
-      <Toggle isToggled={props.isToggled} onToggle={props.onToggle}>
-        <Text typography="body3" ml={2}>
-          Advanced
-        </Text>
-      </Toggle>
+      <Toggle isToggled={props.isToggled} onToggle={props.onToggle} />
+      <Text typography="body3">Advanced</Text>
       <IconTooltip trigger="click">
         <PredicateDocumentation />
       </IconTooltip>
@@ -76,9 +73,7 @@ function PredicateDocumentation() {
       <P>
         Label Matching:{' '}
         <Text ml={1} as="span" bold>
-          <code>
-            labels["key"] == "value" && labels["key2"] != "value2"
-          </code>{' '}
+          <code>labels["key"] == "value" && labels["key2"] != "value2"</code>{' '}
         </Text>{' '}
       </P>
       <P>

@@ -21,17 +21,15 @@ package srv
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	gproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -164,26 +162,6 @@ func NewKubernetesServerHeartbeat(cfg HeartbeatV2Config[*types.KubernetesServerV
 	inner := &kubeServerHeartbeatV2{
 		getServer: cfg.GetResource,
 		announcer: cfg.Announcer,
-	}
-
-	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
-		onHeartbeatInner:           cfg.OnHeartbeat,
-		announceInterval:           cfg.AnnounceInterval,
-		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
-		pollInterval:               cfg.PollInterval,
-	}), nil
-}
-
-// NewRelayServerHeartbeat creates a [HeartbeatV2] that advertises the presence
-// of a Relay service instance.
-func NewRelayServerHeartbeat(cfg HeartbeatV2Config[*presencev1.RelayServer], log *slog.Logger) (*HeartbeatV2, error) {
-	if err := cfg.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	inner := &relayServerHeartbeatV2{
-		log:       log,
-		getServer: cfg.GetResource,
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
@@ -423,11 +401,6 @@ func (h *HeartbeatV2) run() {
 		case <-h.closeContext.Done():
 			return
 		}
-
-		// check if we are closing to avoid randomly looping back into the sender
-		if h.closing() {
-			return
-		}
 	}
 }
 
@@ -529,14 +502,7 @@ func (h *HeartbeatV2) onHeartbeat(err error) {
 	if h.onHeartbeatInner == nil {
 		return
 	}
-	if h.closing() {
-		return
-	}
 	h.onHeartbeatInner(err)
-}
-
-func (h *HeartbeatV2) closing() bool {
-	return h.closeContext.Err() != nil
 }
 
 // heartbeatV2Driver is the pluggable core of the HeartbeatV2 type. A service needing to use HeartbeatV2 should
@@ -593,12 +559,12 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for ssh server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
 		return false
 	}
 
 	if _, err := h.announcer.UpsertNode(ctx, server); err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for ssh server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
 		return false
 	}
 
@@ -609,12 +575,12 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for ssh server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
 		return false
 	}
 
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for ssh server", "error", err)
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
+		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
 		return false
 	}
 	h.prev = server
@@ -651,13 +617,13 @@ func (h *appServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for app server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for app server: %v", err)
 		return false
 	}
 
 	if _, err := h.announcer.UpsertApplicationServer(ctx, server); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for app server", "error", err)
+			log.Warnf("Failed to perform fallback heartbeat for app server: %v", err)
 		}
 		return false
 	}
@@ -679,13 +645,13 @@ func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for app server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
 		return false
 	}
 
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for app server", "error", err)
+			log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
 		}
 		return false
 	}
@@ -724,12 +690,12 @@ func (h *dbServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for database server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for database server: %v", err)
 		return false
 	}
 	if _, err := h.announcer.UpsertDatabaseServer(ctx, server); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for database server", "error", err)
+			log.Warnf("Failed to perform fallback heartbeat for database server: %v", err)
 		}
 		return false
 	}
@@ -751,12 +717,12 @@ func (h *dbServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Dow
 
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for database server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for database server: %v", err)
 		return false
 	}
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{DatabaseServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{DatabaseServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for database server", "error", err)
+			log.Warnf("Failed to perform inventory heartbeat for database server: %v", err)
 		}
 		return false
 	}
@@ -795,13 +761,13 @@ func (h *kubeServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) 
 	}
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform fallback heartbeat for kubernetes server", "error", err)
+		log.Warnf("Failed to perform fallback heartbeat for kubernetes server: %v", err)
 		return false
 	}
 
 	if _, err := h.announcer.UpsertKubernetesServer(ctx, apiutils.CloneProtoMsg(server)); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform fallback heartbeat for kubernetes server", "error", err)
+			log.Warnf("Failed to perform fallback heartbeat for kubernetes server: %v", err)
 		}
 		return false
 	}
@@ -823,77 +789,16 @@ func (h *kubeServerHeartbeatV2) Announce(ctx context.Context, sender inventory.D
 
 	server, err := h.getServer(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for kubernetes server", "error", err)
+		log.Warnf("Failed to perform inventory heartbeat for kubernetes server: %v", err)
 		return false
 	}
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{KubernetesServer: apiutils.CloneProtoMsg(server)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{KubernetesServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for kubernetes server", "error", err)
+			log.Warnf("Failed to perform inventory heartbeat for kubernetes server: %v", err)
 		}
 		return false
 	}
 
 	h.prev = server
-	return true
-}
-
-// relayServerHeartbeatV2 is a heartbeat driver for Relay heartbeats.
-type relayServerHeartbeatV2 struct {
-	log *slog.Logger
-	// getServer should return a relay_server item with no expiry. The value is
-	// checked against the previous relay_server with protobuf equality.
-	getServer func(ctx context.Context) (*presencev1.RelayServer, error)
-
-	last *presencev1.RelayServer
-}
-
-var _ heartbeatV2Driver = (*relayServerHeartbeatV2)(nil)
-
-// Poll implements [heartbeatV2Driver].
-func (h *relayServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {
-	if h.last == nil {
-		return true
-	}
-
-	server, err := h.getServer(ctx)
-	if err != nil {
-		return false
-	}
-
-	return !gproto.Equal(h.last, server)
-}
-
-// SupportsFallback implements [heartbeatV2Driver].
-func (h *relayServerHeartbeatV2) SupportsFallback() bool {
-	return false
-}
-
-// FallbackAnnounce implements [heartbeatV2Driver].
-func (h *relayServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
-	return false
-}
-
-// Announce implements [heartbeatV2Driver].
-func (h *relayServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
-	if !sender.Hello().GetCapabilities().GetRelayServerHeartbeatsCleanup() {
-		return false
-	}
-
-	server, err := h.getServer(ctx)
-	if err != nil {
-		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			h.log.WarnContext(ctx, "Failed to get server value for Relay service announce", "error", err)
-		}
-		return false
-	}
-
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{RelayServer: gproto.CloneOf(server)}); err != nil {
-		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-			h.log.WarnContext(ctx, "Failed to perform Relay service announce", "error", err)
-		}
-		return false
-	}
-
-	h.last = server
 	return true
 }

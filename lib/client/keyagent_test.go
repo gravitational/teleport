@@ -293,7 +293,7 @@ func (s *KeyAgentTestSuite) generateCA(t *testing.T, keygen *testauthority.Keyge
 
 		// retry until we get a unique keypair
 		attempts := 20
-		for i := range attempts {
+		for i := 0; i < attempts; i++ {
 			if i == attempts-1 {
 				require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
 			}
@@ -820,7 +820,7 @@ func startDebugAgent(t *testing.T) error {
 			conn, err := listener.Accept()
 			if err != nil {
 				if !utils.IsUseOfClosedNetworkError(err) {
-					log.WarnContext(context.Background(), "Unexpected response from listener.Accept", "error", err)
+					log.Warnf("Unexpected response from listener.Accept: %v", err)
 				}
 				return
 			}

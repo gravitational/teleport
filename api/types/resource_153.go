@@ -74,11 +74,11 @@ type legacyToResource153Adapter struct {
 	inner Resource
 }
 
-// UnwrapT is an escape hatch for Resource instances that are piped down into the
+// Unwrap is an escape hatch for Resource instances that are piped down into the
 // codebase as a legacy Resource.
 //
 // Ideally you shouldn't depend on this.
-func (r *legacyToResource153Adapter) UnwrapT() Resource {
+func (r *legacyToResource153Adapter) Unwrap() Resource {
 	return r.inner
 }
 
@@ -132,35 +132,37 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func Resource153ToLegacy[T Resource153](r T) Resource {
-	return &resource153ToLegacyAdapter[T]{inner: r}
+func Resource153ToLegacy(r Resource153) Resource {
+	return &resource153ToLegacyAdapter{inner: r}
 }
 
-// Resource153UnwrapperT returns a [T] from a wrapped RFD
-// 153 style resource.
-type Resource153UnwrapperT[T Resource153] interface{ UnwrapT() T }
+// Resource153Unwrapper returns a legacy [Resource] type from a wrapped RFD
+// 153 style resource
+type Resource153Unwrapper interface {
+	Unwrap() Resource153
+}
 
 // resource153ToLegacyAdapter wraps a new-style resource in a type implementing
 // the legacy resource interfaces
-type resource153ToLegacyAdapter[T Resource153] struct {
-	inner T
+type resource153ToLegacyAdapter struct {
+	inner Resource153
 }
 
-// UnwrapT is an escape hatch for Resource153 instances that are piped down into
+// Unwrap is an escape hatch for Resource153 instances that are piped down into
 // the codebase as a legacy Resource.
 //
 // Ideally you shouldn't depend on this.
-func (r *resource153ToLegacyAdapter[T]) UnwrapT() T {
+func (r *resource153ToLegacyAdapter) Unwrap() Resource153 {
 	return r.inner
 }
 
 // MarshalJSON adds support for marshaling the wrapped resource (instead of
 // marshaling the adapter itself).
-func (r *resource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
+func (r *resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.inner)
 }
 
-func (r *resource153ToLegacyAdapter[T]) Expiry() time.Time {
+func (r *resource153ToLegacyAdapter) Expiry() time.Time {
 	expires := r.inner.GetMetadata().Expires
 	// return zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
 	if expires == nil {
@@ -170,7 +172,7 @@ func (r *resource153ToLegacyAdapter[T]) Expiry() time.Time {
 	return expires.AsTime()
 }
 
-func (r *resource153ToLegacyAdapter[T]) GetKind() string {
+func (r *resource153ToLegacyAdapter) GetKind() string {
 	return r.inner.GetKind()
 }
 
@@ -193,39 +195,39 @@ func Metadata153ToLegacy(md *headerv1.Metadata) Metadata {
 	}
 }
 
-func (r *resource153ToLegacyAdapter[T]) GetMetadata() Metadata {
+func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 	return Metadata153ToLegacy(r.inner.GetMetadata())
 }
 
-func (r *resource153ToLegacyAdapter[T]) GetName() string {
+func (r *resource153ToLegacyAdapter) GetName() string {
 	return r.inner.GetMetadata().Name
 }
 
-func (r *resource153ToLegacyAdapter[T]) GetRevision() string {
+func (r *resource153ToLegacyAdapter) GetRevision() string {
 	return r.inner.GetMetadata().Revision
 }
 
-func (r *resource153ToLegacyAdapter[T]) GetSubKind() string {
+func (r *resource153ToLegacyAdapter) GetSubKind() string {
 	return r.inner.GetSubKind()
 }
 
-func (r *resource153ToLegacyAdapter[T]) GetVersion() string {
+func (r *resource153ToLegacyAdapter) GetVersion() string {
 	return r.inner.GetVersion()
 }
 
-func (r *resource153ToLegacyAdapter[T]) SetExpiry(t time.Time) {
+func (r *resource153ToLegacyAdapter) SetExpiry(t time.Time) {
 	r.inner.GetMetadata().Expires = timestamppb.New(t)
 }
 
-func (r *resource153ToLegacyAdapter[T]) SetName(name string) {
+func (r *resource153ToLegacyAdapter) SetName(name string) {
 	r.inner.GetMetadata().Name = name
 }
 
-func (r *resource153ToLegacyAdapter[T]) SetRevision(rev string) {
+func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
 	r.inner.GetMetadata().Revision = rev
 }
 
-func (r *resource153ToLegacyAdapter[T]) SetSubKind(subKind string) {
+func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
 }
 
@@ -233,9 +235,9 @@ func (r *resource153ToLegacyAdapter[T]) SetSubKind(subKind string) {
 // the legacy [Resource] and [ResourceWithLabels] interfaces.
 //
 // The same caveats that apply to [Resource153ToLegacy] apply.
-func Resource153ToResourceWithLabels[T Resource153](r T) ResourceWithLabels {
-	return &resource153ToResourceWithLabelsAdapter[T]{
-		resource153ToLegacyAdapter[T]{
+func Resource153ToResourceWithLabels(r Resource153) ResourceWithLabels {
+	return &resource153ToResourceWithLabelsAdapter{
+		resource153ToLegacyAdapter{
 			inner: r,
 		},
 	}
@@ -243,20 +245,12 @@ func Resource153ToResourceWithLabels[T Resource153](r T) ResourceWithLabels {
 
 // resource153ToResourceWithLabelsAdapter wraps a new-style resource in a
 // type implementing the legacy resource interfaces
-type resource153ToResourceWithLabelsAdapter[T Resource153] struct {
-	resource153ToLegacyAdapter[T]
-}
-
-// UnwrapT is an escape hatch for Resource153 instances that are piped down into
-// the codebase as a legacy Resource.
-//
-// Ideally you shouldn't depend on this.
-func (r *resource153ToResourceWithLabelsAdapter[T]) UnwrapT() T {
-	return r.inner
+type resource153ToResourceWithLabelsAdapter struct {
+	resource153ToLegacyAdapter
 }
 
 // Origin implements ResourceWithLabels for the adapter.
-func (r *resource153ToResourceWithLabelsAdapter[T]) Origin() string {
+func (r *resource153ToResourceWithLabelsAdapter) Origin() string {
 	m := r.inner.GetMetadata()
 	if m == nil {
 		return ""
@@ -265,7 +259,7 @@ func (r *resource153ToResourceWithLabelsAdapter[T]) Origin() string {
 }
 
 // SetOrigin implements ResourceWithLabels for the adapter.
-func (r *resource153ToResourceWithLabelsAdapter[T]) SetOrigin(origin string) {
+func (r *resource153ToResourceWithLabelsAdapter) SetOrigin(origin string) {
 	m := r.inner.GetMetadata()
 	if m == nil {
 		return
@@ -274,7 +268,7 @@ func (r *resource153ToResourceWithLabelsAdapter[T]) SetOrigin(origin string) {
 }
 
 // GetLabel implements ResourceWithLabels for the adapter.
-func (r *resource153ToResourceWithLabelsAdapter[T]) GetLabel(key string) (value string, ok bool) {
+func (r *resource153ToResourceWithLabelsAdapter) GetLabel(key string) (value string, ok bool) {
 	m := r.inner.GetMetadata()
 	if m == nil {
 		return "", false
@@ -284,7 +278,7 @@ func (r *resource153ToResourceWithLabelsAdapter[T]) GetLabel(key string) (value 
 }
 
 // GetAllLabels implements ResourceWithLabels for the adapter.
-func (r *resource153ToResourceWithLabelsAdapter[T]) GetAllLabels() map[string]string {
+func (r *resource153ToResourceWithLabelsAdapter) GetAllLabels() map[string]string {
 	m := r.inner.GetMetadata()
 	if m == nil {
 		return nil
@@ -293,12 +287,12 @@ func (r *resource153ToResourceWithLabelsAdapter[T]) GetAllLabels() map[string]st
 }
 
 // GetStaticLabels implements ResourceWithLabels for the adapter.
-func (r *resource153ToResourceWithLabelsAdapter[T]) GetStaticLabels() map[string]string {
+func (r *resource153ToResourceWithLabelsAdapter) GetStaticLabels() map[string]string {
 	return r.GetAllLabels()
 }
 
 // SetStaticLabels implements ResourceWithLabels for the adapter.
-func (r *resource153ToResourceWithLabelsAdapter[T]) SetStaticLabels(labels map[string]string) {
+func (r *resource153ToResourceWithLabelsAdapter) SetStaticLabels(labels map[string]string) {
 	m := r.inner.GetMetadata()
 	if m == nil {
 		return
@@ -309,12 +303,56 @@ func (r *resource153ToResourceWithLabelsAdapter[T]) SetStaticLabels(labels map[s
 // MatchSearch implements ResourceWithLabels for the adapter. If the underlying
 // type exposes a MatchSearch method, this method will defer to that, otherwise
 // it will match against the resource label values and name.
-func (r *resource153ToResourceWithLabelsAdapter[T]) MatchSearch(searchValues []string) bool {
-	if matcher, ok := any(r.inner).(interface{ MatchSearch([]string) bool }); ok {
+func (r *resource153ToResourceWithLabelsAdapter) MatchSearch(searchValues []string) bool {
+	if matcher, ok := r.inner.(interface{ MatchSearch([]string) bool }); ok {
 		return matcher.MatchSearch(searchValues)
 	}
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, searchValues, nil)
+}
+
+// ClonableResource153 adds a restriction on [Resource153] such that implementors
+// must have a CloneResource() method.
+type ClonableResource153 interface {
+	Resource153
+	CloneResource() ClonableResource153
+}
+
+// UnifiedResource represents the combined set of interfaces that a resource
+// must implement to be used with the Teleport Unified Resource Cache
+type UnifiedResource interface {
+	ResourceWithLabels
+	CloneResource() ResourceWithLabels
+}
+
+// Resource153ToUnifiedResource wraps an RFD153-style resource in a type that
+// implements the legacy [ResourceWithLabels] interface and is suitable for use
+// with the Teleport Unified Resources Cache.
+//
+// The same caveats that apply to [Resource153ToLegacy] apply.
+func Resource153ToUnifiedResource(r ClonableResource153) UnifiedResource {
+	return &resource153ToUnifiedResourceAdapter{
+		resource153ToResourceWithLabelsAdapter: resource153ToResourceWithLabelsAdapter{
+			resource153ToLegacyAdapter{
+				inner: r,
+			},
+		},
+	}
+}
+
+// resource153ToUnifiedResourceAdapter wraps a [resource153ToLegacyAdapter] to
+// provide an implementation of [UnifiedResource]
+type resource153ToUnifiedResourceAdapter struct {
+	resource153ToResourceWithLabelsAdapter
+}
+
+// CloneResource clones the underlying resource and wraps it in
+func (r *resource153ToUnifiedResourceAdapter) CloneResource() ResourceWithLabels {
+	// We assume that this type assertion will work because we force `inner`
+	// to implement ClonableResource153 in [Resource153ToUnifiedResource], which
+	// is the only externally-visible constructor function.
+	clone := r.inner.(ClonableResource153).CloneResource()
+	return Resource153ToUnifiedResource(clone)
 }
 
 // ProtoResource153 is a Resource153 implemented by a protobuf-generated struct.
@@ -323,22 +361,14 @@ type ProtoResource153 interface {
 	proto.Message
 }
 
-type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
-	inner T
-	resource153ToLegacyAdapter[T]
-}
-
-// UnwrapT is an escape hatch for Resource153 instances that are piped down into
-// the codebase as a legacy Resource.
-//
-// Ideally you shouldn't depend on this.
-func (r *protoResource153ToLegacyAdapter[T]) UnwrapT() T {
-	return r.inner
+type protoResource153ToLegacyAdapter struct {
+	inner ProtoResource153
+	resource153ToLegacyAdapter
 }
 
 // MarshalJSON adds support for marshaling the wrapped resource (instead of
 // marshaling the adapter itself).
-func (r *protoResource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
+func (r *protoResource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 	return protojson.MarshalOptions{
 		UseProtoNames: true,
 	}.Marshal(r.inner)
@@ -351,9 +381,9 @@ func (r *protoResource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func ProtoResource153ToLegacy[T ProtoResource153](r T) Resource {
-	return &protoResource153ToLegacyAdapter[T]{
+func ProtoResource153ToLegacy(r ProtoResource153) Resource {
+	return &protoResource153ToLegacyAdapter{
 		r,
-		resource153ToLegacyAdapter[T]{r},
+		resource153ToLegacyAdapter{r},
 	}
 }

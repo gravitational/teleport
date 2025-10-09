@@ -71,11 +71,4 @@ type SSHConfig struct {
 	// path to hosts that may provide reduced latency if the Proxy is not co-located with
 	// the user and service.
 	ForceListen bool
-
-	// EnableSELinux indicates that SELinux support will be enabled.
-	EnableSELinux bool
-
-	// EnsureSELinuxEnforcing will exit if SELinux is not configured to
-	// enforce the SSH service.
-	EnsureSELinuxEnforcing bool
 }

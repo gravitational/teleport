@@ -53,11 +53,10 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -651,7 +650,7 @@ func TestMux(t *testing.T) {
 		httpServer.Close()
 		s.Stop()
 		// wait for both servers to finish
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			err := <-errCh
 			require.NoError(t, err)
 		}
@@ -1375,7 +1374,7 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 	defer backend4.Close()
 
 	b.Run("simulation of signing and verifying PROXY header", func(b *testing.B) {
-		for b.Loop() {
+		for n := 0; n < b.N; n++ {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
 			require.NoError(b, err)
 			defer conn.Close()

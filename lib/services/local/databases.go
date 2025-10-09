@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -48,7 +46,6 @@ func NewDatabasesService(backend backend.Backend) *DatabaseService {
 }
 
 // GetDatabases returns all database resources.
-// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -74,28 +71,15 @@ func (s *DatabaseService) ListDatabases(ctx context.Context, limit int, startKey
 		limit = defaults.DefaultChunkSize
 	}
 
-	var next string
-	var seen int
-	out, err := stream.Collect(
-		stream.TakeWhile(
-			s.RangeDatabases(ctx, startKey, ""),
-			func(db types.Database) bool {
-				if seen < limit {
-					seen++
-					return true
-				}
-				next = db.GetName()
-				return false
-			},
-		),
-	)
-	return out, next, trace.Wrap(err)
-}
+	dbKey := backend.NewKey(databasesPrefix)
+	var out []types.Database
+	result, err := s.Backend.GetRange(ctx, dbKey.AppendKey(backend.KeyFromString(startKey)), backend.RangeEnd(dbKey), limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
-// RangeDatabases returns database resources within the range [start, end).
-func (s *DatabaseService) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	mapFn := func(item backend.Item) (types.Database, bool) {
-		database, err := services.UnmarshalDatabase(item.Value,
+	for _, item := range result.Items {
+		db, err := services.UnmarshalDatabase(item.Value,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
 		if err != nil {
@@ -103,31 +87,17 @@ func (s *DatabaseService) RangeDatabases(ctx context.Context, start, end string)
 				"key", item.Key,
 				"error", err,
 			)
-			return nil, false
+			continue
 		}
-		return database, true
+
+		if len(out) >= limit {
+			return out, db.GetName(), nil
+		}
+
+		out = append(out, db)
 	}
 
-	dbKey := backend.NewKey(databasesPrefix)
-	startKey := dbKey.AppendKey(backend.KeyFromString(start))
-	endKey := backend.RangeEnd(dbKey)
-	if end != "" {
-		endKey = dbKey.AppendKey(backend.KeyFromString(end)).ExactKey()
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(db types.Database) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || db.GetName() < end
-		})
+	return out, "", nil
 }
 
 // GetDatabase returns the specified database resource.

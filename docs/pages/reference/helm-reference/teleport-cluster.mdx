@@ -1,6 +1,5 @@
 ---
 title: teleport-cluster Chart Reference
-sidebar_label: teleport-cluster
 description: Values that can be set using the teleport-cluster Helm chart
 tags:
  - reference
@@ -75,7 +74,7 @@ You will need to manually add a DNS A record pointing `teleport.example.com` to
 the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
 
 <details>
-<summary>Enrolling applications with Teleport?</summary>
+<summary>Using Application Access?</summary>
 
 (!docs/pages/includes/dns-app-access.mdx!)
 
@@ -168,7 +167,7 @@ The merge logic is as follows:
 - values (string, integer, boolean, ...) are replaced
 - fields can be unset by setting them to `null` or `~`
 
-See the [Teleport Configuration Reference](../deployment/config.mdx) for the list of supported fields.
+See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
 
 ```yaml
 auth:
@@ -229,7 +228,7 @@ The merge logic is as follows:
 - values (string, integer, boolean, ...) are replaced
 - fields can be unset by setting them to `null` or `~`
 
-See the [Teleport Configuration Reference](../deployment/config.mdx) for the list of supported fields.
+See the [Teleport Configuration Reference](../config.mdx) for the list of supported fields.
 
 ```yaml
 proxy:
@@ -266,7 +265,7 @@ authentication connectors for common identity providers. In addition to SSO
 connector names, the following built-in connectors are supported:
 
 - [`local`](../../zero-trust-access/management/admin/users.mdx) for local users
-- [`passwordless`](../../zero-trust-access/authentication/passwordless.mdx) to enable by
+- [`passwordless`](../../zero-trust-access/access-controls/guides/passwordless.mdx) to enable by
 default passwordless authentication.
 
 Defaults to `local`.
@@ -302,17 +301,17 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 
 `authentication.passwordless` controls whether passwordless authentication is enabled.
 
-[Can be used to forbid passwordless access to your cluster](../../zero-trust-access/authentication/passwordless.mdx)
+[Can be used to forbid passwordless access to your cluster](../../zero-trust-access/access-controls/guides/passwordless.mdx)
 
 ### `authentication.secondFactor`
 
 <Admonition type="warning">
-Deprecated, you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
+Deprecated, after upgrading your Teleport cluster to v17.0.0 or higher you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
 </Admonition>
 
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
 |----------|---------------|-----------|---------------------------------------------|
-| `string` | none          | Yes       | `auth_service.authentication.second_factor` |
+| `string` | `on`          | Yes       | `auth_service.authentication.second_factor` |
 
 `authentication.secondFactor` configures multi-factor authentication for local users.
 Possible values supported by this chart are `on`, `otp`, and `webauthn`.
@@ -342,7 +341,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 | Type    | Default value         | Required? | `teleport.yaml` equivalent                   |
 |---------|-----------------------|-----------|----------------------------------------------|
-| `array` | `["otp", "webauthn"]` | No        | `auth_service.authentication.second_factors` |
+| `array` | none                  | No        | `auth_service.authentication.second_factors` |
 
 `authentication.secondFactors` configures multi-factor authentication types.
 Supported item values are `otp`, `sso`, and `webauthn`.
@@ -371,7 +370,7 @@ Changing the RP ID will invalidate all already registered webauthn second factor
 
 ### `authentication.webauthn`
 
-See [Harden your Cluster Against IdP Compromises](../../zero-trust-access/authentication/webauthn.mdx) for more details.
+See [Harden your Cluster Against IdP Compromises](../../zero-trust-access/access-controls/guides/webauthn.mdx) for more details.
 
 #### `authentication.webauthn.attestationAllowedCas`
 
@@ -419,7 +418,7 @@ By default no devices are forbidden.
 
 `sessionRecording` controls the `session_recording` field in the `teleport.yaml` configuration.
 It is passed as-is in the configuration.
-For possible values, [see the Teleport Configuration Reference](../deployment/config.mdx).
+For possible values, [see the Teleport Configuration Reference](../../reference/config.mdx).
 
 `values.yaml` example:
 
@@ -672,6 +671,27 @@ By using this value you will update the Kubernetes volume specification to mount
   licenseSecretName: enterprise-license
   ```
 
+## `installCRDs`
+
+| Type   | Default value |
+|--------|---------------|
+| `bool` | `false`       |
+
+CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
+
+CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
+`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
+
+If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
+release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
+the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
+
+`values.yaml` example:
+
+  ```yaml
+  installCRDs: true
+  ```
+
 ## `operator`
 
 ### `operator.annotations.deployment`
@@ -741,7 +761,7 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
 If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
-[`installCRDs`](#operatorinstallcrds).
+[`installCRDs`](#installCRDs).
 
 `values.yaml` example:
 
@@ -749,22 +769,6 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
   operator:
     enabled: true
   ```
-### `operator.installCRDs`
-
-| Type | Default |
-|------|---------|
-| `string` | `"dynamic"` |
-
-`operator.installCRDs` controls if the chart should install the CRDs.
-There are 3 possible values: dynamic, always, never.
-
-- "dynamic" means the CRDs are installed if the operator is enabled or if
-the CRDs are already present in the cluster. The presence check is here to
-avoid all CRDs to be removed if you temporarily disable the operator.
-Removing CRDs triggers a cascading deletion, which removes CRs, and all the
-related resources in Teleport.
-- "always" means the CRDs are always installed
-- "never" means the CRDs are never installed
 
 ### `operator.image`
 
@@ -1194,7 +1198,7 @@ When this value is set, Teleport will export events to the Athena audit backend.
 To use the Athena audit backend, you must set up the required infrastructure
 (S3 buckets, SQS queue, AthenaDB, IAM roles and permissions, ...).
 
-The requirements are described in [the Athena backend documentation](../deployment/backends.mdx#athena)
+The requirements are described in [the Athena backend documentation](../backends.mdx#athena)
 
 If both `aws.athenaURL` and `aws.auditLogTable` (DynamoDB) are set, the
 `aws.auditLogPrimaryBackend` value configures which backend is used for querying.
@@ -1665,7 +1669,7 @@ Possible values are `text` (default) or `json`.
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
-See the [Teleport config file reference](../deployment/config.mdx) for more details on possible values for `extra_fields`.
+See the [Teleport config file reference](../../reference/config.mdx) for more details on possible values for `extra_fields`.
 
 `values.yaml` example:
 

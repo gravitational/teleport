@@ -35,8 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -65,8 +63,13 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			s := new(WindowsService)
-			filter := s.ldapSearchFilter(test.filters)
+			s := &WindowsService{
+				cfg: WindowsServiceConfig{
+					DiscoveryLDAPFilters: test.filters,
+				},
+			}
+
+			filter := s.ldapSearchFilter()
 			_, err := ldap.CompileFilter(filter)
 			test.assert(t, err)
 		})
@@ -86,11 +89,12 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		"quux":                {""},
 	})
 
-	s := new(WindowsService)
-	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
-		BaseDN:          "*",
-		LabelAttributes: []string{"bar"},
-	})
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			DiscoveryLDAPAttributeLabels: []string{"bar"},
+		},
+	}
+	s.applyLabelsFromLDAP(entry, l)
 
 	// check default labels
 	require.Equal(t, types.OriginDynamic, l[types.OriginLabel])
@@ -138,7 +142,7 @@ func TestLabelsDomainControllers(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			l := make(map[string]string)
-			s.applyLabelsFromLDAP(test.entry, l, new(servicecfg.LDAPDiscoveryConfig))
+			s.applyLabelsFromLDAP(test.entry, l)
 
 			b, _ := strconv.ParseBool(l[types.DiscoveryLabelWindowsIsDomainController])
 			test.assert(t, b)
@@ -151,9 +155,8 @@ func TestLabelsDomainControllers(t *testing.T) {
 func TestDNSErrors(t *testing.T) {
 	s := &WindowsService{
 		cfg: WindowsServiceConfig{
-			Logger:               slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
-			Clock:                clockwork.NewRealClock(),
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			Clock:  clockwork.NewRealClock(),
 		},
 		dnsResolver: &net.Resolver{
 			PreferGo: true,
@@ -228,11 +231,10 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 					Heartbeat: HeartbeatConfig{
 						HostUUID: "1234",
 					},
-					Logger:               slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
-					Clock:                clockwork.NewFakeClock(),
-					AuthClient:           client,
-					AccessPoint:          client,
-					ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+					Logger:      slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+					Clock:       clockwork.NewFakeClock(),
+					AuthClient:  client,
+					AccessPoint: client,
 					ResourceMatchers: []services.ResourceMatcher{{
 						Labels: types.Labels{
 							"foo": {"bar"},
@@ -250,22 +252,12 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 					},
 				},
 			}
-
-			require.NoError(t, s.startDynamicReconciler(t.Context()))
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			require.NoError(t, s.startDynamicReconciler(ctx))
 			t.Cleanup(func() {
 				require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(ctx))
-				var key string
-				for {
-					page, next, err := authServer.AuthServer.ListDynamicWindowsDesktops(ctx, 0, key)
-					require.NoError(t, err)
-					for _, dwd := range page {
-						require.NoError(t, authServer.AuthServer.DeleteDynamicWindowsDesktop(ctx, dwd.GetName()))
-					}
-					if next == "" {
-						break
-					}
-					key = next
-				}
+				require.NoError(t, authServer.AuthServer.DeleteAllDynamicWindowsDesktops(ctx))
 			})
 
 			desktop, err := types.NewDynamicWindowsDesktopV1("test", testCase.labels, types.DynamicWindowsDesktopSpecV1{
@@ -278,12 +270,16 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Len(t, desktops, testCase.expected)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, desktops, testCase.expected) {
+					return
+				}
 
 				if testCase.expected > 0 {
-					require.Equal(t, desktop.GetName(), desktops[0].GetName())
-					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
+					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
@@ -293,11 +289,15 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Len(t, desktops, testCase.expected)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, desktops, testCase.expected) {
+					return
+				}
 				if testCase.expected > 0 {
-					require.Equal(t, desktop.GetName(), desktops[0].GetName())
-					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
+					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
@@ -305,8 +305,8 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				require.NoError(t, err)
-				require.Empty(t, desktops)
+				assert.NoError(t, err)
+				assert.Empty(t, desktops)
 			}, 5*time.Second, 50*time.Millisecond)
 		})
 	}
@@ -356,8 +356,9 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 			},
 		},
 	}
-
-	require.NoError(t, s.startDynamicReconciler(t.Context()))
+	ctx, cancel = context.WithCancel(ctx)
+	defer cancel()
+	require.NoError(t, s.startDynamicReconciler(ctx))
 
 	desktop, err := types.NewDynamicWindowsDesktopV1("test", map[string]string{
 		"foo": "bar",

@@ -26,9 +26,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 // RunBackendComplianceSuiteWithAtomicWriteShim runs the old backend compliance suite against the provided backend
@@ -36,7 +36,7 @@ import (
 // AtomicWrite. This is done to ensure that the relationship between the conditional actions of AtomicWrite and the
 // single-write methods is well defined, and to improve overall coverage of AtomicWrite implementations via reuse.
 func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Constructor) {
-	RunBackendComplianceSuite(t, func(options ...ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+	RunBackendComplianceSuite(t, func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		bk, clock, err := newBackend(options...)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -114,7 +114,7 @@ func (a AtomicWriteShim) Put(ctx context.Context, i backend.Item) (*backend.Leas
 func (a AtomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
 	const casRetries = 16
 
-	for range casRetries {
+	for i := 0; i < casRetries; i++ {
 		existing, err := a.Get(ctx, replaceWith.Key)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -139,7 +139,7 @@ func (a AtomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.It
 		if err != nil {
 			if errors.Is(err, backend.ErrConditionFailed) {
 				// concurrent modification does not guarantee that the value was changed (may have been a redundant
-				// update or a keepalive), so we need to retry in order to determine whether or not the cas should
+				// update or a keepalive), so we need to retry in order to determine wether or not the cas should
 				// succeed.
 				continue
 			}

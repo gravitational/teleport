@@ -21,20 +21,18 @@
 package native
 
 import (
-	"context"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
-	"log/slog"
 	"math/big"
 	"os"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
 )
@@ -123,8 +121,6 @@ func createAndSaveAK(
 }
 
 func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
@@ -138,7 +134,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			logger.DebugContext(ctx, "Failed to close TPM", "error", err)
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
 		}
 	}()
 
@@ -149,13 +145,13 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err, "loading ak")
 		}
-		logger.DebugContext(ctx, "No existing AK was found on disk, an AK will be created")
+		log.Debug("TPM: No existing AK was found on disk, an AK will be created.")
 		ak, err = createAndSaveAK(tpm, stateDir.attestationKeyPath)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating ak")
 		}
 	} else {
-		logger.DebugContext(ctx, "Existing AK was found on disk, it will be reused")
+		log.Debug("TPM: Existing AK was found on disk, it will be reused.")
 	}
 	defer ak.Close(tpm)
 
@@ -249,10 +245,7 @@ func (d *tpmDevice) getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			slog.DebugContext(context.Background(), "Failed to close TPM",
-				teleport.ComponentKey, "TPM",
-				"error", err,
-			)
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
 		}
 	}()
 
@@ -277,9 +270,6 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
-
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
@@ -293,7 +283,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			logger.DebugContext(ctx, "Failed to close TPM", "error", err)
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
 		}
 	}()
 
@@ -312,7 +302,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 
 	// First perform the credential activation challenge provided by the
 	// auth server.
-	logger.DebugContext(ctx, "Activating credential")
+	log.Debug("TPM: Activating credential.")
 	encryptedCredential := devicetrust.EncryptedCredentialFromProto(
 		challenge.EncryptedCredential,
 	)
@@ -328,7 +318,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 
 	var activationSolution []byte
 	if elevated {
-		logger.DebugContext(ctx, "Detected current process is elevated. Will run credential activation in current process")
+		log.Debug("TPM: Detected current process is elevated. Will run credential activation in current process.")
 		// If we are running with elevated privileges, we can just complete the
 		// credential activation here.
 		activationSolution, err = ak.ActivateCredential(
@@ -351,7 +341,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 		fmt.Fprintln(os.Stderr, "Successfully completed credential activation in elevated process.")
 	}
 
-	logger.DebugContext(ctx, "Enrollment challenge completed.")
+	log.Debug("TPM: Enrollment challenge completed.")
 	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
 		PlatformParameters: devicetrust.PlatformParametersToProto(
@@ -362,10 +352,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 
 //nolint:unused // Used by Windows builds.
 func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
-	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
-
-	logger.DebugContext(ctx, "Performing credential activation")
+	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
 	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)
 	if err != nil {
@@ -389,7 +376,7 @@ func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCr
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			logger.DebugContext(ctx, "Failed to close TPM", "error", err)
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
 		}
 	}()
 
@@ -411,7 +398,7 @@ func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCr
 		return trace.Wrap(err, "activating credential with challenge")
 	}
 
-	logger.DebugContext(ctx, "Completed credential activation, returning result to original process")
+	log.Debug("Completed credential activation. Returning result to original process.")
 	return trace.Wrap(
 		os.WriteFile(stateDir.credentialActivationPath, solution, 0600),
 	)
@@ -420,9 +407,6 @@ func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCr
 func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
-
 	stateDir, err := setupDeviceStateDir(userDirFunc)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
@@ -436,7 +420,7 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 	}
 	defer func() {
 		if err := tpm.Close(); err != nil {
-			logger.DebugContext(ctx, "Failed to close TPM", "error", err)
+			log.WithError(err).Debug("TPM: Failed to close TPM")
 		}
 	}()
 
@@ -453,7 +437,7 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(ctx, "Authenticate device challenge completed")
+	log.Debug("TPM: Authenticate device challenge completed.")
 	return &devicepb.TPMAuthenticateDeviceChallengeResponse{
 		PlatformParameters: devicetrust.PlatformParametersToProto(
 			platformsParams,
@@ -462,12 +446,9 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 }
 
 func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.PlatformParameters, error) {
-	ctx := context.Background()
-	logger := slog.With(teleport.ComponentKey, "TPM")
-
 	config := &attest.PlatformAttestConfig{}
 
-	logger.DebugContext(ctx, "Performing platform attestation")
+	log.Debug("TPM: Performing platform attestation.")
 	platformsParams, err := tpm.AttestPlatform(ak, nonce, config)
 	if err == nil {
 		return platformsParams, nil
@@ -477,7 +458,9 @@ func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.Platf
 	// errors.Is(err, fs.ErrPermission), but the go-attestation version at time of
 	// writing (v0.5.0) doesn't wrap the underlying error.
 	// This is a common occurrence for Linux devices.
-	logger.DebugContext(ctx, "Platform attestation failed with permission error, attempting without event log", "error", err)
+	log.
+		WithError(err).
+		Debug("TPM: Platform attestation failed with permission error, attempting without event log")
 	config.EventLog = []byte{}
 	platformsParams, err = tpm.AttestPlatform(ak, nonce, config)
 	return platformsParams, trace.Wrap(err, "attesting platform")

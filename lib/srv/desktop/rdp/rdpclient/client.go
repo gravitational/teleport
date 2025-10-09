@@ -1,4 +1,5 @@
 //go:build desktop_access_rdp
+// +build desktop_access_rdp
 
 /*
  * Teleport
@@ -73,7 +74,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"runtime/cgo"
@@ -85,6 +85,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -96,20 +97,19 @@ func init() {
 	var rustLogLevel string
 
 	// initialize the Rust logger by setting $RUST_LOG based
-	// on the slog log level
+	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		ctx := context.Background()
-		switch {
-		case slog.Default().Enabled(ctx, logutils.TraceLevel):
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
 			rustLogLevel = "trace"
-		case slog.Default().Enabled(ctx, slog.LevelDebug):
+		case logrus.DebugLevel:
 			rustLogLevel = "debug"
-		case slog.Default().Enabled(ctx, slog.LevelInfo):
+		case logrus.InfoLevel:
 			rustLogLevel = "info"
-		case slog.Default().Enabled(ctx, slog.LevelWarn):
+		case logrus.WarnLevel:
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"
@@ -138,7 +138,6 @@ type Client struct {
 	// Parameters read from the TDP stream
 	requestedWidth, requestedHeight uint16
 	username                        string
-	keyboardLayout                  uint32
 
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
@@ -182,9 +181,6 @@ func New(cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := c.readClientKeyboardLayout(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return c, nil
@@ -253,12 +249,8 @@ func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			if trace.IsBadParameter(err) {
-				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
-				continue
-			} else {
-				return err
-			}
+			c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+			continue
 		}
 
 		if c.cfg.hasSizeOverride() {
@@ -288,28 +280,6 @@ func (c *Client) readClientSize() error {
 
 		return nil
 	}
-}
-
-func (c *Client) readClientKeyboardLayout() error {
-	msgType, err := c.cfg.Conn.NextMessageType()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if msgType != tdp.TypeClientKeyboardLayout {
-		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
-		return nil
-	}
-	msg, err := c.cfg.Conn.ReadMessage()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	k, ok := msg.(tdp.ClientKeyboardLayout)
-	if !ok {
-		return trace.BadParameter("Unexpected message %T", msg)
-	}
-	c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
-	c.keyboardLayout = k.KeyboardLayout
-	return nil
 }
 
 func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
@@ -392,7 +362,6 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               cHostID,
-			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
 

@@ -37,7 +37,6 @@ var AllPluginTypes = []PluginType{
 	PluginTypeOpenAI,
 	PluginTypeOkta,
 	PluginTypeJamf,
-	PluginTypeIntune,
 	PluginTypeJira,
 	PluginTypeOpsgenie,
 	PluginTypePagerDuty,
@@ -63,8 +62,6 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
-	// PluginTypeIntune is the Intune MDM plugin
-	PluginTypeIntune = "intune"
 	// PluginTypeJira is the Jira access plugin
 	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
@@ -77,8 +74,6 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
-	// PluginTypeGithub indicates the Github access plugin
-	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
@@ -248,23 +243,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
-	case *PluginSpecV1_Intune:
-		if settings.Intune == nil {
-			return trace.BadParameter("missing Intune settings")
-		}
-		if err := settings.Intune.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
-		if p.Credentials == nil {
-			return trace.BadParameter("credentials must be set")
-		}
-		staticCreds := p.Credentials.GetStaticCredentialsRef()
-		if staticCreds == nil {
-			return trace.BadParameter("Intune plugin must be used with the static credentials ref type")
-		}
-		if len(staticCreds.Labels) == 0 {
-			return trace.BadParameter("labels must be specified")
-		}
+
 	case *PluginSpecV1_Jira:
 		if settings.Jira == nil {
 			return trace.BadParameter("missing Jira settings")
@@ -420,17 +399,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
-	case *PluginSpecV1_Github:
-		if settings.Github == nil {
-			return trace.BadParameter("missing Github settings")
-		}
-		if err := settings.Github.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
-		staticCreds := p.Credentials.GetStaticCredentialsRef()
-		if staticCreds == nil {
-			return trace.BadParameter("Github plugin must be used with the static credentials ref type")
-		}
 	default:
 		return nil
 	}
@@ -585,8 +553,6 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
-	case *PluginSpecV1_Intune:
-		return PluginTypeIntune
 	case *PluginSpecV1_Jira:
 		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
@@ -601,8 +567,6 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
-	case *PluginSpecV1_Github:
-		return PluginTypeGithub
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
@@ -1017,50 +981,4 @@ func (c *PluginNetIQSettings) Validate() error {
 	}
 
 	return nil
-}
-
-// Validate checks that the required fields for the Github plugin are set.
-func (c *PluginGithubSettings) Validate() error {
-	if c.ClientId == "" {
-		return trace.BadParameter("client_id must be set")
-	}
-	if c.OrganizationName == "" {
-		return trace.BadParameter("organization_name must be set")
-	}
-	return nil
-}
-
-// Validate checks that the required fields for the Intune plugin are set.
-func (c *PluginIntuneSettings) Validate() error {
-	if c.Tenant == "" {
-		return trace.BadParameter("tenant must be set")
-	}
-
-	if err := ValidateMSGraphEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] for the PluginSyncFilter, forcing
-// it to use the `jsonpb` unmarshaler, which understands how to unpack values
-// generated from a protobuf `oneof` directive.
-func (s *PluginSyncFilter) UnmarshalJSON(b []byte) error {
-	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// MarshalJSON implements [json.Marshaler] for the PluginSyncFilter, forcing
-// it to use the `jsonpb` marshaler, which understands how to pack values
-// generated from a protobuf `oneof` directive.
-func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
-	m := jsonpb.Marshaler{}
-	var buf bytes.Buffer
-	if err := m.Marshal(&buf, &s); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return buf.Bytes(), nil
 }

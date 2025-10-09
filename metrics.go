@@ -277,24 +277,6 @@ const (
 	// MetricTeleportServices tracks which services are currently running in the current Teleport Process.
 	MetricTeleportServices = "services"
 
-	// MetricResourcesHealthStatus tracks resource health status.
-	MetricResourcesHealthStatus = "resources_health_status"
-
-	// MetricHealthy represents a resource in an healthy state.
-	MetricHealthy = "healthy"
-
-	// MetricUnhealthy represents a resource in an unhealthy state.
-	MetricUnhealthy = "unhealthy"
-
-	// MetricUnknown represents a resource in an unknown health state.
-	MetricUnknown = "unknown"
-
-	// MetricResourceDB is a database resource metric.
-	MetricResourceDB = "db"
-
-	// MetricResourceKubernetes is a Kubernetes cluster resource metric.
-	MetricResourceKubernetes = "kubernetes"
-
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
 

@@ -103,7 +103,14 @@ func CheckAccess(authzCtx *authz.Context, existingResource types.ResourceWithLab
 func BidirectionalSyncEnabled(ctx context.Context, plugins PluginGetter) (bool, error) {
 	plugin, err := oktaplugin.Get(ctx, plugins, false /* withSecrets */)
 	if trace.IsNotFound(err) {
-		return false, nil
+		// v17 only: since we still support the legacy okta_service configuration there is
+		// a chance someone will configure app & groups sync and will create roles allowing
+		// Access Requests. If this is false then resources allowed by search_as_roles
+		// won't be allowed because the access checker will think this is a RO integration
+		// because for okta_service configuration there is no plugin in the backend.
+		// The support for okta_service is dropped in v18 so we should return false there.
+		trueInV17 := true
+		return trueInV17, nil
 	} else if err != nil {
 		return false, trace.Wrap(err, "getting Okta plugin")
 	}

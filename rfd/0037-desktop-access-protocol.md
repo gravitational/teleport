@@ -335,12 +335,3 @@ after measuring latency to desktop.
 ```
 | message type (36) | uuid [16]byte |  
 ```
-
-#### 37 - keyboard layout
-
-This message contains the keyboard layout used by the client. It is sent from the client to the server.
-It is sent once at the beginning of the session.
-
-```
-| message type (37) | length uint32 | keyboard_layout uint32 |
-```

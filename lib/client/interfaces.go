@@ -28,7 +28,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -81,14 +80,6 @@ func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
 	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
 		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
 		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
-}
-
-func (idx KeyRingIndex) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("proxy", idx.ProxyHost),
-		slog.String("cluster", idx.ClusterName),
-		slog.String("username", idx.Username),
-	)
 }
 
 func (idx KeyRingIndex) contextualKeyInfo() hardwarekey.ContextualKeyInfo {

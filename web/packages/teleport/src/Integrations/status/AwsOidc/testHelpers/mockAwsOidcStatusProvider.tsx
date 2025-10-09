@@ -28,24 +28,19 @@ import {
   AwsOidcStatusContextState,
 } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Acl } from 'teleport/services/user';
 
 export const MockAwsOidcStatusProvider = ({
   children,
   value,
   initialEntries,
   path,
-  customAcl,
 }: {
   children?: React.ReactNode;
   value: AwsOidcStatusContextState;
   path: string;
   initialEntries?: string[];
-  customAcl?: Acl;
 }) => {
-  const ctx = customAcl
-    ? createTeleportContext({ customAcl })
-    : createTeleportContext();
+  const ctx = createTeleportContext();
 
   return (
     <MemoryRouter initialEntries={initialEntries}>

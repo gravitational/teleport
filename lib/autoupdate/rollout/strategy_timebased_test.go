@@ -31,12 +31,12 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_progressGroupsTimeBased(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	groupName := "test-group"
 	canStartToday := everyWeekday

@@ -64,7 +64,7 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 }
 
 // connectionUpgrade handles connection upgrades.
-func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	upgradeType, upgradeHandler, err := h.selectConnectionUpgrade(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -74,8 +74,7 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		return h.upgradeALPNWebSocket(w, r, upgradeHandler)
 	}
 
-	// TODO(greedy52) DELETE legacy upgrade in 19.0. Client side is deprecated
-	// in 18.0.
+	// TODO(greedy52) DELETE legacy upgrade in 17.0.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		return nil, trace.BadParameter("failed to hijack connection")
@@ -100,7 +99,7 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	return nil, nil
 }
 
-func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (any, error) {
+func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (interface{}, error) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 		Subprotocols: []string{

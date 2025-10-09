@@ -162,7 +162,7 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	teamNames, err := common.GetNamesFromAnnotations(req, annotationKey)
 	if err != nil {
-		log.DebugContext(ctx, "Automatic approvals annotation is empty or unspecified")
+		log.Debug("Automatic approvals annotation is empty or unspecified.")
 		return nil, nil
 	}
 
@@ -197,7 +197,7 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	for _, teamID := range teamIDs {
 		resp, err := b.datadog.GetTeamOncall(ctx, teamID)
 		if err != nil {
-			log.WarnContext(ctx, "failed to get on-call users", "team_id", teamID)
+			log.WithField("team_id", teamID).Warn("failed to get on-call users")
 			continue
 		}
 

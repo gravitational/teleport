@@ -45,7 +45,6 @@ export const resourceTypeOptions = [
   { value: 'app', label: 'Applications' },
   { value: 'db', label: 'Database' },
   { value: 'desktops', label: 'Desktops' },
-  { value: 'mcp', label: 'MCP Servers' },
   { value: 'kube', label: 'Kubernetes' },
   { value: 'server', label: 'SSH' },
 ] as const satisfies { value: string; label: string }[];
@@ -91,8 +90,7 @@ export function filterResources(
       if (
         resourceTypes.includes('app') &&
         (r.kind === ResourceKind.Application ||
-          r.kind === ResourceKind.SamlApplication ||
-          r.kind === ResourceKind.MCP)
+          r.kind === ResourceKind.SamlApplication)
       ) {
         return true;
       }
@@ -116,9 +114,6 @@ export function filterResources(
         (r.kind === ResourceKind.Server ||
           r.kind === ResourceKind.ConnectMyComputer)
       ) {
-        return true;
-      }
-      if (resourceTypes.includes('mcp') && r.kind === ResourceKind.MCP) {
         return true;
       }
     });

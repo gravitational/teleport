@@ -34,10 +34,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -93,6 +91,7 @@ func TestUpdateBotLogins(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		const botName = "test"
 
@@ -126,7 +125,7 @@ func TestUpdateBotLogins(t *testing.T) {
 				setLogins: tt.set,
 			}
 
-			err = cmd.updateBotLogins(context.Background(), bot, fieldMask)
+			err = cmd.updateBotLogins(bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
@@ -203,6 +202,7 @@ func TestUpdateBotRoles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		const botName = "test"
 
@@ -256,9 +256,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
-	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
-		return client.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
-	}))
+	tokens, err := client.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 

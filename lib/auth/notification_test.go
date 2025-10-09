@@ -19,33 +19,46 @@
 package auth_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func TestNotificationMatchers(t *testing.T) {
-	t.Parallel()
+func TestNotifications(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	srv := mockAuth(t)
+	fakeClock := clockwork.NewFakeClock()
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:          t.TempDir(),
+		Clock:        fakeClock,
+		CacheEnabled: true,
+	})
+	require.NoError(t, err)
+
+	srv, err := authServer.NewTestTLSServer()
+
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	roles := map[string]types.RoleSpecV6{
-		// devs have access to nodes and databases, and the "root" and "ec2-user" logins
-		"devs": {
+		// auditors have access to nodes and databases, and the "auditor" and "user" logins
+		"auditors": {
 			Allow: types.RoleConditions{
-				Logins: []string{"root", "ec2-user"},
+				Logins: []string{"auditor", "user"},
 				Rules: []types.Rule{
 					{
 						Resources: []string{types.KindNode, types.KindDatabase},
@@ -54,7 +67,7 @@ func TestNotificationMatchers(t *testing.T) {
 				},
 			},
 		},
-		// managers can review requests for the "intern" role
+		// managers have access to review requests for the "intern" role
 		"managers": {
 			Allow: types.RoleConditions{
 				Logins: []string{"user"},
@@ -63,80 +76,90 @@ func TestNotificationMatchers(t *testing.T) {
 				},
 			},
 		},
-		// tokenadmins can read and write tokens
-		"tokenadmins": {
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					{
-						Resources: []string{types.KindToken},
-						Verbs:     services.RW(),
-					},
-				},
-			},
-		},
 	}
-	for name, spec := range roles {
-		role, err := types.NewRole(name, spec)
+	for roleName, roleSpec := range roles {
+		role, err := types.NewRole(roleName, roleSpec)
 		require.NoError(t, err)
 
-		_, err = srv.Auth().UpsertRole(t.Context(), role)
+		_, err = srv.Auth().UpsertRole(ctx, role)
 		require.NoError(t, err)
 	}
 
-	userRoles := map[string][]string{
-		"bob":   []string{"devs"},
-		"alice": []string{"managers"},
-		"carol": []string{"devs", "tokenadmins"},
+	auditorUsername := "auditor"
+	managerUsername := "manager"
+
+	userRolesMap := map[string][]string{
+		auditorUsername: {"auditors"},
+		managerUsername: {"managers"},
 	}
-	for username, roles := range userRoles {
+
+	// Create the users with their roles.
+	for username, roles := range userRolesMap {
 		user, err := types.NewUser(username)
 		require.NoError(t, err)
 		user.SetRoles(roles)
-
-		_, err = srv.Auth().UpsertUser(t.Context(), user)
+		_, err = srv.Auth().UpsertUser(ctx, user)
 		require.NoError(t, err)
 	}
 
-	// The number in each notification's description represents the order in which the
-	// notification was created. For example, bob-3 will be the third notification created
-	// for bob, and third from last in the list (since it's the third oldest).
+	// Describes a set of mock notifications to be created.
+	// The number in each notification's description represents the creation order of the notifications.
+	// eg. "auditor-3" will be the third notification created for auditor, and the third from last in the list (since it's the third oldest),
 	testNotifications := []struct {
 		userNotification   *notificationsv1.Notification
 		globalNotification *notificationsv1.GlobalNotification
 	}{
-		// Some notifications targeted at single users
-		{userNotification: newUserNotification("bob", "bob-1")},
-		{userNotification: newUserNotification("alice", "alice-1")},
-
-		// A notification targeted at a specific role (managers)
 		{
-			globalNotification: newGlobalNotification("alice-2", &notificationsv1.GlobalNotificationSpec{
+			userNotification: newUserNotification(t, auditorUsername, "auditor-1"),
+		},
+		{
+			userNotification: newUserNotification(t, auditorUsername, "auditor-2"),
+		},
+		{
+			// Matcher matches by the role "auditors"
+			globalNotification: newGlobalNotification(t, "auditor-3", &notificationsv1.GlobalNotificationSpec{
 				Matcher: &notificationsv1.GlobalNotificationSpec_ByRoles{
 					ByRoles: &notificationsv1.ByRoles{
-						Roles: []string{"managers"},
+						Roles: []string{userRolesMap[auditorUsername][0]},
 					},
 				},
 			}),
 		},
-
-		// A notification for everyone
 		{
-			globalNotification: newGlobalNotification("bob-2,alice-3,carol-1", &notificationsv1.GlobalNotificationSpec{
-				Matcher: &notificationsv1.GlobalNotificationSpec_All{All: true},
+			// Matcher matches by the role "managers"
+			globalNotification: newGlobalNotification(t, "manager-1", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByRoles{
+					ByRoles: &notificationsv1.ByRoles{
+						Roles: []string{userRolesMap[managerUsername][0]},
+					},
+				},
 			}),
 		},
-
-		// A notification targeted to users with specific permissions (create tokens)
 		{
-			globalNotification: newGlobalNotification("carol-2", &notificationsv1.GlobalNotificationSpec{
+			userNotification: newUserNotification(t, auditorUsername, "auditor-4"),
+		},
+		{
+			// Matcher matches all, both users should see this.
+			globalNotification: newGlobalNotification(t, "auditor-5,manager-2", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_All{
+					All: true,
+				},
+			}),
+		},
+		{
+			userNotification: newUserNotification(t, managerUsername, "manager-3"),
+		},
+		{
+			// Matcher matches by read & write permission on nodes.
+			globalNotification: newGlobalNotification(t, "auditor-6", &notificationsv1.GlobalNotificationSpec{
 				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
 					ByPermissions: &notificationsv1.ByPermissions{
 						RoleConditions: []*types.RoleConditions{
 							{
 								Rules: []types.Rule{
 									{
-										Resources: []string{types.KindToken},
-										Verbs:     []string{types.VerbCreate},
+										Resources: []string{types.KindNode},
+										Verbs:     services.RW(),
 									},
 								},
 							},
@@ -145,10 +168,28 @@ func TestNotificationMatchers(t *testing.T) {
 				},
 			}),
 		},
-
-		// A notification targeted to users who can review certain access requests
 		{
-			globalNotification: newGlobalNotification("alice-4", &notificationsv1.GlobalNotificationSpec{
+			// Matcher matches by the logins "auditor" and "user". Auditor has both of them, but manager only has "user", since we set MatchAllConditions to true, only auditor
+			// should get this notification.
+			globalNotification: newGlobalNotification(t, "auditor-7", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Logins: []string{"auditor"},
+							},
+							{
+								Logins: []string{"user"},
+							},
+						},
+					},
+				},
+				MatchAllConditions: true,
+			}),
+		},
+		{
+			// Matcher matches by permission to review access requests for "intern"
+			globalNotification: newGlobalNotification(t, "manager-4", &notificationsv1.GlobalNotificationSpec{
 				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
 					ByPermissions: &notificationsv1.ByPermissions{
 						RoleConditions: []*types.RoleConditions{
@@ -162,171 +203,185 @@ func TestNotificationMatchers(t *testing.T) {
 				},
 			}),
 		},
-
-		// A notification for multiple users (by username)
 		{
-			globalNotification: newGlobalNotification("alice-5,bob-3", &notificationsv1.GlobalNotificationSpec{
+			userNotification: newUserNotification(t, managerUsername, "manager-5"),
+		},
+		{
+			// Matcher matches by the logins "auditor" and "user". Both of them have "user" and MatchAllConditions is false, so both should get this notification.
+			globalNotification: newGlobalNotification(t, "auditor-8,manager-6", &notificationsv1.GlobalNotificationSpec{
+				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+					ByPermissions: &notificationsv1.ByPermissions{
+						RoleConditions: []*types.RoleConditions{
+							{
+								Logins: []string{"auditor"},
+							},
+							{
+								Logins: []string{"user"},
+							},
+						},
+					},
+				},
+			}),
+		},
+		{
+			userNotification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec: &notificationsv1.NotificationSpec{
+					Username: managerUsername,
+				},
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{
+						types.NotificationTitleLabel: "manager-7-expires",
+					},
+					// Expires in 15 minutes.
+					Expires: timestamppb.New(fakeClock.Now().Add(15 * time.Minute)),
+				},
+			},
+		},
+		{
+			globalNotification: &notificationsv1.GlobalNotification{
+				Spec: &notificationsv1.GlobalNotificationSpec{
+					Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+						ByPermissions: &notificationsv1.ByPermissions{
+							RoleConditions: []*types.RoleConditions{
+								{
+									ReviewRequests: &types.AccessReviewConditions{
+										Roles: []string{"intern"},
+									},
+								},
+							},
+						},
+					},
+					Notification: &notificationsv1.Notification{
+						SubKind: "test-subkind",
+						Spec:    &notificationsv1.NotificationSpec{},
+						Metadata: &headerv1.Metadata{
+							Labels: map[string]string{
+								types.NotificationTitleLabel: "manager-8-expires",
+							},
+							// Expires in 10 minutes.
+							Expires: timestamppb.New(fakeClock.Now().Add(10 * time.Minute)),
+						},
+					},
+				},
+			},
+		},
+		{
+			// Matcher matches by usernames.
+			globalNotification: newGlobalNotification(t, "auditor-9,manager-9", &notificationsv1.GlobalNotificationSpec{
 				Matcher: &notificationsv1.GlobalNotificationSpec_ByUsers{
 					ByUsers: &notificationsv1.ByUsers{
-						Users: []string{"alice", "bob"},
-					},
-				},
-			}),
-		},
-
-		// Multiple matchers - logical OR
-		{
-			globalNotification: newGlobalNotification("alice-6,carol-3", &notificationsv1.GlobalNotificationSpec{
-				MatchAllConditions: false, // logical OR
-				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
-					ByPermissions: &notificationsv1.ByPermissions{
-						RoleConditions: []*types.RoleConditions{
-							{
-								Logins: []string{"user"},
-							},
-							{
-								Rules: []types.Rule{types.NewRule(types.KindToken, []string{types.VerbUpdate})},
-							},
-						},
-					},
-				},
-			}),
-		},
-
-		// Multiple matchers - logical AND
-		{
-			globalNotification: newGlobalNotification("nomatches", &notificationsv1.GlobalNotificationSpec{
-				MatchAllConditions: true, // logical AND
-				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
-					ByPermissions: &notificationsv1.ByPermissions{
-						RoleConditions: []*types.RoleConditions{
-							{
-								Logins: []string{"user"},
-							},
-							{
-								Rules: []types.Rule{types.NewRule(types.KindToken, []string{types.VerbUpdate})},
-							},
-						},
-					},
-				},
-			}),
-		},
-
-		// A notification for everyone but alice.
-		{
-			globalNotification: newGlobalNotification("bob-4,carol-4", &notificationsv1.GlobalNotificationSpec{
-				Matcher:      &notificationsv1.GlobalNotificationSpec_All{All: true},
-				ExcludeUsers: []string{"alice"},
-			}),
-		},
-
-		// Multiple logins in a single rule. The notification goes to all users who
-		// have at least one of the logins mentioned here.
-		{
-			globalNotification: newGlobalNotification("alice-7", &notificationsv1.GlobalNotificationSpec{
-				Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
-					ByPermissions: &notificationsv1.ByPermissions{
-						RoleConditions: []*types.RoleConditions{
-							{
-								Logins: []string{"user", "fakeuser1", "fakeuser2"},
-							},
-						},
+						Users: []string{auditorUsername, managerUsername},
 					},
 				},
 			}),
 		},
 	}
 
-	synctest.Test(t, func(t *testing.T) {
-		for _, n := range testNotifications {
-			if n.globalNotification != nil {
-				_, err := srv.Auth().CreateGlobalNotification(t.Context(), n.globalNotification)
-				require.NoError(t, err)
-			}
-			if n.userNotification != nil {
-				_, err := srv.Auth().CreateUserNotification(t.Context(), n.userNotification)
-				require.NoError(t, err)
-			}
+	notificationIdMap := map[string]string{}
 
-			// The "name" of the notification resource is a UUIDv7 based on the creation time.
-			// Sleep between each upsert so that the notifications all have different timestamps.
-			time.Sleep(1 * time.Minute)
+	// Create the notifications.
+	for _, n := range testNotifications {
+		// We add a small delay to ensure that the timestamps in the generated UUID's are all different and in the correct order.
+		// This is to prevent flakiness caused by the notifications being created in such quick succession that the timestamps are the same.
+		fakeClock.Advance(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
+		// Create the notification in the backend.
+		if n.globalNotification != nil {
+			created, err := srv.Auth().CreateGlobalNotification(ctx, n.globalNotification)
+			notificationIdMap[created.GetSpec().GetNotification().GetMetadata().GetLabels()[types.NotificationTitleLabel]] = created.GetMetadata().GetName()
+			require.NoError(t, err)
+			continue
 		}
-	})
-
-	for _, test := range []struct {
-		username string
-		count    int
-	}{
-		{"bob", 4},
-		{"alice", 7},
-		{"carol", 4},
-	} {
-		t.Run(test.username, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(test.username))
-			require.NoError(t, err)
-			t.Cleanup(func() { client.Close() })
-
-			resp, err := client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 100})
-			require.NoError(t, err)
-
-			titles := notificationTitles(resp.Notifications)
-			assert.Len(t, titles, test.count)
-
-			for _, title := range titles {
-				assert.Contains(t, title, test.username)
-			}
-		})
+		created, err := srv.Auth().CreateUserNotification(ctx, n.userNotification)
+		notificationIdMap[created.GetMetadata().GetLabels()[types.NotificationTitleLabel]] = created.GetMetadata().GetName()
+		require.NoError(t, err)
 	}
-}
 
-func TestNotificationStates(t *testing.T) {
-	t.Parallel()
-
-	srv := mockAuth(t)
-
-	bob, _, err := authtest.CreateUserAndRole(srv.Auth(), "bob", []string{"bob"}, nil /* allowRules */)
+	// Test fetching notifications for auditor.
+	auditorClient, err := srv.NewClient(authtest.TestUser(auditorUsername))
 	require.NoError(t, err)
+	defer auditorClient.Close()
 
-	var created []*notificationsv1.Notification
-	synctest.Test(t, func(t *testing.T) {
-		for i := range 4 {
-			n, err := srv.Auth().CreateUserNotification(t.Context(), newUserNotification(bob.GetName(), fmt.Sprintf("notification-%d", i)))
-			require.NoError(t, err)
+	auditorExpectedNotifications := []string{"auditor-9,manager-9", "auditor-8,manager-6", "auditor-7", "auditor-6", "auditor-5,manager-2", "auditor-4", "auditor-3", "auditor-2", "auditor-1"}
 
-			created = append(created, n)
+	var finalOut []*notificationsv1.Notification
 
-			// The "name" of the notification resource is a UUIDv7 based on the creation time.
-			// Sleep between each upsert so that the notifications all have different timestamps.
-			time.Sleep(10 * time.Minute)
-		}
-	})
-
-	client, err := srv.NewClient(authtest.TestUser(bob.GetName()))
-	require.NoError(t, err)
-	t.Cleanup(func() { client.Close() })
-
-	// Update bob's last seen timestamp, which should make the bob-0 notification go away.
-	_, err = client.UpsertUserLastSeenNotification(t.Context(), "bob", &notificationsv1.UserLastSeenNotification{
+	// Upsert auditor's last seen timestamp.
+	lastSeenTimestamp := timestamppb.New(time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC))
+	_, err = auditorClient.UpsertUserLastSeenNotification(ctx, auditorUsername, &notificationsv1.UserLastSeenNotification{
 		Status: &notificationsv1.UserLastSeenNotificationStatus{
-			LastSeenTime: created[0].GetSpec().GetCreated(),
+			LastSeenTime: lastSeenTimestamp,
 		},
 	})
 	require.NoError(t, err)
 
-	// RBAC check - bob should not be able to set last seen time for other users.
-	_, err = client.UpsertUserLastSeenNotification(t.Context(), "alice", &notificationsv1.UserLastSeenNotification{
-		Status: &notificationsv1.UserLastSeenNotificationStatus{
-			LastSeenTime: created[0].GetSpec().GetCreated(),
-		},
+	// Fetch a page of 3 notifications.
+	resp, err := auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 3,
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+	require.NoError(t, err)
+	require.Equal(t, auditorExpectedNotifications[:3], notificationsToTitlesList(t, resp.Notifications))
+	finalOut = append(finalOut, resp.Notifications...)
 
-	// Mark notification-1 as dismissed, so it stops showing up.
-	_, err = client.UpsertUserNotificationState(t.Context(), "bob", &notificationsv1.UserNotificationState{
+	// Verify that the nextKeys are correct.
+	expectedUserNotifsNextKey := notificationIdMap["auditor-4"]
+	expectedGlobalNotifsNextKey := notificationIdMap["auditor-6"]
+	expectedNextKeys := fmt.Sprintf("%s,%s",
+		expectedUserNotifsNextKey,
+		expectedGlobalNotifsNextKey) // "<auditor-4 notification id>,<auditor-6 notification id>"
+
+	require.Equal(t, expectedNextKeys, resp.NextPageToken)
+	require.Equal(t, lastSeenTimestamp.GetSeconds(), resp.UserLastSeenNotificationTimestamp.GetSeconds())
+
+	// Fetch the next 4 notifications, starting from the previously received startKeys.
+	// After this fetch, there should be no more global notifications for auditor, so the next page token
+	// for global notifications should be "".
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize:  4,
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	expectedNextKeys = fmt.Sprintf("%s,", notificationIdMap["auditor-2"])
+
+	require.Equal(t, expectedNextKeys, resp.NextPageToken)
+	finalOut = append(finalOut, resp.Notifications...)
+
+	// Fetch a page of 1 notification, starting from the previously received startKeys.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize:  1,
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	expectedNextKeys = fmt.Sprintf("%s,", notificationIdMap["auditor-1"])
+	require.Equal(t, expectedNextKeys, resp.NextPageToken)
+	finalOut = append(finalOut, resp.Notifications...)
+
+	// Fetch the rest of the notifications, starting from the previously received startKeys.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize:  10,
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	finalOut = append(finalOut, resp.Notifications...)
+	// Verify that all the notifications are in the list and in correct order.
+	require.Equal(t, auditorExpectedNotifications, notificationsToTitlesList(t, finalOut))
+	// Verify that we've reached the end of both lists.
+	require.Empty(t, resp.NextPageToken)
+
+	// Mark "auditor-2" and "auditor-5,manager-2" as dismissed.
+	_, err = auditorClient.UpsertUserNotificationState(ctx, auditorUsername, &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
-			NotificationId: created[1].GetMetadata().GetName(),
+			NotificationId: notificationIdMap["auditor-2"],
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
+		},
+	})
+	require.NoError(t, err)
+	_, err = auditorClient.UpsertUserNotificationState(ctx, auditorUsername, &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: notificationIdMap["auditor-5,manager-2"],
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
@@ -334,10 +389,34 @@ func TestNotificationStates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Mark notification-2 as clicked. It will still show up.
-	_, err = client.UpsertUserNotificationState(t.Context(), "bob", &notificationsv1.UserNotificationState{
+	// Fetch notifications again and verify that the dismissed notifications are not returned.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
+	})
+	auditorExpectedNotifsAfterDismissal := []string{"auditor-9,manager-9", "auditor-8,manager-6", "auditor-7", "auditor-6", "auditor-4", "auditor-3", "auditor-1"}
+	require.NoError(t, err)
+	require.Equal(t, auditorExpectedNotifsAfterDismissal, notificationsToTitlesList(t, resp.Notifications))
+
+	// Test fetching notifications for manager.
+	managerClient, err := srv.NewClient(authtest.TestUser(managerUsername))
+	require.NoError(t, err)
+	defer managerClient.Close()
+
+	managerExpectedNotifications := []string{"auditor-9,manager-9", "manager-8-expires", "manager-7-expires", "auditor-8,manager-6", "manager-5", "manager-4", "manager-3", "auditor-5,manager-2", "manager-1"}
+
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, managerExpectedNotifications, notificationsToTitlesList(t, resp.Notifications))
+	// Verify that we've reached the end of both lists.
+	require.Empty(t, resp.NextPageToken)
+
+	// Mark "manager-8-expires" as clicked.
+	_, err = managerClient.UpsertUserNotificationState(ctx, managerUsername, &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
-			NotificationId: created[2].GetMetadata().GetName(),
+			NotificationId: notificationIdMap["manager-8-expires"],
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
@@ -345,86 +424,84 @@ func TestNotificationStates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 10})
-	require.NoError(t, err)
-
-	require.Len(t, resp.Notifications, 3)
-	require.Equal(t, []string{"notification-3", "notification-2", "notification-0"}, notificationTitles(resp.Notifications))
-
-	require.Empty(t, resp.Notifications[0].GetMetadata().GetLabels()[types.NotificationClickedLabel])
-	require.Equal(t, "true", resp.Notifications[1].GetMetadata().GetLabels()[types.NotificationClickedLabel])
-	require.Empty(t, resp.Notifications[2].GetMetadata().GetLabels()[types.NotificationClickedLabel])
-}
-
-func TestNotificationPagination(t *testing.T) {
-	t.Parallel()
-
-	srv := mockAuth(t)
-
-	bob, _, err := authtest.CreateUserAndRole(srv.Auth(), "bob", []string{"bob"}, nil /* allowRules */)
-	require.NoError(t, err)
-
-	synctest.Test(t, func(t *testing.T) {
-		for i := range 10 {
-			_, err = srv.Auth().CreateUserNotification(t.Context(), newUserNotification(bob.GetName(), fmt.Sprintf("notification-%d", i)))
-			require.NoError(t, err)
-
-			// The "name" of the notification resource is a UUIDv7 based on the creation time.
-			// Sleep between each upsert so that the notifications all have different timestamps.
-			time.Sleep(1 * time.Minute)
-		}
+	// Fetch notifications again and expect it to have the clicked label.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
 	})
-
-	client, err := srv.NewClient(authtest.TestUser(bob.GetName()))
 	require.NoError(t, err)
-	t.Cleanup(func() { client.Close() })
 
-	// List the notifications in a few batches with different page sizes.
-	var all []*notificationsv1.Notification
-	var token string
+	clickedNotification := resp.Notifications[1] // "manager-8-expires" is the second item in the list
+	clickedLabelValue := clickedNotification.GetMetadata().GetLabels()[types.NotificationClickedLabel]
+	require.Equal(t, "true", clickedLabelValue)
 
-	resp, err := client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 3, PageToken: token})
+	// Advance 11 minutes.
+	fakeClock.Advance(11 * time.Minute)
+
+	// Verify that notification "manager-8-expires" is now no longer returned.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 3)
-	all = append(all, resp.Notifications...)
-	token = resp.NextPageToken
+	require.NotContains(t, notificationsToTitlesList(t, resp.Notifications), "manager-8-expires")
 
-	resp, err = client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 4, PageToken: token})
+	// Advance 16 minutes.
+	fakeClock.Advance(16 * time.Minute)
+
+	// Verify that notification "manager-7-expires" is now no longer returned either.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 4)
-	all = append(all, resp.Notifications...)
-	token = resp.NextPageToken
+	require.NotContains(t, notificationsToTitlesList(t, resp.Notifications), "manager-7-expires")
 
-	resp, err = client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 1, PageToken: token})
+	// Verify that manager can't upsert a notification state for auditor
+	_, err = managerClient.UpsertUserNotificationState(ctx, auditorUsername, &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: notificationIdMap["auditor-7"],
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "got error %T, expected an access denied error due to manager trying to upsert a notification state for a different user", err)
+
+	// Verify that manager can't uspert a user last seen notification for auditor.
+	_, err = managerClient.UpsertUserLastSeenNotification(ctx, auditorUsername, &notificationsv1.UserLastSeenNotification{
+		Status: &notificationsv1.UserLastSeenNotificationStatus{
+			LastSeenTime: lastSeenTimestamp,
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "got error %T, expected an access denied error due to manager trying to upsert a last seen notification timestamp for a different user", err)
+
+	// Verify that users can't list a global notification they are explicitly excluded from.
+
+	// Create a global notification that matches all users with an exclusion for the manager.
+	_, err = srv.Auth().CreateGlobalNotification(ctx, newGlobalNotification(t, "all-except-manager", &notificationsv1.GlobalNotificationSpec{
+		Matcher: &notificationsv1.GlobalNotificationSpec_All{
+			All: true,
+		},
+		ExcludeUsers: []string{managerUsername},
+	}))
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 1)
-	all = append(all, resp.Notifications...)
-	token = resp.NextPageToken
 
-	resp, err = client.ListNotifications(t.Context(), &notificationsv1.ListNotificationsRequest{PageSize: 10, PageToken: token})
+	// Verify that the manager doesn't see the new notification.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
+	})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 2) // only 2 remaining
-	all = append(all, resp.Notifications...)
+	require.NotEqual(t, "all-except-manager", resp.Notifications[0].GetMetadata().GetLabels()[types.NotificationTitleLabel])
 
-	require.Len(t, all, 10)
+	// Verify that the auditor can see the new notification.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "all-except-manager", resp.Notifications[0].GetMetadata().GetLabels()[types.NotificationTitleLabel])
 
-	var lastUUID string
-	for i, notification := range all {
-		// Listing returns the newest notifications first.
-		want := fmt.Sprintf("notification-%d", 10-1-i)
-		got := notification.GetMetadata().GetLabels()[types.NotificationTitleLabel]
-		require.Equal(t, want, got)
-
-		// We should be going "back in time" as we enumerate the list.
-		if lastUUID != "" {
-			require.Less(t, notification.GetMetadata().GetName(), lastUUID, notificationNames(all))
-		}
-		lastUUID = notification.GetMetadata().GetName()
-	}
 }
 
-func newUserNotification(username string, title string) *notificationsv1.Notification {
-	return &notificationsv1.Notification{
+func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
+	t.Helper()
+
+	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
 		Spec: &notificationsv1.NotificationSpec{
 			Username: username,
@@ -435,9 +512,13 @@ func newUserNotification(username string, title string) *notificationsv1.Notific
 			},
 		},
 	}
+
+	return &notification
 }
 
-func newGlobalNotification(title string, spec *notificationsv1.GlobalNotificationSpec) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, title string, spec *notificationsv1.GlobalNotificationSpec) *notificationsv1.GlobalNotification {
+	t.Helper()
+
 	spec.Notification = &notificationsv1.Notification{
 		SubKind: "test-subkind",
 		Spec:    &notificationsv1.NotificationSpec{},
@@ -448,38 +529,23 @@ func newGlobalNotification(title string, spec *notificationsv1.GlobalNotificatio
 		},
 	}
 
-	return &notificationsv1.GlobalNotification{Spec: spec}
-}
-
-func mockAuth(t *testing.T) *authtest.TLSServer {
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:          t.TempDir(),
-		CacheEnabled: true,
-		AuditLog:     &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
-	})
-	require.NoError(t, err)
-
-	srv, err := authServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	return srv
-}
-
-func notificationTitles(notifications []*notificationsv1.Notification) []string {
-	var titles []string
-	for _, n := range notifications {
-		title := n.GetMetadata().GetLabels()[types.NotificationTitleLabel]
-		titles = append(titles, title)
+	notification := notificationsv1.GlobalNotification{
+		Spec: spec,
 	}
-	return titles
+
+	return &notification
 }
 
-func notificationNames(notifications []*notificationsv1.Notification) []string {
-	var names []string
-	for _, n := range notifications {
-		name := n.GetMetadata().GetName()
-		names = append(names, name)
+// notificationsToTitlesList accepts a list of notifications notifications and returns a slice of strings containing their titles in order, this is used to compare against
+// the expected outputs.
+func notificationsToTitlesList(t *testing.T, notifications []*notificationsv1.Notification) []string {
+	t.Helper()
+	var descriptions []string
+
+	for _, notif := range notifications {
+		description := notif.GetMetadata().GetLabels()[types.NotificationTitleLabel]
+		descriptions = append(descriptions, description)
 	}
-	return names
+
+	return descriptions
 }

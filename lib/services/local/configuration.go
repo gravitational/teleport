@@ -63,8 +63,8 @@ func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurat
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (s *ClusterConfigurationService) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, namePrefix))
+func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			clusterNameNotFound.Inc()
@@ -72,7 +72,8 @@ func (s *ClusterConfigurationService) GetClusterName(ctx context.Context) (types
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterName(item.Value, services.WithRevision(item.Revision))
+	return services.UnmarshalClusterName(item.Value,
+		services.AddOptions(opts, services.WithRevision(item.Revision))...)
 }
 
 // DeleteClusterName deletes types.ClusterName from the backend.
@@ -131,8 +132,8 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (s *ClusterConfigurationService) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
-	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
+func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, error) {
+	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("static tokens not found")

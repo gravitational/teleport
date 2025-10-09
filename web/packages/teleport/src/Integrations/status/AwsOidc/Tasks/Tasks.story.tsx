@@ -46,21 +46,6 @@ export function TasksEmpty() {
     </MockAwsOidcStatusProvider>
   );
 }
-TasksEmpty.parameters = {
-  msw: {
-    handlers: [
-      http.get(
-        cfg.getIntegrationUserTasksListUrl(integrationName, TaskState.Open),
-        () => {
-          return HttpResponse.json({
-            items: [],
-            nextKey: '1',
-          });
-        }
-      ),
-    ],
-  },
-};
 
 // Populated tasks table
 export function TaskView() {
@@ -76,6 +61,7 @@ export function TaskView() {
     </MockAwsOidcStatusProvider>
   );
 }
+
 TaskView.parameters = {
   msw: {
     handlers: [

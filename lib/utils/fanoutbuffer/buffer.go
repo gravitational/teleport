@@ -21,13 +21,13 @@ package fanoutbuffer
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 )
 
 // ErrGracePeriodExceeded is an error returned by Cursor.Read indicating that the cursor fell
@@ -200,7 +200,7 @@ func (b *Buffer[T]) cleanupSlots() {
 	// trim items from overflow that have been seen by all cursors or are past their expiry
 	now := b.cfg.Clock.Now()
 	var clearOverflowTo int
-	for i := range b.overflow {
+	for i := 0; i < len(b.overflow); i++ {
 		clearOverflowTo = i
 		if b.overflow[i].wait.Load() > 0 && b.overflow[i].expires.After(now) {
 			break
@@ -380,7 +380,7 @@ func finalizeCursor[T any](cursor *Cursor[T]) {
 	}
 
 	cursor.closeLocked()
-	slog.WarnContext(context.Background(), "Fanout buffer cursor was never closed. (this is a bug)")
+	log.Warn("Fanout buffer cursor was never closed. (this is a bug)")
 }
 
 // Close closes the cursor. Close is safe to double-call and should be called as soon as possible if

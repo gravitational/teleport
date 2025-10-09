@@ -44,9 +44,7 @@ export function createStdoutLoggerService(): LoggerService {
     exitOnError: false,
     format: format.combine(
       format.printf(({ level, message, context }) => {
-        // `message` is an array because the functions in createLoggerFromWinston
-        // collect all the arguments into an array.
-        const text = stringifier(message as unknown[]);
+        const text = stringifier(message as unknown as unknown[]);
         return `[${context}] ${level}: ${text}`;
       })
     ),
@@ -76,9 +74,7 @@ export function createFileLoggerService(
         format: 'DD-MM-YY HH:mm:ss',
       }),
       format.printf(({ level, message, timestamp, context }) => {
-        // `message` is an array because the functions in createLoggerFromWinston
-        // collect all the arguments into an array.
-        const text = stringifier(message as unknown[]);
+        const text = stringifier(message as unknown as unknown[]);
         const contextAndLevel = opts.passThroughMode
           ? ''
           : ` [${context}] ${level}:`;
@@ -223,11 +219,10 @@ function getBrowserConsoleTransport(opts: FileLoggerOptions) {
   return new transports.Console({
     log({ level, message, context }: Logform.TransformableInfo, next) {
       const loggerName = getLoggerName(opts);
-      // `message` is an array because the functions in createLoggerFromWinston
-      // collect all the arguments into an array.
+
       const logMessage = opts.passThroughMode
         ? message
-        : [`[${context}] ${level}:`, ...(message as unknown[])];
+        : [`[${context}] ${level}:`, ...message];
 
       const toLog = [loggerName, logMessage].filter(Boolean).flat();
       // We allow level to be only info, warn and error (createLoggerFromWinston).
@@ -243,9 +238,7 @@ function getRegularConsoleTransport(opts: FileLoggerOptions) {
     format: format.printf(({ level, message, context }) => {
       const loggerName = getLoggerName(opts);
 
-      // `message` is an array because the functions in createLoggerFromWinston
-      // collect all the arguments into an array.
-      const text = stringifier(message as unknown[]);
+      const text = stringifier(message as unknown as unknown[]);
       const logMessage = opts.passThroughMode
         ? text
         : `[${context}] ${level}: ${text}`;

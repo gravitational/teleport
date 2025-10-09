@@ -22,16 +22,18 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestURLChecker_Azure(t *testing.T) {
 	t.Parallel()
 
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
 	ctx := context.Background()
 
 	testCases := types.Databases{
@@ -47,7 +49,7 @@ func TestURLChecker_Azure(t *testing.T) {
 	}
 
 	c := newURLChecker(DiscoveryResourceCheckerConfig{
-		Logger: logtest.NewLogger(),
+		Log: log,
 	})
 	for _, database := range testCases {
 		t.Run(database.GetName(), func(t *testing.T) {

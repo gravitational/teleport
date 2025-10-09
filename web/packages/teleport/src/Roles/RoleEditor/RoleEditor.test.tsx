@@ -380,9 +380,9 @@ test('saving a new role', async () => {
       spec: {
         allow: {},
         deny: {},
-        options: defaultOptions(defaultRoleVersion),
+        options: defaultOptions(),
       },
-      version: 'v8',
+      version: 'v7',
     },
   });
   expect(

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -53,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -111,8 +112,7 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = dataDir
-	cfg.Logger = logtest.NewLogger()
-
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	authAddr, err := newTCPListener(service.ListenerAuth, &cfg.FileDescriptors)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -464,10 +464,6 @@ func StartDummyHTTPServer(name string) *httptest.Server {
 
 type cliModules struct{}
 
-func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	return &types.LongTermResourceGrouping{}, nil
-}
-
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
@@ -520,7 +516,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -542,9 +538,14 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 // NewTeleportProcess.
 func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
-	identity, err := storage.ReadLocalIdentityForRole(
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
-		types.RoleAdmin,
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

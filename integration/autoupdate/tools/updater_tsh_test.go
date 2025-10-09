@@ -449,5 +449,5 @@ func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVer
 	require.NoError(t, err)
 
 	// Expire the fn cache to force the next answer to be fresh.
-	server.GetClock().(*clockwork.FakeClock).Advance(20 * time.Second)
+	server.GetClock().(clockwork.FakeClock).Advance(20 * time.Second)
 }

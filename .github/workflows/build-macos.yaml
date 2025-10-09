@@ -62,7 +62,11 @@ jobs:
           cache: false
           go-version: ${{ env.GOLANG_VERSION }}
 
-      - name: Install wasm-deps
+      - name: Configure Rust Toolchain
+        run: |
+          rustup override set ${{ env.RUST_VERSION }}
+
+      - name: Install wasm-pack
         run: make ensure-wasm-deps
 
       - name: Build

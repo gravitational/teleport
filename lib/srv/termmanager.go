@@ -19,13 +19,12 @@
 package srv
 
 import (
-	"context"
 	"errors"
 	"io"
-	"log/slog"
-	"slices"
 	"sync"
 	"sync/atomic"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // maxHistoryBytes is the maximum bytes that are retained as history and broadcasted to new clients.
@@ -108,7 +107,7 @@ func (g *TermManager) writeToClients(p []byte) {
 		_, err := w.Write(p)
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				slog.WarnContext(context.Background(), "Failed to write to remote terminal", "error", err)
+				log.Warnf("Failed to write to remote terminal: %v", err)
 			}
 			toDelete = append(
 				toDelete, struct {
@@ -125,13 +124,11 @@ func (g *TermManager) writeToClients(p []byte) {
 		// writeToClients is called with the lock held, so we need to release it
 		// before calling OnWriteError to avoid a deadlock if OnWriteError
 		// calls DeleteWriter/DeleteReader.
-		func() {
-			g.mu.Unlock()
-			defer g.mu.Lock()
-			for _, deleteWriter := range toDelete {
-				g.OnWriteError(deleteWriter.key, deleteWriter.err)
-			}
-		}()
+		g.mu.Unlock()
+		for _, deleteWriter := range toDelete {
+			g.OnWriteError(deleteWriter.key, deleteWriter.err)
+		}
+		g.mu.Lock()
 	}
 }
 
@@ -247,7 +244,7 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 			n, err := r.Read(buf)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					slog.WarnContext(context.Background(), "Failed to read from remote terminal", "error", err)
+					log.Warnf("Failed to read from remote terminal: %v", err)
 				}
 				// Let term manager decide how to handle broken party readers.
 				if g.OnReadError != nil {
@@ -257,15 +254,19 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				return
 			}
 
-			if slices.Contains(buf[:n], 0x03) {
-				g.mu.Lock()
-				if g.state == dataFlowOff && !g.isClosed() {
-					select {
-					case g.terminateNotifier <- struct{}{}:
-					default:
+			for _, b := range buf[:n] {
+				// This is the ASCII control code for CTRL+C.
+				if b == 0x03 {
+					g.mu.Lock()
+					if g.state == dataFlowOff && !g.isClosed() {
+						select {
+						case g.terminateNotifier <- struct{}{}:
+						default:
+						}
 					}
+					g.mu.Unlock()
+					break
 				}
-				g.mu.Unlock()
 			}
 
 			g.mu.Lock()

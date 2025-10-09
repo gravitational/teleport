@@ -32,12 +32,12 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -51,7 +51,7 @@ func TestReadOrCreate(t *testing.T) {
 	ids := make([]string, concurrency)
 	barrier := make(chan struct{})
 
-	for i := range concurrency {
+	for i := 0; i < concurrency; i++ {
 		wg.Go(func() error {
 			<-barrier
 			id, err := hostid.ReadOrCreateFile(

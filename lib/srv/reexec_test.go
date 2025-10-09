@@ -42,7 +42,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
@@ -176,6 +175,7 @@ func TestStartNewParker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
@@ -229,12 +229,10 @@ func TestRootNetworkingCommand(t *testing.T) {
 }
 
 func testNetworkingCommand(t *testing.T, login string) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := context.Background()
 	srv := newMockServer(t)
 
-	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, srv, nil)
 	scx.ExecType = teleport.NetworkingSubCommand
 	if login != "" {
 		scx.Identity.Login = login
@@ -347,7 +345,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	}
 	require.NoError(t, err)
 
-	cred, err := host.GetHostUserCredential(localUser)
+	cred, err := getCmdCredential(localUser)
 	require.NoError(t, err)
 
 	// Create a temporary xauth file path belonging to the user.

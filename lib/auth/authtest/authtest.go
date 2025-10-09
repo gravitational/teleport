@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/auth/summarizer"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -86,16 +85,10 @@ type AuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// UploadHandler allows a test to set its own upload handler. This setting is
-	// propagated to AuditLog, but only if they are not customized here.
-	UploadHandler events.MultipartHandler
 	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
-	// SessionSummarizerProvider allows a test to configure its own session
-	// summarizer provider.
-	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -130,9 +123,6 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOff,
 		}
-	}
-	if cfg.UploadHandler == nil {
-		cfg.UploadHandler = eventstest.NewMemoryUploader()
 	}
 	return nil
 }
@@ -278,7 +268,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: cfg.UploadHandler,
+			UploadHandler: eventstest.NewMemoryUploader(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -314,25 +304,23 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
-		DataDir:                   cfg.Dir,
-		Backend:                   srv.Backend,
-		VersionStorage:            NewFakeTeleportVersion(),
-		Authority:                 authority.NewWithClock(cfg.Clock),
-		Access:                    access,
-		Identity:                  identity,
-		AuditLog:                  srv.AuditLog,
-		Streamer:                  cfg.Streamer,
-		SkipPeriodicOperations:    true,
-		Emitter:                   emitter,
-		TraceClient:               cfg.TraceClient,
-		Clock:                     cfg.Clock,
-		ClusterName:               clusterName,
-		HostUUID:                  uuid.New().String(),
-		AccessLists:               accessLists,
-		FIPS:                      cfg.FIPS,
-		KeyStoreConfig:            cfg.KeystoreConfig,
-		MultipartHandler:          cfg.UploadHandler,
-		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		DataDir:                cfg.Dir,
+		Backend:                srv.Backend,
+		VersionStorage:         NewFakeTeleportVersion(),
+		Authority:              authority.NewWithClock(cfg.Clock),
+		Access:                 access,
+		Identity:               identity,
+		AuditLog:               srv.AuditLog,
+		Streamer:               cfg.Streamer,
+		SkipPeriodicOperations: true,
+		Emitter:                emitter,
+		TraceClient:            cfg.TraceClient,
+		Clock:                  cfg.Clock,
+		ClusterName:            clusterName,
+		HostUUID:               uuid.New().String(),
+		AccessLists:            accessLists,
+		FIPS:                   cfg.FIPS,
+		KeyStoreConfig:         cfg.KeystoreConfig,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
@@ -553,6 +541,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		Provisioner:             p.AuthServer.Services.Provisioner,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
+		SAMLIdPSession:          p.AuthServer.Services.Identity,
 		SecReports:              p.AuthServer.Services.SecReports,
 		SnowflakeSession:        p.AuthServer.Services.Identity,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
@@ -572,9 +561,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
-		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 		BotInstance:             p.AuthServer.Services.BotInstance,
-		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
 	})
 	if err != nil {
@@ -960,22 +947,12 @@ type TestIdentity struct {
 	Generation     uint64
 }
 
-// TestUser returns TestIdentity for local user. Note that this constructor only produces a
-// test identity suitable for use with the `NewClient` methods defined in this file, as those helpers
-// auto-populate roles.  Prefer using TestUserWithRoles for most usecases.
+// TestUser returns TestIdentity for local user
 func TestUser(username string) TestIdentity {
-	return TestUserWithRoles(username, nil)
-}
-
-// TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
-func TestUserWithRoles(username string, roles []string) TestIdentity {
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
-			Identity: tlsca.Identity{
-				Username: username,
-				Groups:   roles,
-			},
+			Identity: tlsca.Identity{Username: username},
 		},
 	}
 }
@@ -1166,15 +1143,6 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 
 // NewClient returns new client to test server authenticated with identity
 func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
-	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 {
-		user, err := t.AuthServer.AuthServer.GetUser(context.TODO(), localUser.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		localUser.Identity.Groups = user.GetRoles()
-		identity.I = localUser
-	}
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1461,14 +1429,12 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
 func CreateUserAndRole(clt UserRoleClient, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
-	o := createUserAndRoleOptions{
-		version: types.DefaultRoleVersion,
-	}
+	o := createUserAndRoleOptions{}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -1478,7 +1444,7 @@ func CreateUserAndRole(clt UserRoleClient, username string, allowedLogins []stri
 		return nil, nil, trace.Wrap(err)
 	}
 
-	role := services.RoleWithVersionForUser(user, o.version)
+	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, allowedLogins)
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)
@@ -1678,7 +1644,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add TLS keys if necessary.
 	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 			Signer: key.Signer,
 			Entity: pkix.Name{

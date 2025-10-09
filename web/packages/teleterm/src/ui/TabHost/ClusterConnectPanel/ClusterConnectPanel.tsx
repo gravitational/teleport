@@ -51,7 +51,7 @@ export function ClusterConnectPanel() {
     ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>();
 
   // Focus the first item.
   const hasCluster = !!rootClusters.length;

@@ -18,7 +18,7 @@ sets Pod annotations when specified:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -64,19 +64,6 @@ sets Pod annotations when specified:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -104,7 +91,7 @@ sets Pod labels when specified:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -150,19 +137,6 @@ sets Pod labels when specified:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -214,7 +188,7 @@ sets StatefulSet labels when specified:
               value: RELEASE-NAME
             - name: TELEPORT_KUBE_CLUSTER_DOMAIN
               value: cluster.local
-            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -260,19 +234,6 @@ sets StatefulSet labels when specified:
             fsGroup: 9807
           serviceAccountName: RELEASE-NAME
           terminationGracePeriodSeconds: 30
-          topologySpreadConstraints:
-          - labelSelector:
-              matchLabels:
-                app: RELEASE-NAME
-            maxSkew: 1
-            topologyKey: kubernetes.io/hostname
-            whenUnsatisfiable: ScheduleAnyway
-          - labelSelector:
-              matchLabels:
-                app: RELEASE-NAME
-            maxSkew: 1
-            topologyKey: topology.kubernetes.io/zone
-            whenUnsatisfiable: ScheduleAnyway
           volumes:
           - configMap:
               name: RELEASE-NAME
@@ -332,7 +293,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -378,19 +339,6 @@ should add insecureSkipProxyTLSVerify to args when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -418,7 +366,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -464,19 +412,6 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -524,7 +459,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
               value: RELEASE-NAME
             - name: TELEPORT_KUBE_CLUSTER_DOMAIN
               value: cluster.local
-            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -570,19 +505,6 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
             fsGroup: 9807
           serviceAccountName: RELEASE-NAME
           terminationGracePeriodSeconds: 30
-          topologySpreadConstraints:
-          - labelSelector:
-              matchLabels:
-                app: RELEASE-NAME
-            maxSkew: 1
-            topologyKey: kubernetes.io/hostname
-            whenUnsatisfiable: ScheduleAnyway
-          - labelSelector:
-              matchLabels:
-                app: RELEASE-NAME
-            maxSkew: 1
-            topologyKey: topology.kubernetes.io/zone
-            whenUnsatisfiable: ScheduleAnyway
           volumes:
           - configMap:
               name: RELEASE-NAME
@@ -620,7 +542,7 @@ should add volumeMount for data volume when using StatefulSet:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -666,19 +588,6 @@ should add volumeMount for data volume when using StatefulSet:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -706,7 +615,7 @@ should expose diag port:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -752,19 +661,6 @@ should expose diag port:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -792,7 +688,7 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -838,19 +734,6 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -892,7 +775,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -938,19 +821,6 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -990,7 +860,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1036,19 +906,6 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1076,7 +933,7 @@ should have one replica when replicaCount is not set:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1122,19 +979,6 @@ should have one replica when replicaCount is not set:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1162,7 +1006,7 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1208,19 +1052,6 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1250,7 +1081,7 @@ should mount extraVolumes and extraVolumeMounts:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1298,19 +1129,6 @@ should mount extraVolumes and extraVolumeMounts:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1341,7 +1159,7 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1390,19 +1208,6 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1435,7 +1240,7 @@ should mount jamfCredentialsSecret.name when role is jamf:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1484,19 +1289,6 @@ should mount jamfCredentialsSecret.name when role is jamf:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1531,7 +1323,7 @@ should mount tls.existingCASecretName and set environment when set in values:
         value: cluster.local
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1580,19 +1372,6 @@ should mount tls.existingCASecretName and set environment when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1629,7 +1408,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: /etc/teleport-tls-ca/ca.pem
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1678,19 +1457,6 @@ should mount tls.existingCASecretName and set extra environment when set in valu
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1723,7 +1489,7 @@ should not add emptyDir for data when using StatefulSet:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1769,19 +1535,6 @@ should not add emptyDir for data when using StatefulSet:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1809,7 +1562,7 @@ should provision initContainer correctly when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1893,19 +1646,6 @@ should provision initContainer correctly when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -1953,7 +1693,7 @@ should set affinity when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1999,19 +1739,6 @@ should set affinity when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2039,7 +1766,7 @@ should set default serviceAccountName when not set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2085,19 +1812,6 @@ should set default serviceAccountName when not set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2138,7 +1852,7 @@ should set environment when extraEnv set in values:
         value: cluster.local
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2184,19 +1898,6 @@ should set environment when extraEnv set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2270,19 +1971,6 @@ should set image and tag correctly:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2310,7 +1998,7 @@ should set imagePullPolicy when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -2356,19 +2044,6 @@ should set imagePullPolicy when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2396,7 +2071,7 @@ should set nodeSelector if set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2444,19 +2119,6 @@ should set nodeSelector if set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2496,7 +2158,7 @@ should set preferred affinity when more than one replica is used:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2542,19 +2204,6 @@ should set preferred affinity when more than one replica is used:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2582,7 +2231,7 @@ should set probeTimeoutSeconds when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2628,19 +2277,6 @@ should set probeTimeoutSeconds when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2678,7 +2314,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2724,19 +2360,6 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2764,7 +2387,7 @@ should set resources when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2817,19 +2440,6 @@ should set resources when set in values:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2857,7 +2467,7 @@ should set serviceAccountName when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2903,19 +2513,6 @@ should set serviceAccountName when set in values:
       fsGroup: 9807
     serviceAccountName: teleport-kube-agent-sa
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -2943,7 +2540,7 @@ should set storage.requests when set in values and action is an Upgrade:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2989,19 +2586,6 @@ should set storage.requests when set in values and action is an Upgrade:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -3029,7 +2613,7 @@ should set storage.storageClassName when set in values and action is an Upgrade:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -3075,19 +2659,6 @@ should set storage.storageClassName when set in values and action is an Upgrade:
       fsGroup: 9807
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 30
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME
@@ -3115,7 +2686,7 @@ should set tolerations when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:17.7.7
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -3170,19 +2741,6 @@ should set tolerations when set in values:
       key: dedicated
       operator: Equal
       value: teleport
-    topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: ScheduleAnyway
-    - labelSelector:
-        matchLabels:
-          app: RELEASE-NAME
-      maxSkew: 1
-      topologyKey: topology.kubernetes.io/zone
-      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - configMap:
         name: RELEASE-NAME

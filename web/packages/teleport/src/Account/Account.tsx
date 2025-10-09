@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
-import { useHistory } from 'react-router';
-import styled from 'styled-components';
+import React, { useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 
-import { Flex } from 'design';
-import { Danger } from 'design/Alert';
-import { ArrowBack } from 'design/Icon';
-import { NotificationEntry } from 'shared/components/ToastNotification';
+import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
+import * as Icon from 'design/Icon';
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
 import {
@@ -31,22 +34,27 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Redirect, Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { DeviceUsage } from 'teleport/services/mfa';
 import { PasswordState } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
+import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
+import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
 } from './ManageDevices/useManageDevices';
-import { Preferences } from './Preferences';
-import { SecuritySettings } from './SecuritySettings';
-import { SideNav } from './SideNav';
+import {
+  AddAuthDeviceWizard,
+  DeleteAuthDeviceWizard,
+} from './ManageDevices/wizards';
+import { PasswordBox } from './PasswordBox';
+import { StatePill } from './StatePill';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
   // unifying them between this screen and the unified resources screen.
-  addNotification: (entry: NotificationEntry) => void;
+  addNotification: (severity: NotificationSeverity, content: string) => void;
 }
 
 export interface AccountPageProps {
@@ -108,92 +116,285 @@ export function Account({
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
-  mfaDisabled,
-  createRestrictedTokenAttempt,
   userTrustedDevicesComponent: TrustedDeviceListComponent,
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
-  const history = useHistory();
+  const passkeys = devices.filter(d => d.usage === 'passwordless');
+  const mfaDevices = devices.filter(d => d.usage === 'mfa');
+  const disableAddPasskey = !canAddPasskeys;
+  const disableAddMfa = !canAddMfa;
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  let mfaPillState = undefined;
+  if (fetchDevicesAttempt.status !== 'processing') {
+    mfaPillState = canAddMfa && mfaDevices.length > 0 ? 'active' : 'inactive';
+  }
 
-  const stableSetErrorMessage = useCallback((message: string | null) => {
-    setErrorMessage(message);
-  }, []);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
+
+  function addNotification(severity: NotificationSeverity, content: string) {
+    setNotifications(n => [
+      ...n,
+      {
+        id: crypto.randomUUID(),
+        severity,
+        content,
+      },
+    ]);
+  }
+
+  function removeNotification(id: string) {
+    setNotifications(n => n.filter(item => item.id !== id));
+  }
+
+  // TODO(bl.nero): Modify `useManageDevices` and export callbacks from there instead.
+  if (prevFetchStatus !== fetchDevicesAttempt.status) {
+    setPrevFetchStatus(fetchDevicesAttempt.status);
+    if (fetchDevicesAttempt.status === 'failed') {
+      addNotification('error', fetchDevicesAttempt.statusText);
+    }
+  }
+
+  function onPasswordChange() {
+    addNotification('info', 'Your password has been changed.');
+    onPasswordChangeCb();
+  }
+
+  function onAddDeviceSuccess() {
+    const message =
+      newDeviceUsage === 'passwordless'
+        ? 'Passkey successfully saved.'
+        : 'MFA method successfully saved.';
+    addNotification('info', message);
+    onDeviceAdded();
+  }
+
+  function onDeleteDeviceSuccess() {
+    const message =
+      deviceToRemove.usage === 'passwordless'
+        ? 'Passkey successfully deleted.'
+        : 'MFA method successfully deleted.';
+    addNotification('info', message);
+    onDeviceRemoved();
+  }
 
   return (
     <Relative>
-      <FeatureBox margin="auto">
+      <FeatureBox maxWidth={1440} margin="auto">
         <FeatureHeader>
-          <ArrowBack
-            mr={2}
-            size="large"
-            color="text.main"
-            onClick={history.goBack}
-            style={{ cursor: 'pointer' }}
-          />
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
-        {!!errorMessage && (
-          <Danger dismissible onDismiss={() => setErrorMessage(null)}>
-            {errorMessage}
-          </Danger>
-        )}
-        <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'0 auto'}>
-          <Flex flexDirection="column" gap={1} width="16rem">
-            <SideNav
-              recoveryEnabled={EnterpriseComponent !== undefined}
-              trustedDevicesEnabled={TrustedDeviceListComponent !== undefined}
+        <Flex flexDirection="column" gap={4}>
+          <Box data-testid="passkey-list">
+            <AuthDeviceList
+              header={
+                <PasskeysHeader
+                  empty={passkeys.length === 0}
+                  passkeysEnabled={canAddPasskeys}
+                  disableAddPasskey={disableAddPasskey}
+                  fetchDevicesAttempt={fetchDevicesAttempt}
+                  onAddDevice={onAddDevice}
+                />
+              }
+              deviceTypeColumnName="Passkey Type"
+              devices={passkeys}
+              onRemove={onRemoveDevice}
             />
-          </Flex>
-          <Flex flexDirection="column" gap={4}>
-            <Switch>
-              <Route
-                exact
-                path={cfg.routes.account}
-                component={() => <Redirect to={cfg.routes.accountSecurity} />}
-              />
-              <Route
-                path={cfg.routes.accountSecurity}
-                component={() => (
-                  <SecuritySettings
-                    isSso={isSso}
-                    canAddPasskeys={canAddPasskeys}
-                    canAddMfa={canAddMfa}
-                    passwordState={passwordState}
-                    devices={devices}
-                    onAddDevice={onAddDevice}
-                    onRemoveDevice={onRemoveDevice}
-                    onDeviceAdded={onDeviceAdded}
-                    onDeviceRemoved={onDeviceRemoved}
-                    deviceToRemove={deviceToRemove}
-                    fetchDevicesAttempt={fetchDevicesAttempt}
-                    addDeviceWizardVisible={addDeviceWizardVisible}
-                    hideRemoveDevice={hideRemoveDevice}
-                    closeAddDeviceWizard={closeAddDeviceWizard}
-                    mfaDisabled={mfaDisabled}
-                    createRestrictedTokenAttempt={createRestrictedTokenAttempt}
-                    newDeviceUsage={newDeviceUsage}
-                    enterpriseComponent={EnterpriseComponent}
-                    userTrustedDevicesComponent={TrustedDeviceListComponent}
-                    onPasswordChange={onPasswordChangeCb}
-                  />
-                )}
-              />
-              <Route
-                path={cfg.routes.accountPreferences}
-                component={() => (
-                  <Preferences setErrorMessage={stableSetErrorMessage} />
-                )}
-              />
-            </Switch>
-          </Flex>
+          </Box>
+          {!isSso && (
+            <PasswordBox
+              devices={devices}
+              passwordState={passwordState}
+              onPasswordChange={onPasswordChange}
+            />
+          )}
+          <Box data-testid="mfa-list">
+            <AuthDeviceList
+              header={
+                <Header
+                  title={
+                    <Flex gap={2} alignItems="center">
+                      Multi-factor Authentication
+                      <StatePill
+                        data-testid="mfa-state-pill"
+                        state={mfaPillState}
+                      />
+                    </Flex>
+                  }
+                  description="Provide secondary authentication when signing in
+                    with a password. Unlike passkeys, multi-factor methods do
+                    not enable passwordless sign-in."
+                  icon={<Icon.ShieldCheck />}
+                  showIndicator={fetchDevicesAttempt.status === 'processing'}
+                  actions={
+                    <ActionButtonSecondary
+                      disabled={disableAddMfa}
+                      title={
+                        disableAddMfa
+                          ? 'Multi-factor authentication is disabled'
+                          : ''
+                      }
+                      onClick={() => onAddDevice('mfa')}
+                    >
+                      <Icon.Add size={20} />
+                      Add MFA
+                    </ActionButtonSecondary>
+                  }
+                />
+              }
+              deviceTypeColumnName="MFA Type"
+              devices={mfaDevices}
+              onRemove={onRemoveDevice}
+            />
+          </Box>
+          {EnterpriseComponent && (
+            <EnterpriseComponent addNotification={addNotification} />
+          )}
+          {TrustedDeviceListComponent && <TrustedDeviceListComponent />}
         </Flex>
       </FeatureBox>
+
+      {addDeviceWizardVisible && (
+        <AddAuthDeviceWizard
+          usage={newDeviceUsage}
+          auth2faType={cfg.getAuth2faType()}
+          onClose={closeAddDeviceWizard}
+          onSuccess={onAddDeviceSuccess}
+        />
+      )}
+
+      {deviceToRemove && (
+        <DeleteAuthDeviceWizard
+          deviceToDelete={deviceToRemove}
+          onClose={hideRemoveDevice}
+          onSuccess={onDeleteDeviceSuccess}
+        />
+      )}
+
+      {/* Note: Although notifications appear on top, we deliberately place the
+          container on the bottom to avoid manipulating z-index. The stacking
+          context from one of the buttons appears on top otherwise.
+
+          TODO(bl-nero): Consider reusing the Notifications component from
+          Teleterm. */}
+      <NotificationContainer>
+        {notifications.map(item => (
+          <Notification
+            mb={3}
+            key={item.id}
+            item={item}
+            onRemove={() => removeNotification(item.id)}
+            isAutoRemovable={item.severity === 'info'}
+          />
+        ))}
+      </NotificationContainer>
     </Relative>
   );
 }
+
+/**
+ * Renders a simple header for non-empty list of passkeys, and a more
+ * encouraging CTA if there are no passkeys.
+ */
+function PasskeysHeader({
+  empty,
+  fetchDevicesAttempt,
+  passkeysEnabled,
+  disableAddPasskey,
+  onAddDevice,
+}: {
+  empty: boolean;
+  fetchDevicesAttempt: Attempt;
+  passkeysEnabled: boolean;
+  disableAddPasskey: boolean;
+  onAddDevice: (usage: DeviceUsage) => void;
+}) {
+  const theme = useTheme();
+
+  const ActionButton = empty ? ActionButtonPrimary : ActionButtonSecondary;
+  const button = (
+    <ActionButton
+      disabled={disableAddPasskey}
+      title={disableAddPasskey ? 'Passwordless authentication is disabled' : ''}
+      onClick={() => onAddDevice('passwordless')}
+    >
+      <Icon.Add size={20} />
+      Add a Passkey
+    </ActionButton>
+  );
+
+  if (empty) {
+    return (
+      <Flex flexDirection="column" alignItems="center">
+        <Box
+          bg={theme.colors.interactive.tonal.neutral[0]}
+          lineHeight={0}
+          p={2}
+          borderRadius={3}
+          mb={3}
+        >
+          <Icon.Key />
+        </Box>
+        <H2 mb={1}>Passwordless sign-in using Passkeys</H2>
+        <Subtitle2
+          color={theme.colors.text.slightlyMuted}
+          textAlign="center"
+          mb={3}
+        >
+          Passkeys are a password replacement that validates your identity using
+          touch, facial recognition, a device password, or a PIN.
+        </Subtitle2>
+        <RelativeBox>
+          {fetchDevicesAttempt.status === 'processing' && (
+            // This trick allows us to maintain center alignment of the button
+            // and display it along with the indicator.
+            <BoxToTheRight mr={3} data-testid="indicator-wrapper">
+              <Indicator size={40} />
+            </BoxToTheRight>
+          )}
+          {button}
+        </RelativeBox>
+      </Flex>
+    );
+  }
+
+  return (
+    <Header
+      title={
+        <Flex gap={2} alignItems="center">
+          Passkeys
+          <StatePill
+            data-testid="passwordless-state-pill"
+            state={passkeysEnabled ? 'active' : 'inactive'}
+          />
+        </Flex>
+      }
+      description="Enable secure passwordless sign-in using
+                fingerprint or facial recognition, a one-time code, or
+                a device password."
+      icon={<Icon.Key />}
+      showIndicator={fetchDevicesAttempt.status === 'processing'}
+      actions={button}
+    />
+  );
+}
+
+const RelativeBox = styled(Box)`
+  position: relative;
+`;
+
+/** A box that is displayed to the right where it normally would be. */
+const BoxToTheRight = styled(Box)`
+  position: absolute;
+  right: 100%;
+`;
+
+const NotificationContainer = styled.div`
+  position: absolute;
+  top: ${props => props.theme.space[2]}px;
+  right: ${props => props.theme.space[5]}px;
+`;
 
 const Relative = styled.div`
   position: relative;

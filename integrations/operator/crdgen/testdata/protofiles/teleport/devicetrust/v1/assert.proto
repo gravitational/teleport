@@ -1,0 +1,74 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.devicetrust.v1;
+
+import "teleport/devicetrust/v1/authenticate_challenge.proto";
+import "teleport/devicetrust/v1/device_collected_data.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
+
+// Request to assert an enrolled device. Assertion authenticates the device,
+// regardless of the user driving the assertion.
+//
+// Assertion messages are meant to be included by other requests and responses,
+// either streams or multi-stage RPCs. The ceremony is resolved by a co-located
+// DeviceTrustService.
+//
+// See the lib/devicetrust/assert (client) and lib/devicetrust/assertserver
+// (server) packages.
+//
+// Assertion ceremony flow:
+// -> AssertDeviceInit (client)
+// <- AssertDeviceChallenge (server)
+// -> AssertDeviceChallengeResponse (client)
+// <- DeviceAsserted (server)
+//
+// A successful ceremony signifies that the device is registered, enrolled and
+// passed the authentication challenge.
+message AssertDeviceRequest {
+  oneof payload {
+    AssertDeviceInit init = 1;
+    AuthenticateDeviceChallengeResponse challenge_response = 2;
+    TPMAuthenticateDeviceChallengeResponse tpm_challenge_response = 3;
+  }
+}
+
+// Response of the device assertion ceremony.
+// See [AssertDeviceRequest].
+message AssertDeviceResponse {
+  oneof payload {
+    AuthenticateDeviceChallenge challenge = 1;
+    TPMAuthenticateDeviceChallenge tpm_challenge = 2;
+    DeviceAsserted device_asserted = 3;
+  }
+}
+
+// AssertDeviceInit initiates the device assertion ceremony.
+// See [AssertDeviceRequest].
+message AssertDeviceInit {
+  // ID of the enrolled device credential.
+  string credential_id = 1;
+
+  // Device collected data.
+  // Matched against the device registration information and any previously
+  // collected data.
+  DeviceCollectedData device_data = 2;
+}
+
+// DeviceAsserted marks a successful device assertion ceremony.
+// See [AssertDeviceRequest].
+message DeviceAsserted {}

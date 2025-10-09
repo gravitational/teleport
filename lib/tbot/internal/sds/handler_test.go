@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
-	"os"
 	"testing"
 	"time"
 
@@ -38,14 +37,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
-}
 
 type mockTrustBundleCache struct {
 	currentBundle *workloadidentity.BundleSet
@@ -59,7 +53,7 @@ func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*workloadident
 // It tests the generation of the DiscoveryResponses and that authentication
 // is enforced.
 func TestSDS_FetchSecrets(t *testing.T) {
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	ctx := context.Background()
 
 	td, err := spiffeid.TrustDomainFromString("example.com")

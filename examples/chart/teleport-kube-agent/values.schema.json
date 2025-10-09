@@ -78,11 +78,6 @@
             "type": "string",
             "default": ""
         },
-        "teleportClusterName": {
-            "$id": "#/properties/teleportClusterName",
-            "type": "string",
-            "default": ""
-        },
         "apps": {
             "$id": "#/properties/apps",
             "type": "array",
@@ -523,11 +518,6 @@
             "$id": "#/properties/affinity",
             "type": "object",
             "default": {}
-        },
-        "topologySpreadConstraints": {
-            "$id": "#/properties/topologySpreadConstraints",
-            "type": "array",
-            "default": []
         },
         "dnsConfig": {
             "$id": "#/properties/dnsConfig",

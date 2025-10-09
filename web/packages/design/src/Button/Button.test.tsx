@@ -158,12 +158,21 @@ describe('design/Button', () => {
       expect(screen.getByText('Link').localName).toEqual('a');
     });
 
-    // For some reason, ComponentPropsWithoutRef or ComponentProps cause types for regular props
-    // such as onClick to not be correctly recognized, hence the use of ComponentPropsWithRef.
     const RegularWrapper = <Element extends React.ElementType = 'button'>(
-      props: ComponentPropsWithRef<typeof ButtonPrimary<Element>>
+      props: PropsWithChildren<{
+        size?: ButtonSize;
+      }> &
+        // For some reason, ComponentPropsWithoutRef or ComponentProps cause types for regular props
+        // such as onClick to not be correctly recognized.
+        ComponentPropsWithRef<typeof ButtonPrimary<Element>>
     ) => {
-      return <ButtonPrimary size="large" {...props} />;
+      const { size, children, ...buttonProps } = props;
+
+      return (
+        <ButtonPrimary size={size} {...buttonProps}>
+          {children}
+        </ButtonPrimary>
+      );
     };
 
     const ForwardedAsWrapper = <Element extends React.ElementType = 'button'>(
@@ -192,7 +201,7 @@ describe('design/Button', () => {
     };
 
     const invalidOnClickHandler = (foo: string) => {
-      return typeof foo + 'bar';
+      return typeof foo;
     };
   });
 });

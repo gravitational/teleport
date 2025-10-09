@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -159,7 +160,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			// Ignore the global device_trust.mode toggle, but allow role-based
 			// settings to be applied.
@@ -223,21 +224,21 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		Labels:       cfg.WindowsDesktop.Labels,
 		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    conn.HostUUID(),
+			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		ShowDesktopWallpaper: cfg.WindowsDesktop.ShowDesktopWallpaper,
-		LDAPConfig:           cfg.WindowsDesktop.LDAP,
-		KDCAddr:              cfg.WindowsDesktop.KDCAddr,
-		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
-		Discovery:            cfg.WindowsDesktop.Discovery,
-		DiscoveryInterval:    cfg.WindowsDesktop.DiscoveryInterval,
-		PublishCRLInterval:   cfg.WindowsDesktop.PublishCRLInterval,
-		Hostname:             cfg.Hostname,
-		ConnectedProxyGetter: proxyGetter,
-		ResourceMatchers:     cfg.WindowsDesktop.ResourceMatchers,
+		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
+		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		KDCAddr:                      cfg.WindowsDesktop.KDCAddr,
+		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
+		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
+		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
+		Hostname:                     cfg.Hostname,
+		ConnectedProxyGetter:         proxyGetter,
+		ResourceMatchers:             cfg.WindowsDesktop.ResourceMatchers,
 
 		// For now, NLA is opt-in via an environment variable.
 		// We'll make it the default behavior in a future release.
@@ -275,7 +276,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				process.logger.ErrorContext(process.ExitContext(), "mux encountered error serving", "mux_id", mux.ID, "error", err)
+				mux.Entry.WithError(err).Error("mux encountered err serving")
 			}
 		}()
 
@@ -290,7 +291,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("windows_desktop.shutdown", func(payload any) {
+	process.OnExit("windows_desktop.shutdown", func(payload interface{}) {
 		// Fast shutdown.
 		warnOnErr(process.ExitContext(), srv.Close(), logger)
 		agentPool.Stop()

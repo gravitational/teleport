@@ -59,7 +59,7 @@ func (a *Server) registerUsingOracleMethod(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, claims, tokenReq,
+				err, provisionToken, claims, tokenReq,
 			)
 		}
 	}()
@@ -83,15 +83,24 @@ func (a *Server) registerUsingOracleMethod(
 	}
 
 	if tokenReq.Role == types.RoleBot {
-		params := makeBotCertsParams(tokenReq, claims, &workloadidentityv1pb.JoinAttrs{
-			Oracle: claims.JoinAttrs(),
-		})
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
-		return certs, trace.Wrap(err, "generating bot certs")
+		certs, _, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			tokenReq,
+			claims,
+			&workloadidentityv1pb.JoinAttrs{
+				Oracle: claims.JoinAttrs(),
+			},
+		)
+		return certs, trace.Wrap(err)
 	}
-	params := makeHostCertsParams(tokenReq, claims)
-	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err, "generating certs")
+	certs, err = a.generateCerts(
+		ctx,
+		provisionToken,
+		tokenReq,
+		claims,
+	)
+	return certs, trace.Wrap(err)
 }
 
 func generateOracleChallenge() (string, error) {

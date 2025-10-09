@@ -1,16 +1,19 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: '/'
+    directory: "/"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
+      # Breaks backwards compatibility
+      - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
+      - dependency-name: github.com/coreos/go-oidc
       - dependency-name: github.com/go-mysql-org/go-mysql
       - dependency-name: github.com/gogo/protobuf
       - dependency-name: github.com/julienschmidt/httprouter
@@ -18,41 +21,50 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/redis/go-redis/v9
       - dependency-name: github.com/vulcand/predicate
-      - dependency-name: github.com/hinshun/vt10x
+      # Ignore until kube libs are upgraded. See https://github.com/kubernetes-sigs/controller-runtime/issues/2788.
+      - dependency-name: k8s.io/*
     open-pull-requests-limit: 20
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - zmb3
+      - hugoShaka
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
-    directory: '/api'
+    directory: "/api"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - zmb3
+      - hugoShaka
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
-    directory: '/assets/aws'
+    directory: "/assets/aws"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -60,36 +72,43 @@ updates:
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - tcsc
+      - zmb3
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
-    directory: '/assets/backport'
+    directory: "/assets/backport"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - zmb3
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
-    directory: '/build.assets/tooling'
+    directory: "/build.assets/tooling"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -97,19 +116,23 @@ updates:
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - fheinecke
+      - rosstimothy
+      - zmb3
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
-    directory: '/integrations/terraform'
+    directory: "/integrations/terraform"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
@@ -119,159 +142,136 @@ updates:
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - hugoShaka
+      - tigrato
+      - marcoandredinis
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
   - package-ecosystem: gomod
-    directory: '/integrations/terraform-mwi'
+    directory: "/integrations/event-handler"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - hugoShaka
+      - tigrato
+      - marcoandredinis
     labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
+      - "dependencies"
+      - "go"
+      - "no-changelog"
 
-  - package-ecosystem: gomod
-    directory: '/integrations/event-handler'
-    schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
-    open-pull-requests-limit: 20
-    groups:
-      go:
-        update-types:
-          - 'minor'
-          - 'patch'
-    labels:
-      - 'dependencies'
-      - 'go'
-      - 'no-changelog'
 
   - package-ecosystem: cargo
-    directory: '/'
+    directory: "/"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - zmb3
     labels:
-      - 'dependencies'
-      - 'rust'
-      - 'no-changelog'
+      - "dependencies"
+      - "rust"
+      - "no-changelog"
 
   - package-ecosystem: cargo
-    directory: '/lib/srv/desktop/rdp/rdpclient'
+    directory: "/lib/srv/desktop/rdp/rdpclient"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     open-pull-requests-limit: 20
     groups:
       rust:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+    reviewers:
+      - rosstimothy
+      - zmb3
     labels:
-      - 'dependencies'
-      - 'rust'
-      - 'no-changelog'
-
-  - package-ecosystem: cargo
-    directory: '/tool/fdpass-teleport'
-    schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
-    open-pull-requests-limit: 20
-    groups:
-      rust:
-        update-types:
-          - 'minor'
-          - 'patch'
-    labels:
-      - 'dependencies'
-      - 'rust'
-      - 'no-changelog'
-
-  - package-ecosystem: cargo
-    directory: '/web/packages/shared/libs/ironrdp/Cargo.toml'
-    schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
-    open-pull-requests-limit: 20
-    groups:
-      rust:
-        update-types:
-          - 'minor'
-          - 'patch'
-    labels:
-      - 'dependencies'
-      - 'rust'
-      - 'no-changelog'
+      - "dependencies"
+      - "rust"
+      - "no-changelog"
 
   - package-ecosystem: npm
-    directory: '/'
+    directory: "/"
     schedule:
       interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      day: "sunday"
+      time: "09:00" # 9am UTC
     labels:
-      - 'dependencies'
-      - 'ui'
-      - 'no-changelog'
+      - "dependencies"
+      - "ui"
+      - "no-changelog"
     groups:
-      # These packages are either directly involved in the process of building Teleport Connect or
-      # they make use of native dependencies. Verifying that updating them didn't break anything
-      # involves making a tag build.
       electron:
         patterns:
-          - 'electron*'
-          - node-gyp
-          - node-pty
+        - "electron*"
       ui:
         update-types:
-          - 'minor'
-          - 'patch'
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "electron*"
     open-pull-requests-limit: 20
+    reviewers:
+      - avatus
+      - kimlisa
+      - rudream
+      - bl-nero
+      - gzdunek
+      - ravicious
+      - ryanclark
   - package-ecosystem: github-actions
-    directory: '/.github/workflows'
+    directory: "/.github/workflows"
     schedule:
       interval: monthly
       day: monday
-      time: '09:00'
-      timezone: 'America/Los_Angeles'
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - fheinecke
+      - camscale
     labels:
-      - 'dependencies'
-      - 'github-actions'
-      - 'no-changelog'
+      - "dependencies"
+      - "github-actions"
+      - "no-changelog"
 
   - package-ecosystem: github-actions
-    directory: '/.github/actions'
+    directory: "/.github/actions"
     schedule:
       interval: monthly
       day: monday
-      time: '09:00'
-      timezone: 'America/Los_Angeles'
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - fheinecke
+      - camscale
     labels:
-      - 'dependencies'
-      - 'github-actions'
-      - 'no-changelog'
+      - "dependencies"
+      - "github-actions"
+      - "no-changelog"

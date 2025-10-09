@@ -194,7 +194,13 @@ test('sync root cluster', async () => {
 
   await service.syncAndWatchRootClusterWithErrorHandling(clusterUri);
 
-  expect(service.findCluster(clusterUri)).toStrictEqual(clusterMock);
+  const clusterMockWithRequests = {
+    ...clusterMock,
+    loggedInUser: { ...clusterMock.loggedInUser, assumedRequests: {} },
+  };
+  expect(service.findCluster(clusterUri)).toStrictEqual(
+    clusterMockWithRequests
+  );
   expect(service.findCluster(leafClusterMock.uri)).toStrictEqual(
     leafClusterMock
   );

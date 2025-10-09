@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
@@ -133,7 +134,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,14 +165,9 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	rotation := rotated.GetRotation()
 	switch rotation.State {
 	case types.RotationStateInProgress:
-		a.logger.InfoContext(ctx, "Updated rotation state",
-			"current_phase", rotation.Phase,
-			"ca_type", req.Type,
-		)
+		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated rotation state, set current phase to: %q.", rotation.Phase)
 	case types.RotationStateStandby:
-		a.logger.InfoContext(ctx, "Updated and completed rotation",
-			"ca_type", req.Type,
-		)
+		log.WithFields(logrus.Fields{"type": req.Type}).Infof("Updated and completed rotation.")
 	}
 
 	return nil
@@ -183,7 +179,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 // not usable because the auth server is configured to use HSMs that aren't
 // currently trusted.
 func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -226,7 +222,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	if rotation.State != types.RotationStateInProgress {
 		return nil
 	}
-	logger := a.logger.With("type", ca.GetType())
+	logger := log.WithFields(logrus.Fields{"type": ca.GetType()})
 	var req *rotationReq
 	switch rotation.Phase {
 	case types.RotationPhaseInit:
@@ -268,7 +264,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	default:
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
-	logger.InfoContext(ctx, "Updating rotation phase", "target_phase", req.targetPhase)
+	logger.Infof("Setting rotation phase to %q", req.targetPhase)
 	rotated, err := a.processRotationRequest(ctx, *req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -276,7 +272,7 @@ func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	if _, err := a.UpdateCertAuthority(ctx, rotated); err != nil {
 		return trace.Wrap(err)
 	}
-	logger.InfoContext(ctx, "Cert authority rotation request is completed")
+	logger.Infof("Cert authority rotation request is completed")
 	return nil
 }
 
@@ -376,7 +372,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 
 	// generate keys and certificates:
 	if len(req.privateKey) != 0 {
-		a.logger.InfoContext(ctx, "Generating CA, using pregenerated test private key")
+		log.Infof("Generating CA, using pregenerated test private key.")
 
 		signer, err := keys.ParsePrivateKey(req.privateKey)
 		if err != nil {

@@ -213,35 +213,35 @@ var parseTestCases = []struct {
 	{
 		name: "missing path",
 		in:   "user@server",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
 		},
 	},
 	{
 		name: "missing host",
 		in:   "user@:/foo",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q is missing a host, use form [user@]host:[path]", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[:",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[::1:file",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' or ':' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "missing path with IPv6 addr",
 		in:   "[user]@[::1]",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
 		},
 	},
@@ -271,4 +271,63 @@ func FuzzParseDestination(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		_, _ = ParseDestination(input)
 	})
+}
+
+func TestIsRemotePath(t *testing.T) {
+	t.Parallel()
+	accept := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "remote path",
+			input: "foo:path/to/bar",
+		},
+		{
+			name:  "remote path with user",
+			input: "user@foo:/path/to/bar",
+		},
+		{
+			name:  "empty path",
+			input: "foo:",
+		},
+		{
+			name:  "remote with no slashes",
+			input: "foo:bar",
+		},
+		{
+			name:  "fake Windows path",
+			input: `foo:\valid\unix\file\name\weirdly`,
+		},
+	}
+	for _, tc := range accept {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.True(t, IsRemotePath(tc.input))
+		})
+	}
+	reject := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "local path",
+			input: "path/to/bar",
+		},
+		{
+			name:  "Windows absolute path",
+			input: `C:\path\to\bar`,
+		},
+		{
+			name:  "local path with colon",
+			input: "/foo:bar",
+		},
+		{
+			name: "empty path",
+		},
+	}
+	for _, tc := range reject {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			require.False(t, IsRemotePath(tc.input))
+		})
+	}
 }

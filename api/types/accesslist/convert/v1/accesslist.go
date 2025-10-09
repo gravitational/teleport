@@ -280,7 +280,7 @@ func convertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGran
 }
 
 func convertAuditToProto(audit accesslist.Audit) *accesslistv1.AccessListAudit {
-	if audit == (accesslist.Audit{}) {
+	if audit.Recurrence.Frequency == 0 && audit.NextAuditDate.IsZero() && audit.Notifications.Start == 0 {
 		return nil
 	}
 

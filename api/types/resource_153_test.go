@@ -48,7 +48,7 @@ func TestLegacyToResource153(t *testing.T) {
 
 	// Unwrap gives the underlying resource back.
 	t.Run("unwrap", func(t *testing.T) {
-		unwrapped := resource.(interface{ UnwrapT() types.Resource }).UnwrapT()
+		unwrapped := resource.(interface{ Unwrap() types.Resource }).Unwrap()
 		if diff := cmp.Diff(user, unwrapped, protocmp.Transform()); diff != "" {
 			t.Errorf("Unwrap mismatch (-want +got)\n%s", diff)
 		}
@@ -82,9 +82,9 @@ func TestResource153ToLegacy(t *testing.T) {
 	legacyResource := types.Resource153ToLegacy(bot)
 	// Unwrap gives the underlying resource back.
 	t.Run("unwrap", func(t *testing.T) {
-		unwrapperT := legacyResource.(types.Resource153UnwrapperT[*machineidv1.Bot])
-		unwrappedT := unwrapperT.UnwrapT()
-		if diff := cmp.Diff(bot, unwrappedT, protocmp.Transform()); diff != "" {
+		unwrapper := legacyResource.(types.Resource153Unwrapper)
+		unwrapped := unwrapper.Unwrap()
+		if diff := cmp.Diff(bot, unwrapped, protocmp.Transform()); diff != "" {
 			t.Errorf("Unwrap mismatch (-want +got)\n%s", diff)
 		}
 	})

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
@@ -34,6 +35,13 @@ type k8sTokenReviewValidator interface {
 }
 
 type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
+
+type k8sOIDCValidator func(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*kubetoken.ValidationResult, error)
 
 func (a *Server) checkKubernetesJoinRequest(
 	ctx context.Context,
@@ -70,7 +78,7 @@ func (a *Server) checkKubernetesJoinRequest(
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
 		}
 	case types.KubernetesJoinTypeOIDC:
-		result, err = a.k8sOIDCValidator.ValidateToken(
+		result, err = a.k8sOIDCValidator(
 			ctx,
 			token.Spec.Kubernetes.OIDC.Issuer,
 			clusterName,
@@ -91,10 +99,10 @@ func (a *Server) checkKubernetesJoinRequest(
 		)
 	}
 
-	a.logger.InfoContext(ctx, "Kubernetes workload trying to join cluster",
-		"validated_identity", result,
-		"token", token.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"validated_identity": result,
+		"token":              token.GetName(),
+	}).Info("Kubernetes workload trying to join cluster")
 
 	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
 }

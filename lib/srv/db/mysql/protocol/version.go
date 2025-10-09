@@ -49,7 +49,7 @@ func FetchMySQLVersionInternal(ctx context.Context, dialer client.Dialer, databa
 		}
 	}
 
-	connBuf := NewBufferedConn(ctx, conn)
+	connBuf := newBufferedConn(ctx, conn)
 	pkgType, err := connBuf.Peek(5)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -99,48 +99,25 @@ func readHandshakeError(connBuf io.Reader) (string, error) {
 	return "", trace.ConnectionProblem(errors.New("failed to fetch MySQL version"), "%s", errPackage.Error())
 }
 
-// IsHandshakeV10Packet peeks into the conn and checks for a handshake v10 packet.
-// The results of this function are only meaningful during the connection phase
-// of the MySQL protocol. It is the caller's responsibility to only use this
-// function during the connection phase.
-// https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_connection_phase_packets_protocol_handshake_v10.html
-func IsHandshakeV10Packet(conn BufferedConn) (bool, error) {
-	pkgHeaderAndType, err := conn.Peek(packetHeaderAndTypeSize)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	const typeIdx = packetHeaderAndTypeSize - 1
-	return pkgHeaderAndType[typeIdx] == 10, nil
-}
-
-// BufferedConn is a net.Conn wrapper with additional Peek() method.
-type BufferedConn struct {
+// connReader is a net.Conn wrapper with additional Peek() method.
+type connReader struct {
 	ctx    context.Context
 	reader *bufio.Reader
 	net.Conn
 }
 
-// NewBufferedConn wraps a [net.Conn] in a new [BufferedConn].
-func NewBufferedConn(ctx context.Context, conn net.Conn) BufferedConn {
-	return BufferedConn{
+// newBufferedConn is a connReader constructor.
+func newBufferedConn(ctx context.Context, conn net.Conn) connReader {
+	return connReader{
 		ctx:    ctx,
 		reader: bufio.NewReader(conn),
 		Conn:   conn,
 	}
 }
 
-// Discard discards n bytes from the reader.
-// It's basically a wrapper around (bufio.Reader).Discard()
-func (b BufferedConn) Discard(n int) (discarded int, err error) {
-	if err := b.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return b.reader.Discard(n)
-}
-
 // Peek reads n bytes without advancing the reader.
 // It's basically a wrapper around (bufio.Reader).Peek()
-func (b BufferedConn) Peek(n int) ([]byte, error) {
+func (b connReader) Peek(n int) ([]byte, error) {
 	if err := b.ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -148,7 +125,7 @@ func (b BufferedConn) Peek(n int) ([]byte, error) {
 }
 
 // Read returns data from underlying buffer.
-func (b BufferedConn) Read(p []byte) (int, error) {
+func (b connReader) Read(p []byte) (int, error) {
 	if err := b.ctx.Err(); err != nil {
 		return 0, err
 	}

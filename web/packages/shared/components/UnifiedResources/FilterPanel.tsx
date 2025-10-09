@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, type JSX } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Flex, Text, Toggle } from 'design';
@@ -24,34 +24,33 @@ import { ButtonBorder, ButtonSecondary } from 'design/Button';
 import { CheckboxInput } from 'design/Checkbox';
 import { ArrowsIn, ArrowsOut, ChevronDown, Refresh } from 'design/Icon';
 import Menu from 'design/Menu';
-import { HoverTooltip } from 'design/Tooltip';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import {
   IncludedResourceMode,
-  ResourceHealthStatus,
+  SharedUnifiedResource,
   UnifiedResourcesQueryParams,
 } from './types';
-import {
-  FilterKind,
-  getFilterKindName,
-  ResourceAvailabilityFilter,
-} from './UnifiedResources';
+import { FilterKind, ResourceAvailabilityFilter } from './UnifiedResources';
+
+const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
+  app: 'Application',
+  db: 'Database',
+  windows_desktop: 'Desktop',
+  kube_cluster: 'Kubernetes',
+  node: 'Server',
+  user_group: 'User group',
+  git_server: 'Git Server',
+};
 
 const sortFieldOptions = [
   { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
 ];
-
-const resourceStatusOptions: { label: string; value: ResourceHealthStatus }[] =
-  [
-    { label: 'Healthy', value: 'healthy' },
-    { label: 'Unhealthy', value: 'unhealthy' },
-    { label: 'Unknown', value: 'unknown' },
-  ];
 
 interface FilterPanelProps {
   availableKinds: FilterKind[];
@@ -92,17 +91,13 @@ export function FilterPanel({
   ClusterDropdown = null,
   onRefresh,
 }: FilterPanelProps) {
-  const { sort, kinds, statuses } = params;
+  const { sort, kinds } = params;
 
   const activeSortFieldOption = sortFieldOptions.find(
     opt => opt.value === sort.fieldName
   );
 
   const onKindsChanged = (newKinds: string[]) => {
-    if (!resourceStatusFilterSupported(newKinds)) {
-      setParams({ ...params, statuses: null, kinds: newKinds });
-      return;
-    }
     setParams({ ...params, kinds: newKinds });
   };
 
@@ -113,12 +108,6 @@ export function FilterPanel({
   const onSortOrderButtonClicked = () => {
     setParams({ ...params, sort: oppositeSort(sort) });
   };
-
-  const onHealthStatusChange = (newStatuses: ResourceHealthStatus[]) => {
-    setParams({ ...params, statuses: newStatuses });
-  };
-
-  const isResourceStatusFilterSupported = resourceStatusFilterSupported(kinds);
 
   return (
     // minHeight is set to 32px so there isn't layout shift when a bulk action button shows up
@@ -141,15 +130,13 @@ export function FilterPanel({
           />
         </HoverTooltip>
         <MultiselectMenu
-          options={availableKinds
-            .toSorted((a, b) =>
-              getFilterKindName(a.kind).localeCompare(getFilterKindName(b.kind))
-            )
-            .map(({ kind, disabled }) => ({
-              value: kind as string,
-              label: getFilterKindName(kind),
-              disabled,
-            }))}
+          options={availableKinds.map(
+            ({ kind, disabled }: { kind: string; disabled: boolean }) => ({
+              value: kind,
+              label: kindToLabel[kind],
+              disabled: disabled,
+            })
+          )}
           selected={kinds || []}
           onChange={onKindsChanged}
           label="Types"
@@ -163,20 +150,6 @@ export function FilterPanel({
             onChange={changeAvailableResourceMode}
           />
         )}
-        <MultiselectMenu
-          options={resourceStatusOptions.map(({ label, value }) => ({
-            value,
-            label,
-          }))}
-          selected={statuses || []}
-          onChange={onHealthStatusChange}
-          label="Health Status"
-          tooltip={
-            'Health status filter is only available for database resources. Support for more resource types will be added in the future.'
-          }
-          disabled={!isResourceStatusFilterSupported}
-          buffered
-        />
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
@@ -360,7 +333,3 @@ const AccessRequestsToggleItem = styled.div`
   text-decoration: none;
   white-space: nowrap;
 `;
-
-function resourceStatusFilterSupported(kinds: string[]) {
-  return !kinds || kinds.length === 0 || kinds.includes('db');
-}

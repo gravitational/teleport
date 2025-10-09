@@ -204,14 +204,13 @@ export function mapToAction(
           placeholder: 'Provide db username',
         },
         perform: dbUser => {
-          const { uri, name, protocol, gcpProjectId } = result.resource;
+          const { uri, name, protocol } = result.resource;
           return connectToDatabase(
             ctx,
             {
               uri,
               name,
               protocol,
-              gcpProjectId,
               dbUser: dbUser.value,
             },
             {

@@ -69,11 +69,7 @@ func ResourceCreationTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]]
 		return !trace.IsNotFound(err)
 	})
 	require.NoError(t, err)
-
-	// We get the kube resource to get the resourceName as it might have been changed if this is a singleton resource
-	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
+	require.Equal(t, resourceName, test.GetResourceName(tResource))
 	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	err = test.DeleteKubernetesResource(ctx, resourceName)
@@ -89,7 +85,7 @@ func ResourceDeletionDriftTest[T reconcilers.Resource, K reconcilers.KubernetesC
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)
-	resourceName := ValidRandomResourceName("resource-")
+	resourceName := ValidRandomResourceName("user-")
 
 	err := test.SetupTeleportFixtures(ctx)
 	require.NoError(t, err)
@@ -104,10 +100,8 @@ func ResourceDeletionDriftTest[T reconcilers.Resource, K reconcilers.KubernetesC
 	})
 	require.NoError(t, err)
 
-	// We get the kube resource to get the resourceName as it might have been changed if this is a singleton resource
-	kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-	require.Equal(t, kubeResource.GetName(), test.GetResourceName(tResource))
+	require.Equal(t, resourceName, test.GetResourceName(tResource))
+
 	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(tResource))
 
 	// We cause a drift by altering the Teleport resource.
@@ -139,7 +133,7 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	ctx := context.Background()
 	setup := SetupTestEnv(t, opts...)
 	test.Init(setup)
-	resourceName := ValidRandomResourceName("resource-")
+	resourceName := ValidRandomResourceName("user-")
 
 	err := test.SetupTeleportFixtures(ctx)
 	require.NoError(t, err)
@@ -153,16 +147,19 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventuallyWithT(t, func(t *assert.CollectT) {
+	FastEventuallyWithT(t, func(c *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		if !equal {
+			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		}
+		assert.True(c, equal)
 	})
 
 	// Updating the resource in Kubernetes
@@ -173,16 +170,19 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventuallyWithT(t, func(t *assert.CollectT) {
+	FastEventuallyWithT(t, func(c *assert.CollectT) {
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		if !equal {
+			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		}
+		assert.True(c, equal)
 	})
 
 	// Delete the resource to avoid leftover state.

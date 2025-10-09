@@ -13,12 +13,11 @@ hardware security module (HSM) to store and handle private keys.
 ## How it works
 
 The Teleport Auth Service maintains several [certificate
-authorities](../management/operations/ca-rotation.mdx) that it
-uses for critical cluster operations, such as issuing certificates to users to
-authenticate to Teleport-protected resources. Each certificate authority uses a
-private key to sign certificates. On self-hosted clusters, you can instruct the
-Teleport Auth Service to sign certificates with private keys that it obtains
-from your HSM. 
+authorities](../management/operations/ca-rotation.mdx) that it uses for critical
+cluster operations, such as issuing certificates to users to authenticate to
+Teleport-protected resources. Each certificate authority uses a private key to
+sign certificates. On self-hosted clusters, you can instruct the Teleport Auth
+Service to sign certificates with private keys that it obtains from your HSM. 
 
 ## Prerequisites
 
@@ -227,7 +226,7 @@ to use.
    Created session 0
 
    # Create an Authentication Key for Teleport
-   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key:decrypt-oaep sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
+   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
    Enter password:
    Stored Authentication key 0x85cf
 

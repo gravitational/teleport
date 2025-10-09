@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"testing"
 	"time"
 
@@ -445,7 +446,7 @@ func TestCollectPages(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			var stream Stream[[]string]
+			var stream iter.Seq2[[]string, error]
 			if tt.err == nil {
 				stream = Slice(tt.pages)
 			} else {
@@ -528,7 +529,7 @@ func TestFlatten(t *testing.T) {
 	t.Parallel()
 
 	// normal usage
-	s, err := Collect(Flatten(Slice([]Stream[int]{
+	s, err := Collect(Flatten(Slice([]iter.Seq2[int, error]{
 		Slice([]int{1, 2}),
 		Slice([]int{3, 4}),
 		Slice([]int{5, 6}),
@@ -537,12 +538,12 @@ func TestFlatten(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
 
 	// empty stream
-	s, err = Collect(Flatten(Empty[Stream[int]]()))
+	s, err = Collect(Flatten(Empty[iter.Seq2[int, error]]()))
 	require.NoError(t, err)
 	require.Empty(t, s)
 
 	// empty substreams
-	s, err = Collect(Flatten(Slice([]Stream[int]{
+	s, err = Collect(Flatten(Slice([]iter.Seq2[int, error]{
 		Empty[int](),
 		Slice([]int{1, 2, 3}),
 		Empty[int](),
@@ -553,11 +554,11 @@ func TestFlatten(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
 
 	// immediate failure
-	err = Drain(Flatten(Fail[Stream[int]](fmt.Errorf("unexpected error"))))
+	err = Drain(Flatten(Fail[iter.Seq2[int, error]](fmt.Errorf("unexpected error"))))
 	require.Error(t, err)
 
 	// failure during streaming
-	s, err = Collect(Flatten(Slice([]Stream[int]{
+	s, err = Collect(Flatten(Slice([]iter.Seq2[int, error]{
 		Slice([]int{1, 2}),
 		Fail[int](fmt.Errorf("unexpected error")),
 		Slice([]int{3, 4}),
@@ -673,7 +674,7 @@ func TestRateLimit(t *testing.T) {
 
 	items := make(chan struct{}, tokens+1)
 
-	for range workers {
+	for i := 0; i < workers; i++ {
 		go func() {
 			stream := RateLimit(repeat("some-item", maxItemsPerWorker), func() error {
 				select {
@@ -706,7 +707,7 @@ func TestRateLimit(t *testing.T) {
 
 	// limiter isn't applied until after the first item is yielded, so pop the first item
 	// from each worker immediately to simplify test logic.
-	for range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case <-items:
 		case <-time.After(time.Second * 10):
@@ -718,7 +719,7 @@ func TestRateLimit(t *testing.T) {
 	var yielded int
 
 	// do an initial fill of limiter channel
-	for range burst {
+	for i := 0; i < burst; i++ {
 		select {
 		case lim <- struct{}{}:
 			yielded++
@@ -731,7 +732,7 @@ func TestRateLimit(t *testing.T) {
 
 	// consume item receipt events
 	timeoutC := time.After(time.Second * 30)
-	for range burst {
+	for i := 0; i < burst; i++ {
 		select {
 		case <-items:
 			consumed++
@@ -762,7 +763,7 @@ func TestRateLimit(t *testing.T) {
 	close(done)
 
 	// wait for all workers to finish
-	for range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case err := <-results:
 			require.NoError(t, err)
@@ -791,7 +792,7 @@ ConsumeItems:
 }
 
 // repeat repeats the same item N times
-func repeat[T any](item T, count int) Stream[T] {
+func repeat[T any](item T, count int) iter.Seq2[T, error] {
 	var n int
 	return Func(func() (T, error) {
 		n++

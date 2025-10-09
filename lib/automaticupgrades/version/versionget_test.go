@@ -82,7 +82,7 @@ func TestValidVersionChange(t *testing.T) {
 
 // checkTraceError is a test helper that converts trace.IsXXXError into a require.ErrorAssertionFunc
 func checkTraceError(check func(error) bool) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, i ...any) {
+	return func(t require.TestingT, err error, i ...interface{}) {
 		require.True(t, check(err), i...)
 	}
 }

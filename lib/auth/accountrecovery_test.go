@@ -140,7 +140,7 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 func TestStartAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
 
@@ -295,7 +295,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().SetEmitter(mockEmitter)
 
@@ -1083,6 +1083,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 	}
 
 	for _, c := range cases {
+		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 

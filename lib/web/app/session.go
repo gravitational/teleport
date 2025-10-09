@@ -56,7 +56,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	// Query the cluster this application is running in to find the public
 	// address and cluster name pair which will be encoded into the certificate.
-	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, identity.RouteToApp.ClusterName)
+	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,7 +68,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	servers, err := MatchUnshuffled(
 		ctx,
 		accessPoint,
-		appServerMatcher(h.c.ClusterGetter, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -84,9 +84,9 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
-		log:                   h.logger,
+		log:                   h.log,
 		clock:                 h.c.Clock,
-		clusterGetter:         h.c.ClusterGetter,
+		proxyClient:           h.c.ProxyClient,
 		accessPoint:           h.c.AccessPoint,
 		cipherSuites:          h.c.CipherSuites,
 		identity:              identity,
@@ -109,7 +109,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		reverseproxy.WithPassHostHeader(),
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(h.logger),
+		reverseproxy.WithLogger(h.log),
 		reverseproxy.WithErrorHandler(h.handleForwardError),
 		reverseproxy.WithRewriter(hr),
 	)
@@ -125,7 +125,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 // appServerMatcher returns a Matcher function used to find which AppServer can
 // handle the application requests.
-func appServerMatcher(clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) Matcher {
+func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string, clusterName string) Matcher {
 	// Match healthy and PublicAddr servers. Having a list of only healthy
 	// servers helps the transport fail before the request is forwarded to a
 	// server (in cases where there are no healthy servers). This process might
@@ -135,6 +135,6 @@ func appServerMatcher(clusterGetter reversetunnelclient.ClusterGetter, publicAdd
 		MatchPublicAddr(publicAddr),
 		// NOTE: Try to leave this matcher as the last one to dial only the
 		// application servers that match the requested application.
-		MatchHealthy(clusterGetter, clusterName),
+		MatchHealthy(proxyClient, clusterName),
 	)
 }

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -214,6 +215,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
+		case *legacyspiffe.WorkloadAPIConfig:
+			b.log.WarnContext(
+				ctx,
+				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+			)
+			services = append(services, legacyspiffe.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
 			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
 		case *example.Config:
@@ -231,6 +238,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
 				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
 			))
+		case *legacyspiffe.SVIDOutputConfig:
+			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *ssh.HostOutputConfig:
 			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:

@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"math"
 	"time"
 
@@ -52,14 +51,12 @@ const (
 	// EventProtocol specifies protocol that was captured
 	EventProtocol = "proto"
 	// EventProtocolsSSH specifies SSH as a type of captured protocol
-	EventProtocolSSH = apievents.EventProtocolSSH
+	EventProtocolSSH = "ssh"
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
-	EventProtocolKube = apievents.EventProtocolKube
+	EventProtocolKube = "kube"
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
-	EventProtocolTDP = apievents.EventProtocolTDP
-	// EventProtocolDB specifies database as a type of captured protocol
-	EventProtocolDB = apievents.EventProtocolDB
+	EventProtocolTDP = "tdp"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -860,17 +857,17 @@ const (
 	// from AutoUpdateAgentRollout resource are manually rolledback.
 	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
 
-	// ContactCreateEvent is emitted when a Contact resource is created.
-	ContactCreateEvent = "contact.create"
-	// ContactDeleteEvent is emitted when a Contact resource is deleted.
-	ContactDeleteEvent = "contact.delete"
-
 	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
 	WorkloadIdentityCreateEvent = "workload_identity.create"
 	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 
 	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is created.
@@ -901,39 +898,6 @@ const (
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
 
-	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
-	// and reconciled to Teleport.
-	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
-	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
-	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
-
-	// HealthCheckConfigCreateEvent is emitted when a health check config
-	// resource is created.
-	HealthCheckConfigCreateEvent = "health_check_config.create"
-	// HealthCheckConfigUpdateEvent is emitted when a health check config
-	// resource is updated.
-	HealthCheckConfigUpdateEvent = "health_check_config.update"
-	// HealthCheckConfigDeleteEvent is emitted when a health check config
-	// resource is deleted.
-	HealthCheckConfigDeleteEvent = "health_check_config.delete"
-
-	// MCPSessionStartEvent is emitted when a user starts a MCP session.
-	MCPSessionStartEvent = "mcp.session.start"
-	// MCPSessionEndEvent is emitted when an MCP session ends.
-	MCPSessionEndEvent = "mcp.session.end"
-	// MCPSessionRequestEvent is emitted when a request is sent by client during
-	// a MCP session.
-	MCPSessionRequestEvent = "mcp.session.request"
-	// MCPSessionNotificationEvent is emitted when a notification is sent by
-	// client during a MCP session.
-	MCPSessionNotificationEvent = "mcp.session.notification"
-	// MCPSessionListenSSEStream is emitted when the client sends a GET request for
-	// listening server notifications via an SSE stream.
-	MCPSessionListenSSEStream = "mcp.session.listen_sse_stream"
-	// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we
-	// do not understand (usually out of MCP spec).
-	MCPSessionInvalidHTTPRequest = "mcp.session.invalid_http_request"
-
 	// BoundKeypairRecovery is emitted when a bound keypair token is used to
 	// perform a recovery.
 	BoundKeypairRecovery = "join_token.bound_keypair.recovery"
@@ -942,26 +906,6 @@ const (
 	// BoundKeypairJoinStateVerificationFailed is emitted when join state
 	// document verification fails.
 	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
-
-	// SCIMListingEvent is emitted when a SCIM client lists resources managed by
-	// the SCIM service.
-	SCIMListingEvent = "scim.list"
-
-	// SCIMCreateEvent is emitted when a client attempts to fetch a specific SCIM
-	// resource.
-	SCIMGetEvent = "scim.get"
-
-	// SCIMCreateEvent is emitted when a new resource is created by the
-	// SCIM service in response to a request. This includes taking ownership of
-	// existing users.
-	SCIMCreateEvent = "scim.create"
-
-	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
-	// service. Includes "deactivating" resources (per Okta).
-	SCIMUpdateEvent = "scim.update"
-
-	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
-	SCIMDeleteEvent = "scim.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1145,7 +1089,6 @@ type StreamEmitter interface {
 type AuditLogSessionStreamer interface {
 	AuditLogger
 	SessionStreamer
-	EncryptedRecordingUploader
 }
 
 // SessionStreamer supports streaming session chunks or events.
@@ -1158,12 +1101,6 @@ type SessionStreamer interface {
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
-}
-
-// EncryptedRecordingUploader takes a session ID and a sequence of encrypted
-// recording parts and uploads an encrypted session recording.
-type EncryptedRecordingUploader interface {
-	UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
 }
 
 type SearchEventsRequest struct {
@@ -1197,7 +1134,7 @@ type SearchSessionEventsRequest struct {
 	// set to its value. Otherwise leave empty.
 	StartKey string
 	// Cond can be used to pass additional expression to query, can be empty.
-	Cond *utils.ToFieldsConditionConfig
+	Cond *types.WhereExpr
 	// SessionID is optional parameter to return session events only to given session.
 	SessionID string
 }
@@ -1237,16 +1174,6 @@ type AuditLogger interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
-
-	// SearchUnstructuredEvents is a flexible way to find events and returns them in an unstructured format (JSON like)
-	//
-	// Event types to filter can be specified and pagination is handled by an iterator key that allows
-	// a query to be resumed.
-	//
-	// The only mandatory requirement is a date range (UTC).
-	//
-	// This function may never return more than 1 MiB of event data.
-	SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error)
 }
 
 // EventFields instance is attached to every logged event

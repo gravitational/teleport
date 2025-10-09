@@ -28,7 +28,7 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { PropsWithChildren, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 
 import { darkTheme } from 'design/theme';
@@ -38,7 +38,6 @@ import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { HttpResponse, JsonBodyType } from 'msw';
 
 export const testQueryClient = new QueryClient({
   defaultOptions: {
@@ -80,57 +79,9 @@ screen.debug = () => {
 };
 
 type RenderOptions = {
-  wrapper?: React.FC<PropsWithChildren>;
+  wrapper?: React.FC;
   container?: HTMLElement;
 };
-
-/**
- * createDeferredResponse is a utility function to create a deferred response
- * handler for testing purposes.
- *
- * This is useful when you want to assert that a loading state is shown,
- * and then the loaded data is displayed after resolving the promise,
- * instead of using a timeout or a fixed delay in the response handler.
- *
- * Example usage:
- *
- * ```ts
- * const deferred = createDeferredResponse({
- *   events: MOCK_EVENTS,
- *   startKey: '',
- * });
- *
- * server.use(http.get(listRecordingsUrl, deferred.handler));
- *
- * setupTest();
- *
- * await waitFor(() => {
- *   expect(screen.getByTestId('indicator')).toBeInTheDocument();
- * });
- *
- * deferred.resolve();
- *
- * await waitFor(() => {
- *   expect(screen.queryByTestId('indicator')).not.toBeInTheDocument();
- * });
- * ```
- */
-export function createDeferredResponse<T extends JsonBodyType>(data: T) {
-  let resolve: () => void;
-
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-
-  return {
-    handler: async () => {
-      await promise;
-
-      return HttpResponse.json(data);
-    },
-    resolve: () => resolve(),
-  };
-}
 
 export {
   act,

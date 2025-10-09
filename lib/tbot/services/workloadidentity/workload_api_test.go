@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -53,7 +53,7 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
 	require.NoError(t, err)

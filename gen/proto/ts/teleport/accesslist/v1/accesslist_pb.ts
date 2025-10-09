@@ -119,9 +119,9 @@ export interface AccessListSpec {
      */
     ownerGrants?: AccessListGrants;
     /**
-     * type can be an empty string which denotes a regular Access List, "scim" which represents
-     * an Access List created from SCIM group or "static" for Access Lists managed by IaC
-     * tools.
+     * type can be currently "dynamic" (the default if empty string) which denotes a regular Access
+     * List, "scim" which represents an Access List created from SCIM group or "static" for Access
+     * Lists managed by IaC tools.
      *
      * @generated from protobuf field: string type = 12;
      */

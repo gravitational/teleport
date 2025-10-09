@@ -20,41 +20,29 @@ package aws_sync
 
 import (
 	"context"
-	"log/slog"
 	"reflect"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/retry"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	"github.com/gravitational/teleport/lib/srv/server"
-	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
-	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/cloud"
 )
 
 // pageSize is the default page size to use when fetching AWS resources
 // from the AWS API for endpoints that support pagination.
-const pageSize int32 = 500
+const pageSize int64 = 500
 
 // Config is the configuration for the AWS fetcher.
 type Config struct {
-	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
-	AWSConfigProvider awsconfig.Provider
-	// GetEKSClient gets an AWS EKS client for the given region.
-	GetEKSClient EKSClientGetter
-	// GetEC2Client gets an AWS EC2 client for the given region.
-	GetEC2Client server.EC2ClientGetter
+	// CloudClients is the cloud clients to use when fetching AWS resources.
+	CloudClients cloud.Clients
 	// AccountID is the AWS account ID to use when fetching resources.
 	AccountID string
 	// Regions is the list of AWS regions to fetch resources from.
@@ -65,91 +53,6 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
 	DiscoveryConfigName string
-	// Log is the logger to use for logging.
-	Log *slog.Logger
-
-	// awsClients provides AWS SDK clients.
-	awsClients awsClientProvider
-}
-
-func (c *Config) CheckAndSetDefaults() error {
-	if c.AWSConfigProvider == nil {
-		return trace.BadParameter("missing AWSConfigProvider")
-	}
-
-	if c.Log == nil {
-		c.Log = slog.Default()
-	}
-	if c.awsClients == nil {
-		c.awsClients = defaultAWSClients{}
-	}
-	return nil
-}
-
-// iamClient defines a subset of the AWS IAM client API.
-type iamClient interface {
-	iam.ListAttachedGroupPoliciesAPIClient
-	iam.ListAttachedRolePoliciesAPIClient
-	iam.ListAttachedUserPoliciesAPIClient
-	iam.ListGroupPoliciesAPIClient
-	iam.ListGroupsAPIClient
-	iam.ListGroupsForUserAPIClient
-	iam.ListInstanceProfilesAPIClient
-	iam.ListPoliciesAPIClient
-	iam.ListRolePoliciesAPIClient
-	iam.ListRolesAPIClient
-	iam.ListUserPoliciesAPIClient
-	iam.ListUsersAPIClient
-
-	GetGroupPolicy(context.Context, *iam.GetGroupPolicyInput, ...func(*iam.Options)) (*iam.GetGroupPolicyOutput, error)
-	GetOpenIDConnectProvider(context.Context, *iam.GetOpenIDConnectProviderInput, ...func(*iam.Options)) (*iam.GetOpenIDConnectProviderOutput, error)
-	GetPolicyVersion(context.Context, *iam.GetPolicyVersionInput, ...func(*iam.Options)) (*iam.GetPolicyVersionOutput, error)
-	GetRolePolicy(context.Context, *iam.GetRolePolicyInput, ...func(*iam.Options)) (*iam.GetRolePolicyOutput, error)
-	GetSAMLProvider(context.Context, *iam.GetSAMLProviderInput, ...func(*iam.Options)) (*iam.GetSAMLProviderOutput, error)
-	GetUserPolicy(context.Context, *iam.GetUserPolicyInput, ...func(*iam.Options)) (*iam.GetUserPolicyOutput, error)
-	ListOpenIDConnectProviders(context.Context, *iam.ListOpenIDConnectProvidersInput, ...func(*iam.Options)) (*iam.ListOpenIDConnectProvidersOutput, error)
-	ListSAMLProviders(context.Context, *iam.ListSAMLProvidersInput, ...func(*iam.Options)) (*iam.ListSAMLProvidersOutput, error)
-}
-
-// stsClient defines a subset of the AWS STS client API.
-type stsClient interface {
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-}
-
-// awsClientProvider provides AWS service API clients.
-type awsClientProvider interface {
-	// getIAMClient provides an [iamClient].
-	getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient
-	// getRDSClient provides an [rdsClient].
-	getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient
-	// getS3Client provides an [s3Client].
-	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
-	// getSTSClient provides an [stsClient].
-	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
-	// getKMSClient provides a [kmsClient].
-	getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient
-}
-
-type defaultAWSClients struct{}
-
-func (defaultAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
-	return iamutils.NewFromConfig(cfg, optFns...)
-}
-
-func (defaultAWSClients) getRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) rdsClient {
-	return rds.NewFromConfig(cfg, optFns...)
-}
-
-func (defaultAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client {
-	return s3.NewFromConfig(cfg, optFns...)
-}
-
-func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
-	return stsutils.NewFromConfig(cfg, optFns...)
-}
-
-func (defaultAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient {
-	return kms.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.
@@ -214,8 +117,6 @@ type Resources struct {
 	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
 	// OIDCProviders is a list of OIDC providers.
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
-	// KMSKeys is a list of KMS keys.
-	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
 }
 
 func (r *Resources) count() int {
@@ -225,7 +126,7 @@ func (r *Resources) count() int {
 
 	elem := reflect.ValueOf(r).Elem()
 	sum := 0
-	for i := range elem.NumField() {
+	for i := 0; i < elem.NumField(); i++ {
 		field := elem.Field(i)
 		if field.IsValid() {
 			switch field.Kind() {
@@ -261,9 +162,6 @@ func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAW
 
 // NewFetcher creates a new AWS fetcher.
 func NewFetcher(ctx context.Context, cfg Config) (*Fetcher, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	a := &Fetcher{
 		Config:     cfg,
 		lastResult: &Resources{},
@@ -373,40 +271,41 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 		eGroup.Go(a.pollAWSOIDCProviders(ctx, result, collectErr))
 	}
 
-	// fetch AWS KMS keys, including HSM keys
-	if features.KMS {
-		eGroup.Go(a.pollAWSKMSKeys(ctx, result, collectErr))
-	}
-
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return result, trace.NewAggregate(errs...)
 }
 
-// getAWSOptions returns a list of options to be used when creating AWS clients
-// with the v2 sdk.
-func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
-	opts := []awsconfig.OptionsFn{
-		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: a.Config.Integration}),
+// getAWSOptions returns a list of AWSAssumeRoleOptionFn to be used when
+// creating AWS clients.
+func (a *Fetcher) getAWSOptions() []cloud.AWSOptionsFn {
+	opts := []cloud.AWSOptionsFn{
+		cloud.WithCredentialsMaybeIntegration(a.Config.Integration),
 	}
 
 	if a.Config.AssumeRole != nil {
-		opts = append(opts, awsconfig.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
+		opts = append(opts, cloud.WithAssumeRole(a.Config.AssumeRole.RoleARN, a.Config.AssumeRole.ExternalID))
 	}
 	const maxRetries = 10
-	opts = append(opts, awsconfig.WithRetryer(func() aws.Retryer {
-		return retry.NewStandard(func(so *retry.StandardOptions) {
-			so.MaxAttempts = maxRetries
-			so.Backoff = retry.NewExponentialJitterBackoff(300 * time.Second)
-		})
-	}))
+	opts = append(opts,
+		cloud.WithMaxRetries(maxRetries),
+		cloud.WithRetryer(
+			client.DefaultRetryer{
+				NumMaxRetries:    maxRetries,
+				MinRetryDelay:    time.Second,
+				MinThrottleDelay: time.Second,
+				MaxRetryDelay:    300 * time.Second,
+				MaxThrottleDelay: 300 * time.Second,
+			},
+		),
+	)
 
 	return opts
 }
 
 func (a *Fetcher) getAccountId(ctx context.Context) (string, error) {
-	awsCfg, err := a.AWSConfigProvider.GetConfig(
+	stsClient, err := a.CloudClients.GetAWSSTSClient(
 		ctx,
 		"", /* region is empty because groups are global */
 		a.getAWSOptions()...,
@@ -414,15 +313,14 @@ func (a *Fetcher) getAccountId(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	stsClient := a.awsClients.getSTSClient(awsCfg)
 
 	input := &sts.GetCallerIdentityInput{}
-	req, err := stsClient.GetCallerIdentity(ctx, input)
+	req, err := stsClient.GetCallerIdentityWithContext(ctx, input)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return aws.ToString(req.Account), nil
+	return aws.StringValue(req.Account), nil
 }
 
 func (a *Fetcher) DiscoveryConfigName() string {

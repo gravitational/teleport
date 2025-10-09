@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { endOfDay, isAfter, startOfDay, subMonths } from 'date-fns';
+import { endOfDay, isAfter, isSameDay, startOfDay } from 'date-fns';
 import { forwardRef, useState } from 'react';
-import { DateRange, DayPicker } from 'react-day-picker';
+import { addToRange, DateRange, DayPicker } from 'react-day-picker';
 
 import 'react-day-picker/dist/style.css';
 
@@ -49,62 +49,45 @@ export const CustomRange = forwardRef<
     to: undefined,
   });
 
-  // This handler runs on *every* click, but we only call onChange
-  // once both ends of the range are picked.
-  const handleDayClick = (
-    range: { to: Date; from: Date },
-    dateClicked: Date
-  ) => {
-    // if no range, that means the to and from are the same
-    if (!range) {
-      // if nothing is selected and nothing exists before, do noting
-      if (!selectedRange.from) {
-        return;
-      }
-      const start = startOfDay(selectedRange.from);
-      const end = endOfDay(selectedRange.from);
-      setSelectedRange({
-        from: start,
-        to: end,
-      });
-      onChange(start, end);
+  function handleDayClick(selectedDay: Date) {
+    // Don't let select date past today.
+    if (isAfter(selectedDay, endOfDay(new Date()))) {
       return;
     }
 
-    const { to, from } = range;
-    const start = startOfDay(from);
-    const end = endOfDay(to);
-    // if we have no selection in state, this is a "new" range
-    if (!selectedRange.to && !selectedRange.from) {
-      setSelectedRange({
-        // by default, if a range has already been selected, if the first date clicked is "after" the previous end, it
-        // will just assume we want to update the old end. when really, when want _any_ first click to be the new _start_.
-        from: isAfter(dateClicked, from) ? end : start,
-        to: undefined,
-      });
+    // Don't do anything if `selected day` == `selected from`
+    if (selectedRange?.from && isSameDay(selectedRange.from, selectedDay)) {
       return;
     }
 
-    setSelectedRange({
-      from: start,
-      to: end,
-    });
-    onChange(start, end);
-  };
+    const newRange = addToRange(selectedDay, selectedRange);
+
+    if (newRange.from) {
+      newRange.from = startOfDay(newRange.from);
+    }
+
+    if (newRange.to) {
+      newRange.to = endOfDay(newRange.to);
+    }
+
+    setSelectedRange(newRange);
+
+    if (newRange.from && newRange.to) {
+      onChange(newRange.from, newRange.to);
+    }
+  }
 
   return (
     <StyledDateRange ref={ref}>
       <DayPicker
         mode="range"
         numberOfMonths={2}
-        defaultMonth={
-          selectedRange.from ? selectedRange.from : subMonths(new Date(), 1)
-        } // since we are going in the past, the defaultMonth should be on the right side, so we dont have a bunch of disabled days
+        defaultMonth={initialRange.from}
         disabled={{
           after: new Date(),
         }}
         selected={selectedRange.from ? selectedRange : initialRange}
-        onSelect={handleDayClick}
+        onDayClick={handleDayClick}
       />
     </StyledDateRange>
   );

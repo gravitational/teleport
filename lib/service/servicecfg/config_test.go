@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -456,7 +457,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			wantErr: "config: enable at least one of ",
+			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -549,11 +550,6 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc:             "relay enabled",
-			config:           &Config{Relay: RelayConfig{Enabled: true}},
-			errAssertionFunc: require.NoError,
-		},
-		{
 			desc:             "kube enabled",
 			config:           &Config{Kube: KubeConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
@@ -598,7 +594,7 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
@@ -642,6 +638,7 @@ func TestWebPublicAddr(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -655,55 +652,65 @@ func TestWebPublicAddr(t *testing.T) {
 
 func TestSetLogLevel(t *testing.T) {
 	for _, test := range []struct {
-		logLevel slog.Level
+		logLevel            slog.Level
+		expectedLogrusLevel logrus.Level
 	}{
 		{
-			logLevel: logutils.TraceLevel,
+			logLevel:            logutils.TraceLevel,
+			expectedLogrusLevel: logrus.TraceLevel,
 		},
 		{
-			logLevel: slog.LevelDebug,
+			logLevel:            slog.LevelDebug,
+			expectedLogrusLevel: logrus.DebugLevel,
 		},
 		{
-			logLevel: slog.LevelInfo,
+			logLevel:            slog.LevelInfo,
+			expectedLogrusLevel: logrus.InfoLevel,
 		},
 		{
-			logLevel: slog.LevelWarn,
+			logLevel:            slog.LevelWarn,
+			expectedLogrusLevel: logrus.WarnLevel,
 		},
 		{
-			logLevel: slog.LevelError,
+			logLevel:            slog.LevelError,
+			expectedLogrusLevel: logrus.ErrorLevel,
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
 			// Create a configuration with local loggers to avoid modifying the
 			// global instances.
 			c := &Config{
+				Log:    logrus.New(),
 				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			}
 			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
+			require.IsType(t, &logrus.Logger{}, c.Log)
+			l, _ := c.Log.(*logrus.Logger)
+			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
 	}
 }
 
-func hasNoErr(t require.TestingT, err error, msgAndArgs ...any) {
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.NoError(t, err, msgAndArgs...)
 }
 
-func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
 }
 
 func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }
 
 func hasErrAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...any) {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

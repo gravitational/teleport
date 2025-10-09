@@ -21,12 +21,13 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -111,8 +112,8 @@ func (b *base) Close() error {
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
 func (b *base) Serve() error {
-	b.cfg.Logger.InfoContext(b.closeContext, "Gateway is open")
-	defer b.cfg.Logger.InfoContext(b.closeContext, "Gateway has closed")
+	b.cfg.Log.Info("Gateway is open.")
+	defer b.cfg.Log.Info("Gateway has closed.")
 
 	if b.forwardProxy != nil {
 		return trace.Wrap(b.serveWithForwardProxy())
@@ -174,13 +175,13 @@ func (b *base) SetTargetSubresourceName(value string) {
 	b.cfg.TargetSubresourceName = value
 
 	if b.cfg.ClearCertsOnTargetSubresourceNameChange {
-		b.Log().InfoContext(b.closeContext, "Clearing cert")
+		b.Log().Info("Clearing cert")
 		b.localProxy.SetCert(tls.Certificate{})
 	}
 }
 
-func (b *base) Log() *slog.Logger {
-	return b.cfg.Logger
+func (b *base) Log() *logrus.Entry {
+	return b.cfg.Log
 }
 
 // LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
@@ -230,7 +231,7 @@ type TCPPortAllocator interface {
 type NetTCPPortAllocator struct{}
 
 func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, error) {
-	listener, err := net.Listen("tcp", net.JoinHostPort(localAddress, port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", localAddress, port))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

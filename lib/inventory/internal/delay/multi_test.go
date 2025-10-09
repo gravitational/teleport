@@ -43,7 +43,7 @@ func TestMultiBasics(t *testing.T) {
 		multi.Add(i)
 	}
 
-	for i := range 30 {
+	for i := 0; i < 30; i++ {
 		now := <-multi.Elapsed()
 		require.Equal(t, i%10+1, multi.Tick(now))
 	}
@@ -54,7 +54,7 @@ func TestMultiBasics(t *testing.T) {
 	}
 
 	// verify that remaining subintervals are still being serviced
-	for i := range 30 {
+	for i := 0; i < 30; i++ {
 		k := 10
 		if i%2 == 0 {
 			k = 9
@@ -98,11 +98,11 @@ func TestMultiJitter(t *testing.T) {
 		Jitter:        fakeJitter,
 	})
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		multi.Add(i + 1)
 	}
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		select {
 		case now := <-multi.Elapsed():
 			multi.Tick(now)

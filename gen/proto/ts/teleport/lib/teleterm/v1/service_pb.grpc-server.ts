@@ -86,8 +86,8 @@ import { GetAccessRequestResponse } from "./service_pb";
 import { GetAccessRequestRequest } from "./service_pb";
 import { GetAccessRequestsResponse } from "./service_pb";
 import { GetAccessRequestsRequest } from "./service_pb";
-import { ListDatabaseServersResponse } from "./service_pb";
-import { ListDatabaseServersRequest } from "./service_pb";
+import { GetServersResponse } from "./service_pb";
+import { GetServersRequest } from "./service_pb";
 import { ListDatabaseUsersResponse } from "./service_pb";
 import { ListDatabaseUsersRequest } from "./service_pb";
 import { StartHeadlessWatcherResponse } from "./service_pb";
@@ -147,11 +147,14 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     listDatabaseUsers: grpc.handleUnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
     /**
-     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     * GetServers returns filtered, sorted, and paginated servers
      *
-     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
+     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
-    listDatabaseServers: grpc.handleUnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
+    getServers: grpc.handleUnaryCall<GetServersRequest, GetServersResponse>;
     /**
      * GetAccessRequests lists filtered AccessRequests
      *
@@ -477,15 +480,15 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         responseSerialize: value => Buffer.from(ListDatabaseUsersResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListDatabaseUsersRequest.toBinary(value))
     },
-    listDatabaseServers: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers",
-        originalName: "ListDatabaseServers",
+    getServers: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/GetServers",
+        originalName: "GetServers",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => ListDatabaseServersResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ListDatabaseServersRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ListDatabaseServersResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ListDatabaseServersRequest.toBinary(value))
+        responseDeserialize: bytes => GetServersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetServersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetServersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetServersRequest.toBinary(value))
     },
     getAccessRequests: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests",

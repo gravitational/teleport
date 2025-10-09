@@ -37,6 +37,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/term"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -1235,9 +1236,6 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 	case types.OktaCA:
 		// TODO(smallinsky): populate any known manual steps during Okta CA rotation.
 		fallthrough
-	case types.AWSRACA:
-		// TODO(marco): populate any known manual steps during AWS IAM Roles Anywhere CA rotation.
-		fallthrough
 	case types.BoundKeypairCA:
 		// TODO(timothyb89): add any manual steps; this should mostly be handled automatically.
 		fallthrough
@@ -1293,6 +1291,7 @@ func setupLoggers(logWriter io.Writer) {
 		logWriter,
 		logutils.SlogTextHandlerConfig{EnableColors: true},
 	)))
+	logrus.StandardLogger().SetOutput(logWriter)
 }
 
 func setupMFAPrompt(client *authclient.Client, pingResp proto.PingResponse, promptWriter io.Writer) {

@@ -1,0 +1,243 @@
+#
+# Warning to maintainers, any changes to this file that are not specific to the Deployment need to also be duplicated
+# in the statefulset.yaml file.
+#
+{{- if and (not .Values.storage.enabled) (include "teleport.kube.agent.isUpgrade" . ) }}
+{{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+  {{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+  {{- end }}
+  {{- if .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ $replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+{{- if .Values.annotations.pod }}
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
+    spec:
+      {{- if .Values.dnsConfig }}
+      dnsConfig: {{- toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsPolicy }}
+      dnsPolicy: {{ .Values.dnsPolicy | quote }}
+      {{- end }}
+      {{- if .Values.podSecurityContext }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8}}
+      {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
+      affinity:
+        {{- if .Values.affinity }}
+          {{- if .Values.highAvailability.requireAntiAffinity }}
+            {{- fail "Cannot use highAvailability.requireAntiAffinity when affinity is also set in chart values - unset one or the other" }}
+          {{- end }}
+          {{- toYaml .Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+        {{- if .Values.highAvailability.requireAntiAffinity }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- else if gt (int $replicaCount) 1 }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+      {{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+{{- end }}
+{{- if .Values.initContainers }}
+      initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
+  {{- if .Values.resources }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
+  {{- end }}
+  {{- if .Values.initSecurityContext }}
+        securityContext: {{- toYaml .Values.initSecurityContext | nindent 10 }}
+  {{- end }}
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
+          {{- if contains "jamf" (.Values.roles | toString) }}
+        - mountPath: /etc/teleport-jamf-api-credentials
+          name: "jamf-api-credentials"
+          readOnly: true
+          {{- end }}
+  {{- if .Values.extraVolumeMounts }}
+    {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+  {{- end }}
+{{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: "teleport"
+        image: {{ include "teleport-kube-agent.image" . | quote }}
+        {{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
+        {{- end }}
+        env:
+        # This variable is set for telemetry purposes.
+        # Telemetry is opt-in for oss users and controlled at the auth level.
+        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+          value: "true"
+        {{- if .Values.updater.enabled }}
+        - name: TELEPORT_EXT_UPGRADER
+          value: kube
+        - name: TELEPORT_EXT_UPGRADER_VERSION
+          value: {{ include "teleport-kube-agent.version" . }}
+        {{- end }}
+        {{- if .Values.clusterDomain }}
+        - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+          value: {{ .Values.clusterDomain | quote }}
+        {{- end }}
+        {{- if (gt (len .Values.extraEnv) 0) }}
+          {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
+        {{- if .Values.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+        {{- end }}
+        args:
+        - "--diag-addr=0.0.0.0:3000"
+        {{- if .Values.insecureSkipProxyTLSVerify }}
+        - "--insecure"
+        {{- end }}
+        {{- if .Values.extraArgs }}
+          {{- toYaml .Values.extraArgs | nindent 8 }}
+        {{- end }}
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
+        ports:
+        - name: diag
+          containerPort: 3000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to start
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to register
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+{{- if .Values.resources }}
+        resources:
+  {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: {{ default "data" .Values.existingDataVolume }}
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
+          {{- if contains "jamf" (.Values.roles | toString) }}
+        - mountPath: /etc/teleport-jamf-api-credentials
+          name: "jamf-api-credentials"
+          readOnly: true
+          {{- end }}
+{{- if .Values.extraVolumeMounts }}
+  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- end }}
+{{- if .Values.extraContainers }}
+  {{- toYaml .Values.extraContainers | nindent 6 }}
+{{- end }}
+      volumes:
+      - name: "config"
+        configMap:
+          name: {{ .Release.Name }}
+      - name: "auth-token"
+        secret:
+          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
+      {{- if not .Values.existingDataVolume }}
+      - name: "data"
+        emptyDir: {}
+      {{- end }}
+      {{- if .Values.tls.existingCASecretName }}
+      - name: "teleport-tls-ca"
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+      {{- end }}
+      {{- if contains "jamf" (.Values.roles | toString) }}
+      - name: "jamf-api-credentials"
+        secret:
+          secretName: {{ .Values.jamfCredentialsSecret.name }}
+      {{- end }}
+{{- if .Values.extraVolumes }}
+  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- end }}
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
+{{- end }}

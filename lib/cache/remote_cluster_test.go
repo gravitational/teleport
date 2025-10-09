@@ -18,19 +18,22 @@ package cache
 
 import (
 	"context"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // TestRemoteClusters tests remote clusters caching
 func TestRemoteClusters(t *testing.T) {
 	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
 
 	t.Run("GetRemoteClusters", func(t *testing.T) {
 		t.Parallel()
@@ -80,67 +83,26 @@ func TestRemoteClusters(t *testing.T) {
 			},
 			deleteAll: p.trustS.DeleteAllRemoteClusters,
 		}, withSkipPaginationTest())
+
+		// TODO(smallinsky): Remove this once pagination tests covering this case for each resource type
+		// have been merged into v17.
+		t.Run("test cluster get/update", func(t *testing.T) {
+			item, err := types.NewRemoteCluster("test-cluster")
+			require.NoError(t, err)
+
+			_, err = p.trustS.CreateRemoteCluster(context.Background(), item)
+			require.NoError(t, err)
+
+			var itemFromCache types.RemoteCluster
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				var err error
+				itemFromCache, err = p.cache.GetRemoteCluster(context.Background(), "test-cluster")
+				require.NoError(t, err)
+			}, 2*time.Second, time.Millisecond*40)
+
+			itemFromCache.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+			_, err = p.trustS.UpdateRemoteCluster(context.Background(), itemFromCache)
+			require.NoError(t, err)
+		})
 	})
-}
-
-// TestTunnelConnections tests tunnel connections caching
-func TestTunnelConnections(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	clusterName := "example.com"
-	testResources(t, p, testFuncs[types.TunnelConnection]{
-		newResource: func(name string) (types.TunnelConnection, error) {
-			return types.NewTunnelConnection(name, types.TunnelConnectionSpecV2{
-				ClusterName:   clusterName,
-				ProxyName:     "p1",
-				LastHeartbeat: time.Now().UTC(),
-			})
-		},
-		create:    modifyNoContext(p.trustS.UpsertTunnelConnection),
-		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
-		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
-		deleteAll: func(ctx context.Context) error {
-			return p.trustS.DeleteAllTunnelConnections()
-		},
-	}, withSkipPaginationTest())
-
-	for i := range 17 {
-		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+1), types.TunnelConnectionSpecV2{
-			ClusterName:   clusterName,
-			ProxyName:     "p1",
-			LastHeartbeat: time.Now().UTC(),
-		})
-		require.NoError(t, err)
-
-		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
-	}
-
-	for i := range 3 {
-		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+100), types.TunnelConnectionSpecV2{
-			ClusterName:   "other-cluster",
-			ProxyName:     "p1",
-			LastHeartbeat: time.Now().UTC(),
-		})
-		require.NoError(t, err)
-		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
-	}
-
-	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		tunnels, err := p.cache.GetAllTunnelConnections()
-		assert.NoError(tt, err)
-		assert.Len(tt, tunnels, 20)
-
-	}, 15*time.Second, 100*time.Millisecond)
-
-	tunnels, err := p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, tunnels, 17)
-
-	tunnels, err = p.cache.GetTunnelConnections("other-cluster")
-	require.NoError(t, err)
-	require.Len(t, tunnels, 3)
 }

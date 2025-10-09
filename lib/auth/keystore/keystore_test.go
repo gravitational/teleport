@@ -26,7 +26,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
@@ -50,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -187,7 +186,7 @@ func TestBackends(t *testing.T) {
 			} {
 				t.Run(tc.alg.String(), func(t *testing.T) {
 					// create a key
-					key, signer, err := backend.generateSigner(ctx, tc.alg)
+					key, signer, err := backend.generateKey(ctx, tc.alg)
 					require.NoError(t, err, trace.DebugReport(err))
 					require.Equal(t, backendDesc.expectedKeyType, keyType(key))
 
@@ -215,17 +214,13 @@ func TestBackends(t *testing.T) {
 			const numKeys = 3
 			rawPrivateKeys := make([][]byte, numKeys)
 			publicKeys := make([]crypto.PublicKey, numKeys)
-			for i := range numKeys {
+			for i := 0; i < numKeys; i++ {
 				var signer crypto.Signer
 				var err error
-				rawPrivateKeys[i], signer, err = backend.generateSigner(ctx, cryptosuites.ECDSAP256)
+				rawPrivateKeys[i], signer, err = backend.generateKey(ctx, cryptosuites.ECDSAP256)
 				require.NoError(t, err)
 				publicKeys[i] = signer.Public()
 			}
-
-			// generate an encryption key that should not be cleaned up
-			encryptionKey, decrypter, hash, err := backend.generateDecrypter(ctx, cryptosuites.RSA4096)
-			require.NoError(t, err)
 
 			// AWS KMS keystore will not delete any keys created in the past 5
 			// minutes.
@@ -233,7 +228,7 @@ func TestBackends(t *testing.T) {
 
 			// say that only the first key is in use, delete the rest
 			usedKeys := [][]byte{rawPrivateKeys[0]}
-			err = backend.deleteUnusedKeys(ctx, usedKeys)
+			err := backend.deleteUnusedKeys(ctx, usedKeys)
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// make sure the first key is still good
@@ -241,23 +236,6 @@ func TestBackends(t *testing.T) {
 			require.NoError(t, err)
 			_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 			require.NoError(t, err)
-
-			// make sure the encryption key is still good
-			plaintext := "test message"
-			pubKey, ok := decrypter.Public().(*rsa.PublicKey)
-			require.True(t, ok, "expected *rsa.PublicKey, got %T", decrypter.Public())
-
-			cipher, err := rsa.EncryptOAEP(hash.New(), rand.Reader, pubKey, []byte(plaintext), nil)
-			require.NoError(t, err)
-
-			decrypter, err = backend.getDecrypter(ctx, encryptionKey, decrypter.Public(), hash)
-			require.NoError(t, err)
-
-			decrypted, err := decrypter.Decrypt(rand.Reader, cipher, &rsa.OAEPOptions{
-				Hash: hash,
-			})
-			require.NoError(t, err)
-			require.Equal(t, plaintext, string(decrypted))
 
 			// make sure all other keys are deleted
 			for i := 1; i < numKeys; i++ {
@@ -326,10 +304,6 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
-			encKeyPair, err := manager.NewEncryptionKeyPair(ctx, cryptosuites.RecordingKeyWrapping)
-			require.NoError(t, err)
-			require.Equal(t, backendDesc.expectedKeyType, encKeyPair.PrivateKeyType)
-
 			// Test a CA with multiple active keypairs. Each element of ActiveKeys
 			// includes a keypair generated above and a PKCS11 keypair with a
 			// different hostID that this manager should not be able to use.
@@ -354,7 +328,7 @@ func TestManager(t *testing.T) {
 			require.NoError(t, err)
 
 			// Test that the manager is able to select the correct key and get a
-			// signer or decrypter.
+			// signer.
 			sshSigner, err := manager.GetSSHSigner(ctx, ca)
 			require.NoError(t, err, trace.DebugReport(err))
 			require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
@@ -369,25 +343,6 @@ func TestManager(t *testing.T) {
 			pubkeyPem, err := keys.MarshalPublicKey(jwtSigner.Public())
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
-
-			decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
-			require.NoError(t, err)
-			require.NotNil(t, decrypter)
-
-			// Try encrypting and decrypting some data
-			msg := []byte("teleport")
-			require.NoError(t, err)
-			pubKey, err := x509.ParsePKIXPublicKey(encKeyPair.PublicKey)
-			require.NoError(t, err)
-			pubKeyRSA, ok := pubKey.(*rsa.PublicKey)
-			require.True(t, ok, "expected RSA public key")
-
-			ciphertext, err := rsa.EncryptOAEP(crypto.Hash(encKeyPair.Hash).New(), rand.Reader, pubKeyRSA, msg, nil)
-			require.NoError(t, err)
-
-			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
-			require.NoError(t, err)
-			require.Equal(t, msg, plaintext)
 
 			// Try signing an SSH cert.
 			sshCert := ssh.Certificate{
@@ -558,7 +513,7 @@ func assertKeyAlgorithm(t *testing.T, expectedAlgorithm cryptosuites.Algorithm, 
 
 type testPack struct {
 	backends []*backendDesc
-	clock    *clockwork.FakeClock
+	clock    clockwork.FakeClock
 }
 
 type backendDesc struct {
@@ -576,7 +531,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	var backends []*backendDesc
 
 	hostUUID := uuid.NewString()
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 
 	unusedPKCS11Key, err := keyID{
 		HostID: hostUUID,
@@ -605,21 +560,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		},
 		kmsClient:         testGCPKMSClient,
 		clockworkOverride: clock,
-		RSAKeyPairSource: func(alg cryptosuites.Algorithm) ([]byte, []byte, error) {
-			switch alg {
-			case cryptosuites.RSA2048:
-				return testRSA2048PrivateKeyPEM, nil, nil
-			case cryptosuites.RSA4096:
-				return testRSA4096PrivateKeyPEM, nil, nil
-			}
-
-			return nil, nil, trace.Errorf("unexpected algorithm: %v", alg)
-		},
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{
-		rsaKeyPairSource: baseOpts.RSAKeyPairSource,
-	})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
 	backends = append(backends, &backendDesc{
 		name:                "software",
 		config:              servicecfg.KeystoreConfig{},
@@ -630,15 +573,12 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	})
 
 	if config, ok := softHSMTestConfig(t); ok {
-		hsmOpts := baseOpts
-		// softhsm2 seems to only support OAEP with SHA1
-		hsmOpts.OAEPHash = crypto.SHA1
-		backend, err := newPKCS11KeyStore(&config.PKCS11, &hsmOpts)
+		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "softhsm",
 			config:          config,
-			opts:            &hsmOpts,
+			opts:            &baseOpts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,

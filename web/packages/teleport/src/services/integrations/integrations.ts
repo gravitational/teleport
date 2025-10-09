@@ -17,14 +17,14 @@
  */
 
 import cfg from 'teleport/config';
-import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
+import makeNode from '../nodes/makeNode';
 import {
   withGenericUnsupportedError,
   withUnsupportedLabelFeatureErrorConversion,
@@ -39,8 +39,10 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
-  AwsRolesAnywherePingResponse,
   CreateAwsAppAccessRequest,
+  DeployEc2InstanceConnectEndpointRequest,
+  DeployEc2InstanceConnectEndpointResponse,
+  Ec2InstanceConnectEndpoint,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
   ExportedIntegrationCaResponse,
@@ -61,12 +63,14 @@ import {
   ListAwsSecurityGroupsResponse,
   ListAwsSubnetsRequest,
   ListAwsSubnetsResponse,
+  ListEc2InstanceConnectEndpointsRequest,
+  ListEc2InstanceConnectEndpointsResponse,
+  ListEc2InstancesRequest,
+  ListEc2InstancesResponse,
   ListEksClustersRequest,
   ListEksClustersResponse,
-  ListRolesAnywhereProfilesResponse,
   RdsEngineIdentifier,
   Regions,
-  RolesAnywhereProfile,
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
@@ -105,12 +109,6 @@ export const integrationService = {
     return api
       .post(cfg.getIntegrationsUrl(), req)
       .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
-  },
-
-  validateAWSRolesAnywhereIntegration<T>(integrationName: string): Promise<T> {
-    return api.post(
-      cfg.getValidateAWSRolesAnywhereIntegrationUrl(integrationName)
-    );
   },
 
   pingAwsOidcIntegration(
@@ -424,6 +422,52 @@ export const integrationService = {
       });
   },
 
+  // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.
+  fetchAwsEc2Instances(
+    integrationName,
+    req: ListEc2InstancesRequest
+  ): Promise<ListEc2InstancesResponse> {
+    return api
+      .post(cfg.getListEc2InstancesUrl(integrationName), req)
+      .then(json => {
+        const instances = json?.servers ?? [];
+        return {
+          instances: instances.map(makeNode),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
+  // Returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
+  fetchAwsEc2InstanceConnectEndpoints(
+    integrationName,
+    req: ListEc2InstanceConnectEndpointsRequest
+  ): Promise<ListEc2InstanceConnectEndpointsResponse> {
+    return api
+      .post(cfg.getListEc2InstanceConnectEndpointsUrl(integrationName), req)
+      .then(json => {
+        const endpoints = json?.ec2Ices ?? [];
+
+        return {
+          endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
+          nextToken: json?.nextToken,
+          dashboardLink: json?.dashboardLink,
+        };
+      });
+  },
+
+  // Deploys an EC2 Instance Connect Endpoint.
+  deployAwsEc2InstanceConnectEndpoints(
+    integrationName,
+    req: DeployEc2InstanceConnectEndpointRequest
+  ): Promise<DeployEc2InstanceConnectEndpointResponse> {
+    return api
+      .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
+      .then(resp => {
+        return resp ?? [];
+      });
+  },
+
   // Returns a list of VPC Security Groups using the ListSecurityGroups action of the AWS OIDC Integration.
   fetchSecurityGroups(
     integrationName,
@@ -555,56 +599,6 @@ export const integrationService = {
         };
       });
   },
-
-  awsRolesAnywherePing({
-    integrationName,
-    trustAnchorArn,
-    syncRoleArn,
-    syncProfileArn,
-  }: {
-    integrationName: string;
-    trustAnchorArn: string;
-    syncRoleArn: string;
-    syncProfileArn: string;
-  }): Promise<AwsRolesAnywherePingResponse> {
-    return api
-      .post(cfg.getAwsRolesAnywherePingUrl(integrationName), {
-        trustAnchorArn,
-        syncRoleArn,
-        syncProfileArn,
-      })
-      .then(json => {
-        return {
-          profileCount: json?.profileCount,
-          accountId: json?.accountID,
-          arn: json?.arn,
-          userId: json?.userId,
-        };
-      });
-  },
-
-  awsRolesAnywhereProfiles(
-    variables: {
-      integrationName: string;
-      filters?: ProfilesFilterOption[];
-    },
-    signal?: AbortSignal
-  ): Promise<ListRolesAnywhereProfilesResponse> {
-    const { integrationName, filters } = variables;
-    const path = cfg.getAwsRolesAnywhereProfilesUrl(integrationName);
-
-    return api
-      .post(
-        path,
-        {
-          filters: filters?.length > 0 ? filters.map(f => f.value) : ['*'],
-        },
-        signal
-      )
-      .then(data => ({
-        profiles: data?.profiles?.map(profile => makeProfile(profile)) ?? [],
-      }));
-  },
 };
 
 function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
@@ -626,7 +620,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github, awsra } = json;
+  const { name, subKind, awsoidc, github } = json;
 
   const commonFields = {
     name,
@@ -650,23 +644,6 @@ function makeIntegration(json: any): Integration {
         issuerS3Bucket: awsoidc?.issuerS3Bucket,
         issuerS3Prefix: awsoidc?.issuerS3Prefix,
         audience: awsoidc?.audience,
-      },
-    };
-  }
-
-  if (subKind === IntegrationKind.AwsRa) {
-    return {
-      ...commonFields,
-      resourceType: 'integration',
-      details: 'Sync AWS IAM Roles Anywhere Profiles with Teleport',
-      spec: {
-        trustAnchorARN: awsra?.trustAnchorARN,
-        profileSyncConfig: {
-          enabled: awsra.profileSyncConfig.enabled,
-          profileArn: awsra.profileSyncConfig.profileArn,
-          roleArn: awsra.profileSyncConfig.roleArn,
-          filters: awsra.profileSyncConfig.filters,
-        },
       },
     };
   }
@@ -707,6 +684,20 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
   };
 }
 
+function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
+  json = json ?? {};
+  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
+
+  return {
+    name,
+    state,
+    stateMessage,
+    dashboardLink,
+    subnetId,
+    vpcId,
+  };
+}
+
 function makeSecurityGroup(json: any): SecurityGroup {
   json = json ?? {};
 
@@ -744,27 +735,5 @@ function makeAwsSubnets(json: any): Subnet {
     name,
     id,
     availabilityZone: availability_zone,
-  };
-}
-
-function makeProfile(json: any): RolesAnywhereProfile {
-  json = json ?? {};
-
-  const { arn, enabled, name, acceptRoleSessionName, tags, roles } = json;
-
-  let arr: string[] = [];
-  if (tags != undefined) {
-    new Map(Object.entries(tags)).forEach((v, k) => {
-      arr.push(`${k}:${v}`);
-    });
-  }
-
-  return {
-    arn,
-    enabled,
-    name,
-    acceptRoleSessionName,
-    tags: arr,
-    roles,
   };
 }

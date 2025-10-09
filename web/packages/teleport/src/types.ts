@@ -84,8 +84,6 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
-  AccessGraphAlerts = 'Alerts',
-  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -207,7 +205,6 @@ export interface FeatureFlags {
   externalAuditStorage: boolean;
   listBots: boolean;
   readBots: boolean;
-  readBotInstances: boolean;
   listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;

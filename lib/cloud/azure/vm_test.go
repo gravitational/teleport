@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -59,7 +59,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val any, _ ...any) {
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -82,7 +82,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val any, _ ...any) {
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -107,7 +107,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val any, _ ...any) {
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -175,7 +175,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val any, _ ...any) {
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -198,7 +198,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val any, _ ...any) {
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -223,7 +223,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val any, _ ...any) {
+			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)

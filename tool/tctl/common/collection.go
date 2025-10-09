@@ -32,17 +32,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -1636,7 +1633,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsOpenAI                    = "openai"
 		settingsOkta                      = "okta"
 		settingsJamf                      = "jamf"
-		settingsIntune                    = "intune"
 		settingsPagerDuty                 = "pager_duty"
 		settingsMattermost                = "mattermost"
 		settingsJira                      = "jira"
@@ -1704,8 +1700,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Status.Details = &types.PluginStatusV1_Okta{}
 		case settingsJamf:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Jamf{}
-		case settingsIntune:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Intune{}
 		case settingsPagerDuty:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_PagerDuty{}
 		case settingsMattermost:
@@ -2114,110 +2108,6 @@ func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) er
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type healthCheckConfigCollection struct {
-	items []*healthcheckconfigv1.HealthCheckConfig
-}
-
-func (c *healthCheckConfigCollection) resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.ProtoResource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *healthCheckConfigCollection) writeText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "Interval", "Timeout", "Healthy Threshold", "Unhealthy Threshold", "DB Labels", "DB Expression"}
-	var rows [][]string
-	for _, item := range c.items {
-		meta := item.GetMetadata()
-		spec := item.GetSpec()
-		rows = append(rows, []string{
-			meta.GetName(),
-			common.FormatDefault(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
-			common.FormatDefault(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
-			common.FormatDefault(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
-			common.FormatDefault(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
-			common.FormatMultiValueLabels(label.ToMap(spec.GetMatch().GetDbLabels()), verbose),
-			spec.GetMatch().GetDbLabelsExpression(),
-		})
-	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "DB Labels")
-	}
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleCollection struct {
-	items []*scopedaccessv1.ScopedRole
-}
-
-func (c *scopedRoleCollection) resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleCollection) writeText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name"}
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleAssignmentCollection struct {
-	items []*scopedaccessv1.ScopedRoleAssignment
-}
-
-func (c *scopedRoleAssignmentCollection) resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "Assigns"}
-	var rows [][]string
-
-	for _, item := range c.items {
-		var assigns []string
-		for _, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns = append(assigns, fmt.Sprintf("%s@%s", subAssignment.GetRole(), subAssignment.GetScope()))
-		}
-
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-			strings.Join(assigns, ", "),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

@@ -40,10 +40,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -51,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -121,7 +118,7 @@ func (r *createOrOverwriteDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req *createOrOverwriteDatabaseRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -136,7 +133,7 @@ func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +199,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -217,7 +214,7 @@ func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -295,22 +292,21 @@ type databaseIAMPolicyAWS struct {
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
+	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	database := dbServers[0].GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -335,7 +331,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	tokenStr := p.ByName("token")
 	if err := validateJoinToken(tokenStr); err != nil {
 		return "", trace.Wrap(err)
@@ -410,33 +406,19 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 }
 
 func (h *Handler) dbConnect(
-	_ http.ResponseWriter,
+	w http.ResponseWriter,
 	r *http.Request,
-	_ httprouter.Params,
+	p httprouter.Params,
 	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
+	site reversetunnelclient.RemoteSite,
 	ws *websocket.Conn,
-) (any, error) {
+) (interface{}, error) {
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
 	h.logger.DebugContext(ctx, "Received database interactive connection")
-
-	var term session.TerminalParams
-	q := r.URL.Query()
-	params := q.Get("params")
-	if params != "" {
-		var termReq TerminalRequest
-		if err := json.Unmarshal([]byte(params), &termReq); err != nil {
-			h.logger.DebugContext(ctx, "Failed to unmarshal terminal request",
-				"error", err,
-			)
-		} else {
-			term = termReq.Term
-		}
-	}
 
 	req, err := readDatabaseSessionRequest(ws)
 	if err != nil {
@@ -474,7 +456,7 @@ func (h *Handler) dbConnect(
 	}
 
 	// Get host CA for this Proxy.
-	clusterName, err := h.GetAccessPoint().GetClusterName(ctx)
+	clusterName, err := h.GetAccessPoint().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -486,29 +468,9 @@ func (h *Handler) dbConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, cluster)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:           apidefaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ServiceName),
-		Limit:               1,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var db types.Database
-	if len(databases) > 0 {
-		db = databases[0].GetDatabase()
-		adjusted, newUsername := gcp.AdjustDatabaseUsername(req.DatabaseUser, db)
-		if adjusted {
-			log.DebugContext(ctx, "Adding default project suffix for IAM principal", "original", req.DatabaseUser, "updated", newUsername)
-			req.DatabaseUser = newUsername
-		}
 	}
 
 	sess, err := newDatabaseInteractiveSession(ctx, databaseInteractiveSessionConfig{
@@ -516,17 +478,15 @@ func (h *Handler) dbConnect(
 		req:               req,
 		ws:                ws,
 		sctx:              sctx,
-		site:              cluster,
+		site:              site,
 		clt:               clt,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
 		registry:          h.cfg.DatabaseREPLRegistry,
 		alpnHandler:       h.cfg.ALPNHandler,
 		proxyAddr:         h.PublicProxyAddr(),
 		proxyHostCA:       proxyHostCA,
-		Term:              term,
 	})
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "Failed to create interactive database session", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	defer sess.Close()
@@ -602,15 +562,13 @@ type databaseInteractiveSessionConfig struct {
 	log               *slog.Logger
 	req               *DatabaseSessionRequest
 	sctx              *SessionContext
-	site              reversetunnelclient.Cluster
+	site              reversetunnelclient.RemoteSite
 	clt               authclient.ClientI
 	keepAliveInterval time.Duration
 	registry          dbrepl.REPLRegistry
 	alpnHandler       ConnectionHandler
 	proxyAddr         string
 	proxyHostCA       types.CertAuthority
-	// Term is the initial PTY size.
-	Term session.TerminalParams
 }
 
 func (c *databaseInteractiveSessionConfig) check() error {
@@ -641,20 +599,15 @@ func (c *databaseInteractiveSessionConfig) check() error {
 	if c.proxyHostCA == nil {
 		return trace.BadParameter("missing parameter proxyHostCA")
 	}
-	if err := c.Term.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
 type databaseInteractiveSession struct {
 	databaseInteractiveSessionConfig
-	ctx            context.Context
-	replConn       net.Conn
-	alpnConn       net.Conn
-	stream         *terminal.Stream
-	instance       dbrepl.REPLInstance
-	instanceReadyC chan struct{}
+	ctx      context.Context
+	replConn net.Conn
+	alpnConn net.Conn
+	stream   *terminal.Stream
 }
 
 func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveSessionConfig) (*databaseInteractiveSession, error) {
@@ -662,25 +615,20 @@ func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveS
 		return nil, trace.Wrap(err)
 	}
 	replConn, alpnConn := net.Pipe()
-	sess := &databaseInteractiveSession{
+	return &databaseInteractiveSession{
 		ctx:                              ctx,
 		databaseInteractiveSessionConfig: cfg,
 		replConn:                         replConn,
 		alpnConn:                         alpnConn,
-		instanceReadyC:                   make(chan struct{}),
-	}
-	sess.stream = terminal.NewStream(ctx, terminal.StreamConfig{
-		// Don't close the terminal stream on session error, as it would also
-		// cause the underlying connection to be closed. This will prevent the
-		// middleware from properly writing the error into the WebSocket connection.
-		// The middleware initiates the connection, forwards it to our
-		// handler, and always closes it.
-		WS: noopCloserWS{Conn: cfg.ws},
-		Handlers: map[string]terminal.WSHandlerFunc{
-			defaults.WebsocketResize: sess.handleWindowResize,
-		},
-	})
-	return sess, nil
+		stream: terminal.NewStream(ctx, terminal.StreamConfig{
+			// Don't close the terminal stream on session error, as it would also
+			// cause the underlying connection to be closed. This will prevent the
+			// middleware from properly writing the error into the WebSocket connection.
+			// The middleware initiates the connection, forwards it to our
+			// handler, and always closes it.
+			WS: noopCloserWS{Conn: cfg.ws},
+		}),
+	}, nil
 }
 
 // noopCloserWS prevents the stream from closing the websocket, to allow the
@@ -704,24 +652,13 @@ func (s *databaseInteractiveSession) Run() error {
 		return trace.Wrap(err)
 	}
 
-	defaultCloseHandler := s.ws.CloseHandler()
-	s.ws.SetCloseHandler(func(code int, text string) error {
-		s.log.DebugContext(s.ctx, "web socket was closed by client - terminating session")
-		// Call the default close handler if one was set.
-		if defaultCloseHandler != nil {
-			err := defaultCloseHandler(code, text)
-			return trace.NewAggregate(err, s.Close())
-		}
-
-		return trace.Wrap(s.Close())
-	})
 	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
 
 	// Wrap s.alpnConn with real client addresses and pass it to the ALPN
 	// handler.
 	go func() {
 		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
-		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); err != nil && !utils.IsOKNetworkError(err) {
+		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); !utils.IsOKNetworkError(err) {
 			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
 		}
 	}()
@@ -734,13 +671,6 @@ func (s *databaseInteractiveSession) Run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.instance = repl
-	if err := repl.SetSize(s.Term.W, s.Term.H); err != nil {
-		s.log.ErrorContext(s.ctx, "Failed to set initial terminal window size",
-			"error", err,
-		)
-	}
-	close(s.instanceReadyC)
 
 	s.log.DebugContext(s.ctx, "Starting database interactive session")
 	if err := repl.Run(s.ctx); err != nil {
@@ -901,37 +831,8 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-func (s *databaseInteractiveSession) waitForREPLInstance(ctx context.Context) (dbrepl.REPLInstance, error) {
-	select {
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	case <-s.instanceReadyC:
-	}
-	if s.instance == nil {
-		return nil, trace.NotFound("missing database REPL instance")
-	}
-	return s.instance, nil
-}
-
-func (s *databaseInteractiveSession) handleWindowResize(ctx context.Context, envelope terminal.Envelope) {
-	repl, err := s.waitForREPLInstance(ctx)
-	if err != nil {
-		s.log.DebugContext(ctx, "Failed to get database REPL instance", "error", err)
-		return
-	}
-	if params, err := terminal.ParseWindowResizeMsg(envelope); err != nil {
-		s.log.WarnContext(ctx, "Failed to handle terminal window resize",
-			"error", err,
-		)
-	} else if err := repl.SetSize(params.W, params.H); err != nil {
-		s.log.ErrorContext(ctx, "Failed to set terminal window size",
-			"error", err,
-		)
-	}
-}
-
-// fetchDatabaseServersWithName fetches all database servers with provided database name.
-func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) ([]types.DatabaseServer, error) {
+// fetchDatabaseWithName fetch a database with provided database name.
+func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -946,10 +847,13 @@ func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(servers) == 0 {
+
+	switch len(servers) {
+	case 0:
 		return nil, trace.NotFound("database %q not found", databaseName)
+	default:
+		return servers[0].GetDatabase(), nil
 	}
-	return servers, nil
 }
 
 func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {

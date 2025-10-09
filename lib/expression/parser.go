@@ -24,8 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -138,15 +138,6 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					return false, nil
 				}),
-			"contains_all": typical.BinaryFunction[evaluationEnv](
-				func(s1, s2 Set) (bool, error) {
-					for v := range s2.s {
-						if !s1.contains(v) {
-							return false, nil
-						}
-					}
-					return len(s2.s) > 0, nil
-				}),
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
 					return len(s.s) == 0, nil
@@ -200,15 +191,6 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 						}
 					}
 					return false, nil
-				}),
-			"contains_all": typical.BinaryFunction[evaluationEnv](
-				func(s1, s2 Set) (bool, error) {
-					for v := range s2.s {
-						if !s1.contains(v) {
-							return false, nil
-						}
-					}
-					return len(s2.s) > 0, nil
 				}),
 			"isempty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
@@ -267,7 +249,7 @@ func StringTransform(name string, input any, f func(string) string) (any, error)
 	case string:
 		return f(typedInput), nil
 	case Set:
-		return Set{set.Transform(typedInput.s, f)}, nil
+		return Set{utils.SetTransform(typedInput.s, f)}, nil
 	default:
 		return nil, trace.BadParameter("failed to evaluate argument to %s: expected string or set, got value of type %T", name, input)
 	}

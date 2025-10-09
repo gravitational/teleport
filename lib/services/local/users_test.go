@@ -278,7 +278,7 @@ func TestNotificationCleanupOnUserDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identitySvc, err := local.NewIdentityService(backend)
+	identitySvc, err := local.NewIdentityServiceV2(backend)
 	require.NoError(t, err)
 	notificationsSvc, err := local.NewNotificationsService(backend, backend.Clock())
 	require.NoError(t, err)
@@ -1380,7 +1380,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
 	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{WithSecrets: true})
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
 	assert.NoError(t, err, "no error returned when no users exist")
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
@@ -1401,7 +1401,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 			devices = nil
 		case i == 1:
 			devices = append(devices, dev2)
-			for range 20 {
+			for j := 0; j < 20; j++ {
 				dev, err := services.NewTOTPDevice(uuid.NewString(), base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 				require.NoError(t, err, "creating otp device failed")
 				devices = append(devices, dev)
@@ -1595,9 +1595,9 @@ func TestCompareAndSwapUser(t *testing.T) {
 	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
 	require.NoError(err)
 
-	bob2, err = identity.GetUser(ctx, "bob", false)
+	currentBob, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob1))
+	require.True(services.UsersEquals(currentBob, bob2))
 
 	item, err := identity.Backend.Get(ctx, backend.NewKey(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
 	require.NoError(err)

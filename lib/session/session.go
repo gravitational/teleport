@@ -21,7 +21,6 @@
 package session
 
 import (
-	"cmp"
 	"fmt"
 	"strconv"
 	"strings"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -151,7 +149,7 @@ func (s *Session) Participants() []string {
 	return participants
 }
 
-// RemoveParty helper allows to remove a party by its ID from the
+// RemoveParty helper allows to remove a party by it's ID from the
 // session's list. Returns 'false' if pid couldn't be found
 func (s *Session) RemoveParty(pid ID) bool {
 	for i := range s.Parties {
@@ -172,8 +170,6 @@ type Party struct {
 	RemoteAddr string `json:"remote_addr"`
 	// User is a teleport user using this session
 	User string `json:"user"`
-	// Cluster is the cluster name the user is authenticated against.
-	Cluster string `json:"cluster"`
 	// ServerID is an address of the server
 	ServerID string `json:"server_id"`
 	// LastActive is a last time this party was active
@@ -236,17 +232,6 @@ func (p *TerminalParams) Winsize() *term.Winsize {
 		Width:  uint16(p.W),
 		Height: uint16(p.H),
 	}
-}
-
-// CheckAndSetDefaults checks and sets default terminal params.
-func (p *TerminalParams) CheckAndSetDefaults() error {
-	p.W = cmp.Or(p.W, teleport.DefaultTerminalWidth)
-	p.H = cmp.Or(p.H, teleport.DefaultTerminalHeight)
-	if p.W < 0 || p.H < 0 ||
-		p.W >= 4096 || p.H >= 4096 {
-		return trace.BadParameter("term: bad dimensions(%dx%d)", p.W, p.H)
-	}
-	return nil
 }
 
 // MaxSessionSliceLength is the maximum number of sessions per time window

@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"iter"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -64,6 +63,9 @@ type Trust interface {
 
 	// DeleteCertAuthority deletes particular certificate authority
 	DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
+
+	// DeleteAllCertAuthorities deletes cert authorities of a certain type
+	DeleteAllCertAuthorities(caType types.CertAuthType) error
 
 	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
 	// the normal list.
@@ -131,9 +133,6 @@ type Clusters interface {
 	// ListTrustedClusters returns a page of Trusted Cluster resources.
 	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 
-	// RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
-	RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error]
-
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 
@@ -177,4 +176,7 @@ type Clusters interface {
 
 	// DeleteRemoteCluster deletes remote cluster by name
 	DeleteRemoteCluster(ctx context.Context, clusterName string) error
+
+	// DeleteAllRemoteClusters deletes all remote clusters
+	DeleteAllRemoteClusters(ctx context.Context) error
 }

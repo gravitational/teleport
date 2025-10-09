@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -31,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,7 +51,7 @@ type KubeAppsFetcherConfig struct {
 	// Namespaces are the kubernetes namespaces in which to discover services
 	Namespaces []string
 	// Log is a logger to use
-	Logger *slog.Logger
+	Log logrus.FieldLogger
 	// ProtocolChecker inspects port to find your whether they are HTTP/HTTPS or not.
 	ProtocolChecker ProtocolChecker
 	// DiscoveryConfigName is the name of the discovery config which originated the resource.
@@ -66,8 +66,8 @@ func (k *KubeAppsFetcherConfig) CheckAndSetDefaults() error {
 	if k.KubernetesClient == nil {
 		return trace.BadParameter("missing parameter KubernetesClient")
 	}
-	if k.Logger == nil {
-		return trace.BadParameter("missing parameter Logger")
+	if k.Log == nil {
+		return trace.BadParameter("missing parameter Log")
 	}
 	if k.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
@@ -142,7 +142,7 @@ func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryType string) 
 			} else if match {
 				result = append(result, s)
 			} else {
-				f.Logger.DebugContext(ctx, "Service doesn't match labels", "service", s.Name)
+				f.Log.WithField("service_name", s.Name).Debug("Service doesn't match labels.")
 			}
 		}
 		nextToken = kubeServices.Continue
@@ -178,12 +178,13 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 		apps   types.Apps
 	)
 	for _, service := range kubeServices {
+		service := service
 		g.Go(func() error {
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 
 			ports, err := getServicePorts(service)
 			if err != nil {
-				f.Logger.ErrorContext(ctx, "could not get ports for the service", "error", err, "service", service.GetName())
+				f.Log.WithError(err).Errorf("could not get ports for the service %q", service.GetName())
 				return nil
 			}
 
@@ -206,7 +207,7 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				}
 				newApp, err := services.NewApplicationFromKubeService(service, f.ClusterName, portProtocol, port)
 				if err != nil {
-					f.Logger.WarnContext(ctx, "Could not get app from a Kubernetes service", "error", err, "service", service.GetName(), "port", port.Port)
+					f.Log.WithError(err).Warnf("Could not get app from a Kubernetes service %q, port %d", service.GetName(), port.Port)
 					return nil
 				}
 				newApps = append(newApps, newApp)

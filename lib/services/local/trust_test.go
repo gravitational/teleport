@@ -37,13 +37,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestUpdateCertAuthorityCondActs(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// setup closure creates our initial state and returns its components
 	setup := func(active bool) (types.TrustedCluster, types.CertAuthority, *CA) {
@@ -445,7 +445,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%d", i))
 		require.NoError(t, err)
 		_, err = trustService.CreateRemoteCluster(ctx, rc)
@@ -462,7 +462,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.RemoteCluster{}
 	pageToken = ""
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		var got []types.RemoteCluster
 		got, pageToken, err = trustService.ListRemoteClusters(ctx, 1, pageToken)
 		require.NoError(t, err)
@@ -564,23 +564,11 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	require.Len(t, firstPage, 1)
 	require.NotEmpty(t, next)
 
-	// Ensure upper limit works.
-	rangeEnd, err := stream.Collect(trustService.RangeTrustedClusters(ctx, "", next))
-	require.NoError(t, err)
-	require.Len(t, rangeEnd, 1)
-	require.NotEmpty(t, next)
-	require.Empty(t, cmp.Diff(firstPage, rangeEnd, compareOpts...))
-
-	// Full range.
-	allTC, err = stream.Collect(trustService.RangeTrustedClusters(ctx, "", ""))
-	require.NoError(t, err)
-	require.Len(t, allTC, 2)
-	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
-
-	// Ensure start token work for range.
-	secondPage, err := stream.Collect(trustService.RangeTrustedClusters(ctx, next, ""))
+	// Check starts.
+	secondPage, next, err := trustService.ListTrustedClusters(ctx, 0, next)
 	require.NoError(t, err)
 	require.Len(t, secondPage, 1)
+	require.Empty(t, next)
 	require.Empty(t, cmp.Diff(wantTcs, append(firstPage, secondPage...), compareOpts...))
 
 	// verify that enabling/disabling correctly shows/hides CAs

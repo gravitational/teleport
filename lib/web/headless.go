@@ -46,7 +46,7 @@ func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params htt
 	if err != nil {
 		// Log the error, but return something more user-friendly.
 		// Context exceeded or invalid request states are more confusing than helpful.
-		h.logger.DebugContext(r.Context(), "failed to get headless session", "error", err)
+		h.log.Debug("failed to get headless session: %v", err)
 
 		return nil, trace.BadParameter("requested invalid headless session")
 	}

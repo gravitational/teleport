@@ -278,7 +278,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 		return nil, trace.Wrap(err)
 	}
 
-	conn := earlyConn
+	var conn quic.Connection = earlyConn
 	defer func() {
 		if err == nil {
 			return
@@ -466,7 +466,7 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 // response buffer. Request and response are length-prefixed by a 32 bit little
 // endian integer, but the buffer size is also limited by [quicMaxMessageSize].
 // The given request buffer should already be length-prefixed.
-func sendUnary(deadline time.Time, sizedReqBuf []byte, conn *quic.Conn) (_ []byte, _ *quic.Stream, err error) {
+func sendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection) (_ []byte, _ quic.Stream, err error) {
 	stream, err := conn.OpenStream()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -501,8 +501,8 @@ func sendUnary(deadline time.Time, sizedReqBuf []byte, conn *quic.Conn) (_ []byt
 // streamConn is a [net.Conn] using a single [quic.Stream] in a dedicated
 // [quic.Connection].
 type streamConn struct {
-	st   *quic.Stream
-	conn *quic.Conn
+	st   quic.Stream
+	conn quic.Connection
 
 	src net.Addr
 	dst net.Addr

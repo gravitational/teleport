@@ -34,7 +34,6 @@ import { Option } from 'shared/components/Select';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import { getDbNameRequirement } from 'shared/services/databases';
 
 import { useTeleport } from 'teleport';
 import { DbConnectData } from 'teleport/lib/term/tty';
@@ -122,45 +121,34 @@ function ConnectForm(props: {
     props.onConnect({
       serviceName: props.db.name,
       protocol: props.db.protocol,
-      dbName: selectedName?.value,
+      dbName: selectedName.value,
       dbUser: selectedUser.value,
       dbRoles: selectedRoles?.map(role => role.value),
     });
   };
 
-  const dbNameReq = getDbNameRequirement(props.db.protocol);
   return (
     <Validation>
       {({ validator }) => (
         <form>
           <DialogContent flex="0 0 auto">
-            {dbNameReq !== 'unsupported' && (
-              <ConnectionField
-                // if db name is optional, then RBAC is not enforcing a db name, so they can input whatever they want
-                allowCreatableSelect={
-                  dbNameHasWildcard || dbNameReq === 'optional'
-                }
-                label="Database name"
-                menuPosition="fixed"
-                onChange={option => setSelectedName(option as Option)}
-                value={selectedName}
-                options={dbNamesOpts}
-                creatableOptions={{
-                  formatCreateLabel: (userInput: string) =>
-                    `Use "${userInput}" database name`,
-                  toolTipContent:
-                    'You can type in the select box to use a custom database name instead of the available options.',
-                }}
-                isClearable={dbNameReq === 'optional'}
-                rule={
-                  dbNameReq === 'required'
-                    ? requiredField('Database name is required')
-                    : undefined
-                }
-              />
-            )}
             <ConnectionField
-              allowCreatableSelect={dbUserHasWildcard}
+              hasWildcard={dbNameHasWildcard}
+              label="Database name"
+              menuPosition="fixed"
+              onChange={option => setSelectedName(option as Option)}
+              value={selectedName}
+              options={dbNamesOpts}
+              creatableOptions={{
+                formatCreateLabel: userInput =>
+                  `Use "${userInput}" database name`,
+                toolTipContent:
+                  'You can type in the select box to use a custom database name instead of the available options.',
+              }}
+              rule={requiredField('Database name is required')}
+            />
+            <ConnectionField
+              hasWildcard={dbUserHasWildcard}
               label="Database user"
               menuPosition="fixed"
               onChange={option => setSelectedUser(option as Option)}
@@ -182,7 +170,7 @@ function ConnectForm(props: {
             />
             {(dbRolesOpts?.length > 0 || dbRoleHasWildcard) && (
               <ConnectionField
-                allowCreatableSelect={dbRoleHasWildcard}
+                hasWildcard={dbRoleHasWildcard}
                 label="Database roles"
                 menuPosition="fixed"
                 isMulti={true}
@@ -229,11 +217,11 @@ function ConnectForm(props: {
 }
 
 function ConnectionField({
-  allowCreatableSelect,
+  hasWildcard,
   creatableOptions = {},
   ...commonOptions
 }) {
-  return allowCreatableSelect ? (
+  return hasWildcard ? (
     <FieldSelectCreatable {...commonOptions} {...creatableOptions} />
   ) : (
     <FieldSelect {...commonOptions} />

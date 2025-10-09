@@ -135,11 +135,6 @@ export const l_Saml = makeResourceSpec({
   name: 'lima',
   kind: ResourceKind.SamlApplication,
 });
-export const m_MCP = makeResourceSpec({
-  name: 'memory',
-  kind: ResourceKind.MCP,
-  unguidedLink: 'test.com',
-});
 
 export const kindBasedList: SelectResourceSpec[] = [
   c_ApplicationGcp,
@@ -161,5 +156,4 @@ export const kindBasedList: SelectResourceSpec[] = [
   h_Server,
   y_Saml_NoAccess,
   l_Saml,
-  m_MCP,
 ];

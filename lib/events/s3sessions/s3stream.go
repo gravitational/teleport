@@ -48,7 +48,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	input := &s3.CreateMultipartUploadInput{
 		Bucket: aws.String(h.Bucket),
-		Key:    aws.String(h.recordingPath(sessionID)),
+		Key:    aws.String(h.path(sessionID)),
 	}
 	if !h.Config.DisableServerSideEncryption {
 		input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
@@ -85,7 +85,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	}
 
 	start := time.Now()
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.path(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -135,7 +135,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 }
 
 func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.path(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -171,7 +171,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	start := time.Now()
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.path(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -210,7 +210,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.path(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,

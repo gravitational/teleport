@@ -110,7 +110,7 @@ type fakeReverseTunnel struct {
 	t    *testing.T
 }
 
-func (f *fakeReverseTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
 	return &fakeRemoteSiteTunnel{
 		want: f.want,
 		t:    f.t,
@@ -118,7 +118,7 @@ func (f *fakeReverseTunnel) Cluster(context.Context, string) (reversetunnelclien
 }
 
 type fakeRemoteSiteTunnel struct {
-	reversetunnelclient.Cluster
+	reversetunnelclient.RemoteSite
 	want reversetunnelclient.DialParams
 	t    *testing.T
 }

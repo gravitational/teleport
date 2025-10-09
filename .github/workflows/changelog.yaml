@@ -20,7 +20,7 @@ permissions:
 jobs:
   validate-changelog:
     name: Validate the changelog entry
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       # Checkout main branch of shared-workflow repository.

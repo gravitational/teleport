@@ -29,7 +29,7 @@ From the active sessions list, click **Join** and select a participant mode to j
 
 You must have the `join_sessions` allow policy in a role you've been assigned to join sessions in any participant mode.
 For information about how to configure the `join_sessions` allow policy and participant modes for a role, see
-[Configure an allow policy](../zero-trust-access/authentication/joining-sessions.mdx).
+[Configure an allow policy](../zero-trust-access/access-controls/guides/joining-sessions.mdx).
 
 ## Idle timeout
 
@@ -68,7 +68,7 @@ cluster networking configuration has been updated
 ## Starting a database session
 
 Starting from version `17.1`, users can establish database sessions using the
-Teleport Web UI. Support for database sessions in the Web UI was later expanded to include CockroachDB in `18.1.5` and MySQL/MariaDB databases in `18.2.0`.
+Teleport Web UI. Currently, it is supported in PostgreSQL databases.
 
 To start a new session, locate your database in the resources list and click
 "Connect".
@@ -105,11 +105,11 @@ limitations.
   While the terminal interface provided in the Teleport Web UI is designed to
   resemble popular database CLIs such as `psql`, it is a custom implementation
   with some differences and limitations:
-  - **Feature Set:** Not all features available in popular CLI tools are implemented.
+  - **Feature Set:** Not all features available in `psql` are implemented.
     For instance, scripting capabilities, query cancellation, or informational
-    commands like `\d` or `\dt` from `psql` are currently not supported.
+    commands like `\d` or `\dt` are currently unsupported.
   - **Error Handling:** Error messages and diagnostics might differ from what
-    users are accustomed to.
+    users are accustomed to in `psql`.
 
   These distinctions are designed to maintain a lightweight and secure interface
   directly in your browser. For more complex operations, you may prefer

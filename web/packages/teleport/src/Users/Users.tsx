@@ -256,8 +256,11 @@ export function Users(props: State) {
           username={operation.user.name}
         />
       )}
-      {InviteCollaborators && inviteCollaboratorsOpen && (
-        <InviteCollaborators onClose={onInviteCollaboratorsClose} />
+      {InviteCollaborators && (
+        <InviteCollaborators
+          open={inviteCollaboratorsOpen}
+          onClose={onInviteCollaboratorsClose}
+        />
       )}
     </FeatureBox>
   );

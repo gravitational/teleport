@@ -43,9 +43,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -393,7 +392,7 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 	// Check if active connections count is not growing over time when new
 	// clients connect to the mongo server.
 	clientCount := 8
-	for range clientCount {
+	for i := 0; i < clientCount; i++ {
 		// Note that connection count per client fluctuates between 6 and 9.
 		// Use InDelta to avoid flaky test.
 		require.InDelta(t, initialConnectionCount, connectMongoClient(t), 3)
@@ -609,7 +608,7 @@ func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	db.SetShuffleFunc(dbconnect.ShuffleSort)
+	db.SetShuffleFunc(db.ShuffleSort)
 }
 
 // testHARootCluster verifies that proxy falls back to a healthy

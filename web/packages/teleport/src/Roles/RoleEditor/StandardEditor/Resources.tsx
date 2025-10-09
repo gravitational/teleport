@@ -38,7 +38,6 @@ import { precomputed } from 'shared/components/Validation/rules';
 import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
-import { RoleVersion } from 'teleport/services/resources';
 
 import {
   SectionBox,
@@ -51,15 +50,13 @@ import {
   DatabaseAccess,
   GitHubOrganizationAccess,
   KubernetesAccess,
-  kubernetesResourceKindOptionsV7,
-  kubernetesResourceKindOptionsV8,
+  kubernetesResourceKindOptions,
   KubernetesResourceModel,
   kubernetesVerbOptions,
   newKubernetesResourceModel,
   ResourceAccess,
   ResourceAccessKind,
   ServerAccess,
-  supportsKubernetesCustomResources,
   WindowsDesktopAccess,
 } from './standardmodel';
 import { ActionType } from './useStandardModel';
@@ -68,10 +65,10 @@ import {
   DatabaseAccessValidationResult,
   GitHubOrganizationAccessValidationResult,
   KubernetesAccessValidationResult,
+  kubernetesClusterWideResourceKinds,
   KubernetesResourceValidationResult,
   ResourceAccessValidationResult,
   ServerAccessValidationResult,
-  v7kubernetesClusterWideResourceKinds,
   WindowsDesktopAccessValidationResult,
 } from './validation';
 
@@ -84,16 +81,10 @@ export const ResourcesTab = memo(function ResourcesTab({
   isProcessing,
   validation,
   dispatch,
-  customDescription,
 }: SectionPropsWithDispatch<
   ResourceAccess[],
   ResourceAccessValidationResult[]
-> & {
-  /**
-   * Custom description describing this section.
-   */
-  customDescription?: React.ReactNode;
-}) {
+>) {
   /** All resource access kinds except those that are already in the role. */
   const allowedResourceAccessKinds = allResourceAccessKinds.filter(k =>
     value.every(as => as.kind !== k)
@@ -104,13 +95,9 @@ export const ResourcesTab = memo(function ResourcesTab({
 
   return (
     <Flex flexDirection="column" gap={3}>
-      {customDescription ? (
-        <>{customDescription}</>
-      ) : (
-        <SectionPadding>
-          Rules that allow connecting to resources controlled by Teleport
-        </SectionPadding>
-      )}
+      <SectionPadding>
+        Rules that allow connecting to resources controlled by Teleport
+      </SectionPadding>
       {value.map((res, i) => {
         return (
           <ResourceAccessSection
@@ -392,58 +379,6 @@ export function KubernetesAccessSection({
   );
 }
 
-function KubernetesResourceKindView({
-  value,
-  validation,
-  isProcessing,
-  onChange,
-  roleVersion,
-}: {
-  value: KubernetesResourceModel;
-  validation: KubernetesResourceValidationResult['kind'];
-  isProcessing: boolean;
-  onChange?(m: KubernetesResourceModel): void;
-  roleVersion: RoleVersion;
-}) {
-  if (!supportsKubernetesCustomResources(roleVersion)) {
-    return (
-      <FieldSelect
-        label="Kind"
-        isDisabled={isProcessing}
-        options={kubernetesResourceKindOptionsV7.filter(
-          elem => roleVersion == 'v7' || elem.value == 'pod' // In v7, we have the fill list, in v6 and earlier, only pod.
-        )}
-        value={value.kind}
-        rule={precomputed(validation)}
-        onChange={k => onChange?.({ ...value, kind: k })}
-      />
-    );
-  }
-  return (
-    <FieldSelectCreatable
-      isSearchable
-      label="Kind (plural)"
-      toolTipContent={
-        <>
-          Resource plural name, e.g. pods, deployments, mycustomresources.
-          Special value <MarkInverse>*</MarkInverse> means any kind.
-        </>
-      }
-      isDisabled={isProcessing}
-      formatCreateLabel={label => `Kind: ${label}`}
-      openMenuOnClick
-      value={value.kind}
-      onChange={kind => onChange?.({ ...value, kind })}
-      menuPosition="fixed"
-      rule={precomputed(validation)}
-      options={kubernetesResourceKindOptionsV8}
-      components={{
-        DropdownIndicator: null,
-      }}
-    />
-  );
-}
-
 function KubernetesResourceView({
   value,
   validation,
@@ -457,9 +392,8 @@ function KubernetesResourceView({
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
 }) {
-  const { kind, name, namespace, verbs, apiGroup } = value;
+  const { kind, name, namespace, verbs } = value;
   const theme = useTheme();
-  const supportsCrds = supportsKubernetesCustomResources(value.roleVersion);
   return (
     <Box
       border={1}
@@ -482,29 +416,15 @@ function KubernetesResourceView({
           />
         </ButtonIcon>
       </Flex>
-      <KubernetesResourceKindView
-        value={value}
-        validation={validation.kind}
-        isProcessing={isProcessing}
-        onChange={k => onChange?.({ ...value, ...k })}
-        roleVersion={value.roleVersion}
+      <FieldSelect
+        label="Kind"
+        isDisabled={isProcessing}
+        options={kubernetesResourceKindOptions}
+        value={kind}
+        rule={precomputed(validation.kind)}
+        onChange={k => onChange?.({ ...value, kind: k })}
+        menuPosition="fixed"
       />
-      {(supportsCrds || apiGroup) && (
-        <FieldInput
-          label="API Group"
-          required
-          toolTipContent={
-            <>
-              Resource API Group. Special value <MarkInverse>*</MarkInverse>{' '}
-              means any group.
-            </>
-          }
-          disabled={isProcessing}
-          value={apiGroup}
-          rule={precomputed(validation.apiGroup)}
-          onChange={e => onChange?.({ ...value, apiGroup: e.target.value })}
-        />
-      )}
       <FieldInput
         label="Name"
         required
@@ -521,7 +441,7 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Namespace"
-        required={!v7kubernetesClusterWideResourceKinds.includes(kind.value)}
+        required={!kubernetesClusterWideResourceKinds.includes(kind.value)}
         toolTipContent={
           <>
             Namespace that contains the resource. Special value{' '}
@@ -584,13 +504,6 @@ export function AppAccessSection({
         value={value.gcpServiceAccounts}
         onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
         rule={precomputed(validation.fields.gcpServiceAccounts)}
-      />
-      <FieldMultiInput
-        label="MCP Tools"
-        disabled={isProcessing}
-        value={value.mcpTools}
-        onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
-        rule={precomputed(validation.fields.mcpTools)}
       />
     </Flex>
   );

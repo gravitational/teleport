@@ -19,7 +19,6 @@
 package filesessions
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -64,8 +63,6 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
-	// EncryptedRecordingUploader uploads encrypted session recordings
-	EncryptedRecordingUploader events.EncryptedRecordingUploader
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -378,64 +375,6 @@ func (u *upload) removeFiles() error {
 	return trace.NewAggregate(errs...)
 }
 
-var errSkipEncryptedUpload = errors.New("skip encrypted upload")
-
-func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.Reader) error {
-	if u.cfg.EncryptedRecordingUploader == nil {
-		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
-	}
-
-	partIter := func(yield func([]byte, error) bool) {
-		var buf bytes.Buffer
-		for {
-			buf.Reset()
-			header, err := events.ParsePartHeader(in)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
-				yield(nil, trace.Wrap(errSkipEncryptedUpload, "recording not encrypted"))
-				return
-			}
-
-			if _, err := buf.Write(header.Bytes()); err != nil {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			totalPartSize := int64(header.PartSize + header.PaddingSize)
-			reader := io.LimitReader(in, totalPartSize)
-			copied, err := io.Copy(&buf, reader)
-			if err != nil && !errors.Is(err, io.EOF) {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if copied != totalPartSize {
-				yield(nil, trace.Errorf("copied %d bytes of recording part instead of expected %d", copied, totalPartSize))
-				return
-			}
-
-			if !yield(buf.Bytes(), nil) {
-				return
-			}
-		}
-	}
-
-	u.log.DebugContext(ctx, "uploading encrypted recording", "session_id", sessionID)
-	if err := u.cfg.EncryptedRecordingUploader.UploadEncryptedRecording(ctx, sessionID, partIter); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
@@ -500,29 +439,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
 	}
 
-	if err := u.uploadEncryptedRecording(ctx, sessionID.String(), sessionFile); !errors.Is(err, errSkipEncryptedUpload) {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := os.Remove(sessionFile.Name()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
-	u.log.DebugContext(ctx, "upload not encrypted, proceeding with plaintext uploader")
-	// ensure sessionFile starts at 0 after attempted encrypted upload
-	if _, err := sessionFile.Seek(0, io.SeekStart); err != nil {
-		return trace.Wrap(err)
-	}
-
-	protoReader := events.NewProtoReader(sessionFile, nil)
-
 	upload := &upload{
 		sessionID:    sessionID,
-		reader:       protoReader,
+		reader:       events.NewProtoReader(sessionFile),
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}

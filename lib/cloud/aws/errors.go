@@ -26,16 +26,32 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 )
 
-// ConvertRequestFailureError converts AWS SDK v2 errors to trace errors.
+// ConvertRequestFailureError converts `err` into AWS errors to trace errors.
+// If the provided error is not a [awserr.RequestFailure] it delegates
+// error conversion to [ConvertRequestFailureErrorV2] for SDK v2 compatibility.
+// Prefer using [ConvertRequestFailureErrorV2] directly for AWS SDK v2 client
+// errors.
+func ConvertRequestFailureError(err error) error {
+	var requestErr awserr.RequestFailure
+	if errors.As(err, &requestErr) {
+		return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
+	}
+	return ConvertRequestFailureErrorV2(err)
+}
+
+// ConvertRequestFailureErrorV2 converts AWS SDK v2 errors to trace errors.
 // If the provided error is not a [awshttp.ResponseError] it returns the error
 // without modifying it.
-func ConvertRequestFailureError(err error) error {
+func ConvertRequestFailureErrorV2(err error) error {
 	var re *awshttp.ResponseError
 	if errors.As(err, &re) {
-		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re)
+		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
 	}
 	return err
 }
@@ -55,7 +71,7 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 	case http.StatusBadRequest:
 		// Some services like memorydb, redshiftserverless may return 400 with
 		// "AccessDeniedException" instead of 403.
-		if strings.Contains(requestErr.Error(), "AccessDeniedException") {
+		if strings.Contains(requestErr.Error(), redshiftserverless.ErrCodeAccessDeniedException) {
 			return trace.AccessDenied("%s", requestErr)
 		}
 
@@ -69,13 +85,34 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 
 // ConvertIAMError converts common errors from IAM clients to trace errors.
 func ConvertIAMError(err error) error {
-	if err == nil {
-		return nil
+	// By error code.
+	var awsErr awserr.Error
+	if errors.As(err, &awsErr) {
+		switch awsErr.Code() {
+		case iam.ErrCodeUnmodifiableEntityException:
+			return trace.AccessDenied("%s", awsErr)
+
+		case iam.ErrCodeNoSuchEntityException:
+			return trace.NotFound("%s", awsErr)
+
+		case iam.ErrCodeMalformedPolicyDocumentException,
+			iam.ErrCodeInvalidInputException,
+			iam.ErrCodeDeleteConflictException:
+			return trace.BadParameter("%s", awsErr)
+
+		case iam.ErrCodeLimitExceededException:
+			return trace.LimitExceeded("%s", awsErr)
+		}
 	}
 
-	var unmodifiableEntityErr *iamtypes.UnmodifiableEntityException
-	if errors.As(err, &unmodifiableEntityErr) {
-		return trace.AccessDenied("%s", *unmodifiableEntityErr.Message)
+	// By status code.
+	return ConvertRequestFailureError(err)
+}
+
+// ConvertIAMv2Error converts common errors from IAM clients to trace errors.
+func ConvertIAMv2Error(err error) error {
+	if err == nil {
+		return nil
 	}
 
 	var entityExistsError *iamtypes.EntityAlreadyExistsException
@@ -93,5 +130,10 @@ func ConvertIAMError(err error) error {
 		return trace.BadParameter("%s", *malformedPolicyDocument.Message)
 	}
 
-	return ConvertRequestFailureError(err)
+	var re *awshttp.ResponseError
+	if errors.As(err, &re) {
+		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
+	}
+
+	return err
 }

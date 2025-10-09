@@ -89,7 +89,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		body, _ := io.ReadAll(resp.Body)
-		var respData map[string]any
+		var respData map[string]interface{}
 		if err := json.Unmarshal(body, &respData); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -108,7 +108,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		if err := ws.Close(); err != nil {
-			log.DebugContext(ctx, "Close stream in response to context termination", "error", err)
+			log.Debugf("Closed stream in response to context termination: %v", err)
 		}
 	}()
 
@@ -248,7 +248,7 @@ func (s *KubeSession) pipeInOut(ctx context.Context, stdout io.Writer, enableEsc
 		default:
 			handleNonPeerControls(mode, s.term, func() {
 				if err := s.stream.ForceTerminate(); err != nil {
-					log.DebugContext(ctx, "Error sending force termination request", "error", err)
+					log.Debugf("Error sending force termination request: %v", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
 			})

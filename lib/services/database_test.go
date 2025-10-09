@@ -33,24 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestDatabaseUnmarshalTLSModes verifies database resource unmarshalling for both string and integer representation of DatabaseTLSMode enum.
-func TestDatabaseUnmarshalTLSModes(t *testing.T) {
-	const databaseYAML = `---
-kind: db
-version: v3
-metadata:
-  name: test-database
-  description: "Test description"
-  labels:
-    env: dev
-spec:
-  protocol: "postgres"
-  uri: "localhost:5432"
-  tls:
-    mode: %v
-  ca_cert: |-
-%v`
-
+// TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
+func TestDatabaseUnmarshal(t *testing.T) {
 	t.Parallel()
 	tlsModes := map[string]types.DatabaseTLSMode{
 		"":            types.DatabaseTLSMode_VERIFY_FULL,
@@ -76,14 +60,14 @@ spec:
 			caCert := indent(fixtures.TLSCACertPEM, 4)
 
 			// verify it works with string tls mode.
-			data, err := utils.ToJSON(fmt.Appendf(nil, databaseYAML, tlsModeName, caCert))
+			data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, tlsModeName, caCert)))
 			require.NoError(t, err)
 			actual, err := UnmarshalDatabase(data)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 
 			// verify it works with integer tls mode.
-			data, err = utils.ToJSON(fmt.Appendf(nil, databaseYAML, int32(tlsModeValue), caCert))
+			data, err = utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, int32(tlsModeValue), caCert)))
 			require.NoError(t, err)
 			actual, err = UnmarshalDatabase(data)
 			require.NoError(t, err)
@@ -508,14 +492,6 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
-			inputName: "valid-alloy-db",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
-			},
-			expectError: false,
-		},
 	}
 
 	for _, test := range tests {
@@ -567,3 +543,19 @@ func indent(s string, spaces int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+var databaseYAML = `---
+kind: db
+version: v3
+metadata:
+  name: test-database
+  description: "Test description"
+  labels:
+    env: dev
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+  tls:
+    mode: %v
+  ca_cert: |-
+%v`

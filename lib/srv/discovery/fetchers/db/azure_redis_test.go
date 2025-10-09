@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/stretchr/testify/require"
@@ -39,7 +39,7 @@ import (
 func TestAzureRedisFetchers(t *testing.T) {
 	t.Parallel()
 
-	azureSub := makeAzureSubscription("sub")
+	azureSub := makeAzureSubscription(t, "sub")
 
 	// Note that the Azure Redis APIs may return location in their display
 	// names (eg. "East US"). The Azure fetcher should normalize location names

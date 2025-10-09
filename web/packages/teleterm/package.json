@@ -14,7 +14,7 @@
     "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
     "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
-    "generate-grpc-shared": "buf generate"
+    "generate-grpc-shared": "npx -y --target_arch=x64 --package=@protobuf-ts/plugin@2.9.3 -- protoc -I=src/sharedProcess/api/proto --ts_opt long_type_number,eslint_disable,add_pb_suffix,client_grpc1,server_grpc1,ts_nocheck --ts_out=src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
   },
   "repository": {
     "type": "git",
@@ -24,36 +24,36 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
-    "@grpc/grpc-js": "1.14.0",
+    "@grpc/grpc-js": "1.11.3",
     "@types/which": "^3.0.4",
     "node-forge": "^1.3.1",
     "node-pty": "1.1.0-beta34",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
-    "strip-ansi": "^7.1.2",
+    "strip-ansi": "^7.1.0",
     "tar-fs": "^3.1.1",
-    "which": "^5.0.0",
-    "winston": "^3.17.0"
+    "which": "^4.0.0",
+    "winston": "^3.14.2"
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
-    "@protobuf-ts/grpc-transport": "^2.11.1",
-    "@types/node-forge": "^1.3.14",
+    "@protobuf-ts/grpc-transport": "^2.9.4",
+    "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
-    "@types/whatwg-url": "^13.0.0",
+    "@types/whatwg-url": "^11.0.5",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "electron": "37.4.0",
     "electron-builder": "^26.0.12",
     "electron-updater": "^6.6.8",
-    "electron-vite": "^4.0.1",
+    "electron-vite": "^4.0.0",
     "events": "3.3.0",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
-    "whatwg-url": "^14.2.0",
-    "zod": "^4.1.11"
+    "whatwg-url": "^14.0.0",
+    "zod": "^4.1.5"
   },
   "productName": "Teleport Connect"
 }

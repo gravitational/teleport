@@ -78,7 +78,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
 
 		// Log the error to warn admins 🚩
-		h.logger.ErrorContext(r.Context(), errMsg)
+		h.log.Error(errMsg)
 
 		// Immediately return an error since this is a critical misconfiguration 🛑
 		return trace.BadParameter(errMsg)
@@ -98,7 +98,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 				"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
 
 			// Log the error to warn admins 🚩
-			h.logger.ErrorContext(r.Context(), errMsg, "launcher_params", p)
+			h.log.WithField("launcher_params", p).Error(errMsg)
 
 			// Immediately return an error since this is a critical misconfiguration 🛑
 			return trace.BadParameter(errMsg)

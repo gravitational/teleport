@@ -233,7 +233,7 @@ func TestListCrownJewel(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -257,7 +257,7 @@ func TestListCrownJewel(t *testing.T) {
 					}
 				}
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -297,7 +297,7 @@ func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 }
 
 func prepopulate(t *testing.T, service services.CrownJewels, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateCrownJewel(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}

@@ -36,15 +36,15 @@ import Dialog, {
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import {
-  TraitsEditor,
-  TraitsOption,
-} from 'shared/components/TraitsEditor/TraitsEditor';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { editBotMutationFunction, fetchRoles } from 'teleport/services/bot/bot';
+import { editBot, fetchRoles } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
+import {
+  TraitsEditor,
+  TraitsOption,
+} from 'teleport/Users/UserAddEdit/TraitsEditor';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
@@ -82,7 +82,7 @@ export function EditDialog(props: {
     error: saveError,
     isPending: isSubmitting,
   } = useMutation({
-    mutationFn: editBotMutationFunction,
+    mutationFn: editBot,
     onSuccess: newData => {
       const key = createGetBotQueryKey({ botName: newData.name });
       queryClient.setQueryData(key, newData);

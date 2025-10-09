@@ -24,8 +24,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"maps"
-	"slices"
 	"time"
 
 	corev3pb "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -35,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -418,7 +417,7 @@ func (h *Handler) generateResponse(
 		// Now we need to filter the SVIDs down to those requested by the
 		// client.
 		// There's a special case here, if they've requested the default SVID,
-		// we want to ensure that the first SVID is returned and its name
+		// we want to ensure that the first SVID is returned and it's name
 		// overrridden.
 
 		switch {
@@ -471,7 +470,7 @@ func (h *Handler) generateResponse(
 	case names[EnvoyAllBundlesName]:
 		// Return all the trust bundles as part of a single validation context.
 		// We'll also override the name to match what they requested.
-		bundles := slices.Collect(maps.Values(bundleSet.Federated))
+		bundles := maps.Values(bundleSet.Federated)
 		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
 			bundles, EnvoyAllBundlesName,
@@ -497,7 +496,7 @@ func (h *Handler) generateResponse(
 		}
 	} else {
 		// For any remaining names, see if they match any federated trust bundles.
-		for name := range maps.Keys(names) {
+		for _, name := range maps.Keys(names) {
 			var found *spiffebundle.Bundle
 			for _, bundle := range bundleSet.Federated {
 				if name == bundle.TrustDomain().IDString() {
@@ -523,7 +522,7 @@ func (h *Handler) generateResponse(
 	// If any names are left-over, we've not been able to service them so
 	// we should return an explicit error rather than omitting data.
 	if len(names) > 0 {
-		return nil, trace.BadParameter("unknown resource names: %v", slices.Collect(maps.Keys(names)))
+		return nil, trace.BadParameter("unknown resource names: %v", maps.Keys(names))
 	}
 
 	return &discoveryv3pb.DiscoveryResponse{

@@ -78,7 +78,7 @@ The above methods for installing Teleport on a Linux server do not generate a Te
 
 See the following guides for help setting up a configuration file:
 
-- [Teleport Configuration Reference](../reference/deployment/config.mdx): This will provide you with the command you need to generate and populate the `/etc/config.yaml` file as well as further configuration options for your cluster.
+- [Teleport Configuration Reference](../reference/config.mdx): This will provide you with the command you need to generate and populate the `/etc/config.yaml` file as well as further configuration options for your cluster.
 - [Self-Hosted Demo Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are deploying the Teleport Auth Service and Proxy Service, read this guide for an example of a configuration file.
 
 ## Installing Teleport as an agent
@@ -96,9 +96,7 @@ Outside of the WebUI, you can run our one-line cluster install script on your Li
    $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
    ```
 
-You can also use the example Terraform module for deploying agents in [Deploy
-Agents with
-Terraform](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started.mdx).
+You can also use the example Terraform module for deploying agents in [Deploy Agents with Terraform](../zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources.mdx).
 
 ### Agent configuration
 
@@ -113,7 +111,7 @@ See the following guides for examples of setting up a configuration file:
   Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx): If you are
   deploying the Teleport Auth Service and Proxy Service, read this guide for an
   example of a configuration file.
-- [Teleport Configuration Reference](../reference/deployment/config.mdx): A guide to all
+- [Teleport Configuration Reference](../reference/config.mdx): A guide to all
   configuration fields.
 
 ## Other Install Methods

@@ -25,12 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
-	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
-	"github.com/aws/aws-sdk-go-v2/service/memorydb"
-	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -68,8 +66,6 @@ func TestAuthTokens(t *testing.T) {
 		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
 		withElastiCacheRedis("redis-elasticache-correct-token", elastiCacheRedisToken, "7.0.0"),
 		withElastiCacheRedis("redis-elasticache-incorrect-token", "qwe123", "7.0.0"),
-		withElastiCacheServerlessRedis("redis-elasticache-serverless-correct-token", elastiCacheServerlessRedisToken, "8.0.0"),
-		withElastiCacheServerlessRedis("redis-elasticache-serverless-incorrect-token", "qwe123", "8.0.0"),
 		withMemoryDBRedis("redis-memorydb-correct-token", memorydbToken, "7.0"),
 		withMemoryDBRedis("redis-memorydb-incorrect-token", "qwe123", "7.0"),
 		withSpanner("spanner-correct-token", cloudSpannerAuthToken),
@@ -79,37 +75,22 @@ func TestAuthTokens(t *testing.T) {
 	for _, withDB := range withDBs {
 		databases = append(databases, withDB(t, ctx, testCtx))
 	}
-	ecMock := &mocks.ElastiCacheClient{}
-	elastiCacheIAMUser := ectypes.User{
+	ecMock := &mocks.ElastiCacheMock{}
+	elastiCacheIAMUser := &elasticache.User{
 		UserId:         aws.String("default"),
-		Authentication: &ectypes.Authentication{Type: ectypes.AuthenticationTypeIam},
+		Authentication: &elasticache.Authentication{Type: aws.String("iam")},
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
-
-	memorydbMock := &mocks.MemoryDBClient{}
-	memorydbIAMUser := memorydbtypes.User{
+	memorydbMock := &mocks.MemoryDBMock{}
+	memorydbIAMUser := &memorydb.User{
 		Name:           aws.String("default"),
-		Authentication: &memorydbtypes.Authentication{Type: memorydbtypes.AuthenticationTypeIam},
+		Authentication: &memorydb.Authentication{Type: aws.String("iam")},
 	}
 	memorydbMock.AddMockUser(memorydbIAMUser, nil)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases: databases,
-		GetEngineFn: func(db types.Database, conf common.EngineConfig) (common.Engine, error) {
-			if db.GetProtocol() != defaults.ProtocolRedis {
-				return common.GetEngine(db, conf)
-			}
-			if err := conf.CheckAndSetDefaults(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			conf.AWSConfigProvider = &mocks.AWSConfigProvider{}
-			return &redis.Engine{
-				EngineConfig: conf,
-				AWSClients: fakeRedisAWSClients{
-					ecClient:  ecMock,
-					mdbClient: memorydbMock,
-				},
-			}, nil
-		},
+		Databases:   databases,
+		ElastiCache: ecMock,
+		MemoryDB:    memorydbMock,
 	})
 	go testCtx.startHandlingConnections()
 
@@ -197,18 +178,6 @@ func TestAuthTokens(t *testing.T) {
 		{
 			desc:     "incorrect ElastiCache Redis auth token",
 			service:  "redis-elasticache-incorrect-token",
-			protocol: defaults.ProtocolRedis,
-			// Make sure we print a user-friendly IAM auth error.
-			err: "Make sure that IAM auth is enabled",
-		},
-		{
-			desc:     "correct ElastiCache Serverless redis auth token",
-			service:  "redis-elasticache-serverless-correct-token",
-			protocol: defaults.ProtocolRedis,
-		},
-		{
-			desc:     "incorrect ElastiCache Redis auth token",
-			service:  "redis-elasticache-serverless-incorrect-token",
 			protocol: defaults.ProtocolRedis,
 			// Make sure we print a user-friendly IAM auth error.
 			err: "Make sure that IAM auth is enabled",
@@ -333,8 +302,6 @@ const (
 	azureRedisToken = "azure-redis-token"
 	// elastiCacheRedisToken is a mock ElastiCache Redis token.
 	elastiCacheRedisToken = "elasticache-redis-token"
-	// elastiCacheServerlessRedisToken is a mock ElastiCache Serverless redis token.
-	elastiCacheServerlessRedisToken = "elasticache-serverless-redis-token"
 	// memorydbToken is a mock MemoryDB auth token.
 	memorydbToken = "memorydb-token"
 	// atlasAuthUser is a mock Mongo Atlas IAM auth user.
@@ -382,12 +349,7 @@ func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, database 
 }
 
 func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	if database.IsElastiCache() {
-		return elastiCacheRedisToken, nil
-	} else if database.IsElastiCacheServerless() {
-		return elastiCacheServerlessRedisToken, nil
-	}
-	return "", trace.BadParameter("database is not an elasticache database %+v", database)
+	return elastiCacheRedisToken, nil
 }
 
 func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
@@ -397,10 +359,6 @@ func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database
 func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error) {
 	a.InfoContext(ctx, "Generating Cloud SQL auth token", "database_user", databaseUser)
 	return cloudSQLAuthToken, nil
-}
-
-func (a *testAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error) {
-	return "", trace.NotImplemented("GetAlloyDBAuthToken is not implemented")
 }
 
 func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
@@ -453,7 +411,8 @@ func (a *testAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.Private
 	return key, trace.Wrap(err)
 }
 
-func (a *testAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
+func (a *testAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
+	// TODO(greedy52) update WithLogger to use slog.
 	return &testAuth{
 		realAuth: a.realAuth,
 		Logger:   a.Logger,
@@ -510,17 +469,4 @@ func TestMongoDBAtlas(t *testing.T) {
 			}
 		})
 	}
-}
-
-type fakeRedisAWSClients struct {
-	mdbClient redis.MemoryDBClient
-	ecClient  redis.ElastiCacheClient
-}
-
-func (f fakeRedisAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) redis.ElastiCacheClient {
-	return f.ecClient
-}
-
-func (f fakeRedisAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) redis.MemoryDBClient {
-	return f.mdbClient
 }

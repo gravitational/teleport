@@ -38,10 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -87,7 +84,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	step := w.MaxRetryPeriod / 5.0
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for watcher to reload
 		select {
 		case duration := <-w.ResetC:
@@ -244,7 +241,7 @@ func TestLockWatcher(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	// Subscribe to lock watcher updates.
-	target := types.LockTarget{ServerID: "node"}
+	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	sub, err := w.Subscribe(ctx, target)
 	require.NoError(t, err)
@@ -354,7 +351,7 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 	}
 
 	// Subscribe to lock watcher updates with an empty target.
-	target := types.LockTarget{ServerID: "node"}
+	target := types.LockTarget{Node: "node"}
 	sub, err := w.Subscribe(ctx, target, types.LockTarget{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sub.Close()) })
@@ -432,7 +429,7 @@ func TestLockWatcherStale(t *testing.T) {
 	}
 
 	// Subscribe to lock watcher updates.
-	target := types.LockTarget{ServerID: "node"}
+	target := types.LockTarget{Node: "node"}
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
 	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
 	sub, err := w.Subscribe(ctx, target)
@@ -581,9 +578,9 @@ func TestDatabaseWatcher(t *testing.T) {
 	case changeset := <-w.ResourcesC:
 		require.Empty(t, changeset)
 	case <-w.Done():
-		require.FailNow(t, "Watcher has unexpectedly exited.")
+		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
-		require.FailNow(t, "Timeout waiting for the first event.")
+		t.Fatal("Timeout waiting for the first event.")
 	}
 
 	// Add a database.
@@ -926,7 +923,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 
 	// Add some servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -978,7 +975,7 @@ func TestNodeWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -987,8 +984,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(nodes))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetUseTunnel() })
@@ -999,8 +996,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(nodes)-1)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetName() == nodes[0].GetName() })
@@ -1064,7 +1061,7 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	// Add some kube servers.
 	kubeServers := make([]types.KubeServer, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		kubeServer := newKubeServer(t, fmt.Sprintf("kube_cluster-%d", i), "addr", fmt.Sprintf("host-%d", i))
 		_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 		require.NoError(t, err)
@@ -1073,8 +1070,8 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, filtered, len(kubeServers))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(kubeServers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
@@ -1088,8 +1085,8 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, kube, len(kubeServers)-1)
+		assert.NoError(t, err)
+		assert.Len(t, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
 	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1106,8 +1103,8 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Len(t, filtered, 2)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, 2)
 	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
@@ -1122,15 +1119,15 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
@@ -1430,7 +1427,7 @@ func TestGitServerWatcher(t *testing.T) {
 
 	// Add some git servers.
 	servers := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		server := newGitServer(t, fmt.Sprintf("org%v", i+1))
 		_, err = gitServerService.CreateGitServer(ctx, server)
 		require.NoError(t, err)
@@ -1439,8 +1436,8 @@ func TestGitServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(servers))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1456,8 +1453,8 @@ func TestGitServerWatcher(t *testing.T) {
 	require.NoError(t, gitServerService.DeleteGitServer(ctx, servers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(servers)-1)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1468,89 +1465,4 @@ func TestGitServerWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, filtered)
-}
-
-func TestHealthCheckConfigWatcher(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	localSvc, err := local.NewHealthCheckConfigService(bk)
-	require.NoError(t, err)
-	w, err := services.NewHealthCheckConfigWatcher(ctx, services.HealthCheckConfigWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:      "test",
-			MaxRetryPeriod: 200 * time.Millisecond,
-			Client:         local.NewEventsService(bk),
-			MaxStaleness:   time.Minute,
-		},
-		Reader:     localSvc,
-		ResourcesC: make(chan []*healthcheckconfigv1.HealthCheckConfig, 10),
-	})
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-	require.NoError(t, w.WaitInitialization())
-
-	select {
-	case resources := <-w.ResourcesC:
-		require.Empty(t, resources)
-	case <-w.Done():
-		require.FailNow(t, "Watcher has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-		require.FailNow(t, "Timeout waiting for the first event.")
-	}
-
-	// Add some resources.
-	resources := make([]*healthcheckconfigv1.HealthCheckConfig, 0, 5)
-	for i := range 5 {
-		r := newHealthCheckConfig(t, fmt.Sprintf("cfg%v", i))
-		_, err = localSvc.CreateHealthCheckConfig(ctx, r)
-		require.NoError(t, err)
-		resources = append(resources, r)
-	}
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(resources))
-	}, time.Second, 100*time.Millisecond, "Timeout waiting for watcher to receive resources.")
-
-	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s *healthcheckconfigv1.HealthCheckConfig) bool {
-		name := s.GetMetadata().GetName()
-		return name == "cfg0" || name == "cfg1"
-	})
-	require.NoError(t, err)
-	require.Len(t, filtered, 2)
-
-	// Delete a resource.
-	require.NoError(t, localSvc.DeleteHealthCheckConfig(ctx, resources[0].GetMetadata().GetName()))
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(resources)-1)
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive resources.")
-
-	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s *healthcheckconfigv1.HealthCheckConfig) bool {
-		return s.GetMetadata().GetName() == "cfg0"
-	})
-	require.NoError(t, err)
-	require.Empty(t, filtered)
-}
-
-func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
-	t.Helper()
-	c, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
-					Name:   types.Wildcard,
-					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	)
-	require.NoError(t, err)
-	return c
 }

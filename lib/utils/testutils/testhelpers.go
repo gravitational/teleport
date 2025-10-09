@@ -112,7 +112,7 @@ func generateUsername(tb testing.TB) string {
 // already exists (but it does not create the user).
 func GenerateLocalUsername(tb testing.TB) string {
 	const maxAttempts = 10
-	for range maxAttempts {
+	for i := 0; i < maxAttempts; i++ {
 		login := generateUsername(tb)
 		_, err := user.Lookup(login)
 		if errors.Is(err, user.UnknownUserError(login)) {

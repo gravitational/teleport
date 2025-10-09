@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
-	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 const (
@@ -68,7 +67,7 @@ type awsICInstallArgs struct {
 }
 
 func (a *awsICInstallArgs) validate(ctx context.Context, log *slog.Logger) error {
-	if !awsregion.IsKnownRegion(a.region) {
+	if !awsutils.IsKnownRegion(a.region) {
 		return trace.BadParameter("unknown AWS region: %s", a.region)
 	}
 

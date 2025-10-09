@@ -4,8 +4,6 @@ description: How to connect AWS databases in external AWS accounts to Teleport.
 tags:
  - conceptual
  - zero-trust
- - infrastructure-identity
- - aws
 ---
 
 You can deploy the Teleport Database Service with AWS IAM credentials in one
@@ -65,7 +63,7 @@ Modify your Teleport Database Service configuration file to assume an external
 AWS IAM role when it is discovering AWS databases.
 
 ```yaml
-# This example configuration will discover Amazon RDS databases in us-west-1
+# This example configuration will discover AWS RDS databases in us-west-1
 # within AWS account `222222222222` by assuming the external AWS IAM role
 # "example-role".
 db_service:

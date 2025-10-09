@@ -3,10 +3,8 @@ title: Teleport Authentication with OneLogin as an SSO Provider
 description: How to configure Teleport access using OneLogin as an SSO provider
 h1: Teleport Authentication with OneLogin
 tags:
- - sso
  - how-to
  - zero-trust
- - privileged-access
 ---
 
 import SquareIcon from "@version/docs/img/sso/onelogin/teleport.png"
@@ -52,16 +50,13 @@ to define policies like:
    - <a href={SquareIcon} download>Square Icon</a>
    - <a href={RectangleIcon} download>Rectangular Icon</a>
 
-1. From the application's **Configuration** page, set the following values. Set
-   <Var name="teleport.example.com:443" description="Your Teleport Proxy Service
-   address and port, or cloud tenant." /> here with your Teleport Proxy Service
-   address and port, or Teleport Enterprise Cloud tenant (e.g.
-   `company.teleport.sh:443`) to fill out the values below.
+1. From the application's **Configuration** page, set the following values:
 
-   If you have a self-hosted cluster with multiple public addresses for the
-   Teleport Proxy Service (the value of `proxy_service.public_addr` in the
-   Teleport configuration file), ensure that this address points to the first
-   one listed.
+   <Admonition type="tip">
+   Set <Var name="teleport.example.com:443" description="Your Teleport Proxy Service address and port, or cloud tenant." />
+   here with your Teleport Proxy Service address and port, or Teleport Enterprise
+   Cloud tenant (e.g. `company.teleport.sh:443`) to fill out the values below.
+   </Admonition>
    
    - **Login URL**:
      - `https://`<Var name="teleport.example.com:443"/>`/web/login`

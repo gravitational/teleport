@@ -24,9 +24,9 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 >
   Easy access to all your infrastructure, on a foundation of cryptographic identity and zero trust.
 
-  [Authentication and session joining](./authentication/authentication.mdx)
+  [Authentication and session joining](./access-controls/guides/joining-sessions.mdx)
 
-  [Get started with role-based access control (RBAC)](./rbac-get-started/rbac-get-started.mdx)
+  [Get started with role-based access control (RBAC)](./access-controls/access-controls.mdx)
 
   [Export audit events to a SIEM tool](./export-audit-events/export-audit-events.mdx)
 
@@ -53,7 +53,7 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
         },
         {
           name: "Entra ID",
-          href: "./sso/entra-id-oidc/",
+          href: "./sso/entra-id/",
           icon: "entraId",
         },
        {
@@ -177,19 +177,14 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
       href: "../enroll-resources/application-access/guides/vnet/",
     },
     {
-      title: "Secure MCP",
-      description: "Secure MCP integration with a granular audit trail",
-      href: "../connect-your-client/model-context-protocol/",
-    },  
-    {
       title: "Role-Based Access Control (RBAC)",
       description: "Govern infrastructure access with granular permissions",
-      href: "./rbac-get-started/",
+      href: "./access-controls/",
     },
     {
       title: "Passwordless authentication",
       description: "Log in securely using biometrics",
-      href: "./authentication/passwordless/",
+      href: "./access-controls/guides/passwordless/",
     },
     {
       title: "Integrate with SSO providers",
@@ -204,7 +199,7 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
     {
       title: "Identity-based audit events",
       description: "Detailed audit logs for every user action",
-      href: "../reference/deployment/monitoring/audit/",
+      href: "../reference/monitoring/audit/",
     },  
     {
       title: "Session recording and playback",
@@ -214,7 +209,7 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
     {
       title: "Session sharing and moderation",
       description: "Require a moderator for privileged sessions",
-      href: "./authentication/joining-sessions/",
+      href: "./access-controls/guides/joining-sessions",
     },
     {
       title: "Dual authorization capabilities",
@@ -274,12 +269,6 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
       iconComponent: cloudProvidersSvg,
       href: '../enroll-resources/application-access/cloud-apis/'
     },
-    {
-      title: 'MCP and AI agents',
-      description: 'Secure agentic AI connections to databases and MCP servers',
-      iconComponent: mcpAndAiSvg,
-      href: '../enroll-resources/mcp-access/'
-    }
   ]}
 />
 {/* vale messaging.protocol-products = YES */}

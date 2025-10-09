@@ -297,7 +297,7 @@ describe('EditDialog', () => {
 
     expect(
       screen.getByText(
-        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
+        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v17.6.1) to support this request. Ensure all proxies are upgraded and try again.'
       )
     ).toBeInTheDocument();
   });

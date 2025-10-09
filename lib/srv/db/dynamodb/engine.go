@@ -21,7 +21,6 @@ package dynamodb
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -31,27 +30,23 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/dax"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/service/dax"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
 )
 
 // NewEngine create new DynamoDB engine.
@@ -59,7 +54,6 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig:  ec,
 		RoundTrippers: make(map[string]http.RoundTripper),
-		UseFIPS:       dynamodbutils.IsFIPSEnabled(),
 	}
 }
 
@@ -75,8 +69,8 @@ type Engine struct {
 	// RoundTrippers is a cache of RoundTrippers, mapped by service endpoint.
 	// It is not guarded by a mutex, since requests are processed serially.
 	RoundTrippers map[string]http.RoundTripper
-	// UseFIPS will ensure FIPS endpoint resolution.
-	UseFIPS bool
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter libaws.CredentialsGetter
 }
 
 var _ common.Engine = (*Engine)(nil)
@@ -143,6 +137,23 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
+	meta := e.sessionCtx.Database.GetAWS()
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithAssumeRoleFromAWSMeta(meta),
+		cloud.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
+		Clock:             e.Clock,
+		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
+		CredentialsGetter: e.CredentialsGetter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	clientConnReader := bufio.NewReader(e.clientConn)
 
 	observe()
@@ -156,7 +167,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req, msgFromClient, msgFromServer); err != nil {
+		if err := e.process(ctx, req, signer, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -164,7 +175,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) (err error) {
 	msgFromClient.Inc()
 
 	if req.Body != nil {
@@ -183,7 +194,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, msgFromClient p
 	// emit an audit event regardless of failure, but using the resolved endpoint.
 	var responseStatusCode uint32
 	defer func() {
-		e.emitAuditEvent(req, re.URL.String(), responseStatusCode, err)
+		e.emitAuditEvent(req, re.URL, responseStatusCode, err)
 	}()
 
 	// try to read, close, and replace the incoming request body.
@@ -207,32 +218,18 @@ func (e *Engine) process(ctx context.Context, req *http.Request, msgFromClient p
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	ar := awsconfig.AssumeRole{
-		RoleARN:     roleArn,
-		SessionName: e.sessionCtx.Identity.Username,
-		Tags:        meta.SessionTags,
-	}
-	if meta.AssumeRoleARN == "" {
-		ar.ExternalID = meta.ExternalID
-	}
-	awsCfg, err := e.AWSConfigProvider.GetConfig(ctx, meta.Region,
-		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
-		awsconfig.WithDetailedAssumeRole(ar),
-		awsconfig.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	signingCtx := &libaws.SigningCtx{
-		Clock:         e.Clock,
-		Credentials:   awsCfg.Credentials,
 		SigningName:   re.SigningName,
 		SigningRegion: re.SigningRegion,
+		Expiry:        e.sessionCtx.Identity.Expires,
+		SessionName:   e.sessionCtx.Identity.Username,
+		AWSRoleArn:    roleArn,
+		SessionTags:   e.sessionCtx.Database.GetAWS().SessionTags,
 	}
-
-	signedReq, err := libaws.SignRequest(e.Context, outReq, signingCtx)
+	if meta.AssumeRoleARN == "" {
+		signingCtx.AWSExternalID = meta.ExternalID
+	}
+	signedReq, err := signer.SignRequest(e.Context, outReq, signingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -322,8 +319,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 }
 
 // getRoundTripper makes an HTTP round tripper with TLS config based on the given URL.
-func (e *Engine) getRoundTripper(ctx context.Context, u *url.URL) (http.RoundTripper, error) {
-	if rt, ok := e.RoundTrippers[u.String()]; ok {
+func (e *Engine) getRoundTripper(ctx context.Context, URL string) (http.RoundTripper, error) {
+	if rt, ok := e.RoundTrippers[URL]; ok {
 		return rt, nil
 	}
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
@@ -332,149 +329,55 @@ func (e *Engine) getRoundTripper(ctx context.Context, u *url.URL) (http.RoundTri
 	}
 	// We need to set the ServerName here because the AWS endpoint service prefix is not known in advance,
 	// and the TLS config we got does not set it.
-	tlsConfig.ServerName = u.Hostname()
+	host, err := getURLHostname(URL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.ServerName = host
 
 	out, err := defaults.Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	out.TLSClientConfig = tlsConfig
-	e.RoundTrippers[u.String()] = out
+	e.RoundTrippers[URL] = out
 	return out, nil
 }
 
-type endpoint struct {
-	URL           *url.URL
-	SigningName   string
-	SigningRegion string
-}
-
-// resolveEndpoint returns a resolved endpoint for either the configured URI or
-// the AWS target service and region.
-// For a target operation, the appropriate AWS service resolver is used.
-// Targets look like one of DynamoDB_$version.$operation,
-// DynamoDBStreams_$version.$operation, or AmazonDAX$version.$operation.
-// For example: DynamoDBStreams_20120810.ListStreams
-func (e *Engine) resolveEndpoint(req *http.Request) (*endpoint, error) {
-	target, err := getTargetHeader(req)
+// resolveEndpoint returns a resolved endpoint for either the configured URI or the AWS target service and region.
+func (e *Engine) resolveEndpoint(req *http.Request) (*endpoints.ResolvedEndpoint, error) {
+	endpointID, err := extractEndpointID(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	awsMeta := e.sessionCtx.Database.GetAWS()
-
-	var re *endpoint
-	switch target := strings.ToLower(target); {
-	case strings.HasPrefix(target, "dynamodbstreams"):
-		re, err = resolveDynamoDBStreamsEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
-	case strings.HasPrefix(target, "dynamodb"):
-		re, err = resolveDynamoDBEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
-	case strings.HasPrefix(target, "amazondax"):
-		// TODO(gavin): drop DAX API support - it is a deployment API.
-		re, err = resolveDaxEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
-	default:
-		return nil, trace.BadParameter("DynamoDB API target %q is not recognized", target)
+	opts := func(opts *endpoints.Options) {
+		opts.ResolveUnknownService = true
 	}
+	re, err := endpoints.DefaultResolver().EndpointFor(endpointID, e.sessionCtx.Database.GetAWS().Region, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(gavin): drop support for custom URIs - custom URI adds complexity,
-	// but doesn't add any value since the signing name and region of the
-	// request must match.
-	if err := rewriteURL(re, e.sessionCtx.Database, awsMeta.Region); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return re, nil
-}
-
-func rewriteURL(re *endpoint, db types.Database, region string) error {
-	uri := db.GetURI()
-	if uri != "" && uri != apiaws.DynamoDBURIForRegion(region) {
-		// Add a temporary schema to make a valid URL for url.Parse.
-		if !strings.Contains(uri, "://") {
-			uri = "schema://" + uri
-		}
-		u, err := url.Parse(uri)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	uri := e.sessionCtx.Database.GetURI()
+	if uri != "" && uri != apiaws.DynamoDBURIForRegion(e.sessionCtx.Database.GetAWS().Region) {
 		// override the resolved endpoint URL with the user-configured URI.
-		re.URL = u
+		re.URL = uri
 	}
-	// Force HTTPS
-	re.URL.Scheme = "https"
-	return nil
-}
-
-type resolverFn func(ctx context.Context, region, accountID string, useFIPS bool) (*endpoint, error)
-
-func resolveDynamoDBStreamsEndpoint(ctx context.Context, region, _ string, useFIPS bool) (*endpoint, error) {
-	params := dynamodbstreams.EndpointParameters{
-		Region:  aws.String(region),
-		UseFIPS: aws.Bool(useFIPS),
+	if !strings.Contains(re.URL, "://") {
+		re.URL = "https://" + re.URL
 	}
-	ep, err := dynamodbstreams.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &endpoint{
-		URL:           &ep.URI,
-		SigningRegion: region,
-		// DynamoDB Streams uses the same signing name as DynamoDB.
-		SigningName: "dynamodb",
-	}, nil
-}
-
-func resolveDynamoDBEndpoint(ctx context.Context, region, accountID string, useFIPS bool) (*endpoint, error) {
-	params := dynamodb.EndpointParameters{
-		Region: aws.String(region),
-		// Preferred means if we have an account ID available, then use an
-		// account ID based endpoint.
-		// We should always have the account ID available anyway.
-		// If we didn't then it would just resolve the regional endpoint like
-		// dynamodb.<region>.amazonaws.com.
-		// AWS documents that account-based routing provides better request
-		// performance for some services.
-		// See: https://docs.aws.amazon.com/sdkref/latest/guide/feature-account-endpoints.html
-		AccountIdEndpointMode: aws.String(aws.AccountIDEndpointModePreferred),
-		UseFIPS:               aws.Bool(useFIPS),
-	}
-	if accountID != "" {
-		params.AccountId = aws.String(accountID)
-	}
-	ep, err := dynamodb.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &endpoint{
-		URL:           &ep.URI,
-		SigningRegion: region,
-		SigningName:   "dynamodb",
-	}, nil
-}
-
-func resolveDaxEndpoint(ctx context.Context, region, _ string, useFIPS bool) (*endpoint, error) {
-	params := dax.EndpointParameters{
-		Region:  aws.String(region),
-		UseFIPS: aws.Bool(useFIPS),
-	}
-	ep, err := dax.NewDefaultEndpointResolverV2().ResolveEndpoint(ctx, params)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &endpoint{
-		URL:           &ep.URI,
-		SigningRegion: region,
-		SigningName:   "dax",
-	}, nil
+	return &re, nil
 }
 
 // rewriteRequest clones a request, modifies the clone to rewrite its URL, and returns the modified request clone.
-func rewriteRequest(ctx context.Context, r *http.Request, re *endpoint, body []byte) (*http.Request, error) {
+func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint, body []byte) (*http.Request, error) {
+	resolvedURL, err := url.Parse(re.URL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	reqCopy := r.Clone(ctx)
 	// set url and host header to match the resolved endpoint.
-	reqCopy.URL = re.URL
-	reqCopy.Host = re.URL.Host
+	reqCopy.URL = resolvedURL
+	reqCopy.Host = resolvedURL.Host
 	if body == nil {
 		// no body is fine, skip copying it.
 		return reqCopy, nil
@@ -485,50 +388,42 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoint, body []b
 	return reqCopy, nil
 }
 
-// getTargetHeader gets the X-Amz-Target header or returns an error if it is not
-// present, as we rely on this header for endpoint resolution.
-// See X-Amz-Target: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html
-func getTargetHeader(req *http.Request) (string, error) {
+// extractEndpointID extracts the AWS endpoint ID from the request header X-Amz-Target.
+func extractEndpointID(req *http.Request) (string, error) {
 	target := req.Header.Get(libaws.AmzTargetHeader)
 	if target == "" {
 		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
 	}
-	return target, nil
+	endpointID, err := endpointIDForTarget(target)
+	return endpointID, trace.Wrap(err)
 }
 
-// NewEndpointsResolver resolves endpoints from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	aws := db.GetAWS()
-	fips := dynamodbutils.IsFIPSEnabled()
-	resolverFns := []resolverFn{
-		resolveDynamoDBEndpoint,
-		resolveDynamoDBStreamsEndpoint,
+// endpointIDForTarget converts a target operation into the appropriate the AWS endpoint ID.
+// Target looks like one of DynamoDB_$version.$operation, DynamoDBStreams_$version.$operation, AmazonDAX$version.$operation,
+// for example: DynamoDBStreams_20120810.ListStreams
+// See X-Amz-Target: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html
+func endpointIDForTarget(target string) (string, error) {
+	t := strings.ToLower(target)
+	switch {
+	case strings.HasPrefix(t, "dynamodbstreams"):
+		return dynamodbstreams.EndpointsID, nil
+	case strings.HasPrefix(t, "dynamodb"):
+		return dynamodb.EndpointsID, nil
+	case strings.HasPrefix(t, "amazondax"):
+		return dax.EndpointsID, nil
+	default:
+		return "", trace.BadParameter("DynamoDB API target %q is not recognized", target)
 	}
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-		addrs := make([]string, 0, len(resolverFns))
-		for _, resolve := range resolverFns {
-			re, err := resolve(ctx, aws.Region, aws.AccountID, fips)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// Not all of our DB engines respect http proxy env vars, but this one does.
-			// The endpoint resolved for TCP health checks should be the one that the
-			// agent will actually connect to, since often proxy env vars are set to
-			// accommodate self-imposed network restrictions that force external traffic
-			// to go through a proxy.
-			proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
-			proxyURL, err := proxyFunc(re.URL)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+}
 
-			if proxyURL != nil {
-				re.URL = proxyURL
-			}
-			host := re.URL.Hostname()
-			port := cmp.Or(re.URL.Port(), "443")
-			addrs = append(addrs, net.JoinHostPort(host, port))
-		}
-		return addrs, nil
-	}), nil
+// getURLHostname parses a URL to extract its hostname.
+func getURLHostname(uri string) (string, error) {
+	if !strings.Contains(uri, "://") {
+		uri = "schema://" + uri
+	}
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return parsed.Hostname(), nil
 }

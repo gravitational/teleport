@@ -319,43 +319,18 @@ export const eventCodes = {
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
-  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
-  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
   AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
   AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
   AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
   AUTOUPDATE_VERSION_CREATE: 'AUV001I',
   AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
   AUTOUPDATE_VERSION_DELETE: 'AUV003I',
-  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
-  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
-  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
   AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
   AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
   AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
-  MCP_SESSION_START: 'TMCP001I',
-  MCP_SESSION_END: 'TMCP002I',
-  MCP_SESSION_END_FAILURE: 'TMCP002E',
-  MCP_SESSION_REQUEST: 'TMCP003I',
-  MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
-  MCP_SESSION_NOTIFICATION: 'TMCP004I',
-  MCP_SESSION_NOTIFICATION_FAILURE: 'TMCP004E',
-  MCP_SESSION_LISTEN_SSE_STREAM: 'TMCP005I',
-  MCP_SESSION_LISTEN_SSE_STREAM_FAILURE: 'TMCP005E',
-  MCP_SESSION_INVALID_HTTP_REQUEST: 'TMCP006E',
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
-  SCIM_RESOURCE_CREATE: 'TSCIM001I',
-  SCIM_RESOURCE_CREATE_FAILURE: 'TSCIM001E',
-  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
-  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
-  SCIM_RESOURCE_DELETE: 'TSCIM003I',
-  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
-  SCIM_RESOURCE_GET: 'TSCIM004I',
-  SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
-  SCIM_RESOURCE_LIST: 'TSCIM005I',
-  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
 } as const;
 
 /**
@@ -1886,12 +1861,6 @@ export type RawEvents = {
       };
     }
   >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
-  >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
-  >;
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
     typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
     {
@@ -1928,18 +1897,6 @@ export type RawEvents = {
       user: string;
     }
   >;
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
-    HasName
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
-    HasName
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
-    HasName
-  >;
   [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
     typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
     {
@@ -1959,86 +1916,6 @@ export type RawEvents = {
     {
       user: string;
       groups: string[];
-    }
-  >;
-  [eventCodes.MCP_SESSION_START]: RawEvent<
-    typeof eventCodes.MCP_SESSION_START,
-    {
-      sid: string;
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_END]: RawEvent<
-    typeof eventCodes.MCP_SESSION_END,
-    {
-      sid: string;
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_END_FAILURE]: RawEvent<
-    typeof eventCodes.MCP_SESSION_END_FAILURE,
-    {
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
-    typeof eventCodes.MCP_SESSION_REQUEST,
-    {
-      app_name: string;
-      message: {
-        method: string;
-        params?: {
-          name?: string;
-        };
-      };
-    }
-  >;
-  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
-    typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
-    {
-      app_name: string;
-      message: {
-        method: string;
-        params?: {
-          name?: string;
-        };
-      };
-    }
-  >;
-  [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
-    typeof eventCodes.MCP_SESSION_NOTIFICATION,
-    {
-      app_name: string;
-      message: {
-        method: string;
-      };
-    }
-  >;
-  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: RawEvent<
-    typeof eventCodes.MCP_SESSION_NOTIFICATION_FAILURE,
-    {
-      app_name: string;
-      message: {
-        method: string;
-      };
-    }
-  >;
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: RawEvent<
-    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM,
-    {
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: RawEvent<
-    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE,
-    {
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: RawEvent<
-    typeof eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST,
-    {
-      app_name: string;
     }
   >;
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
@@ -2068,36 +1945,6 @@ export type RawEvents = {
       success: boolean;
       error: string;
     }
-  >;
-  [eventCodes.SCIM_RESOURCE_LIST]: RawSCIMListingEvent<
-    typeof eventCodes.SCIM_RESOURCE_LIST
-  >;
-  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawSCIMListingEvent<
-    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE
-  >;
-  [eventCodes.SCIM_RESOURCE_GET]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_GET
-  >;
-  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE
-  >;
-  [eventCodes.SCIM_RESOURCE_CREATE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_CREATE
-  >;
-  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE
-  >;
-  [eventCodes.SCIM_RESOURCE_UPDATE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_UPDATE
-  >;
-  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
-  >;
-  [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_DELETE
-  >;
-  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
-    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
   >;
 };
 
@@ -2297,42 +2144,6 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
-  }
->;
-
-/**
- * RawEventAwsIcResourceSync extends RawEvent with custom fields
- * present in the AWS Identity Center resource sync event.
- */
-type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
-  T,
-  {
-    total_accounts: number;
-    total_account_assignments: number;
-    total_user_groups: number;
-    total_permission_sets: number;
-    status: boolean;
-    /* message contains user message for both success and failed status */
-    message: string;
-  }
->;
-
-type RawSCIMListingEvent<T extends EventCode> = RawEvent<
-  T,
-  {
-    resource_type: string;
-    integration: string;
-  }
->;
-
-type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
-  T,
-  {
-    resource_type: string;
-    teleport_id: string;
-    external_id: string;
-    integration: string;
-    display: string;
   }
 >;
 

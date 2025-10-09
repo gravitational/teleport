@@ -156,7 +156,7 @@ func (ca *CertAuthorityV2) SetRevision(rev string) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (ca *CertAuthorityV2) WithoutSecrets() Resource {
-	ca2 := ca.Clone()
+	ca2 := ca.Clone().(*CertAuthorityV2)
 	RemoveCASecrets(ca2)
 	return ca2
 }

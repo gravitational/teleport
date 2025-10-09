@@ -50,8 +50,3 @@ func TestIsDBTLSProtocol(t *testing.T) {
 	require.False(t, IsDBTLSProtocol("teleport-tcp"))
 	require.False(t, IsDBTLSProtocol(""))
 }
-
-func TestProtocolToStringsWithPing(t *testing.T) {
-	require.Equal(t, []string{"teleport-proxy-grpc-mtls"}, ProtocolToStringsWithPing(ProtocolProxyGRPCSecure))
-	require.Equal(t, []string{"teleport-mcp-ping", "teleport-mcp"}, ProtocolToStringsWithPing(ProtocolMCP))
-}

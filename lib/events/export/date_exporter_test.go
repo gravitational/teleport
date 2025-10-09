@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -42,17 +41,15 @@ import (
 // without random flake.
 func TestDateExporterBasics(t *testing.T) {
 	t.Parallel()
-	for _, batch := range []bool{false, true} {
-		for _, randomFlake := range []bool{false, true} {
-			t.Run(fmt.Sprintf("randomFlake=%v_batch=%v", randomFlake, batch), func(t *testing.T) {
-				t.Parallel()
-				testDateExporterBasics(t, randomFlake, batch)
-			})
-		}
+	for _, randomFlake := range []bool{false, true} {
+		t.Run(fmt.Sprintf("randomFlake=%v", randomFlake), func(t *testing.T) {
+			t.Parallel()
+			testDateExporterBasics(t, randomFlake)
+		})
 	}
 }
 
-func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
+func testDateExporterBasics(t *testing.T, randomFlake bool) {
 	clt := newFakeClient()
 	clt.setRandomFlake(randomFlake)
 
@@ -60,7 +57,6 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 
 	var exportedMu sync.Mutex
 	var exported []*auditlogpb.ExportEventUnstructured
-	var batchExported []*auditlogpb.EventUnstructured
 
 	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
 		exportedMu.Lock()
@@ -69,23 +65,10 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 		return nil
 	}
 
-	batchExportFn := func(ctx context.Context, events []*auditlogpb.EventUnstructured, resumeState BulkExportResumeState) error {
-		exportedMu.Lock()
-		defer exportedMu.Unlock()
-		batchExported = append(batchExported, events...)
-		return nil
-	}
-
 	getExported := func() []*auditlogpb.ExportEventUnstructured {
 		exportedMu.Lock()
 		defer exportedMu.Unlock()
-		return slices.Clone(exported)
-	}
-
-	getBatchExported := func() []*auditlogpb.EventUnstructured {
-		exportedMu.Lock()
-		defer exportedMu.Unlock()
-		return slices.Clone(batchExported)
+		return append([]*auditlogpb.ExportEventUnstructured(nil), exported...)
 	}
 
 	idleCh := make(chan struct{})
@@ -102,7 +85,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 		// as the new events were being added, second cycle will have a happens-after relationship to
 		// this function being called).
 		timeout := time.After(time.Second * 30)
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			select {
 			case <-idleCh:
 			case <-timeout:
@@ -110,23 +93,16 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 			}
 		}
 	}
-	cfg := DateExporterConfig{
+
+	exporter, err := NewDateExporter(DateExporterConfig{
 		Client:       clt,
 		Date:         now,
+		Export:       exportFn,
 		OnIdle:       onIdleFn,
 		Concurrency:  3,
 		MaxBackoff:   time.Millisecond * 600,
 		PollInterval: time.Millisecond * 200,
-	}
-	if batch {
-		cfg.BatchExport = &BatchExportConfig{
-			Callback: batchExportFn,
-			MaxDelay: time.Microsecond,
-		}
-	} else {
-		cfg.Export = exportFn
-	}
-	exporter, err := NewDateExporter(cfg)
+	})
 	require.NoError(t, err)
 	defer exporter.Close()
 
@@ -134,16 +110,13 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 	// immediately.
 	waitIdle(t)
 	require.Empty(t, getExported())
-	require.Empty(t, getBatchExported())
 
 	var allEvents []*auditlogpb.ExportEventUnstructured
-	var allBatchedEvents []*auditlogpb.EventUnstructured
 	var allChunks []string
 	// quickly add a bunch of chunks
-	for range 30 {
-		chunk, batchedEvents := makeEventChunk(t, now, 10)
+	for i := 0; i < 30; i++ {
+		chunk := makeEventChunk(t, now, 10)
 		allEvents = append(allEvents, chunk...)
-		allBatchedEvents = append(allBatchedEvents, batchedEvents...)
 		chunkID := uuid.NewString()
 		allChunks = append(allChunks, chunkID)
 		clt.addChunk(now.Format(time.DateOnly), chunkID, chunk)
@@ -152,21 +125,16 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 	waitIdle(t)
 
 	require.ElementsMatch(t, allChunks, exporter.GetState().Completed)
-	if batch {
-		require.ElementsMatch(t, allBatchedEvents, getBatchExported())
-	} else {
-		require.ElementsMatch(t, allEvents, getExported())
-	}
+	require.ElementsMatch(t, allEvents, getExported())
 
 	// process a second round of chunks to cover the case of new chunks being added
 	// after non-trivial idleness.
 
 	// note that we do a lot more events here just to make absolutely certain
-	// that we're hitting a decent amount of random flake.
-	for range 30 {
-		chunk, batchedEvents := makeEventChunk(t, now, 10)
+	// that we're hitting a decent amout of random flake.
+	for i := 0; i < 30; i++ {
+		chunk := makeEventChunk(t, now, 10)
 		allEvents = append(allEvents, chunk...)
-		allBatchedEvents = append(allBatchedEvents, batchedEvents...)
 		chunkID := uuid.NewString()
 		allChunks = append(allChunks, chunkID)
 		clt.addChunk(now.Format(time.DateOnly), chunkID, chunk)
@@ -175,11 +143,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 	waitIdle(t)
 
 	require.ElementsMatch(t, allChunks, exporter.GetState().Completed)
-	if batch {
-		require.ElementsMatch(t, allBatchedEvents, getBatchExported())
-	} else {
-		require.ElementsMatch(t, allEvents, getExported())
-	}
+	require.ElementsMatch(t, allEvents, getExported())
 
 	// close the exporter
 	exporter.Close()
@@ -191,26 +155,32 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 	}
 
 	// get the final state of the exporter
-	cfg.PreviousState = exporter.GetState()
+	state := exporter.GetState()
 
 	// recreate exporter with state from previous run
-	exporter, err = NewDateExporter(cfg)
+	exporter, err = NewDateExporter(DateExporterConfig{
+		Client:        clt,
+		Date:          now,
+		Export:        exportFn,
+		OnIdle:        onIdleFn,
+		PreviousState: state,
+		Concurrency:   3,
+		MaxBackoff:    time.Millisecond * 600,
+		PollInterval:  time.Millisecond * 200,
+	})
 	require.NoError(t, err)
 	defer exporter.Close()
 
 	waitIdle(t)
 
 	// no additional events should have been exported
-	if batch {
-		require.ElementsMatch(t, allBatchedEvents, getBatchExported())
-	} else {
-		require.ElementsMatch(t, allEvents, getExported())
-	}
+	require.ElementsMatch(t, allChunks, exporter.GetState().Completed)
+	require.ElementsMatch(t, allEvents, getExported())
+
 	// new chunks should be consumed correctly
-	for range 30 {
-		chunk, batchedEvents := makeEventChunk(t, now, 10)
+	for i := 0; i < 30; i++ {
+		chunk := makeEventChunk(t, now, 10)
 		allEvents = append(allEvents, chunk...)
-		allBatchedEvents = append(allBatchedEvents, batchedEvents...)
 		chunkID := uuid.NewString()
 		allChunks = append(allChunks, chunkID)
 		clt.addChunk(now.Format(time.DateOnly), chunkID, chunk)
@@ -219,11 +189,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 	waitIdle(t)
 
 	require.ElementsMatch(t, allChunks, exporter.GetState().Completed)
-	if batch {
-		require.ElementsMatch(t, allBatchedEvents, getBatchExported())
-	} else {
-		require.ElementsMatch(t, allEvents, getExported())
-	}
+	require.ElementsMatch(t, allEvents, getExported())
 }
 
 // TestDateExporterResume verifies non-trivial exporter resumption behavior, with and without
@@ -271,7 +237,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 		// as the new events were being added, second cycle will have a happens-after relationship to
 		// this function being called).
 		timeout := time.After(time.Second * 30)
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			select {
 			case <-idleCh:
 			case <-timeout:
@@ -285,7 +251,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 		Date:         now,
 		Export:       exportFn,
 		OnIdle:       onIdleFn,
-		Concurrency:  3, // low concurrency to ensure that we have some in progress chunks
+		Concurrency:  3, /* low concurrency to ensure that we have some in progress chunks */
 		MaxBackoff:   time.Millisecond * 600,
 		PollInterval: time.Millisecond * 200,
 	})
@@ -298,8 +264,8 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 
 	var allEvents, gotEvents []*auditlogpb.ExportEventUnstructured
 	// quickly add a bunch of chunks
-	for range 10 {
-		chunk, _ := makeEventChunk(t, now, 10)
+	for i := 0; i < 10; i++ {
+		chunk := makeEventChunk(t, now, 10)
 		allEvents = append(allEvents, chunk...)
 		chunkID := uuid.NewString()
 		clt.addChunk(now.Format(time.DateOnly), chunkID, chunk)
@@ -310,7 +276,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	// to guarantee some in progress chunks, the number consumed must not
 	// divide evenly by the chunk size).
 	timeout := time.After(time.Second * 30)
-	for i := range 47 {
+	for i := 0; i < 47; i++ {
 		select {
 		case evt := <-exportCH:
 			gotEvents = append(gotEvents, evt)
@@ -331,6 +297,8 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	// get the final state of the exporter
 	state := exporter.GetState()
 
+	fmt.Printf("cursors=%+v\n", state.Cursors)
+
 	// recreate exporter with state from previous run
 	exporter, err = NewDateExporter(DateExporterConfig{
 		Client:        clt,
@@ -346,7 +314,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	defer exporter.Close()
 
 	// consume remaining events
-	for i := range 53 {
+	for i := 0; i < 53; i++ {
 		select {
 		case evt := <-exportCH:
 			gotEvents = append(gotEvents, evt)
@@ -360,10 +328,9 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	waitIdle(t)
 }
 
-func makeEventChunk(t *testing.T, ts time.Time, n int) ([]*auditlogpb.ExportEventUnstructured, []*auditlogpb.EventUnstructured) {
-	var batchedEvents []*auditlogpb.EventUnstructured
+func makeEventChunk(t *testing.T, ts time.Time, n int) []*auditlogpb.ExportEventUnstructured {
 	var chunk []*auditlogpb.ExportEventUnstructured
-	for i := range n {
+	for i := 0; i < n; i++ {
 		baseEvent := apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -381,10 +348,9 @@ func makeEventChunk(t *testing.T, ts time.Time, n int) ([]*auditlogpb.ExportEven
 			Event:  event,
 			Cursor: strconv.Itoa(i + 1),
 		})
-		batchedEvents = append(batchedEvents, event)
 	}
 
-	return chunk, batchedEvents
+	return chunk
 }
 
 type fakeClient struct {

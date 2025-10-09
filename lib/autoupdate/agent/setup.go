@@ -27,7 +27,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -36,13 +35,10 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/selinux"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // Base paths for constructing namespaced directories.
@@ -120,10 +116,6 @@ ExecStart=-/bin/echo "The teleport-upgrade script has been disabled by teleport-
 	needrestartConfTemplate = `$nrconf{override_rc}{qr(^{{replace .TeleportService "." "\\."}})} = 0;
 `
 )
-
-// standard Makefile included in 'selinux-policy-devel' RPM package
-// used to build SELinux modules
-const selinuxMakefile = "/usr/share/selinux/devel/Makefile"
 
 type confParams struct {
 	TeleportService   string
@@ -244,17 +236,7 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 
 // Setup installs service and timer files for the teleport-update binary.
 // Afterwords, Setup reloads systemd and enables the timer with --now.
-func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, installSELinux bool) error {
-	if installSELinux {
-		if err := ns.installSELinux(ctx, rev); err != nil {
-			ns.log.WarnContext(ctx, "Failed to install SELinux module.", errorKey, err)
-		}
-	} else {
-		if err := ns.removeSELinux(ctx); err != nil {
-			ns.log.WarnContext(ctx, "Failed to remove SELinux module.", errorKey, err)
-		}
-	}
-
+func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision) error {
 	if ok, err := hasSystemD(); err == nil && !ok {
 		ns.log.WarnContext(ctx, "Systemd is not running, skipping updater installation.")
 		return nil
@@ -303,186 +285,12 @@ func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, insta
 			}
 		}
 	}
-
-	return nil
-}
-
-func (ns *Namespace) installSELinux(ctx context.Context, rev Revision) error {
-	ns.log.InfoContext(ctx, "Installing SELinux module.")
-
-	if err := ns.checkSELinux(ctx, true); err != nil {
-		return trace.Wrap(err)
-	}
-
-	binaryPath := filepath.Join(ns.Dir(), versionsDirName, rev.Dir(), "bin", "teleport")
-	fileCtxs, err := selinux.FileContexts(ns.dataDir, ns.configFile, binaryPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tempDir, err := os.MkdirTemp("", "selinux-*")
-	if err != nil {
-		return trace.Wrap(err, "failed to create temporary directory")
-	}
-	defer os.RemoveAll(tempDir)
-
-	err = os.WriteFile(filepath.Join(tempDir, "teleport_ssh.fc"), []byte(fileCtxs), 0440)
-	if err != nil {
-		return trace.Wrap(err, "failed to write module source file")
-	}
-
-	err = os.WriteFile(filepath.Join(tempDir, "teleport_ssh.te"), []byte(selinux.ModuleSource()), 0440)
-	if err != nil {
-		return trace.Wrap(err, "failed to write module source file")
-	}
-
-	cmd := localExec{
-		Dir:      tempDir,
-		Log:      ns.log,
-		ErrLevel: slog.LevelDebug,
-		OutLevel: slog.LevelDebug,
-	}
-
-	// Build and install the module, then ensure files are properly labeled.
-	_, err = cmd.Run(ctx, "make", "-f", selinuxMakefile, "teleport_ssh.pp")
-	if err != nil {
-		return trace.Wrap(err, "failed to build module")
-	}
-
-	_, err = cmd.Run(ctx, "semodule", "-i", "teleport_ssh.pp")
-	if err != nil {
-		return trace.Wrap(err, "failed to install module")
-	}
-
-	if err := ns.createAndLabelDirs(ctx, cmd); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (ns *Namespace) createAndLabelDirs(ctx context.Context, cmd localExec) error {
-	// Create the teleport-upgrade and data dirs ahead of time so we
-	// can ensure they exist when we label them.
-	if err := os.MkdirAll(versioncontrol.UnitConfigDir, defaults.DirectoryPermissions); err != nil {
-		ns.log.WarnContext(ctx, "Failed to create teleport-upgrade directory.", errorKey, err)
-	}
-	if err := os.MkdirAll(ns.dataDir, teleport.PrivateDirMode); err != nil {
-		ns.log.WarnContext(ctx, "Failed to create teleport data directory.", errorKey, err)
-	}
-
-	dirsToLabel := []string{
-		filepath.Clean(ns.installDir),
-		ns.dataDir,
-		versioncontrol.UnitConfigDir,
-	}
-	// Create an empty teleport.yaml config file if it doesn't exist, and
-	// only attempt to label it if it exists.
-	if libutils.FileExists(ns.configFile) {
-		dirsToLabel = append(dirsToLabel, filepath.Dir(ns.configFile))
-	} else {
-		confFile, err := os.OpenFile(ns.configFile, os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0o640)
-		if err != nil {
-			ns.log.WarnContext(ctx, "Failed to create teleport.yaml.", errorKey, err, "path", ns.configFile)
-			ns.log.WarnContext(ctx, "You will likely need to create teleport.yaml and re-run 'sudo teleport-update enable' for Teleport SSH to work correctly with SELinux.")
-		} else {
-			confFile.Close()
-			dirsToLabel = append(dirsToLabel, filepath.Dir(ns.configFile))
-			ns.log.WarnContext(ctx, "Created an empty teleport.yaml.", "path", ns.configFile)
-			ns.log.WarnContext(ctx, "If you move or copy another file onto this file you will likely need to re-run 'sudo teleport-update enable' for Teleport SSH to work correctly with SELinux.")
-		}
-	}
-
-	labelArgs := append([]string{"-rv"}, dirsToLabel...)
-	_, err := cmd.Run(ctx, "restorecon", labelArgs...)
-	if err != nil {
-		return trace.Wrap(err, "failed to restore file contexts")
-	}
-
-	return nil
-}
-
-func (ns *Namespace) removeSELinux(ctx context.Context) error {
-	installed, err := selinux.ModuleInstalled()
-	if err != nil {
-		return trace.Wrap(err, "failed to check if SELinux module is installed")
-	}
-	if !installed {
-		ns.log.DebugContext(ctx, "SELinux module is not installed.")
-		return nil
-	}
-
-	ns.log.InfoContext(ctx, "Removing SELinux module.")
-
-	if err := ns.checkSELinux(ctx, false); err != nil {
-		return trace.Wrap(err)
-	}
-
-	cmd := localExec{
-		Log:      ns.log,
-		ErrLevel: slog.LevelDebug,
-		OutLevel: slog.LevelDebug,
-	}
-
-	removeOutput, err := cmd.Output(ctx, "semodule", "-r", "teleport_ssh")
-	if err != nil {
-		// If the module is not installed, return without an error.
-		if bytes.Contains(removeOutput, []byte("(No such file or directory).")) {
-			return nil
-		}
-		return trace.Wrap(err, "failed to remove module")
-	}
-
-	_, err = cmd.Run(ctx, "restorecon", "-rv", filepath.Clean(ns.installDir), ns.dataDir, filepath.Dir(ns.configFile))
-	if err != nil {
-		return trace.Wrap(err, "failed to restore file contexts")
-	}
-
-	return nil
-}
-
-func (ns *Namespace) checkSELinux(ctx context.Context, installing bool) error {
-	// Ensure necessary files and binaries exist for building a module and
-	// inform the user what packages need to be installed if they can't be
-	// found.
-	if installing {
-		_, err := exec.LookPath("make")
-		if err != nil {
-			ns.log.ErrorContext(ctx, "Failed to find 'make', you may need to install the 'make' package.")
-			return trace.Wrap(err)
-		}
-		if !libutils.FileExists(selinuxMakefile) {
-			ns.log.ErrorContext(ctx, "Failed to find the SELinux Makefile, you may need to install the 'selinux-policy-devel' package.")
-			return trace.NotFound("failed to find %s", selinuxMakefile)
-		}
-	}
-	_, err := exec.LookPath("semodule")
-	if err != nil {
-		ns.log.ErrorContext(ctx, "Failed to find 'semodule', you may need to install the 'policycoreutils' package.")
-		return trace.Wrap(err)
-	}
-	_, err = exec.LookPath("restorecon")
-	if err != nil {
-		ns.log.ErrorContext(ctx, "Failed to find 'restorecon', you may need to install the 'policycoreutils' package.")
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
 // Teardown removes all traces of the auto-updater, including its configuration.
 // Teardown does not verify that the removed files were created by teleport-update.
 func (ns *Namespace) Teardown(ctx context.Context) error {
-	modInstalled, err := selinux.ModuleInstalled()
-	if err != nil {
-		return trace.Wrap(err, "failed to check if SELinux module is installed")
-	}
-	if modInstalled {
-		if err := ns.removeSELinux(ctx); err != nil {
-			ns.log.WarnContext(ctx, "Failed to remove SELinux module.", errorKey, err)
-		}
-	}
-
 	if ok, err := hasSystemD(); err == nil && !ok {
 		ns.log.WarnContext(ctx, "Systemd is not running, skipping updater removal.")
 		if err := os.RemoveAll(ns.Dir()); err != nil {

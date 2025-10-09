@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UploadDownload tests uploads and downloads
@@ -57,75 +56,6 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	defer f.Close()
 
 	err = handler.Download(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
-// UploadDownloadSummary tests summary uploads and downloads
-func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
-	val := "this is the summary file"
-	id := session.NewID()
-	_, err := handler.UploadSummary(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.DownloadSummary(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
-// UploadDownloadMetadata tests metadata uploads and downloads
-func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
-	val := "this is the metadata file"
-	id := session.NewID()
-	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.DownloadMetadata(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
-// UploadDownloadThumbnail tests thumbnail uploads and downloads
-func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
-	val := "thumbnail"
-	id := session.NewID()
-	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.DownloadThumbnail(context.TODO(), id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -210,13 +140,13 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 			for events.Next() {
 				eventCount++
 			}
-			require.NoError(t, events.Done())
+			assert.NoError(t, events.Done())
 		}
 
-		require.NoError(t, chunks.Done())
+		assert.NoError(t, chunks.Done())
 
-		require.Equal(t, 1, chunkCount)
-		require.Equal(t, 4, eventCount)
+		assert.Equal(t, 1, chunkCount)
+		assert.Equal(t, 4, eventCount)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// add more events that should end up in a new chunk
@@ -253,13 +183,13 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 			for events.Next() {
 				eventCount++
 			}
-			require.NoError(t, events.Done())
+			assert.NoError(t, events.Done())
 		}
 
-		require.NoError(t, chunks.Done())
+		assert.NoError(t, chunks.Done())
 
-		require.Equal(t, 2, chunkCount)
-		require.Equal(t, 8, eventCount)
+		assert.Equal(t, 2, chunkCount)
+		assert.Equal(t, 8, eventCount)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// generate a random chunk and verify that it is not found
@@ -348,9 +278,9 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			StartKey: checkpoint,
 		})
 
-		require.NoError(t, err)
-		require.Len(t, arr, 4)
-		require.Empty(t, checkpoint)
+		assert.NoError(t, err)
+		assert.Len(t, arr, 4)
+		assert.Empty(t, checkpoint)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	for _, name := range names {
@@ -457,7 +387,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 
 Outer:
-	for range names {
+	for i := 0; i < len(names); i++ {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime2,
 			To:       baseTime2.Add(time.Second),
@@ -515,8 +445,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		require.NoError(t, err)
-		require.Len(t, history, 1)
+		assert.NoError(t, err)
+		assert.Len(t, history, 1)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// start the session and emit data stream to it and wrap it up
@@ -552,10 +482,6 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		UserMetadata: apievents.UserMetadata{
 			Login: "bob",
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerNamespace: "telport",
-			ServerLabels:    map[string]string{"env": "prod"},
-		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sessionID),
 		},
@@ -572,8 +498,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Order: types.EventOrderAscending,
 		})
 
-		require.NoError(t, err)
-		require.Len(t, history, 3)
+		assert.NoError(t, err)
+		assert.Len(t, history, 3)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
@@ -595,34 +521,12 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		}}
 	}
 
-	withServerLabelsExpr := func(key, value string) *types.WhereExpr {
-		return &types.WhereExpr{
-			And: types.WhereExpr2{
-				L: &types.WhereExpr{
-					CanView: &types.WhereNoExpr{},
-				},
-				R: &types.WhereExpr{
-					Equals: types.WhereExpr2{
-						L: &types.WhereExpr{
-							MapRef: &types.WhereExpr2{
-								L: &types.WhereExpr{Field: "server_labels"},
-								R: &types.WhereExpr{Literal: key},
-							}},
-						R: &types.WhereExpr{Literal: value},
-					},
-				},
-			},
-		}
-	}
-
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr: withParticipant("alice"),
-		},
+		Cond:  withParticipant("alice"),
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
@@ -632,48 +536,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr: withParticipant("cecile"),
-		},
-	})
-	require.NoError(t, err)
-	require.Empty(t, history)
-
-	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
-		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit: 100,
-		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr:    withServerLabelsExpr("env", "prod"),
-			CanView: func(f utils.Fields) bool { return true },
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, history, 1)
-
-	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
-		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit: 100,
-		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr:    withServerLabelsExpr("env", "prod"),
-			CanView: func(f utils.Fields) bool { return false },
-		},
-	})
-	require.NoError(t, err)
-	require.Empty(t, history)
-
-	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
-		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit: 100,
-		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr:    withServerLabelsExpr("env", "dev"),
-			CanView: func(f utils.Fields) bool { return true },
-		},
+		Cond:  withParticipant("cecile"),
 	})
 	require.NoError(t, err)
 	require.Empty(t, history)

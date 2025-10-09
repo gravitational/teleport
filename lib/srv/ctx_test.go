@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -26,87 +27,116 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)
-	ctx := newTestServerContext(t, srv, nil, nil)
+	ctx := newTestServerContext(t, srv, nil)
 
 	tests := []struct {
 		name                 string
 		nodeAllowFileCopying bool
-		permit               *decisionpb.SSHAccessPermit
-		proxyingPermit       *proxyingPermit
-		sessionPolicies      []*types.SessionRequirePolicy
+		roles                []types.Role
 		expectedErr          error
 	}{
 		{
 			name:                 "node disallowed",
 			nodeAllowFileCopying: false,
-			permit: &decisionpb.SSHAccessPermit{
-				SshFileCopy: true,
+			roles: []types.Role{
+				&types.RoleV6{
+					Kind: types.KindNode,
+				},
 			},
 			expectedErr: ErrNodeFileCopyingNotPermitted,
 		},
 		{
 			name:                 "node allowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
-				SshFileCopy: true,
+			roles: []types.Role{
+				&types.RoleV6{
+					Kind: types.KindNode,
+				},
 			},
 			expectedErr: nil,
 		},
 		{
 			name:                 "role disallowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
-				SshFileCopy: false,
+			roles: []types.Role{
+				&types.RoleV6{
+					Kind: types.KindNode,
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							SSHFileCopy: types.NewBoolOption(false),
+						},
+					},
+				},
 			},
 			expectedErr: errRoleFileCopyingNotPermitted,
 		},
 		{
 			name:                 "role allowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
-				SshFileCopy: true,
+			roles: []types.Role{
+				&types.RoleV6{
+					Kind: types.KindNode,
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							SSHFileCopy: types.NewBoolOption(true),
+						},
+					},
+				},
 			},
 			expectedErr: nil,
 		},
 		{
-			name:                 "proxying role disallowed",
+			name:                 "conflicting roles",
 			nodeAllowFileCopying: true,
-			proxyingPermit: &proxyingPermit{
-				SSHFileCopy: false,
+			roles: []types.Role{
+				&types.RoleV6{
+					Kind: types.KindNode,
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							SSHFileCopy: types.NewBoolOption(true),
+						},
+					},
+				},
+				&types.RoleV6{
+					Kind: types.KindNode,
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							SSHFileCopy: types.NewBoolOption(false),
+						},
+					},
+				},
 			},
 			expectedErr: errRoleFileCopyingNotPermitted,
 		},
 		{
-			name:                 "proxying role allowed",
-			nodeAllowFileCopying: true,
-			proxyingPermit: &proxyingPermit{
-				SSHFileCopy: true,
-			},
-			expectedErr: nil,
-		},
-		{
 			name:                 "moderated sessions enforced",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
-				SshFileCopy: true,
-			},
-			sessionPolicies: []*types.SessionRequirePolicy{
-				{
-					Name:   "test",
-					Filter: `contains(user.roles, "auditor")`,
-					Kinds:  []string{string(types.SSHSessionKind)},
-					Modes:  []string{string(types.SessionModeratorMode)},
-					Count:  3,
+			roles: []types.Role{
+				&types.RoleV6{
+					Kind: types.KindNode,
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							RequireSessionJoin: []*types.SessionRequirePolicy{
+								{
+									Name:   "test",
+									Filter: `contains(user.roles, "auditor")`,
+									Kinds:  []string{string(types.SSHSessionKind)},
+									Modes:  []string{string(types.SessionModeratorMode)},
+									Count:  3,
+								},
+							},
+						},
+					},
 				},
 			},
 			expectedErr: errCannotStartUnattendedSession,
@@ -117,28 +147,15 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx.AllowFileCopying = tt.nodeAllowFileCopying
 
-			sessionJoiningRoles := services.NewRoleSet(&types.RoleV6{
-				Kind: types.KindRole,
-				Metadata: types.Metadata{
-					Name: "test",
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						RequireSessionJoin: tt.sessionPolicies,
-					},
-				},
-			})
+			roles := services.NewRoleSet(tt.roles...)
 
-			ctx.Identity.UnstableSessionJoiningAccessChecker = services.NewAccessCheckerWithRoleSet(
+			ctx.Identity.AccessChecker = services.NewAccessCheckerWithRoleSet(
 				&services.AccessInfo{
-					Roles: sessionJoiningRoles.RoleNames(),
+					Roles: roles.RoleNames(),
 				},
 				"localhost",
-				sessionJoiningRoles,
+				roles,
 			)
-
-			ctx.Identity.AccessPermit = tt.permit
-			ctx.Identity.ProxyingPermit = tt.proxyingPermit
 
 			err := ctx.CheckSFTPAllowed(nil)
 			if tt.expectedErr == nil {
@@ -163,11 +180,6 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				Login:          "alpaca1",
 				ActiveRequests: []string{"access-req1", "access-req2"},
-				MappedRoles:    []string{"role1", "role2"},
-				Traits: wrappers.Traits{
-					"trait1": []string{"value1", "value2"},
-					"trait2": []string{"value3"},
-				},
 			},
 			want: apievents.UserMetadata{
 				User:           "alpaca",
@@ -175,11 +187,6 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				AccessRequests: []string{"access-req1", "access-req2"},
 				UserKind:       apievents.UserKind_USER_KIND_HUMAN,
-				UserRoles:      []string{"role1", "role2"},
-				UserTraits: wrappers.Traits{
-					"trait1": []string{"value1", "value2"},
-					"trait2": []string{"value3"},
-				},
 			},
 		},
 		{
@@ -233,36 +240,38 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 	}
 }
 
-func TestSSHAccessLockTargets(t *testing.T) {
+func TestComputeLockTargets(t *testing.T) {
 	t.Run("all locks", func(t *testing.T) {
 		const clusterName = "mycluster"
 		const serverID = "myserver"
 		const mfaDevice = "my-mfa-device-1"
 		const trustedDevice = "my-trusted-device-1"
-		const osLogin = "camel"
-		const username = "llama"
 		mappedRoles := []string{"access", "editor"}
 		unmappedRoles := []string{"unmapped-role-1", "unmapped-role-2", "access"}
 		accessRequests := []string{"access-request-1", "access-request-2"}
 
-		unmappedIdentity := &sshca.Identity{
-			Username:       username,
-			MFAVerified:    mfaDevice,
-			DeviceID:       trustedDevice,
-			Roles:          unmappedRoles,
+		identityCtx := IdentityContext{
+			UnmappedIdentity: &sshca.Identity{
+				Username:    "llama",
+				MFAVerified: mfaDevice,
+				DeviceID:    trustedDevice,
+			},
+			TeleportUser: "llama",
+			Impersonator: "alpaca",
+			Login:        "camel",
+			AccessChecker: &fixedRolesChecker{
+				roleNames: mappedRoles,
+			},
+			UnmappedRoles:  unmappedRoles,
 			ActiveRequests: accessRequests,
 		}
 
-		accessInfo := &services.AccessInfo{
-			Username: username,
-			Roles:    mappedRoles,
-		}
-
-		got := services.SSHAccessLockTargets(clusterName, serverID, osLogin, accessInfo, unmappedIdentity)
+		got := ComputeLockTargets(clusterName, serverID, identityCtx)
 		want := []types.LockTarget{
-			{User: username},
-			{ServerID: serverID},
-			{ServerID: serverID + "." + clusterName},
+			{User: identityCtx.TeleportUser},
+			{Login: identityCtx.Login},
+			{Node: serverID, ServerID: serverID},
+			{Node: serverID + "." + clusterName, ServerID: serverID + "." + clusterName},
 			{MFADevice: mfaDevice},
 			{Device: trustedDevice},
 		}
@@ -275,9 +284,89 @@ func TestSSHAccessLockTargets(t *testing.T) {
 		for _, request := range accessRequests {
 			want = append(want, types.LockTarget{AccessRequest: request})
 		}
-		want = append(want, types.LockTarget{Login: osLogin})
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("SSHAccessLockTargets mismatch (-want +got)\n%s", diff)
+			t.Errorf("ComputeLockTargets mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+type fixedRolesChecker struct {
+	services.AccessChecker
+	roleNames []string
+}
+
+func (c *fixedRolesChecker) RoleNames() []string {
+	return c.roleNames
+}
+
+func TestCreateOrJoinSession(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	registry, err := NewSessionRegistry(SessionRegistryConfig{
+		clock:                 srv.clock,
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+
+	runningSessionID := rsession.NewID()
+	sess, _, err := newSession(context.Background(), runningSessionID, registry, newTestServerContext(t, srv, nil), newMockSSHChannel(), sessionTypeInteractive)
+	require.NoError(t, err)
+	registry.sessions[runningSessionID] = sess
+
+	tests := []struct {
+		name              string
+		sessionID         string
+		wantSameSessionID bool
+	}{
+		{
+			name:              "no session ID",
+			wantSameSessionID: false,
+		},
+		// TODO(capnspacehook): Check that an error is returned in v17
+		{
+			name:              "new session ID",
+			sessionID:         string(rsession.NewID()),
+			wantSameSessionID: false,
+		},
+		{
+			name:              "existing session ID",
+			sessionID:         runningSessionID.String(),
+			wantSameSessionID: true,
+		},
+		{
+			name:              "existing session ID in Windows format",
+			sessionID:         "{" + runningSessionID.String() + "}",
+			wantSameSessionID: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsedSessionID := new(rsession.ID)
+			var err error
+			if tt.sessionID != "" {
+				parsedSessionID, err = rsession.ParseID(tt.sessionID)
+				require.NoError(t, err)
+			}
+
+			ctx := newTestServerContext(t, srv, nil)
+			if tt.sessionID != "" {
+				ctx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
+			}
+
+			err = ctx.CreateOrJoinSession(registry)
+			require.NoError(t, err)
+			require.False(t, ctx.sessionID.IsZero())
+			if tt.wantSameSessionID {
+				require.Equal(t, parsedSessionID.String(), ctx.sessionID.String())
+			} else {
+				require.NotEqual(t, parsedSessionID.String(), ctx.sessionID.String())
+			}
+		})
+	}
 }

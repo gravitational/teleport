@@ -30,39 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type gitServerIndex string
-
-const gitServerNameIndex gitServerIndex = "name"
-
-func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind) (*collection[types.Server, gitServerIndex], error) {
-	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter GitServerGetter")
-	}
-
-	return &collection[types.Server, gitServerIndex]{
-		store: newStore(
-			types.KindGitServer,
-			types.Server.DeepCopy,
-			map[gitServerIndex]func(types.Server) string{
-				gitServerNameIndex: types.Server.GetName,
-			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListGitServers))
-			return out, trace.Wrap(err)
-		},
-		headerTransform: func(hdr *types.ResourceHeader) types.Server {
-			return &types.ServerV2{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: types.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
-		},
-		watch: w,
-	}, nil
-}
-
 // GitServerReadOnlyClient returns the read-only client for Git servers.
 //
 // Note that Cache implements GitServerReadOnlyClient to satisfy
@@ -76,29 +43,53 @@ func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, er
 	ctx, span := c.Tracer.Start(ctx, "cache/GetGitServer")
 	defer span.End()
 
-	getter := genericGetter[types.Server, gitServerIndex]{
-		cache:       c,
-		collection:  c.collections.gitServers,
-		index:       gitServerNameIndex,
-		upstreamGet: c.Config.GitServers.GetGitServer,
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.gitServers)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	out, err := getter.get(ctx, name)
-	return out, trace.Wrap(err)
+	defer rg.Release()
+	return rg.reader.GetGitServer(ctx, name)
 }
 
 func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListGitServers")
 	defer span.End()
 
-	lister := genericLister[types.Server, gitServerIndex]{
-		cache:        c,
-		collection:   c.collections.gitServers,
-		index:        gitServerNameIndex,
-		upstreamList: c.Config.GitServers.ListGitServers,
-		nextToken: func(t types.Server) string {
-			return t.GetMetadata().Name
-		},
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.gitServers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	out, next, err := lister.list(ctx, pageSize, pageToken)
-	return out, next, trace.Wrap(err)
+	defer rg.Release()
+	return rg.reader.ListGitServers(ctx, pageSize, pageToken)
 }
+
+type gitServerExecutor struct{}
+
+func (gitServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) (all []types.Server, err error) {
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.GitServers.ListGitServers))
+	return out, trace.Wrap(err)
+}
+
+func (gitServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
+	_, err := cache.gitServersCache.UpsertGitServer(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (gitServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.gitServersCache.DeleteAllGitServers(ctx)
+}
+
+func (gitServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.gitServersCache.DeleteGitServer(ctx, resource.GetName())
+}
+
+func (gitServerExecutor) isSingleton() bool { return false }
+
+func (gitServerExecutor) getReader(cache *Cache, cacheOK bool) services.GitServerGetter {
+	if cacheOK {
+		return cache.gitServersCache
+	}
+	return cache.Config.GitServers
+}
+
+var _ executor[types.Server, services.GitServerGetter] = gitServerExecutor{}

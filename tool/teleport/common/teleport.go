@@ -23,23 +23,20 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"net/url"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
-	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/auth"
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -51,7 +48,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
-	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
@@ -59,10 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/versioncontrol"
 )
-
-const selinuxUnsupportedErr = "--enable-selinux is allowed only when the SSH service is the only service enabled"
 
 // Options combines init/start teleport options
 type Options struct {
@@ -153,7 +146,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
 	start.Flag("apply-on-startup",
-		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", slices.Collect(maps.Keys(auth.ResourceApplyPriority)))).
+		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", maps.Keys(auth.ResourceApplyPriority))).
 		ExistingFileVar(&ccf.ApplyOnStartupFile)
 	start.Flag("bootstrap",
 		"Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)").ExistingFileVar(&ccf.BootstrapFile)
@@ -204,10 +197,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 	start.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
-	if runtime.GOOS == "linux" {
-		start.Flag("enable-selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").Hidden().BoolVar(&ccf.EnableSELinux)
-		start.Flag("ensure-selinux-enforcing", "Exits with an error if SELinux is not configured to enforce Teleport SSH.").Hidden().BoolVar(&ccf.EnsureSELinuxEnforcing)
-	}
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -232,7 +221,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	appStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
 	appStartCmd.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
-	appStartCmd.Flag("mcp-demo-server", "Enables the Teleport demo MCP server that shows current user and session information.").BoolVar(&ccf.MCPDemoServer)
 	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
 
 	// "teleport db" command and its subcommands
@@ -260,14 +248,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
 	dbStartCmd.Flag("aws-rds-cluster-id", "(Only for Aurora) Aurora cluster identifier.").StringVar(&ccf.DatabaseAWSRDSClusterID)
 	dbStartCmd.Flag("aws-session-tags", "(Only for DynamoDB) List of STS tags.").StringVar(&ccf.DatabaseAWSSessionTags)
-	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) Project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
-	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) Instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
-
-	var alloyDBEndpointTypes []string
-	for _, endpointType := range gcp.AlloyDBEndpointTypes {
-		alloyDBEndpointTypes = append(alloyDBEndpointTypes, string(endpointType))
-	}
-	dbStartCmd.Flag("gcp-alloydb-endpoint-type", fmt.Sprintf("(Only for AlloyDB) Endpoint type. One of: %v", alloyDBEndpointTypes)).EnumVar(&ccf.DatabaseGCPAlloyDBEndpointType, alloyDBEndpointTypes...)
+	dbStartCmd.Flag("gcp-project-id", "(Only for Cloud SQL) GCP Cloud SQL project identifier.").StringVar(&ccf.DatabaseGCPProjectID)
+	dbStartCmd.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&ccf.DatabaseGCPInstanceID)
 	dbStartCmd.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&ccf.DatabaseADKeytabFile)
 	dbStartCmd.Flag("ad-krb5-file", "(Only for SQL Server) Kerberos krb5.conf file.").Default(defaults.Krb5FilePath).StringVar(&ccf.DatabaseADKrb5File)
 	dbStartCmd.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&ccf.DatabaseADDomain)
@@ -288,8 +270,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("rdsproxy-discovery", "List of AWS regions in which the agent will discover RDS Proxies.").StringsVar(&dbConfigCreateFlags.RDSProxyDiscoveryRegions)
 	dbConfigureCreate.Flag("redshift-discovery", "List of AWS regions in which the agent will discover Redshift instances.").StringsVar(&dbConfigCreateFlags.RedshiftDiscoveryRegions)
 	dbConfigureCreate.Flag("redshift-serverless-discovery", "List of AWS regions in which the agent will discover Redshift Serverless instances.").StringsVar(&dbConfigCreateFlags.RedshiftServerlessDiscoveryRegions)
-	dbConfigureCreate.Flag("elasticache-discovery", "List of AWS regions in which the agent will discover ElastiCache Valkey or Redis clusters.").StringsVar(&dbConfigCreateFlags.ElastiCacheDiscoveryRegions)
-	dbConfigureCreate.Flag("elasticache-serverless-discovery", "List of AWS regions in which the agent will discover ElastiCache Serverless Valkey or Redis caches.").StringsVar(&dbConfigCreateFlags.ElastiCacheServerlessDiscoveryRegions)
+	dbConfigureCreate.Flag("elasticache-discovery", "List of AWS regions in which the agent will discover ElastiCache Redis clusters.").StringsVar(&dbConfigCreateFlags.ElastiCacheDiscoveryRegions)
 	dbConfigureCreate.Flag("memorydb-discovery", "List of AWS regions in which the agent will discover MemoryDB clusters.").StringsVar(&dbConfigCreateFlags.MemoryDBDiscoveryRegions)
 	dbConfigureCreate.Flag("opensearch-discovery", "List of AWS regions in which the agent will discover OpenSearch domains.").StringsVar(&dbConfigCreateFlags.OpenSearchDiscoveryRegions)
 	dbConfigureCreate.Flag("aws-tags", "(Only for AWS discoveries) Comma-separated list of AWS resource tags to match, for example env=dev,dept=it").StringVar(&dbConfigCreateFlags.AWSRawTags)
@@ -313,7 +294,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("aws-rds-cluster-id", "(Only for RDS Aurora) RDS Aurora database cluster identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSRDSClusterID)
 	dbConfigureCreate.Flag("aws-rds-instance-id", "(Only for RDS) RDS database instance identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSRDSInstanceID)
 	dbConfigureCreate.Flag("aws-elasticache-group-id", "(Only for ElastiCache) ElastiCache replication group identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSElastiCacheGroupID)
-	dbConfigureCreate.Flag("aws-elasticache-serverless-cache-name", "(Only for ElastiCache Serverless) ElastiCache Serverless cache name.").StringVar(&dbConfigCreateFlags.DatabaseAWSElastiCacheServerlessCacheName)
 	dbConfigureCreate.Flag("aws-memorydb-cluster-name", "(Only for MemoryDB) MemoryDB cluster name.").StringVar(&dbConfigCreateFlags.DatabaseAWSMemoryDBClusterName)
 	dbConfigureCreate.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&dbConfigCreateFlags.DatabaseADDomain)
 	dbConfigureCreate.Flag("ad-spn", "(Only for SQL Server) Service Principal Name for Active Directory auth.").StringVar(&dbConfigCreateFlags.DatabaseADSPN)
@@ -383,8 +363,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	discoveryBootstrapCmd.Flag("manual", "When executed in \"manual\" mode, it will print the instructions to complete the configuration instead of applying them directly.").BoolVar(&configureDiscoveryBootstrapFlags.config.Manual)
 	discoveryBootstrapCmd.Flag("database-service-role", "Role name to attach database access policies to. If specified, bootstrap for the database service that accesses the databases discovered by this discovery service.").StringVar(&configureDiscoveryBootstrapFlags.databaseServiceRole)
 	discoveryBootstrapCmd.Flag("database-service-policy-name", "Name of the policy for bootstrapping database service when database-service-role is provided. ").Default(awsconfigurators.DatabaseAccessPolicyName).StringVar(&configureDiscoveryBootstrapFlags.databaseServicePolicyName)
-	discoveryBootstrapCmd.Flag("assume-role-arn", "Optional AWS IAM role to assume while bootstrapping.").StringVar(&configureDiscoveryBootstrapFlags.config.AssumeRoleARN)
-	discoveryBootstrapCmd.Flag("external-id", "Optional AWS external ID used when assuming an AWS role.").StringVar(&configureDiscoveryBootstrapFlags.config.ExternalID)
 
 	// "teleport install" command and its subcommands
 	installCmd := app.Command("install", "Teleport install commands.")
@@ -445,7 +423,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
 	dump.Flag("app-name", "Name of the application to start when using app role.").StringVar(&dumpFlags.AppName)
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
-	dump.Flag("mcp-demo-server", "Enables the Teleport demo MCP server that shows current user and session information.").BoolVar(&dumpFlags.MCPDemoServer)
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
@@ -509,6 +486,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfDeployServiceCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.AccountID)
 	integrationConfDeployServiceCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfDeployServiceIAMArguments.AutoConfirm)
 
+	integrationConfEICECmd := integrationConfigureCmd.Command("eice-iam", "Adds required IAM permissions to connect to EC2 Instances using EC2 Instance Connect Endpoint.")
+	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
+	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
+	integrationConfEICECmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfEICEIAMArguments.AccountID)
+	integrationConfEICECmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEICEIAMArguments.AutoConfirm)
+
 	integrationConfEC2SSMCmd := integrationConfigureCmd.Command("ec2-ssm-iam", "Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using SSM.")
 	integrationConfEC2SSMCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.RoleName)
 	integrationConfEC2SSMCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.Region)
@@ -536,9 +519,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAccessGraphAWSSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
 	integrationConfAccessGraphAWSSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
 	integrationConfAccessGraphAWSSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
-	integrationConfAccessGraphAWSSyncCmd.Flag("sqs-queue-url", "SQS Queue URL used to receive notifications from CloudTrail.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.SQSQueueURL)
-	integrationConfAccessGraphAWSSyncCmd.Flag("cloud-trail-bucket", "ARN of the S3 bucket where CloudTrail writes events to.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.CloudTrailBucketARN)
-	integrationConfAccessGraphAWSSyncCmd.Flag("kms-key", "List of KMS Keys used to decrypt SQS and S3 bucket data.").StringsVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.KMSKeyARNs)
 
 	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
 	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
@@ -595,15 +575,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationSAMLIdPGCPWorkforce.Flag("pool-provider-name", "Name for the new workforce identity pool provider.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.PoolProviderName)
 	integrationSAMLIdPGCPWorkforce.Flag("idp-metadata-url", "Teleport SAML IdP metadata endpoint.").Required().StringVar(&ccf.IntegrationConfSAMLIdPGCPWorkforceArguments.SAMLIdPMetadataURL)
 
-	integrationConfAWSRATrustAnchor := integrationConfigureCmd.Command("awsra-trust-anchor", "Configure AWS IAM Roles Anywhere Integration by creating resources in AWS.")
-	integrationConfAWSRATrustAnchor.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Cluster)
-	integrationConfAWSRATrustAnchor.Flag("name", "Integration name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.Name)
-	integrationConfAWSRATrustAnchor.Flag("trust-anchor", "AWS Roles Anywhere Trust Anchor name.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchor)
-	integrationConfAWSRATrustAnchor.Flag("trust-anchor-cert-b64", "AWS Roles Anywhere Trust Anchor's certificate, encoded in base64.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.TrustAnchorCertBase64)
-	integrationConfAWSRATrustAnchor.Flag("sync-profile", "The AWS IAM Roles Anywhere Profile name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncProfile)
-	integrationConfAWSRATrustAnchor.Flag("sync-role", "The AWS IAM Role name to create, which will be used to sync profiles as apps.").Required().StringVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.SyncRole)
-	integrationConfAWSRATrustAnchor.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAWSRATrustAnchorArguments.AutoConfirm)
-
 	tpmCmd := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCmd := tpmCmd.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
@@ -614,36 +585,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
-	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
+	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(maps.Keys(debugclient.SupportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 
-	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
-	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
-	moduleSourceCmd := selinuxCmd.Command("module-source", "Export SSH SELinux module source to stdout.").Hidden()
-	fileContextsCmd := selinuxCmd.Command("file-contexts", "Export SSH SELinux file contexts to stdout.").Hidden()
-	selinuxDirsCmd := selinuxCmd.Command("dirs", "Export directories that may need to be labeled for SSH SELinux module to work correctly.").Hidden()
-
-	backendCmd := app.Command("backend", "Commands for managing cluster state backend data.").Hidden()
-	backendCmd.Flag("config", "Path to the config file.").
+	backendCmd := app.Command("backend", "Commands for managing backend data.")
+	backendCmd.Hidden()
+	backendCloneCmd := backendCmd.Command("clone", "Clones data from a source to a destination backend.")
+	backendCloneCmd.Flag("config", "Path to the clone config file.").
+		Required().
 		Short('c').
 		StringVar(&ccf.ConfigFile)
-	backendGetCmd := backendCmd.Command("get", "Retrieves a single item from the cluster state backend.")
-	backendGetCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&ccf.Format, defaults.DefaultFormats...)
-	backendGetCmd.Arg("key", "The backend key to retrieve.").Required().StringVar(&ccf.BackendKey)
-	backendDeleteCmd := backendCmd.Command("rm", "Removes a single item from the cluster state backend.")
-	backendDeleteCmd.Arg("key", "The backend key to remove.").Required().StringVar(&ccf.BackendKey)
-	backendListCmd := backendCmd.Command("ls", "Lists the keys in the cluster state backend.")
-	backendListCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&ccf.Format, defaults.DefaultFormats...)
-	backendListCmd.Arg("prefix", "An optional key prefix to limit listing to.").StringVar(&ccf.BackendPrefix)
-	backendEditCmd := backendCmd.Command("edit", "Modify a single item from the cluster state backend.")
-	backendEditCmd.Arg("key", "The backend key to retrieve.").Required().StringVar(&ccf.BackendKey)
-	backendCloneCmd := backendCmd.Command("clone", "Clones data from a source to a destination backend.")
 	backendCloneCmd.Alias(`
 Examples:
 
@@ -713,11 +664,6 @@ Examples:
 			}
 		}
 
-		// Validate SELinux configuration if SELinux support is enabled
-		if ccf.EnableSELinux && !conf.SSH.Enabled {
-			utils.FatalError(trace.BadParameter(selinuxUnsupportedErr))
-		}
-
 		if !options.InitOnly {
 			err = OnStart(ccf, conf)
 		}
@@ -757,23 +703,25 @@ Examples:
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
-		err = onConfigureDatabasesAWSPrint(ctx, configureDatabaseAWSPrintFlags)
+		err = onConfigureDatabasesAWSPrint(configureDatabaseAWSPrintFlags)
 	case dbConfigureAWSCreateIAM.FullCommand():
-		err = onConfigureDatabasesAWSCreate(ctx, configureDatabaseAWSCreateFlags)
+		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DatabaseService
-		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
+		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
 		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
-		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
+		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
 		err = onIntegrationConfDeployService(ctx, ccf.IntegrationConfDeployServiceIAMArguments)
+	case integrationConfEICECmd.FullCommand():
+		err = onIntegrationConfEICEIAM(ctx, ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfEC2SSMCmd.FullCommand():
 		err = onIntegrationConfEC2SSMIAM(ctx, ccf.IntegrationConfEC2SSMIAMArguments)
 	case integrationConfAWSAppAccessCmd.FullCommand():
@@ -794,11 +742,9 @@ Examples:
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
 		err = onIntegrationConfSAMLIdPGCPWorkforce(ctx, ccf.IntegrationConfSAMLIdPGCPWorkforceArguments)
-	case integrationConfAWSRATrustAnchor.FullCommand():
-		err = onIntegrationConfAWSRATrustAnchor(ctx, ccf)
 	case tpmIdentifyCmd.FullCommand():
 		var query *tpm.QueryRes
-		query, err = tpm.Query(ctx, slog.Default())
+		query, err = tpm.Query(context.Background(), slog.Default())
 		if err != nil {
 			break
 		}
@@ -809,52 +755,8 @@ Examples:
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
-	case moduleSourceCmd.FullCommand():
-		if runtime.GOOS != "linux" {
-			break
-		}
-		moduleSrc := selinux.ModuleSource()
-		fmt.Printf("%s", moduleSrc)
-	case fileContextsCmd.FullCommand():
-		if runtime.GOOS != "linux" {
-			break
-		}
-		err = onSELinuxFileContexts(ccf.ConfigFile)
-	case selinuxDirsCmd.FullCommand():
-		if runtime.GOOS != "linux" {
-			break
-		}
-		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
-		err = onBackendClone(ctx, ccf.ConfigFile)
-	case backendGetCmd.FullCommand():
-		// configuration merge: defaults -> file-based conf -> CLI conf
-		if err = config.Configure(&ccf, conf, true); err != nil {
-			utils.FatalError(err)
-		}
-
-		err = onBackendGet(ctx, conf.Auth.StorageConfig, ccf.BackendKey, ccf.Format)
-	case backendDeleteCmd.FullCommand():
-		// configuration merge: defaults -> file-based conf -> CLI conf
-		if err = config.Configure(&ccf, conf, true); err != nil {
-			utils.FatalError(err)
-		}
-
-		err = onBackendDelete(ctx, conf.Auth.StorageConfig, ccf.BackendKey)
-	case backendListCmd.FullCommand():
-		// configuration merge: defaults -> file-based conf -> CLI conf
-		if err = config.Configure(&ccf, conf, true); err != nil {
-			utils.FatalError(err)
-		}
-
-		err = onBackendList(ctx, conf.Auth.StorageConfig, ccf.BackendPrefix, ccf.Format)
-	case backendEditCmd.FullCommand():
-		// configuration merge: defaults -> file-based conf -> CLI conf
-		if err = config.Configure(&ccf, conf, true); err != nil {
-			utils.FatalError(err)
-		}
-
-		err = onBackendEdit(ctx, conf.Auth.StorageConfig, ccf.BackendKey)
+		err = onClone(context.Background(), ccf.ConfigFile)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -1127,22 +1029,10 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 // user's privileges
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
-func onSCP(scpFlags *scp.Flags) error {
+func onSCP(scpFlags *scp.Flags) (err error) {
 	// when 'teleport scp' is executed, it cannot write logs to stderr (because
 	// they're automatically replayed by the scp client)
-	var verbosity string
-	if scpFlags.Verbose {
-		verbosity = teleport.DebugLevel
-	}
-	_, _, err := logutils.Initialize(logutils.Config{
-		Output:   logutils.LogOutputSyslog,
-		Severity: verbosity,
-	})
-	if err != nil {
-		// If something went wrong, discard all logs and continue command execution.
-		slog.SetDefault(slog.New(slog.DiscardHandler))
-	}
-
+	utils.SwitchLoggingToSyslog()
 	if len(scpFlags.Target) == 0 {
 		return trace.BadParameter("teleport scp: missing an argument")
 	}
@@ -1200,41 +1090,5 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := OnStart(clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func onSELinuxFileContexts(configPath string) error {
-	// Explicitly set the default config path so ReadConfigFile won't
-	// return (nil, nil) if configPath is unset and the default config
-	// path doesn't have a file
-	if configPath == "" {
-		configPath = defaults.ConfigFilePath
-	}
-	cfg, err := config.ReadConfigFile(configPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fileContexts, err := selinux.FileContexts(cfg.DataDir, configPath, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println(fileContexts)
-
-	return nil
-}
-
-func onSELinuxDirs(configPath string) error {
-	// Explicitly set the default config path so ReadConfigFile won't
-	// return (nil, nil) if configPath is unset and the default config
-	// path doesn't have a file
-	if configPath == "" {
-		configPath = defaults.ConfigFilePath
-	}
-	cfg, err := config.ReadConfigFile(configPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("%s\n%s\n%s\n%s\n", "/opt/teleport/default", cfg.DataDir, filepath.Dir(configPath), versioncontrol.UnitConfigDir)
 	return nil
 }

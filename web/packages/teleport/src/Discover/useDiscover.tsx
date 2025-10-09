@@ -32,6 +32,7 @@ import type { Database } from 'teleport/services/databases';
 import { DiscoveryConfig } from 'teleport/services/discovery';
 import type {
   AwsRdsDatabase,
+  Ec2InstanceConnectEndpoint,
   IntegrationAwsOidc,
   Regions,
 } from 'teleport/services/integrations';
@@ -298,7 +299,7 @@ export function DiscoverProvider({
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
-    if (resource.unguidedLink || resource.guidedLink || resource.isDialog) {
+    if (resource.unguidedLink || resource.isDialog) {
       emitEvent(
         { stepStatus: DiscoverEventStatus.Success },
         {
@@ -554,6 +555,7 @@ export type AutoDiscovery = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 export type DatabaseServiceDeploy =

@@ -49,8 +49,9 @@ func newProvisioningPrincipalState(id string) *provisioningv1.PrincipalState {
 	}
 }
 
-// TestProvisioningPrincipalState asserts that a ProvisioningPrincipalState can be cached
+// TestProvisioningState asserts that a ProvisioningPrincipalState can be cached
 func TestProvisioningPrincipalState(t *testing.T) {
+
 	t.Parallel()
 
 	fixturePack := newTestPack(t, ForAuth)

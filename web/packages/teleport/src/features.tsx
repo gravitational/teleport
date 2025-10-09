@@ -46,13 +46,13 @@ import {
   NavigationCategory,
   NavigationCategory as SideNavigationCategory,
 } from 'teleport/Navigation/categories';
-import { ListSessionRecordingsRoute } from 'teleport/SessionRecordings/list/ListSessionRecordingsRoute';
 
 import { LockedAccessRequests } from './AccessRequests';
 import { AccountPage } from './Account';
 import { AuditContainer as Audit } from './Audit';
 import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { BotInstances } from './BotInstances/BotInstances';
+import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { BotDetails } from './Bots/Details/BotDetails';
@@ -63,6 +63,7 @@ import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
+import { RecordingsContainer as Recordings } from './Recordings';
 import { RolesContainer as Roles } from './Roles';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
@@ -70,7 +71,7 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
-import { WorkloadIdentities } from './WorkloadIdentity/WorkloadIdentities';
+import { EmptyState as WorkloadIdentityEmptyState } from './WorkloadIdentity/EmptyState/EmptyState';
 
 // to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
 // However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
@@ -302,11 +303,18 @@ export class FeatureBotInstances implements TeleportFeature {
   }
 }
 
-// TODO(nicholasmarais1158) Remove this feature stub when teleport.e no longer
-// uses it.
 export class FeatureBotInstanceDetails implements TeleportFeature {
+  parent = FeatureBotInstances;
+
+  route = {
+    title: 'Bot instance details',
+    path: cfg.routes.botInstance,
+    exact: true,
+    component: BotInstanceDetails,
+  };
+
   hasAccess() {
-    return false;
+    return true;
   }
 }
 
@@ -345,14 +353,12 @@ export class FeatureAddBotsShortcut implements TeleportFeature {
 
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.AddNew;
-  // botsNew redirects to Integrations page
-  isHyperLink = true;
 
   route = {
     title: 'Bot',
     path: cfg.routes.botsNew,
     exact: true,
-    component: AddBots,
+    component: () => <AddBots />,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -556,7 +562,7 @@ export class FeatureIntegrations implements TeleportFeature {
     title: 'Manage Integrations',
     path: cfg.routes.integrations,
     exact: true,
-    component: Integrations,
+    component: () => <Integrations />,
   };
 
   navigationItem = {
@@ -581,7 +587,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
     title: 'Integration',
     path: cfg.routes.integrationEnroll,
     exact: false,
-    component: IntegrationEnroll,
+    component: () => <IntegrationEnroll />,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -616,7 +622,7 @@ export class FeatureRecordings implements TeleportFeature {
     title: 'Session Recordings',
     path: cfg.routes.recordings,
     exact: true,
-    component: ListSessionRecordingsRoute,
+    component: Recordings,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -718,17 +724,17 @@ export class FeatureTrust implements TeleportFeature {
 export class FeatureWorkloadIdentity implements TeleportFeature {
   category = NavigationCategory.MachineWorkloadId;
   route = {
-    title: 'Workload Identities',
-    path: cfg.routes.workloadIdentities,
+    title: 'Workload Identity',
+    path: cfg.routes.workloadIdentity,
     exact: true,
-    component: WorkloadIdentities,
+    component: WorkloadIdentityEmptyState,
   };
 
-  hasAccess(flags: FeatureFlags): boolean {
-    // if feature hiding is enabled, only show
-    // if the user has access
+  // for now, workload identity page is just a placeholder so everyone has
+  // access, unless feature hiding is off
+  hasAccess(): boolean {
     if (shouldHideFromNavigation(cfg)) {
-      return flags.listWorkloadIdentities;
+      return false;
     }
     return true;
   }
@@ -736,7 +742,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
     title: NavTitle.WorkloadIdentity,
     icon: License,
     getLink() {
-      return cfg.routes.workloadIdentities;
+      return cfg.routes.workloadIdentity;
     },
     searchableTags: ['workload identity', 'workload', 'identity'],
   };
@@ -859,6 +865,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureBots(),
     new FeatureBotDetails(),
     new FeatureBotInstances(),
+    new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),

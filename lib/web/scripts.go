@@ -92,7 +92,7 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScriptOptions, error) {
 	const defaultGroup, defaultUpdater = "", ""
 
-	version, err := h.autoUpdateResolver.GetVersion(ctx, defaultGroup, defaultUpdater)
+	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
 		version = teleport.SemVer()
@@ -140,6 +140,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		TeleportFlavor:  teleportFlavor,
 		FIPS:            modules.IsBoringBinary(),
 	}, nil
+
 }
 
 // EnvVarCDNBaseURL is the environment variable that allows users to override the Teleport base CDN url used in the installation script.
@@ -156,16 +157,10 @@ func getCDNBaseURL(version *semver.Version) (string, error) {
 		return override, nil
 	}
 
-	// If this is an AGPL build, we don't want to automatically install binaries distributed under a more restrictive
-	// license so we error and ask the user set the CDN URL, either to:
-	// - the official Teleport CDN if they agree with the community license and meet its requirements
-	// - a custom CDN where they can store their own AGPL binaries
-	if modules.GetModules().BuildType() == modules.BuildOSS {
-		return "", trace.BadParameter(
-			"This proxy is licensed under AGPL but CDN binaries are licensed under the more restrictive Community license. "+
-				"You can set TELEPORT_CDN_BASE_URL to a custom CDN, or to %q if you are OK with using the Community Edition license.",
-			teleportassets.CDNBaseURL())
-	}
+	// For backward compatibility we don't fail if the user is running AGPL and
+	// did not specify the CDN URL. However we will fail in v18 for this as we
+	// cannot automatically install binaries subject to a license the user has
+	// not agreed to.
 
 	return teleportassets.CDNBaseURLForVersion(version), nil
 }

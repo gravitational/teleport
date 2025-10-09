@@ -187,7 +187,7 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 			ctx, span := tracer.Start(ctx, "TunnelService/OnNewConnection")
 			defer span.End()
 
-			if err := lp.CheckCertExpiry(ctx); err != nil {
+			if err := lp.CheckCertExpiry(); err != nil {
 				s.log.InfoContext(ctx, "Certificate for tunnel needs reissuing.", "reason", err.Error())
 				cert, _, err := s.issueCert(ctx)
 				if err != nil {

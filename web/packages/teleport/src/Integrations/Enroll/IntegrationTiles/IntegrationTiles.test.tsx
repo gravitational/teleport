@@ -33,14 +33,8 @@ test('render', async () => {
 
   expect(screen.getByText(/AWS OIDC Identity Provider/i)).toBeInTheDocument();
   expect(screen.queryByText(/no permission/i)).not.toBeInTheDocument();
-  expect(screen.getAllByTestId('res-icon-aws')).toHaveLength(1);
-  expect(
-    screen.getAllByTestId('res-icon-awsidentityandaccessmanagementiam')
-  ).toHaveLength(1);
-  expect(
-    screen.getAllByTestId('res-icon-awssimplestorageservices3')
-  ).toHaveLength(1);
-  expect(screen.getAllByRole('link')).toHaveLength(3);
+  expect(screen.getAllByTestId('res-icon-aws')).toHaveLength(2);
+  expect(screen.getAllByRole('link')).toHaveLength(2);
 
   const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).toBeEnabled();
@@ -71,7 +65,7 @@ test('render disabled', async () => {
   expect(tile).toHaveAttribute('disabled');
 
   // Disabled states have badges on them. Test it renders on hover.
-  const badge = tile.querySelector('[data-testid="tooltip"]');
+  const badge = screen.getByText(/lacking permission/i);
   await userEvent.hover(badge);
   expect(
     screen.getByText(/request additional permissions/i)

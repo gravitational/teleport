@@ -120,9 +120,6 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
-	// ComponentRelay is the component name for the relay service.
-	ComponentRelay = "relay"
-
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
 
@@ -292,20 +289,14 @@ const (
 	// ComponentUpdater represents the teleport-update binary.
 	ComponentUpdater = "updater"
 
-	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
-	ComponentRolloutController = "rollout-controller"
-
 	// ComponentGit represents git proxy related services.
 	ComponentGit = "git"
 
 	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
 	ComponentForwardingGit = "git:forward"
 
-	// ComponentMCP represents the MCP server handler.
-	ComponentMCP = "mcp"
-
-	// ComponentRecordingEncryption represents recording encryption
-	ComponentRecordingEncryption = "recording-encryption"
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
 
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -430,6 +421,9 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
+	// Syslog is a mode for syslog logging
+	Syslog = "syslog"
+
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
 
@@ -464,9 +458,6 @@ const (
 )
 
 const (
-	// CertExtensionScopePin is used to pin a certificate to a specific scope and
-	// set of scoped roles.
-	CertExtensionScopePin = "scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -600,10 +591,6 @@ const MaxHTTPRequestSize = 10 * 1024 * 1024
 // to prevent resource exhaustion attacks.
 const MaxHTTPResponseSize = 10 * 1024 * 1024
 
-// MaxUsernameLength is the maximum allowed length (characters) for usernames.
-// This limit prevents sending extremely long usernames that could clog up logs or exhaust resources.
-const MaxUsernameLength = 1000
-
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
 	// versions of OpenSSH.
@@ -673,10 +660,6 @@ const (
 	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
 	// organizations for GitHub integrations.
 	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
-
-	// TraitInternalMCPTools is the variable used to store allowed MCP tools for
-	// MCP servers.
-	TraitInternalMCPTools = "{{internal.mcp_tools}}"
 )
 
 // SCP is Secure Copy.
@@ -766,19 +749,9 @@ const (
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
-
-	// PresetMCPUserRoleName is a name of a preset role that allows
-	// accessing MCP servers.
-	PresetMCPUserRoleName = "mcp-user"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
-
-const (
-	// PresetDefaultHealthCheckConfigName is the name of a preset
-	// default health_check_config that enables health checks for all resources.
-	PresetDefaultHealthCheckConfigName = "default"
-)
 
 const (
 	// SystemAccessApproverUserName names a Teleport user that acts as

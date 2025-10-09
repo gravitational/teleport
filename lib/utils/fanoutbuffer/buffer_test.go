@@ -62,7 +62,7 @@ func BenchmarkBuffer(b *testing.B) {
 
 	for _, bb := range bbs {
 		b.Run(fmt.Sprintf("%d-events-%d-cursors", bb.events, bb.cursors), func(b *testing.B) {
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 				concurrentFanout(ctx, b, bb.events, bb.cursors)
 				cancel()
@@ -85,7 +85,7 @@ func concurrentFanout(ctx context.Context, t require.TestingT, events int, curso
 	defer buf.Close()
 
 	results := make(chan error, cursors)
-	for range cursors {
+	for i := 0; i < cursors; i++ {
 		cursor := buf.NewCursor()
 		go func() {
 			var result error
@@ -126,7 +126,7 @@ func concurrentFanout(ctx context.Context, t require.TestingT, events int, curso
 		buf.Append(outbuf[:]...)
 	}
 
-	for range cursors {
+	for i := 0; i < cursors; i++ {
 		select {
 		case err := <-results:
 			require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestBasics(t *testing.T) {
 	require.Zero(t, n)
 
 	// continuously stream items
-	for i := range bufSize {
+	for i := 0; i < bufSize; i++ {
 		buf.Append(i)
 
 		n, err := cursor.Read(ctx, rbuf[:])
@@ -173,7 +173,7 @@ func TestBasics(t *testing.T) {
 
 	var input []int
 	// fill and drain buffer
-	for i := range bufSize {
+	for i := 0; i < bufSize; i++ {
 		input = append(input, i)
 	}
 
@@ -189,7 +189,7 @@ func TestBasics(t *testing.T) {
 
 	// generate new input that causes overflow/backlog
 	input = nil
-	for i := range bufSize * 2 {
+	for i := 0; i < bufSize*2; i++ {
 		input = append(input, i)
 	}
 	buf.Append(input...)
@@ -203,7 +203,7 @@ func TestBasics(t *testing.T) {
 	require.Equal(t, input, output)
 
 	// overflow and then exceed grace-period
-	for i := range bufSize * 2 {
+	for i := 0; i < bufSize*2; i++ {
 		buf.Append(i)
 	}
 	clock.Advance(gracePeriod * 2)
@@ -217,7 +217,8 @@ func TestBasics(t *testing.T) {
 }
 
 func TestCursorFinalizer(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	buf := NewBuffer[int](Config{})
 	defer buf.Close()

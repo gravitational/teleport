@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -42,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // legacyValidateGenerationLabel validates and updates a generation label.
@@ -182,7 +182,7 @@ func sshPublicKeyToPKIXPEM(pubKey []byte) ([]byte, error) {
 func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, username string, newValue uint64) error {
 	var err error
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		user, err := a.Services.GetUser(ctx, username, false)
 		if err != nil {
 			return trace.Wrap(err)
@@ -283,7 +283,7 @@ func (a *Server) tryLockBotDueToGenerationMismatch(
 		},
 		UserMetadata: userMetadata,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit renewable cert generation mismatch event", "error", err)
+		log.WithError(err).Warn("Failed to emit renewable cert generation mismatch event")
 	}
 
 	return nil
@@ -408,11 +408,11 @@ func (a *Server) updateBotInstance(
 			authRecord.Generation = 1
 		}
 
-		a.logger.InfoContext(ctx, "bot has no valid instance ID, a new instance will be generated",
-			"bot_name", botName,
-			"invalid_instance_id", botInstanceID,
-			"new_instance_id", logutils.StringerAttr(instanceID),
-		)
+		log.WithFields(logrus.Fields{
+			"bot_name":            botName,
+			"invalid_instance_id": botInstanceID,
+			"new_instance_id":     instanceID.String(),
+		}).Info("bot has no valid instance ID, a new instance will be generated")
 
 		expires := a.GetClock().Now().Add(req.ttl + machineidv1.ExpiryMargin)
 
@@ -431,14 +431,14 @@ func (a *Server) updateBotInstance(
 		return nil
 	}
 
-	log := a.logger.With(
-		"bot_name", botName,
-		"bot_instance_id", botInstanceID,
-	)
+	l := log.WithFields(logrus.Fields{
+		"bot_name":        botName,
+		"bot_instance_id": botInstanceID,
+	})
 
 	if currentIdentityGeneration == 0 {
 		// Nothing to do.
-		log.WarnContext(ctx, "bot attempted to fetch certificates without providing a current identity generation, this is not allowed")
+		l.Warn("bot attempted to fetch certificates without providing a current identity generation, this is not allowed")
 
 		return trace.AccessDenied("a current identity generation must be provided")
 	} else if currentIdentityGeneration > 0 && currentIdentityGeneration != instanceGeneration {
@@ -446,7 +446,7 @@ func (a *Server) updateBotInstance(
 		// method (if any - token renewals technically have no join method.)
 		if shouldEnforceGenerationCounter(req.renewable, authRecord.JoinMethod) {
 			if err := a.tryLockBotDueToGenerationMismatch(ctx, botName, botInstanceID, req.joinToken, req.renewable); err != nil {
-				log.WarnContext(ctx, "Failed to lock bot when a generation mismatch was detected", "error", err)
+				l.WithError(err).Warn(ctx, "Failed to lock bot when a generation mismatch was detected")
 			}
 
 			return trace.AccessDenied(
@@ -458,13 +458,12 @@ func (a *Server) updateBotInstance(
 			// We'll still log the check failure, but won't deny access. This
 			// log data will help make an informed decision about reliability of
 			// the generation counter for all join methods in the future.
-			const msg = "Bot generation counter mismatch detected. This check is not enforced for this join method, " +
-				"but may indicate multiple uses of a bot identity and possibly a compromised certificate."
-			log.WarnContext(ctx, msg,
-				"bot_instance_generation", instanceGeneration,
-				"bot_identity_generation", currentIdentityGeneration,
-				"bot_join_method", authRecord.JoinMethod,
-			)
+			l.WithFields(logrus.Fields{
+				"bot_instance_generation": instanceGeneration,
+				"bot_identity_generation": currentIdentityGeneration,
+				"bot_join_method":         authRecord.JoinMethod,
+			}).Warn("Bot generation counter mismatch detected. This check is not enforced for this join method, " +
+				"but may indicate multiple uses of a bot identity and possibly a compromised certificate.")
 		}
 	}
 
@@ -482,7 +481,7 @@ func (a *Server) updateBotInstance(
 	// write a generation counter to user labels (e.g. bound keypair).
 	if req.renewable {
 		if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
-			log.WarnContext(ctx, "unable to commit legacy generation counter to bot user", "error", err)
+			l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
 		}
 	}
 
@@ -505,7 +504,7 @@ func (a *Server) updateBotInstance(
 		// An initial auth record should have been added during initial join,
 		// but if not, add it now.
 		if bi.Status.InitialAuthentication == nil {
-			log.WarnContext(ctx, "bot instance is missing its initial authentication record, a new one will be added")
+			l.Warn("bot instance is missing its initial authentication record, a new one will be added")
 			bi.Status.InitialAuthentication = authRecord
 		}
 
@@ -564,16 +563,13 @@ func (a *Server) generateInitialBotCerts(
 	// permissions to read user data.
 	userState, err := a.GetUserOrLoginState(ctx, username)
 	if err != nil {
-		a.logger.DebugContext(ctx, "Could not impersonate user - the user could not be fetched from local store",
-			"error", err,
-			"user", username,
-		)
+		log.WithError(err).Debugf("Could not impersonate user %v. The user could not be fetched from local store.", username)
 		return nil, "", trace.AccessDenied("access denied")
 	}
 
 	// Do not allow SSO users to be impersonated.
 	if userState.GetUserType() == types.UserTypeSSO {
-		a.logger.WarnContext(ctx, "Tried to issue a renewable cert for externally managed user, this is not supported", "user", username)
+		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
 		return nil, "", trace.AccessDenied("access denied")
 	}
 
@@ -584,7 +580,7 @@ func (a *Server) generateInitialBotCerts(
 
 	// Inherit the user's roles and traits verbatim.
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -599,7 +595,7 @@ func (a *Server) generateInitialBotCerts(
 		ttl:            expires.Sub(a.GetClock().Now()),
 		sshPublicKey:   sshPubKey,
 		tlsPublicKey:   tlsPubKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateInitialBotCerts (likely not necessary until bot scoping work begins).
+		checker:        checker,
 		traits:         accessInfo.Traits,
 		renewable:      renewable,
 		includeHostCA:  true,

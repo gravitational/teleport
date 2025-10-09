@@ -57,6 +57,7 @@ func TestWorkloadIdentity(t *testing.T) {
 		newResource: func(s string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 			return newWorkloadIdentity(s), nil
 		},
+
 		create: func(ctx context.Context, item *workloadidentityv1pb.WorkloadIdentity) error {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)

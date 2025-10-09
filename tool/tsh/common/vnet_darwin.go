@@ -48,8 +48,8 @@ func newPlatformVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupC
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
-	cmd.Flag("addr", "Client application service address.").Required().StringVar(&cmd.addr)
-	cmd.Flag("cred-path", "Path to TLS credentials for connecting to client application.").Required().StringVar(&cmd.credPath)
+	cmd.Flag("addr", "client application service address").Required().StringVar(&cmd.addr)
+	cmd.Flag("cred-path", "path to TLS credentials for connecting to client application").Required().StringVar(&cmd.credPath)
 	return cmd
 }
 

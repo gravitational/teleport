@@ -128,6 +128,7 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetAccessCapabilities":                                   {},
 			"proto.AuthService.GetAccountRecoveryCodes":                                 {},
 			"proto.AuthService.GetAlertAcks":                                            {},
+			"proto.AuthService.GetApps":                                                 {},
 			"proto.AuthService.GetClusterAlerts":                                        {},
 			"proto.AuthService.GetEvents":                                               {},
 			"proto.AuthService.GetGithubConnectors":                                     {},
@@ -144,6 +145,7 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetSSHTargets":                                           {},
 			"proto.AuthService.GetSSODiagnosticInfo":                                    {},
 			"proto.AuthService.GetTokens":                                               {},
+			"proto.AuthService.GetTrustedClusters":                                      {},
 			"proto.AuthService.GetWebTokens":                                            {},
 			"proto.AuthService.GetWindowsDesktops":                                      {},
 			"proto.AuthService.GetWindowsDesktopServices":                               {},
@@ -186,7 +188,10 @@ func newDefaultConfig() *Config {
 			"teleport.lib.teleterm.v1.TerminalService.ListLeafClusters":                 {},
 			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers":                {},
 			"proto.AuthService.GetInventoryStatus":                                      {},
-
+			"teleport.integration.v1.AWSOIDCService.ListEICE":                           {},
+			"teleport.integration.v1.AWSOIDCService.ListEC2":                            {},
+			// RPCs deprecated from v19 onwards:
+			"proto.AuthService.GetDatabases": {},
 			// repeated field `schemas` in `Resource` does not require pagination.
 			"teleport.scim.v1.SCIMService.GetSCIMResource": {},
 			// `Device` message contains repeated field `DeviceCollectedData` but is not paginated.

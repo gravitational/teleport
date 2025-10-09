@@ -858,7 +858,6 @@ func TestLocalInstaller_Remove(t *testing.T) {
 
 			validator := Validator{Log: slog.Default()}
 			installer := &LocalInstaller{
-
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{

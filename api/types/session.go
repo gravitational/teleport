@@ -22,8 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // WebSessionsGetter provides access to web sessions
@@ -117,8 +115,6 @@ type WebSession interface {
 	// requirement.
 	// See [TrustedDeviceRequirement].
 	GetTrustedDeviceRequirement() TrustedDeviceRequirement
-	// Copy returns a clone of the session resource.
-	Copy() WebSession
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -140,11 +136,6 @@ func NewWebSession(name string, subkind string, spec WebSessionSpecV2) (WebSessi
 // GetKind gets resource Kind
 func (ws *WebSessionV2) GetKind() string {
 	return ws.Kind
-}
-
-// Copy returns a clone of the session resource.
-func (ws *WebSessionV2) Copy() WebSession {
-	return utils.CloneProtoMsg(ws)
 }
 
 // GetSubKind gets resource SubKind
@@ -326,6 +317,12 @@ func (ws *WebSessionV2) SetSSHPriv(priv []byte) {
 
 // GetTLSPriv returns private TLS key.
 func (ws *WebSessionV2) GetTLSPriv() []byte {
+	// TODO(nklaassen): DELETE IN 18.0.0 when all auth servers are writing web session TLS key.
+	if ws.Spec.TLSPriv == nil {
+		// An older auth instance may have written this web session before the
+		// SSH and TLS keys were split.
+		return ws.Spec.Priv
+	}
 	return ws.Spec.TLSPriv
 }
 
@@ -395,6 +392,21 @@ func (r *GetSnowflakeSessionRequest) Check() error {
 	return nil
 }
 
+// GetSAMLIdPSessionRequest contains the parameters to request a SAML IdP
+// session.
+type GetSAMLIdPSessionRequest struct {
+	// SessionID is the session ID of the SAML IdP session.
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetSAMLIdPSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
 // CreateSnowflakeSessionRequest contains the parameters needed to request
 // creating a Snowflake web session.
 type CreateSnowflakeSessionRequest struct {
@@ -406,6 +418,29 @@ type CreateSnowflakeSessionRequest struct {
 	TokenTTL time.Duration
 }
 
+// CreateSAMLIdPSessionRequest contains the parameters needed to request
+// creating a SAML IdP session.
+type CreateSAMLIdPSessionRequest struct {
+	// SessionID is the identifier for the session.
+	SessionID string
+	// Username is the identity of the user requesting the session.
+	Username string `json:"username"`
+	// SAMLSession is the session data associated with the SAML IdP session.
+	SAMLSession *SAMLSessionData `json:"saml_session"`
+}
+
+// Check validates the request.
+func (r CreateSAMLIdPSessionRequest) Check() error {
+	if r.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if r.SAMLSession == nil {
+		return trace.BadParameter("saml session missing")
+	}
+
+	return nil
+}
+
 // DeleteAppSessionRequest are the parameters used to request removal of
 // an application web session.
 type DeleteAppSessionRequest struct {
@@ -415,6 +450,12 @@ type DeleteAppSessionRequest struct {
 // DeleteSnowflakeSessionRequest are the parameters used to request removal of
 // a Snowflake web session.
 type DeleteSnowflakeSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// DeleteSAMLIdPSessionRequest are the parameters used to request removal of
+// a SAML IdP session.
+type DeleteSAMLIdPSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 
@@ -472,17 +513,9 @@ type WebToken interface {
 	SetUser(user string)
 	// String returns the text representation of this token
 	String() string
-	// Clone returns a copy of the token.
-	Clone() WebToken
 }
 
 var _ WebToken = &WebTokenV3{}
-
-// Clone returns a copy of the token.
-// GetMetadata returns the token metadata
-func (r *WebTokenV3) Clone() WebToken {
-	return utils.CloneProtoMsg(r)
-}
 
 // GetMetadata returns the token metadata
 func (r *WebTokenV3) GetMetadata() Metadata {

@@ -25,7 +25,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -55,8 +55,8 @@ type HandlerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint authclient.ProxyAccessPoint
-	// ClusterGetter holds connections to leaf clusters.
-	ClusterGetter reversetunnelclient.ClusterGetter
+	// ProxyClient holds connections to leaf clusters.
+	ProxyClient reversetunnelclient.Tunnel
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -103,7 +103,7 @@ type Handler struct {
 
 	clusterName string
 
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewHandler returns a new application handler.
@@ -116,7 +116,9 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		c:            c,
 		closeContext: ctx,
-		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.ComponentAppProxy,
+		}),
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -133,7 +135,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 
 	// Get the name of this cluster.
-	cn, err := h.c.AccessPoint.GetClusterName(ctx)
+	cn, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,7 +226,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
 func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
-	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
+	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -236,7 +238,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	// At least one AppServer needs to be present to serve the requests. Using
 	// MatchOne can reduce the amount of work required by the app matcher by not
 	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ClusterGetter, publicAddr, clusterName))
+	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -332,7 +334,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
+		h.log.Warnf("Failed to fetch application session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -340,7 +342,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// process has seen.
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
+		h.log.Warnf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -353,7 +355,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
+		h.log.Debugf("Failed to fetch application session: not found.")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -364,7 +366,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	// Fetches a new session using the same flow as `authenticate`.
 	session, err := h.getSession(r.Context(), ws)
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		h.log.Warnf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -383,7 +385,7 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		h.log.Warnf("Failed to get session: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
@@ -398,7 +400,7 @@ func (h *Handler) getAppSessionFromAccessPoint(ctx context.Context, sessionID st
 	}
 	// Do an extra check in case expired app session is still cached.
 	if ws.Expiry().Before(h.c.Clock.Now()) {
-		h.logger.DebugContext(ctx, "Session expired")
+		h.log.Debug(ctx, "Session expired")
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil

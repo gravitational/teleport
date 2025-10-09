@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -44,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -107,106 +106,6 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 	}
 }
 
-func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
-	t.Parallel()
-	wPack := newWebPack(t, 1 /* proxies */)
-	proxy := wPack.proxies[0]
-	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
-	ctx := context.Background()
-
-	// Create Integration
-	const integrationName = "test-integration"
-	trustAnchorARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012"
-	createData := ui.Integration{
-		Name:    integrationName,
-		SubKind: "aws-ra",
-		AWSRA: &ui.IntegrationAWSRASpec{
-			TrustAnchorARN: trustAnchorARN,
-			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled: false,
-			},
-		},
-	}
-	createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
-	createResp, err := authPack.clt.PostJSON(ctx, createEndpoint, createData)
-	require.NoError(t, err)
-	require.Equal(t, 200, createResp.Code())
-
-	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
-	require.NoError(t, err)
-	require.Equal(t, trustAnchorARN, intgrationResource.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN)
-
-	// Create Integration fails when sync is enabled but config is not set
-	createDataWithoutSyncFields := ui.Integration{
-		Name:    "another-integration",
-		SubKind: "aws-ra",
-		AWSRA: &ui.IntegrationAWSRASpec{
-			TrustAnchorARN: trustAnchorARN,
-			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled:    true,
-				ProfileARN: "",
-				RoleARN:    "arn:aws:iam::123456789012:role/testrole",
-			},
-		},
-	}
-	createResp, err = authPack.clt.PostJSON(ctx, createEndpoint, createDataWithoutSyncFields)
-	require.ErrorContains(t, err, "missing awsra.profileSync.profileArn field")
-	require.Equal(t, 400, createResp.Code())
-
-	// Get single integration
-	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-	getResp, err := authPack.clt.Get(ctx, getEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, 200, getResp.Code())
-
-	var resp ui.Integration
-	err = json.Unmarshal(getResp.Bytes(), &resp)
-	require.NoError(t, err)
-	require.Equal(t, createData, resp)
-
-	// Update integration
-	updatedTrustAnchor := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/00000000-0000-0000-0000-123456789012"
-	syncProfileARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/00000000-0000-0000-0000-123456789012"
-	syncRoleARN := "arn:aws:iam::123456789012:role/testrole"
-	updateIntegration := ui.UpdateIntegrationRequest{
-		AWSRA: &ui.IntegrationAWSRASpec{
-			TrustAnchorARN: updatedTrustAnchor,
-			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled:            true,
-				ProfileARN:         syncProfileARN,
-				RoleARN:            syncRoleARN,
-				ProfileNameFilters: []string{"ExposedProfile-*"},
-			},
-		},
-	}
-	updateEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-	updateResp, err := authPack.clt.PutJSON(ctx, updateEndpoint, updateIntegration)
-	require.NoError(t, err)
-	require.Equal(t, 200, updateResp.Code())
-
-	// List integrations
-	listEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
-	listResp, err := authPack.clt.Get(ctx, listEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, 200, listResp.Code())
-
-	var listRespObject ui.IntegrationsListResponse
-	err = json.Unmarshal(listResp.Bytes(), &listRespObject)
-	require.NoError(t, err)
-	require.Len(t, listRespObject.Items, 1)
-	integrationObject := listRespObject.Items[0]
-	require.Equal(t, updatedTrustAnchor, integrationObject.AWSRA.TrustAnchorARN)
-	require.True(t, integrationObject.AWSRA.ProfileSyncConfig.Enabled)
-	require.Equal(t, syncProfileARN, integrationObject.AWSRA.ProfileSyncConfig.ProfileARN)
-	require.Equal(t, syncRoleARN, integrationObject.AWSRA.ProfileSyncConfig.RoleARN)
-	require.Len(t, integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters, 1)
-	require.Equal(t, "ExposedProfile-*", integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters[0])
-
-	// Delete Integration
-	err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)
-	require.NoError(t, err)
-}
-
 type mockUserTasksLister struct {
 	defaultPageSize int64
 	userTasks       []*usertasksv1.UserTask
@@ -245,9 +144,9 @@ func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64,
 	return ret, "", nil
 }
 
-func TestCollectIntegrationStats(t *testing.T) {
+func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	ctx := context.Background()
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 
 	integrationName := "my-integration"
 	integration, err := types.NewIntegrationAWSOIDC(
@@ -502,152 +401,6 @@ func TestCollectIntegrationStats(t *testing.T) {
 				ResourcesEnrollmentSuccess: 1,
 				ECSDatabaseServiceCount:    0,
 				DiscoverLastSync:           &syncTime,
-			},
-		}
-		require.Equal(t, expectedSummary, gotSummary)
-	})
-
-	t.Run("returns AWS IAM Roles Anywhere Profile Sync status", func(t *testing.T) {
-		syncStartTime := time.Now()
-		syncEndTime := syncStartTime.Add(5 * time.Minute)
-		integrationName := "my-integration"
-		integration, err := types.NewIntegrationAWSRA(
-			types.Metadata{Name: integrationName},
-			&types.AWSRAIntegrationSpecV1{
-				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-					Enabled:                       true,
-					ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-					ProfileAcceptsRoleSessionName: true,
-					RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
-				},
-			},
-		)
-		require.NoError(t, err)
-		integration.SetStatus(types.IntegrationStatusV1{
-			AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
-				LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
-					Status:         "SUCCESS",
-					SyncedProfiles: 4,
-					StartTime:      syncStartTime,
-					EndTime:        syncEndTime,
-				},
-			},
-		})
-
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
-			databaseServices: &proto.ListResourcesResponse{},
-			databases: []types.Database{
-				&types.DatabaseV3{Spec: types.DatabaseSpecV3{AWS: types.AWS{Region: "us-west-1"}}},
-			},
-		}
-
-		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
-			listErr: errors.New("only aws oidc integrations can list deployed database services"),
-		}
-		req := collectIntegrationStatsRequest{
-			logger:                logger,
-			integration:           integration,
-			discoveryConfigLister: clt,
-			databaseGetter:        clt,
-			awsOIDCClient:         deployedDatabaseServicesClient,
-			userTasksClient:       &mockUserTasksLister{},
-		}
-		gotSummary, err := collectIntegrationStats(ctx, req)
-		require.NoError(t, err)
-		expectedSummary := &ui.IntegrationWithSummary{
-			Integration: &ui.Integration{
-				Name:    integrationName,
-				SubKind: "aws-ra",
-				AWSRA: &ui.IntegrationAWSRASpec{
-					TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-					ProfileSyncConfig: ui.AWSRAProfileSync{
-						Enabled:    true,
-						ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-						RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
-					},
-				},
-			},
-			RolesAnywhereProfileSync: &ui.RolesAnywhereProfileSync{
-				Enabled:        true,
-				Status:         "SUCCESS",
-				SyncedProfiles: 4,
-				SyncStartTime:  syncStartTime,
-				SyncEndTime:    syncEndTime,
-			},
-		}
-		require.Equal(t, expectedSummary, gotSummary)
-	})
-
-	t.Run("returns AWS IAM Roles Anywhere Profile Sync status with error message", func(t *testing.T) {
-		syncStartTime := time.Now()
-		syncEndTime := syncStartTime.Add(5 * time.Minute)
-		integrationName := "my-integration"
-		integration, err := types.NewIntegrationAWSRA(
-			types.Metadata{Name: integrationName},
-			&types.AWSRAIntegrationSpecV1{
-				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-					Enabled:                       true,
-					ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-					ProfileAcceptsRoleSessionName: true,
-					RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
-				},
-			},
-		)
-		require.NoError(t, err)
-		integration.SetStatus(types.IntegrationStatusV1{
-			AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
-				LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
-					Status:         "ERROR",
-					SyncedProfiles: 0,
-					StartTime:      syncStartTime,
-					EndTime:        syncEndTime,
-					ErrorMessage:   "Failed to sync profiles due to access denied error",
-				},
-			},
-		})
-
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
-			databaseServices: &proto.ListResourcesResponse{},
-			databases:        make([]types.Database, 0),
-		}
-
-		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
-			listErr: trace.AccessDenied("AccessDenied to ECS:ListServices"),
-		}
-		req := collectIntegrationStatsRequest{
-			logger:                logger,
-			integration:           integration,
-			discoveryConfigLister: clt,
-			databaseGetter:        clt,
-			awsOIDCClient:         deployedDatabaseServicesClient,
-			userTasksClient:       &mockUserTasksLister{},
-		}
-		gotSummary, err := collectIntegrationStats(ctx, req)
-		require.NoError(t, err)
-		expectedSummary := &ui.IntegrationWithSummary{
-			Integration: &ui.Integration{
-				Name:    integrationName,
-				SubKind: "aws-ra",
-				AWSRA: &ui.IntegrationAWSRASpec{
-					TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-					ProfileSyncConfig: ui.AWSRAProfileSync{
-						Enabled:    true,
-						ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-						RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
-					},
-				},
-			},
-			RolesAnywhereProfileSync: &ui.RolesAnywhereProfileSync{
-				Enabled:        true,
-				Status:         "ERROR",
-				SyncedProfiles: 0,
-				SyncStartTime:  syncStartTime,
-				SyncEndTime:    syncEndTime,
-				ErrorMessage:   "Failed to sync profiles due to access denied error",
 			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)

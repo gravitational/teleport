@@ -22,12 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestParseReviewFrequency(t *testing.T) {
@@ -185,8 +183,6 @@ func TestAuditMarshaling(t *testing.T) {
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
-	const twoWeeks = 14 * 24 * time.Hour
-
 	tests := []struct {
 		name                      string
 		input                     map[string]interface{}
@@ -248,6 +244,44 @@ func TestAuditUnmarshaling(t *testing.T) {
 	}
 }
 
+func TestAccessListDefaults(t *testing.T) {
+	newValidAccessList := func() *AccessList {
+		return &AccessList{
+			ResourceHeader: header.ResourceHeader{
+				Metadata: header.Metadata{
+					Name: "test",
+				},
+			},
+			Spec: Spec{
+				Title:  "test access list",
+				Owners: []Owner{{Name: "Daphne"}},
+				Grants: Grants{Roles: []string{"requester"}},
+				Audit: Audit{
+					NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
+				},
+			},
+		}
+	}
+
+	t.Run("owners are required", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Owners = []Owner{}
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "owners")
+	})
+
+	t.Run("type is validated", func(t *testing.T) {
+		uut := newValidAccessList()
+		uut.Spec.Type = "test_unknown_type"
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
+		require.ErrorContains(t, err, `unknown access_list type "test_unknown_type"`)
+	})
+}
+
 func TestSelectNextReviewDate(t *testing.T) {
 	t.Parallel()
 
@@ -258,7 +292,6 @@ func TestSelectNextReviewDate(t *testing.T) {
 		dayOfMonth        ReviewDayOfMonth
 		currentReviewDate time.Time
 		expected          time.Time
-		expectedErr       bool
 	}{
 		{
 			name:              "one month, first day",
@@ -267,7 +300,6 @@ func TestSelectNextReviewDate(t *testing.T) {
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			expectedErr:       false,
 		},
 		{
 			name:              "one month, fifteenth day",
@@ -276,7 +308,6 @@ func TestSelectNextReviewDate(t *testing.T) {
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
-			expectedErr:       false,
 		},
 		{
 			name:              "one month, last day",
@@ -285,7 +316,6 @@ func TestSelectNextReviewDate(t *testing.T) {
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
-			expectedErr:       false,
 		},
 		{
 			name:              "six months, last day",
@@ -294,25 +324,6 @@ func TestSelectNextReviewDate(t *testing.T) {
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
-			expectedErr:       false,
-		},
-		{
-			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
-			frequency:         SixMonths,
-			dayOfMonth:        LastDayOfMonth,
-			currentReviewDate: time.Time{},
-			expected:          time.Time{},
-			expectedErr:       true,
-		},
-		{
-			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
-			frequency:         SixMonths,
-			dayOfMonth:        LastDayOfMonth,
-			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expected:          time.Time{},
-			expectedErr:       true,
 		},
 	}
 
@@ -328,13 +339,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 						Frequency:  test.frequency,
 						DayOfMonth: test.dayOfMonth,
 					}
-					nextReviewDate, err := accessList.SelectNextReviewDate()
-					if test.expectedErr {
-						require.Error(t, err)
-					} else {
-						require.NoError(t, err)
-						require.Equal(t, test.expected, nextReviewDate)
-					}
+					require.Equal(t, test.expected, accessList.SelectNextReviewDate())
 				})
 			}
 		})
@@ -394,13 +399,4 @@ func TestAccessList_setInitialReviewDate(t *testing.T) {
 			require.Equal(t, test.expected, accessList.Spec.Audit.NextAuditDate)
 		})
 	}
-}
-
-func TestAccessListClone(t *testing.T) {
-	item := &AccessList{}
-	err := structfill.Fill(item)
-	require.NoError(t, err)
-	cpy := item.Clone()
-	require.Empty(t, cmp.Diff(item, cpy))
-	require.NotSame(t, item, cpy)
 }

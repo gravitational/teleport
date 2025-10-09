@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -59,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
@@ -75,10 +73,8 @@ const (
 	concurrentEKSEnrollingLimit = 5
 )
 
-var (
-	agentRepoURL        = teleportassets.HelmRepoURL()
-	agentStagingRepoURL = teleportassets.HelmStagingRepoURL()
-)
+var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
+var agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -135,7 +131,7 @@ type EnrollEKSClusterClient interface {
 type defaultEnrollEKSClustersClient struct {
 	*eks.Client
 	stsClient    *sts.Client
-	tokenCreator TokenCreator
+	tokenCreator TokenCreatorFn
 }
 
 // GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
@@ -158,7 +154,7 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.
 	return checkAgentAlreadyInstalled(ctx, actionConfig)
 }
 
-func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
+func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreatorFn) (string, string, error) {
 	const eksJoinTokenTTL = 30 * time.Minute
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -211,11 +207,11 @@ func (d *defaultEnrollEKSClustersClient) CreateToken(ctx context.Context, token 
 	return d.tokenCreator(ctx, token)
 }
 
-// TokenCreator creates join token on the auth server.
-type TokenCreator func(ctx context.Context, token types.ProvisionToken) error
+// TokenCreatorFn creates join token on the auth server.
+type TokenCreatorFn func(ctx context.Context, token types.ProvisionToken) error
 
 // NewEnrollEKSClustersClient returns new client that can be used to enroll EKS clusters into Teleport.
-func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreator) (EnrollEKSClusterClient, error) {
+func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreatorFn) (EnrollEKSClusterClient, error) {
 	eksClient, err := newEKSClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -311,6 +307,7 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 	group.SetLimit(concurrentEKSEnrollingLimit)
 
 	for _, eksClusterName := range req.ClusterNames {
+		eksClusterName := eksClusterName
 
 		group.Go(func() error {
 			resourceId, issueType, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
@@ -464,6 +461,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "",
 			issueTypeFromCheckAgentInstalledError(err),
 			trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
+
 	} else if alreadyInstalled {
 		return "",
 			// When using EKS Auto Discovery, after the Kube Agent connects to the Teleport cluster, it is ignored in next discovery iterations.
@@ -525,8 +523,10 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 		return false, trace.Wrap(err)
 	}
 
-	if slices.Contains(entries.AccessEntries, roleArn) {
-		return false, nil
+	for _, entry := range entries.AccessEntries {
+		if entry == roleArn {
+			return false, nil
+		}
 	}
 
 	createAccessEntryReq := &eks.CreateAccessEntryInput{
@@ -537,7 +537,7 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 
 	_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
 	if err != nil {
-		convertedError := awslib.ConvertRequestFailureError(err)
+		convertedError := awslib.ConvertIAMv2Error(err)
 		if !trace.IsAccessDenied(convertedError) {
 			return false, trace.Wrap(err)
 		}
@@ -588,7 +588,7 @@ func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RES
 	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
-	debugLogWithFormat := func(format string, v ...any) {
+	debugLogWithFormat := func(format string, v ...interface{}) {
 		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
 			return
 		}
@@ -710,8 +710,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
 
-		vals["highAvailability"] = map[string]any{
-			"replicaCount":        2,
+		vals["highAvailability"] = map[string]any{"replicaCount": 2,
 			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
 		}
 	}
@@ -719,10 +718,11 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		vals["enterprise"] = true
 	}
 
-	eksTags := make(map[string]string, len(cfg.eksCluster.Tags))
-	maps.Copy(eksTags, cfg.eksCluster.Tags)
-	eksTags[types.OriginLabel] = types.OriginCloud
-
+	eksTags := make(map[string]*string, len(cfg.eksCluster.Tags))
+	for k, v := range cfg.eksCluster.Tags {
+		eksTags[k] = aws.String(v)
+	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

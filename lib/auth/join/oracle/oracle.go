@@ -120,7 +120,7 @@ func (p principal) getClaims() Claims {
 
 type authenticateClientResult struct {
 	ErrorMessage string    `json:"errorMessage,omitempty"`
-	Principal    principal `json:"principal"`
+	Principal    principal `json:"principal,omitempty"`
 }
 
 type authenticateClientResponse struct {
@@ -180,7 +180,7 @@ func (l *oracleLogger) LogLevel() int {
 }
 
 // Log logs v with the provided format if the current log level is loglevel
-func (l *oracleLogger) Log(logLevel int, format string, v ...any) error {
+func (l *oracleLogger) Log(logLevel int, format string, v ...interface{}) error {
 	if !l.logger.Handler().Enabled(context.Background(), slog.LevelDebug) {
 		return nil
 	}

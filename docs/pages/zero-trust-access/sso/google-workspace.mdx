@@ -3,11 +3,8 @@ title: Teleport Authentication with Google Workspace (G Suite)
 description: How to configure Teleport access with Google Workspace (formerly known as G Suite)
 videoBanner: WTLWc6nnPfk
 tags:
- - sso
  - how-to
  - zero-trust
- - privileged-access
- - google-cloud
 ---
 
 This guide explains how to configure [Google Workspace](https://workspace.google.com/)
@@ -197,11 +194,8 @@ To create an OAuth client identifier:
 
 1. Under Authorized redirect URIs, click **Add URI**.
 
-1. Set the redirect URI to the address of your Teleport cluster, then add
-   `/v1/webapi/oidc/callback` to the URI. If you have a self-hosted cluster with
-   multiple public addresses for the Teleport Proxy Service (the value of
-   `proxy_service.public_addr` in the Teleport configuration file), ensure that
-   this address points to the first one listed:
+1. Set the redirect URI to the address of your Teleport cluster, then add 
+`/v1/webapi/oidc/callback` to the URI.
    
    ![OAuth client ID creation](../../../img/sso/googleoidc/redirect-uri.png)
 

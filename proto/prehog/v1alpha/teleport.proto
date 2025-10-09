@@ -522,10 +522,6 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 
   DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
-
-  DISCOVER_RESOURCE_MCP_STDIO = 42;
-  DISCOVER_RESOURCE_MCP_SSE = 43;
-  DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -1133,6 +1129,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
   INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
   INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1610,51 +1607,10 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
-// AccessRequestCreateEvent is emitted when an Access Request is created.
-//
-// PostHog event: tp.access_request.create
-message AccessRequestCreateEvent {
+// AccessRequestEvent emitted for Access Request audit events.
+message AccessRequestEvent {
   // Teleport user name. Anonymized.
   string user_name = 1;
-
-  // resource_kinds specifies the kind of resources requested.
-  //
-  // PostHog property: tp.access_request.resource_kinds.
-  repeated string resource_kinds = 2;
-}
-
-// AccessRequestReviewEvent is emitted when an Access Request is reviewed.
-//
-// PostHog event: tp.access_request.review
-message AccessRequestReviewEvent {
-  // Teleport user name. Anonymized.
-  string user_name = 1;
-
-  // resource_kinds specifies the kind of resources requested.
-  //
-  // PostHog property: tp.access_request.resource_kinds.
-  repeated string resource_kinds = 2;
-
-  // is_bot_reviewed indicates whether the access request was automatically
-  // reviewed by a bot.
-  //
-  // PostHog property: tp.access_request.is_bot_reviewed.
-  bool is_bot_reviewed = 3;
-
-  // ProposedState specifies the proposed state of an access request review.
-  enum ProposedState {
-    // PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
-    PROPOSED_STATE_UNSPECIFIED = 0;
-    // PROPOSED_STATE_APPROVED specifies the approved access request state.
-    PROPOSED_STATE_APPROVED = 1;
-    // PROPOSED_STATE_DENIED specifies the denied access request state.
-    PROPOSED_STATE_DENIED = 2;
-  }
-
-  // proposed_state specifies the proposed state of the access request review.
-  //
-  // PostHog property: tp.access_request.proposed_state.
-  ProposedState proposed_state = 4;
 }
 
 message SubmitEventRequest {
@@ -1825,16 +1781,12 @@ message SubmitEventRequest {
 
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
 
-    AccessRequestCreateEvent access_request_create = 99;
-    AccessRequestReviewEvent access_request_review = 100;
+    AccessRequestEvent access_request_create_event = 97;
+    AccessRequestEvent access_request_review_event = 98;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
-
-  reserved 97, 98; // AccessRequestEvent
-  reserved "access_request_create_event";
-  reserved "access_request_review_event";
 }
 message SubmitEventResponse {}
 

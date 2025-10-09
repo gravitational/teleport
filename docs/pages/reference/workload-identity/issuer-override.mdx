@@ -1,0 +1,94 @@
+---
+title: Workload Identity X.509 Issuer Override Resource
+description: Provides information about the `workload_identity_x509_issuer_override` resource.
+tags:
+ - conceptual
+ - mwi
+---
+
+The X.509 issuer override functionality provides a way to replace the self-signed X.509 certificate used by Teleport as the issuer SPIFFE X509-SVID credentials with an issuing certificate of your choosing, together with an optional certificate chain. After configuring a default `workload_identity_x509_issuer_override` resource, all X509-SVID credentials issued to `tbot` or `tsh` will be issued by one of the issuers specified in the resource, and will include the appropriate certificate chain.
+
+<Admonition type="warning" title="Teleport Enterprise Required">
+A valid Teleport Enterprise license is required to use X.509 issuer override feature of Teleport Workload Identity.
+</Admonition>
+
+## Prerequisites
+
+The X.509 issuer override feature was introduced in Teleport 17.4.5. Clusters running an older version of the control plane won't support the feature, and credentials issued to older versions of `tbot` or `tsh` will be issued by the internal Teleport certificate authority even if an override is configured in the cluster.
+
+## Configuration
+
+This is an example of a `workload_identity_x509_issuer_override` resource, in YAML format:
+
+```yaml
+kind: workload_identity_x509_issuer_override
+version: v1
+metadata:
+  # the name of the override configuration; currently it must be the
+  # literal string "default"
+  name: default
+spec:
+  overrides:
+    - issuer: "<certificate in DER format, base64-encoded>"
+      chain:
+        - "<certificate in DER format, base64-encoded>"
+        - "..."
+    - issuer: "..."
+      chain:
+        - "..."
+```
+
+The public keys in the `issuer` certificates in the `spec.overrides` list must be unique across the whole list. It's important to keep the `workload_identity_x509_issuer_override` resource updated as time passes or if a CA rotation for the SPIFFE certificate authority is initiated, because neither the `issuer` certificate nor the certificates in its `chain` are checked for expiration or validity when issuing certificates, and any of the active and usable X.509 certificates in the SPIFFE certificate authority can be selected as the original issuing certificate, and the X509-SVID issuance will fail if no `issuer` certificate is found with the same public key as the selected internal issuing certificate in the default override. In usual conditions only a single certificate is present in the SPIFFE certificate authority, and only one override is thus required in the `workload_identity_x509_issuer_override` resource.
+
+## Using `tctl` to obtain Certificate Signing Requests
+
+Some managed PKI services require a signed CSR (Certificate Signing Request) to issue a certificate rather than just a public key. The `tctl workload-identity x509-issuer-overrides sign-csrs` command can be used to sign a CSR for all the X.509 certificates in the SPIFFE certificate authority of the cluster.
+
+```code
+$ tctl workload-identity x509-issuer-overrides sign-csrs
+SERIALNUMBER=123456789012345678901234567890123456789,CN=clustername,O=clustername
+-----BEGIN CERTIFICATE REQUEST-----
+...
+-----END CERTIFICATE REQUEST-----
+SERIALNUMBER=234567890123456789012345678901234567890,CN=clustername,O=clustername
+-----BEGIN CERTIFICATE REQUEST-----
+...
+-----END CERTIFICATE REQUEST-----
+```
+
+Use of this command requires `create` permissions for the `workload_identity_x509_issuer_override_csr` resource kind in one of the roles associated with the identity running the command.
+
+In clusters that make use of Hardware Security Modules (HSMs) it's possible that no single Teleport Auth Service instance is capable of generating signatures for all the keys that make up the SPIFFE certificate authority at once. In such situations, it's possible to use the `--force` option with the `sign-csrs` command on each machine running the Auth Service, to gather CSRs for keys managed by the different HSMs.
+
+## Using `tctl` to create a `workload_identity_x509_issuer_override` from certificate chain PEM files
+
+The `tctl workload-identity x509-issuer-overrides create` command can be used to build a `workload_identity_x509_issuer_override` resource out of one or more PEM files containing a certificate chain each, and to create or forcibly overwrite an existing resource in the cluster. The command will check that the first certificates in the specified chains have different public keys, and that they match 1:1 with the trusted X.509 certificates in the SPIFFE certificate authority in the Teleport cluster.
+
+```code
+$ tctl workload-identity x509-issuer-overrides create subca1.pem subca2.pem
+ERROR: override already exists, use the --force option to overwrite it
+        workload_identity_x509_issuer_override "default" already exists
+$ tctl workload-identity x509-issuer-overrides create --force subca1.pem subca2.pem
+Written workload_identity_x509_issuer_override; to check, run tctl get workload_identity_x509_issuer_override/default
+```
+
+Use of this command requires either `create` or `create` and `update` permissions for the `workload_identity_x509_issuer_override` resource kind.
+
+## Using `tctl` to manipulate `workload_identity_x509_issuer_override` directly
+
+The `tctl get`, `tctl create`, `tctl create -f`, `tctl edit` and `tctl rm` commands can be used to manipulate `workload_identity_x509_issuer_override` resources.
+
+```code
+$ tctl get workload_identity_x509_issuer_override/default | tee override.yaml
+kind: workload_identity_x509_issuer_override
+metadata:
+  name: default
+spec:
+  ...
+$ tctl rm workload_identity_x509_issuer_override/default
+workload_identity_x509_issuer_override "default" has been deleted
+$ tctl create override.yaml
+workload_identity_x509_issuer_override "default" has been created
+```
+
+Use of these commands requires the appropriate permissions (`create`, `update`, `delete`, `read`, `list`) for the `workload_identity_x509_issuer_override` resource kind.

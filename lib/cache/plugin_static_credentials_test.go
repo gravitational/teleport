@@ -92,14 +92,8 @@ func TestPluginStaticCredentials(t *testing.T) {
 					return err
 				},
 				deleteAll: p.pluginStaticCredentials.DeleteAllPluginStaticCredentials,
-				cacheList: func(ctx context.Context, _ int, _ string) ([]types.PluginStaticCredentials, string, error) {
-					var out []types.PluginStaticCredentials
-					for cred := range p.cache.collections.pluginStaticCredentials.store.resources(pluginStaticCredentialsNameIndex, "", "") {
-						out = append(out, cred.Clone())
-					}
-					return out, "", nil
-				},
-				cacheGet: cacheGet.fn,
+				cacheList: getAllAdapter(p.cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials),
+				cacheGet:  cacheGet.fn,
 			}, withSkipPaginationTest())
 		})
 	}

@@ -36,10 +36,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
@@ -59,7 +59,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,7 +98,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// by the client because the CDP is based on the identity of the issuer, which is
 	// necessary in order to support clusters with multiple issuing certs (HSMs).
 	if req.CRLDomain != "" {
-		cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
+		cdp := windows.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
 		certReq.CRLDistributionPoints = []string{cdp}
 	} else if req.CRLEndpoint != "" {
 		// Legacy clients will specify CRL endpoint instead of CRL domain.
@@ -126,7 +126,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 // desktopAccessConfigureScript is the script that will run on the windows
 // machine and configure Active Directory
 //
-//go:embed windows-configure-ad.ps1
+//go:embed windows/configure-ad.ps1
 var desktopAccessScriptConfigure string
 var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
 

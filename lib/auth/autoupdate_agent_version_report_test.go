@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func newFakeControlStream() fakeControlStream {
@@ -245,7 +245,7 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 			require.NoError(t, err)
 			auth := &Server{
 				cancelFunc: func() {},
-				logger:     logtest.NewLogger(),
+				logger:     utils.NewSlogLoggerForTests(),
 				ServerID:   uuid.NewString(),
 				Services: &Services{
 					// The inventory is running heartbeats on the background.
@@ -264,8 +264,8 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 				if status == types.UpdaterStatus_UPDATER_STATUS_UNSPECIFIED {
 					status = types.UpdaterStatus_UPDATER_STATUS_OK
 				}
-				controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
-					Services:         fixture.roles.StringSlice(),
+				controller.RegisterControlStream(stream, proto.UpstreamInventoryHello{
+					Services:         fixture.roles,
 					ServerID:         uuid.New().String(),
 					Version:          fixture.version,
 					ExternalUpgrader: types.UpgraderKindTeleportUpdate,
@@ -279,8 +279,8 @@ func TestServer_generateAgentVersionReport(t *testing.T) {
 					// but we don't have access to inventory's private field.
 					// Because the channel is not buffered and a single go routine is reading on the other side, we know
 					// that the routine is done processing the first messages if we can send the second.
-					stream.fakeMsg(fixture.goodbye)
-					stream.fakeMsg(fixture.goodbye)
+					stream.fakeMsg(*fixture.goodbye)
+					stream.fakeMsg(*fixture.goodbye)
 				}
 				t.Cleanup(stream.close)
 			}
@@ -321,7 +321,7 @@ func TestServer_reportAgentVersions(t *testing.T) {
 			// If we don't create a presence service this will cause panics.
 			PresenceInternal: local.NewPresenceService(bk),
 		},
-		logger: logtest.NewLogger(),
+		logger: utils.NewSlogLoggerForTests(),
 	}
 	t.Cleanup(func() {
 		auth.Close()
@@ -333,8 +333,8 @@ func TestServer_reportAgentVersions(t *testing.T) {
 
 	for range testNodeCount {
 		stream := newFakeControlStream()
-		controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
-			Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
+		controller.RegisterControlStream(stream, proto.UpstreamInventoryHello{
+			Services:         types.SystemRoles{types.RoleNode},
 			Version:          "1.2.3",
 			ServerID:         uuid.NewString(),
 			ExternalUpgrader: types.UpgraderKindTeleportUpdate,

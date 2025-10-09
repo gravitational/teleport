@@ -19,7 +19,6 @@ package oracle
 import (
 	"context"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -102,7 +101,9 @@ func (clt *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]stri
 		return nil, trace.Wrap(err)
 	}
 	tags := make(map[string]string, len(inst.FreeformTags))
-	maps.Copy(tags, inst.FreeformTags)
+	for k, v := range inst.FreeformTags {
+		tags[k] = v
+	}
 	for namespace, definedTags := range inst.DefinedTags {
 		for k, v := range definedTags {
 			tags[namespace+"/"+k] = v

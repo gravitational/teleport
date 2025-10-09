@@ -1,12 +1,10 @@
 ---
-title: Teleport Role Reference
-sidebar_label: Roles
+title: Access Controls Reference
 description: Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 tocDepth: 3
 tags:
  - reference
  - zero-trust
- - privileged-access
 ---
 
 This guide shows you how to use Teleport roles to manage role-based access
@@ -72,7 +70,7 @@ user:
 | `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | The lowest value takes precedence. |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` |Defines the [Session recording mode](../deployment/monitoring/audit.mdx).|The strictest value takes precedence.|
+| `record_session` |Defines the [Session recording mode](../monitoring/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `desktop_directory_sharing` | Allows sharing local workstation directory to remote desktop | Logical "AND" i.e. evaluates to "yes" if all roles enable directory sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
@@ -88,12 +86,12 @@ Teleport provides several preset roles:
 
 ### Role versions
 
-There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v7`.
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
 Additionally, roles with version `v5` or higher do not allow joining sessions by default. The
-[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles 'v5` or higher
+[Joining Sessions](../../zero-trust-access/access-controls/guides/joining-sessions.mdx) configuration in roles 'v5` or higher
 must be set to allow for joining sessions.
 
 Label              | `v3` Default   | `v4` and higher Default
@@ -106,33 +104,17 @@ Label              | `v3` Default   | `v4` and higher Default
 Role `v6` introduced a new field `kubernetes_resources` that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
-Role `v7` added support for more `kind` values in the `kubernetes_resources` field.
-
-Role `v8` added support for Kubernetes CRDs and introduced changes for how `kubernetes_resources` behave and are defined.
-
-See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
-
-#### Default values for `kubernetes_resources`
-
-The default value for `kubernetes_resources` is applied when there is a label set to
-allow access to a Kubernetes cluster.
-
 Version              |  `kubernetes_resources`
 ------------------ | --------------
-`v3`, `v4` and `v5` | `[{"kind":"pod","name":"*","namespace":"*","verbs":["*"]}]`
-`v6` |  `[]`
-`v7` |  `[{"kind":"*","name":"*","namespace":"*","verbs":["*"]}]`
-`v8` |  `[{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]},{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}]`
-
-SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
-See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
+`v3`, `v4` and `v5` Default | `[{"kind":"pod", "name":"*", "namespace":"*", "verbs": ["*"]}]`
+`v6` Default |  `[]`
+`v7` Default |  `[{"kind":"*", "name":"*", "namespace":"*", "verbs": ["*"]}]`
 
 ## RBAC for infrastructure resources
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
-This works by [labeling resources](../../zero-trust-access/rbac-get-started/labels.mdx) and
+This works by [labeling resources](../../zero-trust-access/management/admin/labels.mdx) and
 configuring allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -252,7 +234,7 @@ conditions:
 - `workload_identity_labels_expression`
 
 Check out our
-[predicate language](predicate-language.mdx)
+[predicate language](../predicate-language.mdx)
 guide for a more in depth explanation of the language.
 
 Typically you will only want to use one of `<kind>_labels` or
@@ -376,15 +358,13 @@ an administrative role. In particular, you should avoid configuring `allow` rule
 that grant `create` and `update` permissions on `token` resources to prevent
 unexpected changes to the configuration or state of your cluster.
 
-## RBAC for session recordings
+## RBAC for sessions
 
 It is possible to further limit access to
+[shared sessions](../../connect-your-client/tsh.mdx) and
 [session recordings](../architecture/session-recording.mdx).
-
-The `where` field in RBAC rules provides powerful filtering capabilities,
-allowing you to restrict access to session recordings based on user traits
-and resource metadata. This enables fine-grained control over who can view
-recordings based on contextual information.
+The examples below illustrate how to restrict session access only for the user
+who created the session.
 
 <Admonition
   type="warning"
@@ -395,276 +375,24 @@ have a more permissive role, like the preset `auditor` role, which allows access
 to all events, sessions, and session recordings.
 </Admonition>
 
-### Understanding the `where` clause
-
-The `where` clause acts as a condition that must evaluate to true for access to be
-granted. It uses predicate expressions that can reference:
-
-- Attributes of the authenticated user (name, roles, traits)
-- Metadata about the session recording (participants, proto, creator, etc.)
-- Resource-specific attributes (server details, database info, etc.)
-
-Basic syntax example:
-
-```
-where: contains(session.participants, user.metadata.name)
-```
-
-This expression evaluates to true only when the current user is found in the session's
-participants list.
-
-
-### Common Access Control Recipes
-
-Here are practical examples of how to use `where` expressions to implement common access control patterns:
-
-#### Restrict to Session Participants
-
-Allow users to view only recordings of sessions they participated in:
+Role for restricted access to session recordings:
 
 ```yaml
-version: v8
+version: v5
 kind: role
 metadata:
   name: only-own-sessions
 spec:
   allow:
     rules:
+    # Users can only view session recordings for sessions in which they
+    # participated.
     - resources: [session]
       verbs: [list, read]
       where: contains(session.participants, user.metadata.name)
 ```
 
-#### Restrict by User Role
-
-Allow access only to users that share a role with the session creator:
-
-```yaml
-version: v8
-kind: role
-metadata:
-  name: sessions-viewer
-spec:
-  allow:
-    rules:
-    - resources: [session]
-      verbs: [list, read]
-      where: contains_any(user.spec.roles, session.user_roles)
-```
-
-#### Restrict by Team Trait
-
-Allow members of the same team to view each other's sessions:
-
-```yaml
-version: v8
-kind: role
-metadata:
-  name: team-sessions-viewer
-spec:
-  allow:
-    rules:
-    - resources: [session]
-      verbs: [list, read]
-      where: contains_any(session.user_traits["team"], user.spec.traits["team"])
-```
-
-#### Restrict by Session participants
-
-Allow viewing only sessions where the user participated:
-
-```yaml
-version: v5
-kind: role
-metadata:
-  name: own-sessions
-spec:
-  allow:
-    rules:
-    - resources: [session]
-      verbs: [list, read]
-      where: contains(session.participants, user.metadata.name)
-```
-
-#### Restrict by Resource Type
-
-Allow viewing only SSH session recordings:
-
-```yaml
-version: v5
-kind: role
-metadata:
-  name: ssh-sessions-only
-spec:
-  allow:
-    rules:
-    - resources: [session]
-      verbs: [list, read]
-      where: session.proto == "ssh"
-```
-
-#### Combine Multiple Conditions
-
-This rule allows users to view SSH session recordings only if they were a participant OR the node is owned by his team.
-
-```yaml
-version: v5
-kind: role
-metadata:
-  name: complex-sessions-access
-spec:
-  allow:
-    rules:
-    - resources: [session]
-      verbs: [list, read]
-      where: >
-        (contains(session.participants, user.metadata.name) || 
-         contains(user.spec.traits["team"], session.server_labels["team"])) && 
-        session.proto == "ssh"
-```
-
-By leveraging these where expressions, you can implement access control policies that
-match your organization's security requirements while still allowing appropriate visibility for auditing and
-monitoring purposes.
-
-### Filter fields
-
-The `where` field in a rule allows you to filter access to resources based on
-user traits and resource metadata.
-
-#### User fields
-
-The following user fields can be used in `where` expressions to filter access.
-The `user` object represents the authenticated user making the request to
-access the session recording.
-
-| User Field | Description | Type |
-|---|---|---|
-| `user.metadata.name` | The name of the user. | `string` |
-| `user.spec.traits` | The traits assigned to the user. | `dict<string, array<string>>` |
-| `user.spec.roles` | The roles assigned to the user. | `array<string> `|
-
-
-#### Session fields
-
-<Admonition
-  type="warning"
-  title="Session fields are immutable">
-
-Session fields are immutable and capture the state of the session at the moment it
-was created.
-
-If the underlying resource changes (e.g., server labels), these fields will not be
-updated, and the session’s RBAC will not reflect the changes.
-
-</Admonition>
-
-The following session fields can be used in `where` expressions to filter access.
-The `session` object represents the session resource being accessed.
-It contains metadata about the session, including the participants, proto,
-resource type and the session creator (user who initiated the session) roles and traits.
-
-| Session Field | Description | Type |
-|---|---|---|
-| `session.id` | The unique identifier of the session. | `string` |
-| `session.kind` | The kind of session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
-| `session.participants` | The list of users who participated in the session. | `array<string>` |
-| `session.proto` | The proto used for the session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
-| `session.user` | The user who initiated the session. | `string` |
-| `session.user_roles` | The roles assigned to the user who initiated the session. | `array<string>` |
-| `session.user_traits` | The traits assigned to the user who initiated the session. | `dict<string, array<string>>` |
-
-Depending on the session kind, additional session fields are available for filtering.
-
-<Tabs>
-<TabItem value="SSH Sessions" label="SSH Sessions">
-
-The following server session fields can also be used in `where` expressions to filter access
-for SSH sessions together with the user and session fields above.
-
-| Server Session Field | Description | Type |
-|---|---|---|
-| `session.server_id` | The unique identifier of the server where the session took place. | `string` |
-| `session.server_hostname` | The hostname of the server where the session took place. | `string` |
-| `session.server_labels` | The labels assigned to the server where the session took place. | `dict<string, string>` |
-| `session.server_addr` | The address of the server where the session took place. | `string` |
-| `session.login` | The username used to log in to the server during the session. |`string` |
-
-</TabItem>
-<TabItem value="Kubernetes Sessions" label="Kubernetes Sessions">
-
-The following Kubernetes session fields can be used in `where` expressions to filter access
-for Kubernetes sessions together with the user and session fields above.
-
-| Kubernetes Session Field | Description | Type |
-|---|---|---|
-| `session.kubernetes_cluster` | The name of the Kubernetes cluster where the session took place. | `string` |
-| `session.kubernetes_labels` | The labels assigned to the Kubernetes cluster where the session took place. | `dict<string, string>` |
-| `session.kubernetes_user` | The Kubernetes user used in the session. | `string` |
-| `session.kubernetes_groups` | The Kubernetes groups used in the session. | `array<string>` |
-| `session.kubernetes_pod_namespace` | The namespace in the Kubernetes cluster where the session took place. | `string` |
-| `session.kubernetes_pod_name` | The name of the pod in the Kubernetes cluster where the session took place. | `string` |
-| `session.kubernetes_container_name` | The name of the container in the Kubernetes cluster where the session took place. | `string` |
-
-</TabItem>
-<TabItem value="Database Sessions" label="Database Sessions">
-
-The following database session fields can be used in `where` expressions to filter access
-for database sessions together with the user and session fields above.
-
-{/* vale messaging.capitalization = NO */}
-
-| Database Session Field | Description | Type |
-|---|---|---|
-| `session.db_service` | The name of the database service where the session took place. | `string` |
-| `session.db_protocol` | The protocol used to connect to the database (e.g., "postgres", "mysql"). | `string` |
-| `session.db_uri` | The URI of the database where the session took place. | `string` |
-| `session.db_name` | The name of the database accessed during the session. | `string` |
-| `session.db_user` | The database user used during the session. | `string` |
-| `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
-| `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
-
-{/* vale messaging.capitalization = YES */}
-
-</TabItem>
-<TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">
-
-The following Windows Desktop session fields can be used in `where` expressions to filter access
-for Windows Desktop sessions together with the user and session fields above.
-
-| Windows Desktop Session Field | Description | Type |
-|---|---|---|
-| `session.windows_desktop_service` | The name of the Windows Desktop service where the session took place. | `string` |
-| `session.desktop_addr` | The address of the Windows desktop where the session took place. | `string` |
-| `session.desktop_name` | The name of the Windows desktop where the session took place. | `string` |
-| `session.domain` | The domain of the Windows desktop where the session took place. | `string` |
-| `session.windows_user` | The username used to log in to the Windows desktop during the session. | `string` |
-| `session.desktop_labels` | The labels assigned to the Windows desktop where the session took place. | `dict<string, string>` |
-
-</TabItem>
-</Tabs>
-
-### Functions
-
-You can use the following functions in `where` expressions to filter access to
-session recordings:
-
-| Function | Signature |Description |
-|---|---|---|
-| `contains` | `contains(array<string>, string) -> bool` | Returns true if the array contains the specified value. |
-| `contains_any` | `contains_any(array<string>, array<string>) -> bool` | Returns true if the two arrays have any elements in common. |
-| `contains_all` | `contains_all(array<string>, array<string>) -> bool` | Returns true if the first array contains all elements of the second array. |
-| `can_view` | `can_view() -> bool` | Returns true if the user can view the SSH Node, Kubernetes Cluster, Database or Windows machine in Teleport. |
-| `equals` | `equals(array<string>, array<string>) -> bool` | Returns true if the two strings or two arrays are equal. |
-| `set` | `set(string,string...) -> array<string>` | Converts one or multiple strings into an array. |
-
-
-## RBAC for active sessions
-
-It is possible to further limit access to
-[shared sessions](../../connect-your-client/tsh.mdx).
-The example below illustrates how to restrict access to active SSH sessions
-only for the user who created the session.
+Role for restricted access to active sessions:
 
 ```yaml
 version: v5
@@ -702,14 +430,14 @@ Requests. The `request` field can fall under both `spec.allow` and `spec.deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-| `request.roles` |Teleport roles that a user can or cannot request|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.claims_to_roles`|Teleport roles that a user can or cannot access based on their traits.|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.search_as_roles`|Teleport roles that a user can or cannot assume while searching for resources to request access to.|[Restrict resource requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.max_duration`|The maximum duration of elevated privileges if an Access Request were granted. | [How long access lasts](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.reason`|Configures the behavior of Access Request reasons. | [Requiring request reasons](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.thresholds`|Configures the criteria that an Access Request must meet.| [Review thresholds](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.suggested_reviewers`|Reviewers to add to an Access Request by default.| [Suggested reviewers](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.annotations`|Arbitrary data to write (or prevent writing) to an Access Request|[Request annotations](../../identity-governance/access-requests/access-request-configuration.mdx)|
+| `request.roles` |Teleport roles that a user can or cannot request|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx#restrict-role-requests)|
+| `request.claims_to_roles`|Teleport roles that a user can or cannot access based on their traits.|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx#restrict-role-requests)|
+| `request.search_as_roles`|Teleport roles that a user can or cannot assume while searching for resources to request access to.|[Restrict resource requests](../../identity-governance/access-requests/access-request-configuration.mdx#restrict-resource-requests)|
+| `request.max_duration`|The maximum duration of elevated privileges if an Access Request were granted. | [How long access lasts](../../identity-governance/access-requests/access-request-configuration.mdx#how-long-access-lasts) |
+| `request.reason`|Configures the behavior of Access Request reasons. | [Requiring request reasons](../../identity-governance/access-requests/access-request-configuration.mdx#requiring-request-reasons) | 
+| `request.thresholds`|Configures the criteria that an Access Request must meet.| [Review thresholds](../../identity-governance/access-requests/access-request-configuration.mdx#review-thresholds) |
+| `request.suggested_reviewers`|Reviewers to add to an Access Request by default.| [Suggested reviewers](../../identity-governance/access-requests/access-request-configuration.mdx#suggested-reviewers)|
+| `request.annotations`|Arbitrary data to write (or prevent writing) to an Access Request|[Request annotations](../../identity-governance/access-requests/access-request-configuration.mdx#request-annotations)|
 
 ### Reviewing Access Requests
 
@@ -764,7 +492,7 @@ Labels for resources enrolled with Teleport:
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
-|`workload_identity_labels`|[Workload Identities](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)|
+|`workload_identity_labels`|[Workload Identities](../workload-identity/workload-identity-resource.mdx)|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
@@ -822,7 +550,7 @@ sign-on provider.
 The `internal` trait namespace includes only the exact internal trait names
 included in the above table.
 For local Teleport users, these traits can be set in the `spec.traits` field of the
-[user resource](../infrastructure-as-code/resources.mdx#user).
+[user resource](../resources.mdx#user).
 These trait names can also be set for SSO users if they are included in an
 attribute or claim from your IdP.
 
@@ -854,7 +582,7 @@ included in the `spec.allow.logins` field of roles the user holds in the root cl
 #### Referring to external traits in Teleport roles
 
 For local Teleport users, the `external` trait namespace includes all values
-from the `spec.traits` field of the [user resource](../infrastructure-as-code/resources.mdx#user).
+from the `spec.traits` field of the [user resource](../resources.mdx#user).
 This includes any custom trait names, as well as names matching the `internal`
 traits listed above.
 For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways
@@ -963,5 +691,5 @@ within this guide:
 | `user.metadata.name`       | The user's name                                   |
 
 Read the [predicate
-language](predicate-language.mdx)
+language](../predicate-language.mdx)
 guide for a more in depth explanation of the language.

@@ -133,16 +133,9 @@ describe('invite collaborators integration', () => {
     await user.click(enrollButton);
     expect(startMock.mock.calls).toHaveLength(1);
 
-    // Ensure the passed in component for InviteCollaborators renders.
-    render(
-      <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Users {...props} inviteCollaboratorsOpen={true} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
-      </MemoryRouter>
-    );
+    // This will display regardless since the dialog display is managed by the
+    // dialog itself, and our mock above is trivial, but we can make sure it
+    // renders.
     expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
   });
 });
@@ -325,6 +318,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -357,7 +353,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -396,7 +394,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');

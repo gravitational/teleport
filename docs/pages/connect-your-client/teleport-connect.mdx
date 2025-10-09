@@ -562,7 +562,7 @@ installation directory to the `Path` user environment variable.
 
 Teleport Connect supports authenticating with hardware-based keys.
 Keys are generated and stored directly on a hardware device, providing greater security than storing
-them on a file system. For more details, see [Hardware Key Support guide](../zero-trust-access/authentication/hardware-key-support.mdx).
+them on a file system. For more details, see [Hardware Key Support guide](../zero-trust-access/access-controls/guides/hardware-key-support.mdx).
 
 <Admonition type="note" title="PIV support">
   Hardware key support requires users to use a PIV-compatible hardware key.
@@ -754,9 +754,16 @@ The app version can be found under Help -> About Teleport Connect.
 
 To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
+In version 17.3.0+:
 ```code
 $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
 ````
+
+In older versions:
+```code
+$ "%LOCALAPPDATA%\Programs\teleport-connect\Teleport Connect.exe" --connect-debug
+````
+
 </TabItem>
 </Tabs>
 
@@ -791,9 +798,16 @@ $ teleport-connect --insecure
 <TabItem label="Windows">
 From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 
+In version 17.3.0+:
 ```code
 $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --insecure
 ````
+
+In older versions:
+```code
+$ "%LOCALAPPDATA%\Programs\teleport-connect\Teleport Connect.exe" --insecure
+````
+
 </TabItem>
 </Tabs>
 

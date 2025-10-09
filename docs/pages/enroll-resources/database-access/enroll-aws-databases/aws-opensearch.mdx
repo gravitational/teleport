@@ -1,12 +1,9 @@
 ---
 title: Database Access with Amazon OpenSearch
-sidebar_label: Amazon OpenSearch
 description: How to access Amazon OpenSearch with Teleport database access
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon OpenSearch" dbConfigure="via REST API with IAM Authentication"!)
@@ -53,13 +50,6 @@ This guide provides an example configuration of IAM access roles as a model,
 and uses an EC2 instance to serve the Teleport Database Service. The level of
 access provided may not suit your needs, or may not fit your organization's
 access conventions. You should adjust the AWS IAM permissions to fit your needs.
-
-<Admonition type="tip" title="Dashboard in private network">
-To access the OpenSearch Dashboard deployed within private VPC subnets using
-Teleport, you can enroll the Dashboard as a [Web
-application](../../application-access/guides/connecting-apps.mdx)
-in Teleport.
-</Admonition>
 
 ## Step 1/4. Create IAM roles for OpenSearch Managed Cluster access
 

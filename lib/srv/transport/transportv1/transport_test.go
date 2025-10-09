@@ -40,7 +40,6 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -49,11 +48,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 
 	os.Exit(m.Run())
 }
@@ -120,7 +118,7 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
@@ -130,7 +128,7 @@ func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 	return conn, nil
 }
 
-func (f fakeDialer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error) {
+func (f fakeDialer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error) {
 	key := windowsDesktopConnKey{
 		clusterName: cluster,
 		desktopName: desktopName,
@@ -272,11 +270,12 @@ func TestService_GetClusterDetails(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, ServerConfig{
 				Dialer:            fakeDialer{},
-				Logger:            logtest.NewLogger(),
+				Logger:            utils.NewLoggerForTests(),
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
@@ -347,6 +346,7 @@ func TestService_ProxyCluster(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -358,7 +358,7 @@ func TestService_ProxyCluster(t *testing.T) {
 						cluster: conn,
 					},
 				},
-				Logger:            logtest.NewLogger(),
+				Logger:            utils.NewLoggerForTests(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
@@ -510,7 +510,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				},
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				Logger:            logtest.NewLogger(),
+				Logger:            utils.NewLoggerForTests(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
@@ -573,7 +573,7 @@ func TestService_ProxySSH(t *testing.T) {
 	srv := newServer(t, ServerConfig{
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
-		Logger:            logtest.NewLogger(),
+		Logger:            utils.NewLoggerForTests(),
 		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) sshagent.ClientGetter {
@@ -818,7 +818,7 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 				},
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				Logger:            logtest.NewLogger(),
+				Logger:            utils.NewLoggerForTests(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4243"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
@@ -954,7 +954,7 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -982,7 +982,7 @@ func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 }
 
 // DialWindowsDesktop returns a connection to the windows desktop.
-func (s *sshServer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error) {
+func (s *sshServer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error) {
 	return nil, nil
 }
 

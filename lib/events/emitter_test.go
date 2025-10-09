@@ -73,7 +73,8 @@ func TestProtoStreamer(t *testing.T) {
 		},
 	}
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -107,7 +108,7 @@ func TestProtoStreamer(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, part := range parts {
-				reader := events.NewProtoReader(bytes.NewReader(part), nil)
+				reader := events.NewProtoReader(bytes.NewReader(part))
 				out, err := reader.ReadAll(ctx)
 				require.NoError(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
@@ -174,7 +175,7 @@ func TestAsyncEmitter(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		for i := range evts {
+		for i := 0; i < len(evts); i++ {
 			select {
 			case event := <-chanEmitter.C():
 				require.Equal(t, evts[i], event)
@@ -255,7 +256,7 @@ func TestExport(t *testing.T) {
 		_, err := f.Write(part)
 		require.NoError(t, err)
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...), nil)
+	reader := events.NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

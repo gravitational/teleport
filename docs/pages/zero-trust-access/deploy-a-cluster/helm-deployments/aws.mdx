@@ -4,7 +4,6 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 tags:
  - how-to
  - platform-wide
- - aws
 ---
 
 In this guide, we'll use Teleport Helm charts to set up a high-availability Teleport cluster that runs on AWS EKS.
@@ -462,7 +461,7 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
 
 <details>
-<summary>Enrolling applications with Teleport?</summary>
+<summary>Using Application Access?</summary>
 
 (!docs/pages/includes/dns-app-access.mdx!)
 
@@ -692,7 +691,7 @@ $ helm --namespace cert-manager uninstall cert-manager
 ## Next steps
 
 Now that you have deployed a Teleport cluster, read the [Manage
-Access](../../authentication/authentication.mdx) section to get started enrolling
+Access](../../../zero-trust-access/access-controls/access-controls.mdx) section to get started enrolling
 users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../../reference/helm-reference/teleport-cluster.mdx) for more details on high availability.

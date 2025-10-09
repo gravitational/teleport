@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -37,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -87,7 +88,7 @@ type Config struct {
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
@@ -124,7 +125,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("connections handler missing")
 	}
 	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("ConnectedProxyGetter missing")
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	return nil
 }
@@ -132,8 +133,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // Server is an application server. It authenticates requests from the web
 // proxy and forwards th to internal applications.
 type Server struct {
-	c   *Config
-	log *slog.Logger
+	c         *Config
+	legacyLog *logrus.Entry
+	log       *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -198,7 +200,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}()
 
 	s := &Server{
-		c:             c,
+		c: c,
+		// TODO(greedy52) replace with slog from Config.Logger.
+		legacyLog: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.ComponentApp,
+		}),
 		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
@@ -301,6 +307,10 @@ func (s *Server) startHeartbeat(ctx context.Context, app types.Application) erro
 		InventoryHandle: s.c.InventoryHandle,
 		GetResource:     s.getServerInfoFunc(app),
 		OnHeartbeat:     s.c.OnHeartbeat,
+		// Announcer is provided to allow falling back to non-ICS heartbeats if
+		// the Auth server is older than the app service.
+		// TODO(tross): DELETE IN 16.0.0
+		Announcer: s.c.AccessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -474,6 +484,7 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.apps {
+		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {

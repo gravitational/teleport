@@ -34,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -133,14 +132,14 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 		return "", trace.Wrap(err)
 	}
 	claims := auth.AccessTokenClaims{
-		TokenClaims: oidc.TokenClaims{
-			Issuer:     "https://sts.windows.net/test-tenant-id/",
-			Audience:   []string{auth.AzureAccessTokenAudience},
-			Subject:    "test",
-			IssuedAt:   oidc.FromTime(issueTime),
-			NotBefore:  oidc.FromTime(issueTime),
-			Expiration: oidc.FromTime(issueTime.Add(time.Minute)),
-			JWTID:      "id",
+		Claims: jwt.Claims{
+			Issuer:    "https://sts.windows.net/test-tenant-id/",
+			Audience:  []string{auth.AzureAccessTokenAudience},
+			Subject:   "test",
+			IssuedAt:  jwt.NewNumericDate(issueTime),
+			NotBefore: jwt.NewNumericDate(issueTime),
+			Expiry:    jwt.NewNumericDate(issueTime.Add(time.Minute)),
+			ID:        "id",
 		},
 		ManangedIdentityResourceID: managedIdentityResourceID,
 		AzureResourceID:            azureResourceID,

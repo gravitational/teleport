@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -37,7 +38,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -53,7 +53,7 @@ const (
 	syncInterval = 30 * time.Second
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "ExternalAuditStorage")
+var log = logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage")
 
 // ClusterAlertService abstracts a service providing Upsert and Delete
 // operations for cluster alerts.
@@ -189,25 +189,16 @@ func (c *ErrorCounter) sync(ctx context.Context) {
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertVerbPermit, "external_audit_storage:create"))
 		if err != nil {
-			log.InfoContext(ctx, "ErrorCounter failed to create cluster alert",
-				"alert_name", newAlert.name,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to create cluster alert %s: %s", newAlert.name, err)
 			continue
 		}
 		if err := c.alertService.UpsertClusterAlert(ctx, alert); err != nil {
-			log.InfoContext(ctx, "ErrorCounter failed to upsert cluster alert",
-				"alert_name", newAlert.name,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to upsert cluster alert %s: %s", newAlert.name, err)
 		}
 	}
 	for _, alertToClear := range allAlertActions.clearAlerts {
 		if err := c.alertService.DeleteClusterAlert(ctx, alertToClear); err != nil && !trace.IsNotFound(err) {
-			log.InfoContext(ctx, "ErrorCounter failed to delete cluster alert",
-				"alert_name", alertToClear,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to delete cluster alert %s: %s", alertToClear, err)
 		}
 	}
 }
@@ -327,12 +318,6 @@ func (c *ErrorCountingLogger) SearchEvents(ctx context.Context, req events.Searc
 	return events, key, err
 }
 
-func (c *ErrorCountingLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	events, key, err := c.wrapped.SearchUnstructuredEvents(ctx, req)
-	c.searches.observe(err)
-	return events, key, err
-}
-
 func (c *ErrorCountingLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	return stream.MapErr(c.wrapped.ExportUnstructuredEvents(ctx, req), func(err error) error {
 		c.searches.observe(err)
@@ -379,51 +364,9 @@ func (c *ErrorCountingSessionHandler) Upload(ctx context.Context, sessionID sess
 	return res, err
 }
 
-// UploadSummary calls [c.wrapped.UploadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadSummary(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
-// UploadMetadata calls [c.wrapped.UploadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadMetadata(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
-// UploadThumbnail calls [c.wrapped.UploadThumbnail] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadThumbnail(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
 // Download calls [c.wrapped.Download] and counts the error or success.
-func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	err := c.wrapped.Download(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
-}
-
-// DownloadSummary calls [c.wrapped.DownloadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := c.wrapped.DownloadSummary(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
-}
-
-// DownloadMetadata calls [c.wrapped.DownloadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := c.wrapped.DownloadMetadata(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
-}
-
-// DownloadThumbnail calls [c.wrapped.DownloadThumbnail()] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := c.wrapped.DownloadThumbnail(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }

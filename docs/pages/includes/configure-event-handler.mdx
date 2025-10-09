@@ -111,6 +111,9 @@ the value of `--cn`.
 
 The `--dns-names` flag accepts a comma-separated list of DNS names. It will
 append subject alternative names (SANs) to the server certificate (the one you
-will provide to your log forwarder) for each DNS name in the list.
+will provide to your log forwarder) for each DNS name in the list. The Event
+Handler looks up each DNS name before appending it as an SAN and exits with an
+error if the lookup fails.
+
 </details>
 

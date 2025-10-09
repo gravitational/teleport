@@ -1,6 +1,5 @@
 ---
-title: tctl CLI Reference
-sidebar_label: tctl
+title: tctl CLI reference
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
 tags:
  - reference
@@ -50,7 +49,7 @@ file, then the configuration file is ignored.
 
   To provide an accurate audit trail, it is important to limit direct SSH access
   to the Auth Service with
-  [Access Controls](../../zero-trust-access/authentication/authentication.mdx) and ensure that
+  [Access Controls](../../zero-trust-access/access-controls/access-controls.mdx) and ensure that
   admins use `tctl` remotely instead.
 
 </Admonition>
@@ -698,7 +697,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../infrastructure-as-code/resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
@@ -799,9 +798,10 @@ $ tctl devices ls
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Source Enroll Status Owner Device ID
------------- ----- ------ ------------- ----- ------------------------------------
-(=devicetrust.asset_tag=) macOS        not enrolled        d40f2ee4-856d-4aef-b784-c4371e39c036
+
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 ## tctl devices rm
@@ -1356,7 +1356,7 @@ $ tctl rm saml/okta
 # Delete a local user called "admin":
 $ tctl rm users/admin
 
-# Delete a lock
+# Delete a lock 
 $ tctl rm lock/ed7038cb-a3cc-4f59-8063-09553665b773
 ```
 
@@ -2244,51 +2244,4 @@ Print the version of your `tctl` binary:
 
 ```code
 tctl version
-```
-
-## tctl recordings encryption rotate
-
-Rotate the active session recording encryption key. Will fail if rotation is already in
-progress.
-
-### Example
-
-```code
-$ tctl recordings encryption rotate
-```
-
-## tctl recordings encryption status
-
-Print the rotation status of all active encryption keys.
-
-### Flags
-
-| Name       | Default Value(s) | Allowed Value(s)     | Description               |
-| ---------- | ---------------- | -------------------- | ------------------------- |
-| `--format` | `text`           | `text`,`yaml`,`json` | The format of the output. |
-
-### Example
-
-```code
-$ tctl recordings encryption status
-```
-
-## tctl recordings encryption complete-rotation
-
-Completes a key rotation.
-
-### Example
-
-```code
-$ tctl recordings encryption complete-rotation
-```
-
-## tctl recordings encryption rollback-rotation
-
-Reverts a key rotation.
-
-### Example
-
-```code
-$ tctl recordings encryption rollback-rotation
 ```

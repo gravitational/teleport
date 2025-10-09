@@ -1,12 +1,9 @@
 ---
 title: Database Access with Azure PostgreSQL and MySQL
-sidebar_label: Azure PostgreSQL/MySQL
 description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - azure
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure PostgreSQL or MySQL" dbConfigure="with Microsoft Entra ID-based authentication"!)
@@ -152,7 +149,7 @@ Refer to [Use Microsoft Entra ID for authenticating with PostgreSQL](https://lea
 for more information.
 </Admonition>
 
-### Connect to the database as an AD admin
+### Connect to the database as an Entra ID admin
 
 Next, you need to connect to your database as the AD admin user.
 
@@ -413,7 +410,31 @@ $ tsh db ls
 
 </Tabs>
 
-(!docs/pages/includes/database-access/pg-mysql-connect.mdx dbUser="teleport" dbService="azure-db"!)
+To retrieve credentials for a database and connect to it:
+
+<Tabs>
+<TabItem label="MySQL">
+
+```code
+$ tsh db connect --db-user=teleport azure-db
+```
+
+</TabItem>
+<TabItem label="PostgreSQL">
+
+```code
+$ tsh db connect --db-user=teleport --db-name=postgres azure-db
+```
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+
+<Admonition type="note">
+The appropriate database command-line client (`psql`, `mysql`) should be
+available in the `PATH` of the machine you're running `tsh db connect` from.
+</Admonition>
 
 To log out of the database and remove credentials:
 

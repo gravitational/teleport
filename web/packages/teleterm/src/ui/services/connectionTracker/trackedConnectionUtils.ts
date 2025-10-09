@@ -21,8 +21,11 @@ import {
   DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayKube,
+  DocumentTshKube,
   DocumentTshNode,
+  DocumentTshNodeWithServerId,
   getDocumentGatewayTargetUriKind,
+  isDocumentTshNodeWithServerId,
 } from 'teleterm/ui/services/workspacesService';
 import { unique } from 'teleterm/ui/utils/uid';
 
@@ -79,9 +82,16 @@ export function getGatewayConnectionByDocument(
 
 export function getServerConnectionByDocument(document: DocumentTshNode) {
   return (i: TrackedServerConnection) =>
+    isDocumentTshNodeWithServerId(document) &&
     i.kind === 'connection.server' &&
     i.serverUri === document.serverUri &&
     i.login === document.login;
+}
+
+// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+export function getKubeConnectionByDocument(document: DocumentTshKube) {
+  return (i: TrackedKubeConnection) =>
+    i.kind === 'connection.kube' && i.kubeUri === document.kubeUri;
 }
 
 export function getGatewayKubeConnectionByDocument(
@@ -161,11 +171,18 @@ export function getGatewayKubeDocumentByConnection(
     i.kind === 'doc.gateway_kube' && i.targetUri === connection.kubeUri;
 }
 
+// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+export function getKubeDocumentByConnection(connection: TrackedKubeConnection) {
+  return (i: DocumentTshKube) =>
+    i.kind === 'doc.terminal_tsh_kube' && i.kubeUri === connection.kubeUri;
+}
+
 export function getServerDocumentByConnection(
   connection: TrackedServerConnection
 ) {
   return (i: DocumentTshNode) =>
     i.kind === 'doc.terminal_tsh_node' &&
+    isDocumentTshNodeWithServerId(i) &&
     i.serverUri === connection.serverUri &&
     i.login === connection.login;
 }
@@ -187,7 +204,7 @@ export function createGatewayConnection(
 }
 
 export function createServerConnection(
-  document: DocumentTshNode
+  document: DocumentTshNodeWithServerId
 ): TrackedServerConnection {
   return {
     kind: 'connection.server',
@@ -196,6 +213,19 @@ export function createServerConnection(
     title: document.title,
     login: document.login,
     serverUri: document.serverUri,
+  };
+}
+
+export function createKubeConnection(
+  document: DocumentTshKube
+): TrackedKubeConnection {
+  return {
+    kind: 'connection.kube',
+    connected: document.status === 'connected',
+    id: unique(),
+    title: document.title,
+    kubeConfigRelativePath: document.kubeConfigRelativePath,
+    kubeUri: document.kubeUri,
   };
 }
 

@@ -28,10 +28,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -82,6 +85,8 @@ type sessionChunk struct {
 	closeTimeout time.Duration
 
 	log *slog.Logger
+
+	legacyLogger *logrus.Entry
 }
 
 // sessionOpt defines an option function for creating sessionChunk.
@@ -98,6 +103,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
 		log:          c.log,
+		legacyLogger: c.legacyLogger,
 	}
 
 	sess.log.DebugContext(ctx, "Creating app session chunk", "session_id", sess.id)
@@ -144,10 +150,39 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 // withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
 // a generated JWT token to all requests.
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	jwt, traits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient)
+	rewrite := app.GetRewrite()
+	traits := identity.Traits
+	roles := identity.Groups
+	if rewrite != nil {
+		switch rewrite.JWTClaims {
+		case types.JWTClaimsRewriteNone:
+			traits = nil
+			roles = nil
+		case types.JWTClaimsRewriteRoles:
+			traits = nil
+		case types.JWTClaimsRewriteTraits:
+			roles = nil
+		case "", types.JWTClaimsRewriteRolesAndTraits:
+		}
+	}
+
+	// Request a JWT token that will be attached to all requests.
+	jwt, err := c.cfg.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
+		Username: identity.Username,
+		Roles:    roles,
+		Traits:   traits,
+		URI:      app.GetURI(),
+		Expires:  identity.Expires,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Add JWT token to the traits so it can be used in headers templating.
+	if traits == nil {
+		traits = make(wrappers.Traits)
+	}
+	traits[constants.TraitJWT] = []string{jwt}
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,
@@ -168,7 +203,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 	sess.handler, err = reverseproxy.New(
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(sess.log),
+		reverseproxy.WithLogger(sess.legacyLogger),
 		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
@@ -278,7 +313,7 @@ func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime t
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := c.cfg.AccessPoint.GetClusterName(ctx)
+	clusterName, err := c.cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,8 +348,7 @@ func (c *ConnectionsHandler) createTracker(sess *sessionChunk, identity *tlsca.I
 		ClusterName: identity.RouteToApp.ClusterName,
 		Login:       identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
-			User:    identity.Username,
-			Cluster: identity.OriginClusterName,
+			User: identity.Username,
 		}},
 		HostUser:     identity.Username,
 		Created:      c.cfg.Clock.Now(),

@@ -1,11 +1,9 @@
 ---
 title: Run Teleport Identity Security with Access Graph on Self-Hosted Clusters with Helm
-sidebar_label: Helm
 description: How to deploy Access Graph on self-hosted clusters using Helm.
 tags:
  - how-to
  - identity-security
- - access-risks
 ---
 
 Using Teleport Identity Security with Access Graph on a self-hosted Teleport cluster requires
@@ -36,11 +34,11 @@ chart.
 
 - Kubernetes >= v1.21
 - Helm >= (=helm.version=)
-- A running Teleport Enterprise cluster v18.0.0 or later.
+- A running Teleport Enterprise cluster v14.3.6 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
     [using the `teleport-cluster` Helm chart](../../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Access Graph.
-- An updated Teleport Enterprise license file with Teleport Identity Security enabled.
+- An updated `license.pem` with Identity Security enabled.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
     The user that Teleport connects to the database with needs to be the owner of this database, or have similar broad permissions:
@@ -245,7 +243,3 @@ spec:
 
 The preset `editor` role has the required permissions by default.
 
-
-## Next steps
-
-- Configure [Identity Activity Center](./identity-activity-center.mdx)

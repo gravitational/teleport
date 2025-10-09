@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // StaticTokens define a list of static []ProvisionToken used to provision a
@@ -35,8 +33,6 @@ type StaticTokens interface {
 	SetStaticTokens([]ProvisionToken)
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() []ProvisionToken
-	// Clone creats a copy of the tokens.
-	Clone() StaticTokens
 }
 
 // NewStaticTokens is a convenience wrapper to create a StaticTokens resource.
@@ -139,8 +135,4 @@ func (c *StaticTokensV2) CheckAndSetDefaults() error {
 // String represents a human readable version of static provisioning tokens.
 func (c *StaticTokensV2) String() string {
 	return fmt.Sprintf("StaticTokens(%v)", c.Spec.StaticTokens)
-}
-
-func (c *StaticTokensV2) Clone() StaticTokens {
-	return utils.CloneProtoMsg(c)
 }

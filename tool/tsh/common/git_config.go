@@ -121,14 +121,14 @@ func (c *gitConfigCommand) doUpdate(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for url := range strings.SplitSeq(urls, "\n") {
+	for _, url := range strings.Split(urls, "\n") {
 		u, err := parseGitSSHURL(url)
 		if err != nil {
-			logger.DebugContext(cf.Context, "Skipping URL", "error", err, "url", url)
+			logger.DebugContext(cf.Context, "Skippig URL", "error", err, "url", url)
 			continue
 		}
 		if !u.isGitHub() {
-			logger.DebugContext(cf.Context, "Skipping non-GitHub host", "host", u.Host)
+			logger.DebugContext(cf.Context, "Skippig non-GitHub host", "host", u.Host)
 			continue
 		}
 

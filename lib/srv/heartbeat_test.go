@@ -118,7 +118,8 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			clock := clockwork.NewFakeClock()
 			announcer := newFakeAnnouncer(ctx)
 
@@ -243,7 +244,8 @@ func TestHeartbeatAnnounce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			clock := clockwork.NewFakeClock()
 
 			announcer := newFakeAnnouncer(ctx)

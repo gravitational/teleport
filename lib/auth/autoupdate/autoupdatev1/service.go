@@ -265,9 +265,6 @@ func UpsertAutoUpdateConfig(
 	backend Backend,
 	config *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	if err := validateServerSideAgentConfig(config); err != nil {
-		return nil, trace.Wrap(err, "validating config")
-	}
 	out, err := backend.UpsertAutoUpdateConfig(ctx, config)
 	return out, trace.Wrap(err)
 }

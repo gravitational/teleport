@@ -20,44 +20,11 @@ import React from 'react';
 
 import { Icon } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { AppSubKind, NodeSubKind } from 'shared/services';
+import { NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceLabel } from 'teleport/services/agents';
-// eslint-disable-next-line no-restricted-imports -- FIXME
-import { AppMCP, PermissionSet } from 'teleport/services/apps';
-
-// "mixed" indicates the resource has a mix of health
-// statuses. This can happen when multiple agents proxy the same resource.
-export type ResourceHealthStatus =
-  | 'healthy'
-  | 'unhealthy'
-  | 'unknown'
-  | 'mixed';
-
-const resourceHealthStatuses = new Set<ResourceHealthStatus>([
-  'healthy',
-  'unhealthy',
-  'unknown',
-  'mixed',
-]);
-
-export function isResourceHealthStatus(
-  status: unknown
-): status is ResourceHealthStatus {
-  return (
-    typeof status === 'string' &&
-    resourceHealthStatuses.has(status as ResourceHealthStatus)
-  );
-}
-
-export type ResourceTargetHealth = {
-  status: ResourceHealthStatus;
-  // additional information meant for user.
-  message?: string;
-  error?: string;
-};
+import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 export type UnifiedResourceApp = {
   kind: 'app';
@@ -72,7 +39,6 @@ export type UnifiedResourceApp = {
   requiresRequest?: boolean;
   subKind?: AppSubKind;
   permissionSets?: PermissionSet[];
-  mcp?: AppMCP;
 };
 
 export interface UnifiedResourceDatabase {
@@ -83,7 +49,6 @@ export interface UnifiedResourceDatabase {
   protocol: DbProtocol;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
-  targetHealth?: ResourceTargetHealth;
 }
 
 export interface UnifiedResourceNode {
@@ -139,17 +104,15 @@ export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
 };
 
-export type UnifiedResourceDefinition =
-  | UnifiedResourceApp
-  | UnifiedResourceDatabase
-  | UnifiedResourceNode
-  | UnifiedResourceKube
-  | UnifiedResourceDesktop
-  | UnifiedResourceUserGroup
-  | UnifiedResourceGitServer;
-
 export type SharedUnifiedResource = {
-  resource: UnifiedResourceDefinition;
+  resource:
+    | UnifiedResourceApp
+    | UnifiedResourceDatabase
+    | UnifiedResourceNode
+    | UnifiedResourceKube
+    | UnifiedResourceDesktop
+    | UnifiedResourceUserGroup
+    | UnifiedResourceGitServer;
   ui: UnifiedResourceUi;
 };
 
@@ -163,7 +126,6 @@ export type UnifiedResourcesQueryParams = {
     dir: 'ASC' | 'DESC';
   };
   pinnedOnly?: boolean;
-  statuses?: ResourceHealthStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;
@@ -180,7 +142,6 @@ export interface UnifiedResourceViewItem {
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
-  status?: ResourceHealthStatus;
 }
 
 export enum PinningSupport {
@@ -203,20 +164,21 @@ export type IncludedResourceMode =
   | 'accessible';
 
 export type ResourceItemProps = {
+  name: string;
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  cardViewProps: CardViewSpecificProps;
+  listViewProps: ListViewSpecificProps;
+  labels: ResourceLabel[];
+  ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
   selectResource: () => void;
   selected: boolean;
   pinned: boolean;
+  requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
-  viewItem: UnifiedResourceViewItem;
-  onShowStatusInfo(): void;
-  /**
-   * True, when the InfoGuideSidePanel is opened.
-   * Used as a flag to render different styling.
-   */
-  showingStatusInfo: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -253,25 +215,6 @@ export type ResourceViewProps = {
   onPinResource: (resourceId: string) => void;
   pinningSupport: PinningSupport;
   isProcessing: boolean;
-  mappedResources: {
-    item: UnifiedResourceViewItem;
-    key: string;
-    onShowStatusInfo(): void;
-    showingStatusInfo: boolean;
-  }[];
+  mappedResources: { item: UnifiedResourceViewItem; key: string }[];
   expandAllLabels: boolean;
 };
-
-/**
- * DatabaseServer (db_server) describes a database heartbeat signal
- * reported from an agent (db_service) that is proxying
- * the database.
- */
-export type DatabaseServer = {
-  kind: 'db_server';
-  hostname: string;
-  hostId: string;
-  targetHealth?: ResourceTargetHealth;
-};
-
-export type SharedResourceServer = DatabaseServer;

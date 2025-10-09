@@ -91,8 +91,8 @@ import type { GetAccessRequestResponse } from "./service_pb";
 import type { GetAccessRequestRequest } from "./service_pb";
 import type { GetAccessRequestsResponse } from "./service_pb";
 import type { GetAccessRequestsRequest } from "./service_pb";
-import type { ListDatabaseServersResponse } from "./service_pb";
-import type { ListDatabaseServersRequest } from "./service_pb";
+import type { GetServersResponse } from "./service_pb";
+import type { GetServersRequest } from "./service_pb";
 import type { ListDatabaseUsersResponse } from "./service_pb";
 import type { ListDatabaseUsersRequest } from "./service_pb";
 import type { StartHeadlessWatcherResponse } from "./service_pb";
@@ -154,11 +154,14 @@ export interface ITerminalServiceClient {
      */
     listDatabaseUsers(input: ListDatabaseUsersRequest, options?: RpcOptions): UnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
     /**
-     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     * GetServers returns filtered, sorted, and paginated servers
      *
-     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
+     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
-    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
+    getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse>;
     /**
      * GetAccessRequests lists filtered AccessRequests
      *
@@ -491,13 +494,16 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<ListDatabaseUsersRequest, ListDatabaseUsersResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     * GetServers returns filtered, sorted, and paginated servers
      *
-     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
+     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
-    listDatabaseServers(input: ListDatabaseServersRequest, options?: RpcOptions): UnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse> {
+    getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse> {
         const method = this.methods[5], opt = this._transport.mergeOptions(options);
-        return stackIntercept<ListDatabaseServersRequest, ListDatabaseServersResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetServersRequest, GetServersResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetAccessRequests lists filtered AccessRequests

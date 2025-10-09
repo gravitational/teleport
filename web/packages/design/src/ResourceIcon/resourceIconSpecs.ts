@@ -171,7 +171,6 @@ export const resourceIconSpecs = {
   inkeep: forAllThemes(i.inkeep),
   instruqt: { dark: i.instruqtDark, light: i.instruqtLight },
   intellimize: forAllThemes(i.intellimize),
-  intune: forAllThemes(i.intune),
   ipstack: forAllThemes(i.ipstack),
 
   jamf: forAllThemes(i.jamf),
@@ -199,10 +198,6 @@ export const resourceIconSpecs = {
   mariadb: { dark: i.mariadbDark, light: i.mariadbLight },
   mattermost: { dark: i.mattermostDark, light: i.mattermostLight },
   maxio: { dark: i.maxioDark, light: i.maxioLight },
-  mcp: { dark: i.mcpDark, light: i.mcpLight },
-  mcpCursor: { dark: i.mcpCursorDark, light: i.mcpCursorLight },
-  mcpVscode: forAllThemes(i.mcpVscode),
-  mcpVscodeInsiders: forAllThemes(i.mcpVscodeInsiders),
   metabase: forAllThemes(i.metabase),
   microsoft: forAllThemes(i.microsoft),
   microsoftexcel: forAllThemes(i.microsoftexcel),

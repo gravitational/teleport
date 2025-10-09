@@ -19,15 +19,14 @@ package configure
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
-	"github.com/zitadel/oidc/v3/pkg/client"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -44,7 +43,7 @@ type oidcPreset struct {
 	description string
 	display     string
 	issuerURL   string
-	modifySpec  func(ctx context.Context, logger *slog.Logger, spec *types.OIDCConnectorSpecV3) error
+	modifySpec  func(logger *logrus.Entry, spec *types.OIDCConnectorSpecV3) error
 }
 
 type oidcPresetList []oidcPreset
@@ -74,7 +73,7 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 		description: "Google Workspace",
 		display:     "Google",
 		issuerURL:   "https://accounts.google.com",
-		modifySpec: func(ctx context.Context, logger *slog.Logger, spec *types.OIDCConnectorSpecV3) error {
+		modifySpec: func(logger *logrus.Entry, spec *types.OIDCConnectorSpecV3) error {
 			if !strings.HasSuffix(spec.ClientID, ".apps.googleusercontent.com") {
 				return trace.BadParameter(`For Google Workspace the client ID have to use format "<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com", got %q instead. Set full value with --id=... or shorthand with --google-id=...`, spec.ClientID)
 			}
@@ -96,14 +95,14 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 		description: "GitLab",
 		display:     "GitLab",
 		issuerURL:   "https://gitlab.com",
-		modifySpec: func(ctx context.Context, logger *slog.Logger, spec *types.OIDCConnectorSpecV3) error {
+		modifySpec: func(logger *logrus.Entry, spec *types.OIDCConnectorSpecV3) error {
 			switch spec.Prompt {
 			case "none":
 				break
 			case "":
 				spec.Prompt = "none"
 			default:
-				logger.WarnContext(ctx, "GitLab 'prompt' parameter was not set to required value of 'none'", "prompt", spec.Prompt)
+				logger.Warnf("GitLab requires the 'prompt' parameter to be set to 'none', but %q found", spec.Prompt)
 			}
 
 			return nil
@@ -115,13 +114,13 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 		description: "Okta",
 		display:     "Okta",
 		issuerURL:   "https://oktaice.okta.com",
-		modifySpec: func(ctx context.Context, logger *slog.Logger, spec *types.OIDCConnectorSpecV3) error {
+		modifySpec: func(logger *logrus.Entry, spec *types.OIDCConnectorSpecV3) error {
 			if spec.Provider == "" {
 				spec.Provider = teleport.Okta
 			}
 
 			if spec.Provider != teleport.Okta {
-				logger.WarnContext(ctx, "Configured provider was not okta", "provider", spec.Provider)
+				logger.Warnf("Okta requires %q provider, but %q found.", teleport.Okta, spec.Provider)
 			}
 
 			return nil
@@ -187,12 +186,12 @@ Examples:
 
   > tctl sso configure oidc -n myauth -r groups,admin,access,editor,auditor -r group,developer,access --secret IDP_SECRET --id CLIENT_ID --issuer-url https://idp.example.com
 
-  Generate OIDC auth connector configuration called 'myauth'. Two mappings from OIDC claims to roles are defined:
+  Generate OIDC auth connector configuration called 'myauth'. Two mappings from OIDC claims to roles are defined: 
     - members of 'admin' group will receive 'access', 'editor' and 'auditor' roles.
     - members of 'developer' group will receive 'access' role.
 
   The values for --secret, --id and --issuer-url are provided by IdP.
-
+  
   > tctl sso configure oidc --preset okta --scope groups -r groups,okta-admin,access,editor,auditor --secret IDP_SECRET --id CLIENT_ID --issuer-url dev-123456.oktapreview.com
 
   Generate OIDC auth connector with Okta preset, enabled 'groups' scope, mapping group 'okta-admin' to roles 'access', 'editor', 'auditor'.
@@ -203,7 +202,7 @@ Examples:
   Generate OIDC auth connector with Google preset. Service account credentials are set to be loaded from /var/lib/teleport/gacc.json with --google-acc-uri.
 
   > tctl sso configure oidc ... | tctl sso test
-
+  
   Generate the configuration and immediately test it using "tctl sso test" command.`, presets))
 
 	preset := &AuthKindCommand{
@@ -238,7 +237,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	// automatically switch to 'google' preset if google-specific flags are set.
 	if flags.chosenPreset == "" {
 		if spec.GoogleAdminEmail != "" || spec.GoogleServiceAccount != "" || spec.GoogleServiceAccountURI != "" {
-			cmd.Logger.InfoContext(ctx, "Google-specific flags detected, enabling google preset")
+			cmd.Logger.Infof("Google-specific flags detected, enabling preset %q.", presetGoogle)
 			flags.chosenPreset = presetGoogle
 		}
 	}
@@ -259,7 +258,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 		}
 
 		if p.modifySpec != nil {
-			if err := p.modifySpec(ctx, cmd.Logger, spec); err != nil {
+			if err := p.modifySpec(cmd.Logger, spec); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -281,7 +280,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	switch strings.ToLower(parse.Scheme) {
 	case "":
 		spec.IssuerURL = "https://" + spec.IssuerURL
-		cmd.Logger.InfoContext(ctx, "Missing scheme for issuer URL, using https", "issuer_url", spec.IssuerURL)
+		cmd.Logger.Infof("Missing scheme for issuer URL. Defaulting to %q. New value: %q", "https://", spec.IssuerURL)
 	case "https":
 		break
 	default:
@@ -289,9 +288,9 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	}
 
 	// verify .well-known/openid-configuration is reachable
-	if _, err := client.Discover(ctx, spec.IssuerURL, otelhttp.DefaultClient); err != nil {
+	if _, err := oidc.NewProvider(ctx, spec.IssuerURL); err != nil {
 		if cmd.Config.Debug {
-			cmd.Logger.WarnContext(ctx, "Failed to load .well-known/openid-configuration for issuer URL", "issuer_url", spec.IssuerURL, "error", err)
+			cmd.Logger.WithError(err).Warnf("Failed to load .well-known/openid-configuration for issuer URL %q", spec.IssuerURL)
 		}
 		return trace.BadParameter("Failed to load .well-known/openid-configuration for issuer URL %q. Check expected --issuer-url against IdP configuration. Rerun with --debug to see the error.", spec.IssuerURL)
 	}
@@ -302,7 +301,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 
 	allRoles, err := clt.GetRoles(ctx)
 	if err != nil {
-		cmd.Logger.WarnContext(ctx, "unable to get roles list, skipping attributes_to_roles sanity checks", "error", err)
+		cmd.Logger.WithError(err).Warn("unable to get roles list. Skipping attributes_to_roles sanity checks.")
 	} else {
 		roleMap := map[string]bool{}
 		var roleNames []string
@@ -316,7 +315,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 				_, found := roleMap[role]
 				if !found {
 					if flags.ignoreMissingRoles {
-						cmd.Logger.WarnContext(ctx, "claims-to-roles references non-existing role", "role", role, "available_roles", roleNames)
+						cmd.Logger.Warnf("claims-to-roles references non-existing role: %q. Available roles: %v.", role, roleNames)
 					} else {
 						return trace.BadParameter("claims-to-roles references non-existing role: %v. Correct the mapping, or add --ignore-missing-roles to ignore this error. Available roles: %v.", role, roleNames)
 					}
@@ -326,7 +325,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	}
 
 	if len(spec.RedirectURLs) == 0 {
-		spec.RedirectURLs = []string{ResolveCallbackURL(ctx, cmd.Logger, clt, "RedirectURLs", "https://%v/v1/webapi/oidc/callback")}
+		spec.RedirectURLs = []string{ResolveCallbackURL(cmd.Logger, clt, "RedirectURLs", "https://%v/v1/webapi/oidc/callback")}
 	}
 
 	connector, err := types.NewOIDCConnector(flags.connectorName, *spec)

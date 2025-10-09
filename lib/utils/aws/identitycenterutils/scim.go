@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // matchAWSICEndpointIDField matches an alphanumeric value separated by a hyphen.
@@ -73,7 +73,7 @@ func EnsureSCIMEndpointURL(baseURL *url.URL) (*url.URL, error) {
 		return nil, trace.BadParameter("unrecognized SCIM endpoint")
 	}
 	region := domainParts[1]
-	if !awsregion.IsKnownRegion(region) {
+	if !awsutils.IsKnownRegion(region) {
 		return nil, trace.BadParameter("region %q is invalid", region)
 	}
 	if domainParts[2] != "amazonaws" || domainParts[3] != "com" {

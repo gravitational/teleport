@@ -44,13 +44,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -75,7 +73,7 @@ type ServicesTestSuite struct {
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
 	ChangesC      chan any
-	Clock         *clockwork.FakeClock
+	Clock         clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -475,6 +473,38 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 	}
 }
 
+func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
+	ctx := context.Background()
+
+	out, err := s.PresenceS.GetReverseTunnels(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
+	require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
+
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
+	require.NoError(t, err)
+
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("", []string{"127.0.0.1:1234"}))
+	require.True(t, trace.IsBadParameter(err))
+
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{""}))
+	require.True(t, trace.IsBadParameter(err))
+
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{}))
+	require.True(t, trace.IsBadParameter(err))
+}
+
 func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
 	ctx := context.Background()
 
@@ -604,10 +634,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-	tokens, err := stream.Collect(clientutils.Resources(ctx,
-		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
-			return s.ProvisioningS.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
-		}))
+	tokens, err := s.ProvisioningS.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Len(t, tokens, 2)
 
@@ -617,10 +644,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	err = s.ProvisioningS.DeleteToken(ctx, tokens[1].GetName())
 	require.NoError(t, err)
 
-	tokens, err = stream.Collect(clientutils.Resources(ctx,
-		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
-			return s.ProvisioningS.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
-		}))
+	tokens, err = s.ProvisioningS.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 }
@@ -1111,7 +1135,6 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
-	ctx := t.Context()
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -1127,14 +1150,14 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 	err = s.ConfigS.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	out, err := s.ConfigS.GetStaticTokens(ctx)
+	out, err := s.ConfigS.GetStaticTokens()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.ConfigS.DeleteStaticTokens()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetStaticTokens(ctx)
+	_, err = s.ConfigS.GetStaticTokens()
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1166,7 +1189,6 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
-	ctx := context.Background()
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
@@ -1174,20 +1196,20 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 	err = s.LocalConfigS.SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err := s.ConfigS.GetClusterName(ctx)
+	gotName, err := s.ConfigS.GetClusterName()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.LocalConfigS.DeleteClusterName()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetClusterName(ctx)
+	_, err = s.ConfigS.GetClusterName()
 	require.True(t, trace.IsNotFound(err))
 
 	err = s.LocalConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err = s.ConfigS.GetClusterName(ctx)
+	gotName, err = s.ConfigS.GetClusterName()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -1560,7 +1582,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.LocalConfigS.GetStaticTokens(ctx)
+				out, err := s.LocalConfigS.GetStaticTokens()
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteStaticTokens()
@@ -1688,7 +1710,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-				_, err := s.PresenceS.UpsertReverseTunnel(ctx, tunnel)
+				err := s.PresenceS.UpsertReverseTunnel(ctx, tunnel)
 				require.NoError(t, err)
 
 				out, _, err := s.PresenceS.ListReverseTunnels(
@@ -1763,7 +1785,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				err = s.LocalConfigS.UpsertClusterName(clusterName)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetClusterName(ctx)
+				out, err := s.ConfigS.GetClusterName()
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteClusterName()
@@ -2130,7 +2152,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add TLS keys if necessary.
 	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
 			Signer: key.Signer,
 			Entity: pkix.Name{

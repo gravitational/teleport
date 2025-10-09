@@ -48,7 +48,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -331,7 +329,7 @@ func TestGetTokens(t *testing.T) {
 			resp := GetTokensResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Len(t, resp.Items, len(tc.expected))
-			require.Empty(t, cmp.Diff(tc.expected, resp.Items, cmpopts.IgnoreFields(ui.JoinToken{}, "Content"), cmpopts.SortSlices(func(a, b ui.JoinToken) bool { return a.ID < b.ID })))
+			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 		})
 	}
 }
@@ -1339,11 +1337,6 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 	return args.Get(0).(*proto.GetClusterCACertResponse), args.Error(1)
 }
 
-func (a *autoupdateProxyClientMock) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
-	args := a.Called(ctx)
-	return args.Get(0).(types.ClusterMaintenanceConfig), args.Error(1)
-}
-
 type autoupdateTestHandlerConfig struct {
 	testModules *modulestest.Modules
 	hostname    string
@@ -1382,34 +1375,22 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
-	clt.On("GetClusterMaintenanceConfig", mock.Anything).Return(nil, trace.NotImplemented("Should not be called"))
 
 	if config.testModules == nil {
 		config.testModules = &modulestest.Modules{
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
-
-	log := logtest.NewLogger()
 	modulestest.SetTestModules(t, *config.testModules)
-	r, err := autoupdatelookup.NewResolver(
-		autoupdatelookup.Config{
-			RolloutGetter: ap,
-			CMCGetter:     clt,
-			Channels:      config.channels,
-			Log:           log,
-			Context:       t.Context(),
-		})
-	require.NoError(t, err)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
-			AccessPoint:     ap,
-			PublicProxyAddr: addr,
-			ProxyClient:     clt,
+			AutomaticUpgradesChannels: config.channels,
+			AccessPoint:               ap,
+			PublicProxyAddr:           addr,
+			ProxyClient:               clt,
 		},
-		logger:             log,
-		autoUpdateResolver: r,
+		logger: utils.NewSlogLoggerForTests(),
 	}
 	h.PublicProxyAddr()
 	return h
@@ -1572,6 +1553,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {

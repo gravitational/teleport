@@ -31,7 +31,8 @@ import (
 // socketpair directly in close-on-exec mode.
 func cloexecSocketpair(t SocketType) (uintptr, uintptr, error) {
 	// SOCK_CLOEXEC on socketpair is supported since Linux 2.6.27 and go's
-	// minimum requirement is 3.2
+	// minimum requirement is 2.6.32 (FreeBSD supports it since FreeBSD 10 and
+	// go 1.20+ requires FreeBSD 12)
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, t.proto()|syscall.SOCK_CLOEXEC, 0)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)

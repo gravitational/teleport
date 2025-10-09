@@ -16,9 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * @deprecated Use `ButtonWithAddIcon` instead.
- *
- * TODO (bernardjkim): Remove once components in e repo have been updated.
- */
-export { ButtonWithAddIcon as ButtonTextWithAddIcon } from '../ButtonWithAddIcon';
+export { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';

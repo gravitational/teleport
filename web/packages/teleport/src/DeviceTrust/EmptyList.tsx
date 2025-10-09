@@ -123,7 +123,7 @@ export const EmptyList = ({
             isSliding={!!intervalId}
             onClick={() => handleOnClick(3)}
             title="Integrates with your MDM"
-            description="Auto-enroll and sync device registry from Jamf&nbsp;Pro or&nbsp;Microsoft&nbsp;Intune."
+            description="Auto-enroll and sync device registry from Jamf."
           />
         </Box>
         <Box>
@@ -146,22 +146,21 @@ export const EmptyList = ({
           )}
           {currIndex === 3 && (
             <FadedTable>
-              <Flex
-                flexDirection="column"
-                justifyContent="center"
-                gap={iconGap}
-              >
-                <Flex gap={iconGap}>
-                  <MdmCard>
-                    <ResourceIcon height="20px" width="20px" name="jamf" />
-                    <MdmText>Jamf Pro</MdmText>
-                  </MdmCard>
-                  <MdmCard>
-                    <ResourceIcon height="20px" width="20px" name="intune" />
-                    <MdmText>Microsoft Intune</MdmText>
-                  </MdmCard>
-                </Flex>
-                <Flex justifyContent="center" gap={iconGap}>
+              <Flex flexDirection="column" justifyContent="center">
+                <JamfCard margin="auto" mb={4}>
+                  <ResourceIcon height="20px" width="20px" name="jamf" />
+                  {/* purposefully "creating" the text ourselves to avoid having a light and dark logo just for text */}
+                  <Text
+                    css={`
+                      font-size: 28px;
+                      line-height: 30px;
+                    `}
+                    ml={3}
+                  >
+                    jamf
+                  </Text>
+                </JamfCard>
+                <Flex justifyContent="center" gap={4}>
                   <IconCard>
                     <Password />
                   </IconCard>
@@ -199,17 +198,16 @@ export const EmptyList = ({
           {isEnterprise ? (
             <>
               <ButtonPrimary
-                as={Link}
-                to={cfg.getIntegrationsEnrollRoute({ tags: ['devicetrust'] })}
                 width="280px"
+                as={Link}
+                to={cfg.getIntegrationEnrollRoute('jamf')}
                 size="large"
               >
-                Get Started with an MDM
+                Get Started with JAMF
               </ButtonPrimary>
-
               <ButtonSecondary
                 as="a"
-                href="https://goteleport.com/docs/identity-governance/device-trust/"
+                href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/"
                 target="_blank"
                 width="280px"
                 size="large"
@@ -232,50 +230,48 @@ export const EmptyList = ({
   );
 };
 
-const iconGap = 4;
-
 export const fakeItems: TrustedDevice[] = [
   {
     id: 'FWPGP915V',
     assetTag: 'FWPGP915V',
     osType: 'macOS',
     enrollStatus: 'enrolled',
-    owner: 'alice',
+    owner: 'mykel',
   },
   {
     id: 'M7XJR4GK8823',
     assetTag: 'M7XJR4GK8823',
     osType: 'Windows',
     enrollStatus: 'enrolled',
-    owner: 'bob',
+    owner: 'lila',
   },
   {
     id: 'L2FQZ9VH4466',
     assetTag: 'L2FQZ9VH4466',
     osType: 'Linux',
     enrollStatus: 'enrolled',
-    owner: 'charlie',
+    owner: 'bart',
   },
   {
     id: 'N8EYW1DP7732',
     assetTag: 'N8EYW1DP7732',
     osType: 'Linux',
     enrollStatus: 'not enrolled',
-    owner: '',
+    owner: 'rafao',
   },
   {
     id: 'K5BHP6CT5598',
     assetTag: 'K5BHP6CT5598',
     osType: 'Windows',
     enrollStatus: 'not enrolled',
-    owner: '',
+    owner: 'gzz',
   },
   {
     id: 'Y3RSL7FJ2104',
     assetTag: 'Y3RSL7FJ2104',
     osType: 'macOS',
     enrollStatus: 'enrolled',
-    owner: 'dan',
+    owner: 'ryry',
   },
 ];
 
@@ -296,7 +292,7 @@ const auditEvents = [
     code: 'TC000I',
     event: 'cert.create',
     identity: {
-      user: 'charlie',
+      user: 'lisa',
     },
     time: '2024-02-04T19:43:23.529Z',
   },
@@ -307,14 +303,14 @@ const auditEvents = [
     success: true,
     time: '2024-02-04T19:43:22.529Z',
     uid: 'fa279611-91d8-47b5-9fad-b8ea3e5286e0',
-    user: 'charlie',
+    user: 'lisa',
   },
   {
     cert_type: 'user',
     code: 'TC000I',
     event: 'cert.create',
     identity: {
-      user: 'dan',
+      user: 'isabelle',
     },
     time: '2024-02-04T19:43:21.529Z',
   },
@@ -323,7 +319,7 @@ const auditEvents = [
     code: 'T1016I',
     time: '2024-02-04T19:43:20.529Z',
     uid: '815bbcf4-fb05-4e08-917c-7259e9332d69',
-    user: 'dan',
+    user: 'isabelle',
   },
 ].map(makeEvent);
 
@@ -471,17 +467,12 @@ const PreviewBox = styled(Box)`
   border-radius: ${p => p.theme.radii[3]}px;
 `;
 
-const MdmCard = styled(Flex).attrs({
-  justifyContent: 'center',
-  alignItems: 'center',
-  p: 5,
-  borderRadius: 3,
-  backgroundColor: 'levels.surface',
-  gap: 3,
-})``;
-
-const MdmText = styled(Text).attrs({ fontSize: '28px' })`
-  line-height: 30px;
+const JamfCard = styled(Flex)`
+  justify-content: center;
+  align-items: center;
+  padding: ${p => p.theme.space[5]}px;
+  border-radius: ${p => p.theme.radii[3]}px;
+  background-color: ${p => p.theme.colors.levels.surface};
 `;
 
 const IconCard = styled(Flex)`

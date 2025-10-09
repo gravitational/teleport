@@ -19,9 +19,7 @@
 import { useEffect } from 'react';
 
 import cfg from 'teleport/config';
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { PasswordState } from 'teleport/services/user';
-import { UserContextProvider } from 'teleport/User';
 
 import { Account, AccountProps } from './Account';
 
@@ -38,13 +36,7 @@ export default {
           cfg.auth.second_factor = defaultSecondFactor;
         };
       }, []);
-      return (
-        <TeleportProviderBasic initialEntries={['/web/account']}>
-          <UserContextProvider>
-            <Story />
-          </UserContextProvider>
-        </TeleportProviderBasic>
-      );
+      return <Story />;
     },
   ],
 };

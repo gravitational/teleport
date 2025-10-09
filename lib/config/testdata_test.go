@@ -96,7 +96,6 @@ teleport:
   log:
     output: stderr
     severity: INFO
-  shutdown_delay: "7m35s"
   connection_limits:
     max_connections: 90
     max_users: 91

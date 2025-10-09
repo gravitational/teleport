@@ -25,20 +25,13 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
-
-type mockClients struct {
-	cloud.AzureClients
-
-	azureClient azure.VirtualMachinesClient
-}
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.azureClient, nil
@@ -149,7 +142,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 	}
 
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 	for _, tc := range tests {
 		tc.matcher.Types = []string{"vm"}
 		tc.matcher.Subscriptions = []string{"sub1"}

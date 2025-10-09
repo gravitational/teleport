@@ -21,37 +21,38 @@
 package main
 
 import (
-	"context"
-	"log/slog"
 	"os"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func main() {
-	slog.SetDefault(slog.New(logutils.NewSlogTextHandler(os.Stderr,
-		logutils.SlogTextHandlerConfig{
-			Level: slog.LevelDebug,
-		},
-	)))
+	log.SetLevel(log.DebugLevel)
+	log.SetOutput(os.Stderr)
 
-	ctx := context.Background()
 	inputPath := os.Getenv(crdgen.PluginInputPathEnvironment)
 	if inputPath == "" {
-		slog.ErrorContext(ctx, "When built with the 'debug' tag, the input path must be set through the TELEPORT_PROTOC_READ_FILE environment variable")
+		log.Error(
+			trace.BadParameter(
+				"When built with the 'debug' tag, the input path must be set through the environment variable: %s",
+				crdgen.PluginInputPathEnvironment,
+			),
+		)
 		os.Exit(-1)
 	}
-	slog.InfoContext(ctx, "This is a debug build, the protoc request is read from the file", "input_path", inputPath)
+	log.Infof("This is a debug build, the protoc request is read from the file: '%s'", inputPath)
 
 	req, err := crdgen.ReadRequestFromFile(inputPath)
 	if err != nil {
-		slog.ErrorContext(ctx, "error reading request from file", "error", err)
+		log.WithError(err).Error("error reading request from file")
 		os.Exit(-1)
 	}
 
 	if err := crdgen.HandleDocsRequest(req); err != nil {
-		slog.ErrorContext(ctx, "Failed to generate docs", "error", err)
+		log.WithError(err).Error("Failed to generate docs")
 		os.Exit(-1)
 	}
 }

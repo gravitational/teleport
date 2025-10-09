@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
@@ -55,11 +55,12 @@ func newTestContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func unwrapResource153[T types.Resource153](t *testing.T, r types.Resource) T {
-	u, ok := r.(types.Resource153UnwrapperT[T])
+func unwrapResource153[T any](t *testing.T, r types.Resource) T {
+	u, ok := r.(types.Resource153Unwrapper)
 	require.True(t, ok, "expected event to implement Resource153Unwrapper")
 
-	dst := u.UnwrapT()
+	dst, ok := u.Unwrap().(T)
+	require.True(t, ok, "expected event to cast to %T", dst)
 	return dst
 }
 
@@ -91,7 +92,7 @@ func TestWatchers(t *testing.T) {
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
 				// EXPECT that we receive at least 3 events notifying us of the
 				// CA creations
-				gotCertAuthIDSet := set.New[types.CertAuthID]()
+				gotCertAuthIDSet := utils.NewSet[types.CertAuthID]()
 				for range 3 {
 					event := fetchEvent(subtestT, watcher, fetchTimeout)
 

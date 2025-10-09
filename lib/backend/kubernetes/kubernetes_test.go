@@ -19,6 +19,7 @@
 package kubernetes
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -83,7 +84,7 @@ func TestBackend_Exists(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx := context.Background()
 
 			// set namespace env variable
 			if len(tt.fields.namespace) > 0 {
@@ -222,7 +223,7 @@ func TestBackend_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx := context.Background()
 
 			if len(tt.fields.namespace) > 0 {
 				t.Setenv(NamespaceEnv, tt.fields.namespace)
@@ -300,7 +301,7 @@ func TestBackend_Put(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx := context.Background()
 
 			// set namespace env var
 			if len(tt.fields.namespace) > 0 {

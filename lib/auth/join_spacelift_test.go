@@ -107,7 +107,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -207,7 +207,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "requires Teleport Enterprise")
 			},
 		},
@@ -316,7 +316,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, errMockInvalidToken)
 			},
 		},

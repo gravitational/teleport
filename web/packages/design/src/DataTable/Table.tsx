@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
+import React, { PropsWithChildren, ReactNode } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -149,15 +149,6 @@ export default function Table<T>(props: TableProps<T>) {
 
     if (rows.length) {
       return <tbody>{rows}</tbody>;
-    }
-
-    // if we provide infiniteScrollProps, we want to not render anything if
-    // the fetch status is loading. this is so that the existing items dont dissapear
-    // during the fetch, but also, we dont want the empty text to show while fetching
-    // and lastly, the infinite scroll page will usually provide its own loading
-    // indicator at the bottom of the component
-    if (props.infiniteScrollProps?.fetchStatus === 'loading') {
-      return <tbody></tbody>;
     }
 
     return (

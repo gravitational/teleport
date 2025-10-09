@@ -164,7 +164,7 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 			RemoteAddr: r.serverContext.RemoteClient.RemoteAddr().String(),
 		},
 		Name:           r.subsystemName,
-		ServerMetadata: r.serverContext.GetServer().EventMetadata(),
+		ServerMetadata: r.serverContext.GetServer().TargetMetadata(),
 	}
 
 	if err != nil {
@@ -175,7 +175,7 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 	}
 
 	if err := r.serverContext.GetServer().EmitAuditEvent(ctx, subsystemEvent); err != nil {
-		r.logger.WarnContext(ctx, "Failed to emit subsystem audit event", "error", err)
+		r.logger.WarnContext(ctx, "Failed to emit subsystem audit event.", "error", err)
 	}
 }
 
@@ -241,7 +241,7 @@ func (r *remoteSFTPSubsystem) Wait() error {
 	if err != nil {
 		exitStatus = 1
 	}
-	r.subsystem.serverContext.SendExecResult(r.subsystem.ctx, srv.ExecResult{
+	r.subsystem.serverContext.SendExecResult(srv.ExecResult{
 		Code: exitStatus,
 	})
 

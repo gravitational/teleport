@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Details } from 'teleport/Integrations/status/AwsOidc/Details/Details';
