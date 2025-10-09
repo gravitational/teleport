@@ -757,6 +757,71 @@ $ gcloud compute instances list
 $ gsutil ls
 ```
 
+## tsh proxy kube
+
+Start a local TLS proxy for Kubernetes requests when using Teleport with TLS
+Routing enabled. Clients can interact with a Teleport-registered Kubernetes cluster through
+the local proxy.
+
+```code
+$ tsh proxy kube [<flags>] <kube-cluster>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | string | The name of the Teleport cluster to connect to. |
+| `--kube-cluster` | none | string | The name of the Kubernetes cluster to proxy. |
+| `--as` | none | string | The Kubernetes user to impersonate. |
+| `--as-groups` | none | string | The Kubernetes group to impersonate. |
+| `--namespace` | none | string | The Kubernetes namespace to use. |
+| `--set-context-name` | none | string | A custom Kubernetes context name or template to use. |
+| `--exec` | none | boolean | Runs the proxy in the background and spawns a new shell with the $KUBECONFIG automatically set. |
+| `--port` | none | string | Source port used by the local proxy.|
+
+### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+### Examples
+
+Proxy requests to a Kubernetes cluster
+```code
+$ tsh proxy kube test-cluster
+Preparing the following Teleport Kubernetes clusters:
+Teleport Cluster Name Kube Cluster Name Context Name
+--------------------- ----------------- -----------------
+teleport-test             test-cluster           teleport-test-test-cluster
+
+Started local proxy for Kubernetes on 127.0.0.1:49487
+To avoid port randomization, you can choose the listening port using the --port flag.
+
+Use the following config for your Kubernetes applications. For example:
+export KUBECONFIG="/home/alice/.tsh/keys/proxy.example.com/alice-kube/teleport-test/localproxy-49487-kubeconfig"
+kubectl version
+```
+
+Spawn a new shell with the Kubernetes proxy running in the background and the Kubernetes config
+automatically applied.
+```code
+$ tsh proxy kube test-cluster --exec
+Preparing the following Teleport Kubernetes clusters:
+Teleport Cluster Name Kube Cluster Name Context Name
+--------------------- ----------------- -----------------
+teleport-test             test-cluster           teleport-test-test-cluster
+
+Started local proxy for Kubernetes Access in the background.
+
+Warning! Teleport will initiate a new shell configured with kubectl for local proxy access.
+To conclude the session, simply use the "exit" command. Upon exiting, your original shell will be restored,
+the local proxy will be closed, and future access through this headless session won't be possible.
+
+
+Try issuing a command, for example "kubectl version".
+```
+
 ## tsh proxy ssh
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
