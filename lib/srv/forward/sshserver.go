@@ -1174,40 +1174,39 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// right after the session channel is accepted. We should reuse this
 	// session ID and delegate session responsibilities (recordings, audit
 	// events, and session trackers) to avoid duplicates.
-	willReceiveSID := s.targetServer.GetSubKind() == types.SubKindTeleportNode
-
-	// Check if the Teleport Node is outdated and won't actually send the session ID.
 	//
-	// TODO(Joerger): DELETE IN v20.0.0
-	// all v19+ servers set the session ID directly after accepting the session channel.
-	// clients should stop checking in v21, and servers should stop responding to the query in v22.
-	if willReceiveSID {
-		willReceiveSID, _, err = s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
+	// Register handler to receive the current session ID before starting the session.
+	var newSessionIDFromServer chan session.ID
+	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
+		// Check if the Teleport Node is outdated and won't actually send the session ID.
+		//
+		// TODO(Joerger): DELETE IN v20.0.0
+		// all v19+ servers set and share the session ID directly after accepting the session channel.
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+		reply, _, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
 		if err != nil {
 			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
 		}
 
-		if !willReceiveSID {
+		if reply {
+			newSessionIDFromServer = make(chan session.ID, 1)
+			var receiveSessionIDOnce sync.Once
+			s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+				// Only handle the first request - only one is expected.
+				receiveSessionIDOnce.Do(func() {
+					sid, err := session.ParseID(string(req.Payload))
+					if err != nil {
+						s.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
+						return
+					}
+
+					newSessionIDFromServer <- *sid
+					close(newSessionIDFromServer)
+				})
+			})
+		} else {
 			s.logger.WarnContext(ctx, "Failed to query session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
 		}
-	}
-
-	// Register handler to receive the current session ID before starting the session.
-	newSessionID := make(chan session.ID, 1)
-	if willReceiveSID {
-		var receiveSessionIDOnce sync.Once
-		s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
-			receiveSessionIDOnce.Do(func() {
-				sid, err := session.ParseID(string(req.Payload))
-				if err != nil {
-					s.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
-					return
-				}
-
-				newSessionID <- *sid
-				close(newSessionID)
-			})
-		})
 	}
 
 	// Create a "session" channel on the remote host. Note that we
@@ -1240,10 +1239,10 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.AddCloser(ch)
 
-	if willReceiveSID {
+	if newSessionIDFromServer != nil {
 		// Wait for the session ID to be reported by the target node.
 		select {
-		case sid := <-newSessionID:
+		case sid := <-newSessionIDFromServer:
 			scx.SetNewSessionID(ctx, sid, ch)
 		case <-time.After(10 * time.Second):
 			s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
