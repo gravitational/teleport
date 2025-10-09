@@ -70,7 +70,7 @@ func ProxyServiceBuilder(
 		}
 
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(ProxyServiceType, svc.String())
 		return svc, nil
 	}
 }

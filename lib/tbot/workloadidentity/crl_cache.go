@@ -97,7 +97,7 @@ func (f *CRLCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service
 				teleport.ComponentKey,
 				teleport.Component(teleport.ComponentTBot, "crl-cache"),
 			),
-			StatusReporter: deps.StatusRegistry.AddService("crl-cache"),
+			StatusReporter: deps.StatusRegistry.AddService("internal/crl-cache", "crl-cache"),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
