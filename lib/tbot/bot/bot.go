@@ -361,6 +361,7 @@ func (b *Bot) buildHeartbeatService(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "heartbeat"),
 		),
 		StatusReporter: statusRegistry.AddService("heartbeat"),
+		StatusRegistry: statusRegistry,
 	})
 }
 
