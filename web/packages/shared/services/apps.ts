@@ -21,4 +21,5 @@ export type AwsRole = {
   arn: string;
   display: string;
   accountId: string;
+  requiresRequest?: boolean;
 };
