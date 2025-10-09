@@ -34,6 +34,12 @@ default Teleport install script. (For other Linux distributions, you can
 install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
+All EC2 instances that are to be added to the Teleport cluster by the Discovery
+Service must include the `AmazonSSMManagedInstanceCore` IAM policy in order to
+receive commands from the Discovery Service. For a list of permissions included
+in the policy, see the [AWS
+documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
+
 ## Step 1/7. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
@@ -120,42 +126,6 @@ Confirm? [y/N]: y
 ✅[AWS] Create IAM SSM Document "TeleportDiscoveryInstaller"... done.
 ✅[AWS] Attach IAM policies to "alex-discovery-role"... done.
 ```
-
-<Details>
-
-All EC2 instances that are to be added to the Teleport cluster by the
-Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
-in order to receive commands from the Discovery Service.
-
-This policy includes the following permissions:
-
-- `ssm:DescribeAssociation`
-- `ssm:GetDeployablePatchSnapshotForInstance`
-- `ssm:GetDocument`
-- `ssm:DescribeDocument`
-- `ssm:GetManifest`
-- `ssm:GetParameter`
-- `ssm:GetParameters`
-- `ssm:ListAssociations`
-- `ssm:ListInstanceAssociations`
-- `ssm:PutInventory`
-- `ssm:PutComplianceItems`
-- `ssm:PutConfigurePackageResult`
-- `ssm:UpdateAssociationStatus`
-- `ssm:UpdateInstanceAssociationStatus`
-- `ssm:UpdateInstanceInformation`
-- `ssmmessages:CreateControlChannel`
-- `ssmmessages:CreateDataChannel`
-- `ssmmessages:OpenControlChannel`
-- `ssmmessages:OpenDataChannel`
-- `ec2messages:AcknowledgeMessage`
-- `ec2messages:DeleteMessage`
-- `ec2messages:FailMessage`
-- `ec2messages:GetEndpoint`
-- `ec2messages:GetMessages`
-- `ec2messages:SendReply`
-
-</Details>
 
 ## Step 6/7. [Optional] Customize the default installer script
 
