@@ -32,59 +32,51 @@ import (
 type visitor struct {
 	getter AccessListAndMembersGetter
 	seen   map[string]struct{}
-	stack  []string
+	stack  []*accesslist.AccessList
 	ctx    context.Context
 }
 
-// newVisitor returns a visitor that can be used to visit an accesslist graph.
-func newVisitor(ctx context.Context, getter AccessListAndMembersGetter, startNode string) *visitor {
-	return &visitor{
+// newAccessListMemberIterator returns a single-use iterator traversing the accesslist
+// graph membership edges and yielding every vertex.
+// In case of non-nil error, the caller should stop processing as there's no
+// guarantee anymore that the graph will be completely traversed.
+// If the caller wants to prune a node and its subgraph it can call vertex.discard.
+func newAccessListMemberIterator(ctx context.Context, getter AccessListAndMembersGetter, accessList *accesslist.AccessList) iter.Seq2[vertex, error] {
+	return visitor{
 		getter: getter,
 		seen:   make(map[string]struct{}),
-		stack:  []string{startNode},
+		stack:  []*accesslist.AccessList{accessList},
 		ctx:    ctx,
-	}
+	}.iterate
 }
 
 // Make sure members can be used as an iter.Seq2
-var _ iter.Seq2[membershipRelation, error] = visitor{}.memberships
+var _ iter.Seq2[vertex, error] = visitor{}.iterate
 
-// a membershipRelation is an edge in the acceslist graph. It describes a
-// membership relation between a list and an entity called the member.
-// The member can be an accesslist or a user.
-type membershipRelation struct {
-	list   *accesslist.AccessList
-	member *accesslist.AccessListMember
+// vertex is a node in the acceslist graph. This is stored in the backend as a member.
+// The member can be an accesslist or a user. If the member kind is a list, the
+// vertex list field is populated.
+// The vertex contains a discard function that the caller can use to indicate the
+// iterator should not attempt to traverse arcs from the vertex. This is used to
+// filter out access lists whose requirements are not met. If the vertex is not a
+// list, discard has no effect.
+type vertex struct {
+	member  *accesslist.AccessListMember
+	list    *accesslist.AccessList
+	discard func()
 }
 
-// memberships is a single-use iterator yielding every access list membership, direct or nested.
-// This function is an iter.Seq2[membershipRelation, error].
-// In case of non-nil error, the caller should stop processing as there's no
-// guarantee anymore that the graph will be completely traversed.
-func (v visitor) memberships(yield func(membershipRelation, error) bool) {
-	var alName string
+func (t visitor) iterate(yield func(vertex, error) bool) {
+	var accessList *accesslist.AccessList
 
 	// Walk the accesslist tree until we no longer have new nested access lists to visit
 	for {
-		if len(v.stack) == 0 {
+		if len(t.stack) == 0 {
 			return
-		}
-
-		// Stop if the context is done.
-		select {
-		case <-v.ctx.Done():
-			yield(membershipRelation{}, v.ctx.Err())
-			return
-		default:
 		}
 
 		// We take the accesslist on top of the stack
-		v.stack, alName = v.stack[:len(v.stack)-1], v.stack[len(v.stack)-1]
-		list, err := v.getter.GetAccessList(v.ctx, alName)
-		if err != nil {
-			yield(membershipRelation{}, err)
-			return
-		}
+		t.stack, accessList = t.stack[:len(t.stack)-1], t.stack[len(t.stack)-1]
 
 		// Get all its members, page by page. We don't wait to get all pages before yielding members
 		// as the member we are looking for might be on the page we are consuming.
@@ -92,33 +84,56 @@ func (v visitor) memberships(yield func(membershipRelation, error) bool) {
 		// This risk is that the accesslist might get deleted while we are looking at it.
 		pageToken := ""
 		var page []*accesslist.AccessListMember
+		var err error
+		var discard bool
+		var list *accesslist.AccessList
+
 		for {
-			page, pageToken, err = v.getter.ListAccessListMembers(v.ctx, alName, 0, pageToken)
+			page, pageToken, err = t.getter.ListAccessListMembers(t.ctx, accessList.GetName(), 0, pageToken)
 			if err != nil {
-				// If the AccessList doesn't exist yet or has been deleted,
-				// we gracefully handle the case and consider it has no more members.
-				if trace.IsNotFound(err) {
-					break
-				}
-				yield(membershipRelation{}, err)
+				yield(vertex{}, err)
 				return
 			}
 
 			for _, member := range page {
-				// If the member is a nested list, we might need to look up its members recursively.
+				discard = false
+				v := vertex{
+					member:  member,
+					discard: func() { discard = true },
+				}
+
+				// If the member is a nested list, look it up, mark it as seen and populate vertex.list
 				if member.Spec.MembershipKind == accesslist.MembershipKindList {
 					name := member.GetName()
-					if _, seen := v.seen[name]; !seen {
-						// First time seeing this accesslist, marking it as seen and enqueueing it.
-						v.seen[name] = struct{}{}
-						v.stack = append(v.stack, name)
+
+					// If we already processed this vertex, we can skip it.
+					if _, seen := t.seen[name]; seen {
+						continue
 					}
+
+					list, err = t.getter.GetAccessList(t.ctx, name)
+					if err != nil {
+						// Gracefully handle the missing access list case, to avoid breaking everything in case of
+						// membership inconsistency.
+						if trace.IsNotFound(err) {
+							t.seen[name] = struct{}{}
+							continue
+						}
+						yield(vertex{}, trace.Wrap(err))
+					}
+
+					// First time seeing this accesslist, marking it as seen and enqueueing it.
+					t.seen[name] = struct{}{}
+					t.stack = append(t.stack, list)
+					v.list = list
 				}
-				if ok := yield(membershipRelation{
-					list:   list,
-					member: member,
-				}, nil); !ok {
+
+				if ok := yield(v, nil); !ok {
 					return
+				}
+
+				if discard && member.Spec.MembershipKind == accesslist.MembershipKindList {
+					t.stack = t.stack[:len(t.stack)-1]
 				}
 			}
 

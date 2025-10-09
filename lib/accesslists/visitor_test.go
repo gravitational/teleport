@@ -29,30 +29,24 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 )
 
-func generateNestedALs(level, directMembers int, rootListName, userName string) (map[string]*accesslist.AccessList, map[string][]*accesslist.AccessListMember) {
-	accesslists := []*accesslist.AccessList{
-		{
-			ResourceHeader: header.ResourceHeader{
-				Metadata: header.Metadata{
-					Name: rootListName,
-				},
+func generateAccessList(name string) *accesslist.AccessList {
+	return &accesslist.AccessList{
+		ResourceHeader: header.ResourceHeader{
+			Metadata: header.Metadata{
+				Name: name,
 			},
-			Spec:   accesslist.Spec{},
-			Status: accesslist.Status{},
 		},
 	}
+}
+
+func generateNestedALs(level, directMembers int, rootListName, userName string) (map[string]*accesslist.AccessList, map[string][]*accesslist.AccessListMember) {
+	accesslists := []*accesslist.AccessList{generateAccessList(rootListName)}
 	members := make(map[string][]*accesslist.AccessListMember)
 
 	for i := range level - 1 {
 		parentName := accesslists[i].GetName()
 		name := "nested-al-" + strconv.Itoa(i)
-		accesslists = append(accesslists, &accesslist.AccessList{
-			ResourceHeader: header.ResourceHeader{
-				Metadata: header.Metadata{
-					Name: name,
-				},
-			},
-		})
+		accesslists = append(accesslists, generateAccessList(name))
 		listMembers := generateUserMembers(directMembers/2, name)
 		listMembers = append(listMembers, &accesslist.AccessListMember{
 			ResourceHeader: header.ResourceHeader{
@@ -66,7 +60,7 @@ func generateNestedALs(level, directMembers int, rootListName, userName string) 
 				MembershipKind: accesslist.MembershipKindList,
 			},
 		})
-		listMembers = append(listMembers, generateUserMembers(directMembers/2, name)...)
+		listMembers = append(listMembers, generateUserMembers(directMembers/2+directMembers%2, name)...)
 		members[parentName] = listMembers
 	}
 
@@ -107,15 +101,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 	b.Run("no members", func(b *testing.B) {
 		mock := &mockAccessListAndMembersGetter{
 			accessLists: map[string]*accesslist.AccessList{
-				mainAccessListName: {
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{
-							Name: mainAccessListName,
-						},
-					},
-					Spec:   accesslist.Spec{},
-					Status: accesslist.Status{},
-				},
+				mainAccessListName: generateAccessList(mainAccessListName),
 			},
 			members: map[string][]*accesslist.AccessListMember{
 				mainAccessListName: {},
@@ -126,7 +112,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				&accesslist.AccessList{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: mainAccessListName}}},
+				generateAccessList(mainAccessListName),
 				mock,
 				lockGetter,
 				clock)
@@ -156,15 +142,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 
 		mock := &mockAccessListAndMembersGetter{
 			accessLists: map[string]*accesslist.AccessList{
-				mainAccessListName: {
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{
-							Name: mainAccessListName,
-						},
-					},
-					Spec:   accesslist.Spec{},
-					Status: accesslist.Status{},
-				},
+				mainAccessListName: generateAccessList(mainAccessListName),
 			},
 			members: map[string][]*accesslist.AccessListMember{
 				mainAccessListName: members,
@@ -175,7 +153,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				&accesslist.AccessList{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: mainAccessListName}}},
+				generateAccessList(mainAccessListName),
 				mock,
 				lockGetter,
 				clock)
@@ -205,15 +183,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 
 		mock := &mockAccessListAndMembersGetter{
 			accessLists: map[string]*accesslist.AccessList{
-				mainAccessListName: {
-					ResourceHeader: header.ResourceHeader{
-						Metadata: header.Metadata{
-							Name: mainAccessListName,
-						},
-					},
-					Spec:   accesslist.Spec{},
-					Status: accesslist.Status{},
-				},
+				mainAccessListName: generateAccessList(mainAccessListName),
 			},
 			members: map[string][]*accesslist.AccessListMember{
 				mainAccessListName: members,
@@ -224,7 +194,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				&accesslist.AccessList{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: mainAccessListName}}},
+				generateAccessList(mainAccessListName),
 				mock,
 				lockGetter,
 				clock)
@@ -245,7 +215,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				&accesslist.AccessList{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: mainAccessListName}}},
+				generateAccessList(mainAccessListName),
 				mock,
 				lockGetter,
 				clock)
@@ -256,7 +226,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 	})
 
 	b.Run("multiple pages nested member", func(b *testing.B) {
-		lists, members := generateNestedALs(5, 500, mainAccessListName, testUserName)
+		lists, members := generateNestedALs(5, 501, mainAccessListName, testUserName)
 		mock := &mockAccessListAndMembersGetter{
 			accessLists: lists,
 			members:     members,
@@ -266,7 +236,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				&accesslist.AccessList{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: mainAccessListName}}},
+				generateAccessList(mainAccessListName),
 				mock,
 				lockGetter,
 				clock)

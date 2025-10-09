@@ -352,36 +352,47 @@ func IsAccessListMember(
 		}
 	}
 
-	var membershipErr error
+	if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
+		// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
+		// through all members to make sure there isn't a valid match later on.
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+			trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+	}
 
-	v := newVisitor(ctx, g, accessList.GetName())
-	for membership, err := range v.memberships {
+	var membershipErrs []error
+	iterator := newAccessListMemberIterator(ctx, g, accessList)
+	for v, err := range iterator {
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
-		if membership.member.Spec.MembershipKind != accesslist.MembershipKindList && membership.member.GetName() == user.GetName() {
-			if !UserMeetsRequirements(user, membership.list.Spec.MembershipRequires) {
-				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
-				// through all members to make sure there isn't a valid match later on.
-				membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
-				continue
+
+		switch {
+		// For every nested list, we check if the user meets its requirements before continuing.
+		case v.member.Spec.MembershipKind == accesslist.MembershipKindList:
+			// If the vertex is a list, we check if the user meets the list requirements.
+			if !UserMeetsRequirements(user, v.list.Spec.MembershipRequires) {
+				// If they don't, we discard the list and all its potentially nested
+				v.discard()
 			}
-			if !membership.member.Spec.Expires.IsZero() && !clock.Now().Before(membership.member.Spec.Expires) {
-				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
+		// For every direct member, we check
+		case v.member.GetName() == user.GetName():
+			if !v.member.Spec.Expires.IsZero() && !clock.Now().Before(v.member.Spec.Expires) {
+				membershipErrs = append(membershipErrs, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), v.member.Spec.Title))
 				continue
 			}
 
 			// If the membership relation starts from a list with the same name than the one we started with
 			// this is an explicit assignment.
-			if membership.list.GetName() == accessList.GetName() {
+			if v.member.Spec.AccessList == accessList.GetName() {
 				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
 			}
+
 			// Else the assignment is inherited through one or many levels of nested access lists.
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 		}
 	}
 
-	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
+	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.NewAggregate(membershipErrs...)
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.

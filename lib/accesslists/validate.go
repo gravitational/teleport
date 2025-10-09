@@ -230,7 +230,7 @@ func validateAddition(
 	return nil
 }
 
-// TODO(hugoShaka): make this code cycle proof
+// TODO(hugoShaka): remove this function when we are cycle-proof.
 func isReachable(
 	ctx context.Context,
 	currentList *accesslist.AccessList,
