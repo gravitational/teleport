@@ -68,8 +68,8 @@ LJxgC1GdoEz2ilXW802H9QrdKf9GPqxwi2TVzfO6pzWkdZcmbItu+QCCFz+co+r8
 )
 
 var (
-	// TLSCACertNotBefore is the "Not before" date of TLSCAKeyPEM.
+	// TLSCACertNotBefore is the "Not before" date of TLSCACertPEM.
 	TLSCACertNotBefore = time.Date(2017, time.May, 9, 19, 40, 36, 0, time.UTC)
-	// TLSCACertNotAfter is the "Not after" date of TLSCAKeyPEM.
+	// TLSCACertNotAfter is the "Not after" date of TLSCACertPEM.
 	TLSCACertNotAfter = time.Date(2027, time.May, 7, 19, 40, 36, 0, time.UTC)
 )
