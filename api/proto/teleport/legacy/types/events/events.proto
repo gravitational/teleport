@@ -9030,6 +9030,9 @@ message SCIMRequest {
     (gogoproto.jsontag) = "body,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+
+  // Query holds the raw query string from the request URL
+  string Query = 7;
 }
 
 message SCIMCommonData {
@@ -9120,4 +9123,12 @@ message SCIMResourceEvent {
   // Display is a human-readable name or identifier for the Teleport resource
   // affected by the event.
   string Display = 6 [(gogoproto.jsontag) = "display,omitempty"];
+
+  // ResponseBody holds a representation of the JSON response (if any) to the
+  // request. This is only populated for resource-modifying requests like Create
+  // Update
+  google.protobuf.Struct ResponseBody = 7 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
