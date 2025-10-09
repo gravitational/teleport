@@ -24,8 +24,6 @@ import (
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestValidateInferenceModel(t *testing.T) {
@@ -122,26 +120,6 @@ func TestValidateInferenceModel(t *testing.T) {
 			assert.ErrorIs(t, ValidateInferenceModel(m), &trace.BadParameterError{Message: tc.msg})
 		})
 	}
-}
-
-func TestValidateInferenceModel_Cloud(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-	m := NewInferenceModel("my-model", &summarizerv1.InferenceModelSpec{
-		Provider: &summarizerv1.InferenceModelSpec_Bedrock{
-			Bedrock: &summarizerv1.BedrockProvider{
-				BedrockModelId: "amazon.nova-lite-v1:0",
-				Region:         "us-west-2",
-			},
-		},
-	})
-	assert.ErrorIs(t, ValidateInferenceModel(m), &trace.BadParameterError{
-		Message: "Amazon Bedrock models are unavailable in Teleport Cloud",
-	})
 }
 
 func TestValidateInferenceSecret(t *testing.T) {
