@@ -46,6 +46,12 @@ const (
 	// ensure the instance remains accessible until shortly after the last
 	// issued certificate expires.
 	ExpiryMargin = time.Minute * 5
+
+	// serviceNameLimit is the maximum length in bytes of a bot service name.
+	serviceNameLimit = 64
+
+	// statusReasonLimit is the maximum length in bytes of a service status reason.
+	statusReasonLimit = 256
 )
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
@@ -204,6 +210,17 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		return nil, trace.BadParameter("heartbeat: must be non-nil")
 	}
 
+	for _, svcHealth := range req.GetServiceHealth() {
+		name := svcHealth.GetService().GetName()
+		if len(name) > serviceNameLimit {
+			return nil, trace.BadParameter("service name %q is longer than %d bytes", name, serviceNameLimit)
+		}
+		reason := svcHealth.GetReason()
+		if len(reason) > statusReasonLimit {
+			return nil, trace.BadParameter("service %q has a status reason longer than %d bytes", name, statusReasonLimit)
+		}
+	}
+
 	// Enforce that the connecting client is a bot and has a bot instance ID.
 	botName := authCtx.Identity.GetIdentity().BotName
 	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
@@ -237,6 +254,8 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 		// Append the new heartbeat to the end.
 		instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
+		// Overwrite the service health.
+		instance.Status.ServiceHealth = req.ServiceHealth
 
 		return instance, nil
 	})
