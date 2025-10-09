@@ -127,26 +127,67 @@ service itself shuts down or the underlying TCP connection is disrupted.
 The reconnect procedure must be graceful as to not disrupt any existing user
 connectivity to the agent and it should not decrease agent availability in the process.
 
-To avoid disrupting existing user connectivity, a reversetunnel should
-not be closed until all active user traffic has been drained from the
-connection.
+We will use the reversetunnel server's Proxy discovery requests to communicate Proxy health.
 
-To avoid decreasing availability we should not stop accepting new sessions on a reversetunnel until a new connection is established. 
+Today Proxies will eventually be seen as unhealthy after a Proxy expires from the
+backend and the agent tracker's default Proxy expiry is exceeded.
 
-To implement this reconnect procedure we can leverage the `reconnect` signal[^7] that
-already exists and is sent by Proxy servers during termination.
+This can take ~13 minutes based on the Proxy ServerAnnounceTTL = 10 minutes and
+the tracker.DefaultProxyExpirey = 3 minutes. To put this into perspective this is
+roughly equal to the quartly downtime budget when targeting `99.99` availability.
 
-Proxy services will begin sending reconnect signals to agents after the proxy
-instance is unhealthy for a configurable duration. The signal will only be sent
-in response to an agent heartbeat[^8] to avoid sending the signal to all connected
-agents at the same time.
+To speed up this process we will support configuring a lower `ServerAnnounceTTL`.
 
-Currently, agents stop accepting new transport requests while draining[^9]. This
-could impact agent availability if we begin to drain and an agent is unable to
-establish a new connection to the cluster. To resolve this issue, after receiving a
-reconnect request, agents will first establish a new connection to a healthy proxy 
-instance. Only then will the agent begin to drain the connection and stop accepting
-new transport requests.
+The environment variable `TELEPORT_UNSTABLE_SERVER_ANNOUNCE_TTL` will be used to
+configure the `ServerAnnounceTTL. We can use this to configure more frequent Proxy and Auth
+heartbeats to reduce the time to detect unhealthy instances.
+
+This will decrease the time it takes to detect an unhealthy Proxy or Auth server.
+
+We will also add an `ExpiryDuration` field to Proxy discovery requests. Agents can
+than use this field in favor of the `DefaultProxyExpiry` when its present.
+
+```
+type Proxy struct {
+	Version  string `json:"version"`
+	Metadata struct {
+		Name string `json:"name"`
+	} `json:"metadata"`
+
+	ProxyGroupID         string         `json:"gid,omitempty"`
+	ProxyGroupGeneration uint64         `json:"ggen,omitempty"`
+	ExpiryDuration       *time.Duration `json:"exp,omitempty"`
+}
+```
+
+The `ExpiryDuration` for each server will be set based on the `ServerAnnounceTTL`
+configured on the Proxy sending the discovery request.
+
+Lowering the `ServerAnnounceTTL` for Proxy servers has the negative effect of
+increasing the traffic created by Proxy discovery requests.
+
+We can reduce the overall traffic created by Proxy discovery requests by changing
+the behavior.
+
+The new behavior will only send Proxy discovery requests when there is a Proxy
+heartbeat and will only send the set of proxies that have heartbeated since the 
+last Proxy discovery request was sent.
+
+The first discovery request will always contain the full list of unexpired Proxy
+servers.
+
+Proxy heartbeats will be detected by looking for changes in the `server.Expiry()`
+value when events are received by the `ProxyWatcher *services.GenericWatcher[types.Server, readonly.Server]`.
+
+This behavior is backwards compatibile with existing agent Proxy tracking.
+
+If one of the Agents reversetunnels is connected to an expired Proxy. The agent will
+begin creating new connections attempting to reach a non-expired Proxy.
+
+Today the agent never closes reversetunnel connections. To solve this Agents will
+evaluate whether they can disconnected from Proxies when they have more than the
+desired connection count. Connections will only be closed if the Proxy is expired
+or there are excess connections to the desired Proxy set.
 
 ### Additonal Thoughts and Considerations
 
@@ -164,12 +205,17 @@ load we see it may be beneficial to periodically move new requests to new connec
 while leaving old connections open for long lived streams to continue.
 
 #### Periodic Tunnel Reconnects
-With the improved agent draining behavior described in [Proxy Reconnects](#proxy-reconnects)
-it should be safe to introduce periodic reversetunnel reconnects. This would
-allow for better load distribution and the most up-to-date low latency routing paths
-for these connections. There is some risk that long lived sessions could keep draining
-tunnels open for a very long period of time. Given enough of these types of sessions
-the total number of open tunnels would slowly climb and potentially cause issues.
+Reconnecting reveresetunnels during a failure can lead to imbalanced and suboptimal
+routing that should be addressed when the Teleport cluster recovers. To address
+this we need a way to trigger periodic reconnects. This can be acheived by having
+the proxy send reconnects at a specific interval + jitter.
+
+The default behavior will remain the same where periodic reconnects are never sent.
+We will add an environement variable `TELEPORT_UNSTABLE_REVERSETUNNEL_RECONNECT_INTERVAL`
+that when set on a Proxy will enable the behavior.
+
+Agents should reconnect to a non-expired proxy server before they close a tunnel
+connection that received a reconnect signal.
 
 #### Alternative Approaches to Auth Reconnects
 Alternative approaches such as closing the agent's connection server side or
@@ -177,13 +223,6 @@ using a HTTP2 GOAWAY to signal an agent to reconnect were quickly rejected.
 Closing the connection server side allows for no graceful draining behavior to
 be used. Sending an HTTP2 GOAWAY is not exposed by the standard go http/grpc
 libraries.
-
-#### Alternative Approaches to Proxy Reconnects
-Having a proxy stop advertising proxy addresses or stop advertising itself was brought up as a possible way to trigger the agent to begin attempting to reconnect without agent side changes. This did not end up working as expected. When no proxies
-are advertised the agent does not update its tracked proxy cache. When a proxy stops
-advertising itself, this does not trigger the agent to disconnect or give up its
-lease on the proxy. There is also the issue that other proxies may still be sending
-discovery requests for the agent to receive.
 
 [^1]: https://grpc.io/docs/guides/health-checking/
 [^2]: https://grpc.io/docs/guides/custom-load-balancing/
