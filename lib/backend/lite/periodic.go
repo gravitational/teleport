@@ -38,9 +38,11 @@ func (l *Backend) runPeriodicOperations() {
 	for {
 		select {
 		case <-l.ctx.Done():
-			if err := l.closeDatabase(); err != nil {
-				l.logger.WarnContext(l.ctx, "Error closing database", "error", err)
-			}
+			l.closeOnce.Do(func() {
+				if err := l.closeDatabase(); err != nil {
+					l.logger.WarnContext(l.ctx, "Error closing database", "error", err)
+				}
+			})
 			return
 		case <-t.C:
 			err := l.removeExpiredKeys()

@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -283,6 +284,7 @@ type Backend struct {
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
+	closeOnce  sync.Once
 }
 
 func (l *Backend) GetName() string {
@@ -991,7 +993,14 @@ func (l *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 // Close closes all associated resources
 func (l *Backend) Close() error {
 	l.cancel()
-	return l.closeDatabase()
+
+	var onceErr error
+	l.closeOnce.Do(func() {
+		onceErr = l.closeDatabase()
+	})
+
+	return onceErr
+
 }
 
 // CloseWatchers closes all the watchers
