@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
@@ -144,6 +145,20 @@ func (r *resourceWithTargetHealth) GetTargetHealthStatus() types.TargetHealthSta
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
 type ResourceSeenKey struct{ name, kind, addr string }
+
+// MatchResourcesByFilters filters provided resources with profiled filter.
+func MatchResourcesByFilters[E types.ResourceWithLabels, S ~[]E](all S, filter MatchResourceFilter) (S, error) {
+	var filtered S
+	for _, r := range all {
+		match, err := MatchResourceByFilters(r, filter, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if match {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, nil
+}
 
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
 //
@@ -314,4 +329,22 @@ func (m *MatchResourceFilter) IsSimple() bool {
 		len(m.SearchKeywords) == 0 &&
 		m.PredicateExpression == nil &&
 		len(m.Kinds) == 0
+}
+
+// MatchResourceFilterFromListResourceRequest converts a
+// proto.ListResourcesRequest to MatchResourceFilter.
+func MatchResourceFilterFromListResourceRequest(req *proto.ListResourcesRequest) (MatchResourceFilter, error) {
+	filter := MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return MatchResourceFilter{}, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+	return filter, nil
 }

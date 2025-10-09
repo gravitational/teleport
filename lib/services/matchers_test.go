@@ -749,6 +749,38 @@ func TestResourceMatchersToTypes(t *testing.T) {
 	}
 }
 
+func TestMatchResourcesByFilters(t *testing.T) {
+	appServers := make(types.AppServers, 5)
+	oddOrEven := func(i int) string {
+		if i%2 == 1 {
+			return "odd"
+		}
+		return "even"
+	}
+	for i := range len(appServers) {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   fmt.Sprintf("app-%d", i),
+			Labels: map[string]string{"group": oddOrEven(i)},
+		}, types.AppSpecV3{
+			URI: "http://localhost:8888",
+		})
+		require.NoError(t, err)
+		appServers[i] = newAppServerFromApp(t, app)
+	}
+
+	evenAppServers, err := MatchResourcesByFilters(appServers, MatchResourceFilter{
+		ResourceKind: types.KindAppServer,
+		Labels:       map[string]string{"group": "even"},
+	})
+
+	require.NoError(t, err)
+	require.IsType(t, types.AppServers{}, evenAppServers)
+	require.Equal(t,
+		[]string{"app-0", "app-2", "app-4"},
+		slices.Collect(types.ResourceNames(evenAppServers)),
+	)
+}
+
 func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
 	t.Helper()
 	app, err := types.NewAppV3(types.Metadata{
