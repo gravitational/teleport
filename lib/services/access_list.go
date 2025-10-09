@@ -80,9 +80,9 @@ type AccessLists interface {
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
-	// CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
-	// the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
-	CreateAccessListWithMembersAndRoles(context.Context, *accesslistv1.CreateAccessListWithMembersAndRolesRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+	// CreateAccessListWithPreset creates an access list (with members) where Teleport performs automatic
+	// actions depending on the preset requested. E.g. creating role resources and then assigning them as grants.
+	CreateAccessListWithPreset(context.Context, *accesslistv1.CreateAccessListWithPresetRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)

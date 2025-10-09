@@ -38,60 +38,60 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// AccessGrantType describes what type of access grant was requested.
-type AccessGrantType int32
+// PresetType describes what type of preset was requested.
+type PresetType int32
 
 const (
-	// ACCESS_GRANT_TYPE_UNSPECIFIED is the zero value.
-	AccessGrantType_ACCESS_GRANT_TYPE_UNSPECIFIED AccessGrantType = 0
-	// ACCESS_GRANT_TYPE_LONG_TERM describes a grant where members are granted
+	// PRESET_TYPE_UNSPECIFIED is the zero value.
+	PresetType_PRESET_TYPE_UNSPECIFIED PresetType = 0
+	// PRESET_TYPE_LONG_TERM describes a preset where members are granted
 	// roles that grants long term access.
-	AccessGrantType_ACCESS_GRANT_TYPE_LONG_TERM AccessGrantType = 1
-	// GRANT_TYPE_SHORT_TERM describes a request where members are granted
+	PresetType_PRESET_TYPE_LONG_TERM PresetType = 1
+	// GRANT_TYPE_SHORT_TERM describes a preset where members are granted
 	// roles that require them to request for access and upon approval gain short
 	// term access. And owners are granted roles that allows them to review those
 	// access requests.
-	AccessGrantType_ACCESS_GRANT_TYPE_SHORT_TERM AccessGrantType = 2
+	PresetType_PRESET_TYPE_SHORT_TERM PresetType = 2
 )
 
-// Enum value maps for AccessGrantType.
+// Enum value maps for PresetType.
 var (
-	AccessGrantType_name = map[int32]string{
-		0: "ACCESS_GRANT_TYPE_UNSPECIFIED",
-		1: "ACCESS_GRANT_TYPE_LONG_TERM",
-		2: "ACCESS_GRANT_TYPE_SHORT_TERM",
+	PresetType_name = map[int32]string{
+		0: "PRESET_TYPE_UNSPECIFIED",
+		1: "PRESET_TYPE_LONG_TERM",
+		2: "PRESET_TYPE_SHORT_TERM",
 	}
-	AccessGrantType_value = map[string]int32{
-		"ACCESS_GRANT_TYPE_UNSPECIFIED": 0,
-		"ACCESS_GRANT_TYPE_LONG_TERM":   1,
-		"ACCESS_GRANT_TYPE_SHORT_TERM":  2,
+	PresetType_value = map[string]int32{
+		"PRESET_TYPE_UNSPECIFIED": 0,
+		"PRESET_TYPE_LONG_TERM":   1,
+		"PRESET_TYPE_SHORT_TERM":  2,
 	}
 )
 
-func (x AccessGrantType) Enum() *AccessGrantType {
-	p := new(AccessGrantType)
+func (x PresetType) Enum() *PresetType {
+	p := new(PresetType)
 	*p = x
 	return p
 }
 
-func (x AccessGrantType) String() string {
+func (x PresetType) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (AccessGrantType) Descriptor() protoreflect.EnumDescriptor {
+func (PresetType) Descriptor() protoreflect.EnumDescriptor {
 	return file_teleport_accesslist_v1_accesslist_service_proto_enumTypes[0].Descriptor()
 }
 
-func (AccessGrantType) Type() protoreflect.EnumType {
+func (PresetType) Type() protoreflect.EnumType {
 	return &file_teleport_accesslist_v1_accesslist_service_proto_enumTypes[0]
 }
 
-func (x AccessGrantType) Number() protoreflect.EnumNumber {
+func (x PresetType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccessGrantType.Descriptor instead.
-func (AccessGrantType) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use PresetType.Descriptor instead.
+func (PresetType) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{0}
 }
 
@@ -1334,34 +1334,34 @@ func (x *UpsertAccessListWithMembersResponse) GetMembers() []*Member {
 	return nil
 }
 
-// CreateAccessListWithMembersAndRolesRequest is the request for creating
-// an access list with members and roles (created by Teleport).
-type CreateAccessListWithMembersAndRolesRequest struct {
+// CreateAccessListWithPresetRequest is the request for creating
+// an access list with a preset.
+type CreateAccessListWithPresetRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// access_list is the access list to create.
 	AccessList *AccessList `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// members is the list of access list members to create.
 	Members []*Member `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
-	// access_grant_spec describes what type of access grant is requested.
-	AccessGrantSpec *AccessGrantSpec `protobuf:"bytes,3,opt,name=access_grant_spec,json=accessGrantSpec,proto3" json:"access_grant_spec,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// preset_spec describes what type of preset was requested.
+	PresetSpec    *PresetSpec `protobuf:"bytes,3,opt,name=preset_spec,json=presetSpec,proto3" json:"preset_spec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateAccessListWithMembersAndRolesRequest) Reset() {
-	*x = CreateAccessListWithMembersAndRolesRequest{}
+func (x *CreateAccessListWithPresetRequest) Reset() {
+	*x = CreateAccessListWithPresetRequest{}
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateAccessListWithMembersAndRolesRequest) String() string {
+func (x *CreateAccessListWithPresetRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateAccessListWithMembersAndRolesRequest) ProtoMessage() {}
+func (*CreateAccessListWithPresetRequest) ProtoMessage() {}
 
-func (x *CreateAccessListWithMembersAndRolesRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateAccessListWithPresetRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1373,35 +1373,35 @@ func (x *CreateAccessListWithMembersAndRolesRequest) ProtoReflect() protoreflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAccessListWithMembersAndRolesRequest.ProtoReflect.Descriptor instead.
-func (*CreateAccessListWithMembersAndRolesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateAccessListWithPresetRequest.ProtoReflect.Descriptor instead.
+func (*CreateAccessListWithPresetRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *CreateAccessListWithMembersAndRolesRequest) GetAccessList() *AccessList {
+func (x *CreateAccessListWithPresetRequest) GetAccessList() *AccessList {
 	if x != nil {
 		return x.AccessList
 	}
 	return nil
 }
 
-func (x *CreateAccessListWithMembersAndRolesRequest) GetMembers() []*Member {
+func (x *CreateAccessListWithPresetRequest) GetMembers() []*Member {
 	if x != nil {
 		return x.Members
 	}
 	return nil
 }
 
-func (x *CreateAccessListWithMembersAndRolesRequest) GetAccessGrantSpec() *AccessGrantSpec {
+func (x *CreateAccessListWithPresetRequest) GetPresetSpec() *PresetSpec {
 	if x != nil {
-		return x.AccessGrantSpec
+		return x.PresetSpec
 	}
 	return nil
 }
 
 // CreateAccessListWithMembersAndPresetResponse is the response for creating
 // an access list with members and roles.
-type CreateAccessListWithMembersAndRolesResponse struct {
+type CreateAccessListWithPresetResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// access_list is the access list that was created.
 	AccessList *AccessList `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
@@ -1411,20 +1411,20 @@ type CreateAccessListWithMembersAndRolesResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateAccessListWithMembersAndRolesResponse) Reset() {
-	*x = CreateAccessListWithMembersAndRolesResponse{}
+func (x *CreateAccessListWithPresetResponse) Reset() {
+	*x = CreateAccessListWithPresetResponse{}
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateAccessListWithMembersAndRolesResponse) String() string {
+func (x *CreateAccessListWithPresetResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateAccessListWithMembersAndRolesResponse) ProtoMessage() {}
+func (*CreateAccessListWithPresetResponse) ProtoMessage() {}
 
-func (x *CreateAccessListWithMembersAndRolesResponse) ProtoReflect() protoreflect.Message {
+func (x *CreateAccessListWithPresetResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1436,30 +1436,30 @@ func (x *CreateAccessListWithMembersAndRolesResponse) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAccessListWithMembersAndRolesResponse.ProtoReflect.Descriptor instead.
-func (*CreateAccessListWithMembersAndRolesResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateAccessListWithPresetResponse.ProtoReflect.Descriptor instead.
+func (*CreateAccessListWithPresetResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{25}
 }
 
-func (x *CreateAccessListWithMembersAndRolesResponse) GetAccessList() *AccessList {
+func (x *CreateAccessListWithPresetResponse) GetAccessList() *AccessList {
 	if x != nil {
 		return x.AccessList
 	}
 	return nil
 }
 
-func (x *CreateAccessListWithMembersAndRolesResponse) GetMembers() []*Member {
+func (x *CreateAccessListWithPresetResponse) GetMembers() []*Member {
 	if x != nil {
 		return x.Members
 	}
 	return nil
 }
 
-// AccessGrantSpec describes what type of grant was requested and
-// defines the fields necessary to create appropriate roles.
-type AccessGrantSpec struct {
+// PresetSpec defines the fields necessary for Teleport to perform actions
+// based on preset.
+type PresetSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Type  AccessGrantType        `protobuf:"varint,1,opt,name=type,proto3,enum=teleport.accesslist.v1.AccessGrantType" json:"type,omitempty"`
+	Type  PresetType             `protobuf:"varint,1,opt,name=type,proto3,enum=teleport.accesslist.v1.PresetType" json:"type,omitempty"`
 	// access_roles is a list of role specs that defines access to resources.
 	// Teleport will create a role per spec. Multi specs can be provided to
 	// provide flexibility in defining access.
@@ -1476,20 +1476,20 @@ type AccessGrantSpec struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AccessGrantSpec) Reset() {
-	*x = AccessGrantSpec{}
+func (x *PresetSpec) Reset() {
+	*x = PresetSpec{}
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AccessGrantSpec) String() string {
+func (x *PresetSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AccessGrantSpec) ProtoMessage() {}
+func (*PresetSpec) ProtoMessage() {}
 
-func (x *AccessGrantSpec) ProtoReflect() protoreflect.Message {
+func (x *PresetSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1501,30 +1501,34 @@ func (x *AccessGrantSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessGrantSpec.ProtoReflect.Descriptor instead.
-func (*AccessGrantSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use PresetSpec.ProtoReflect.Descriptor instead.
+func (*PresetSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{26}
 }
 
-func (x *AccessGrantSpec) GetType() AccessGrantType {
+func (x *PresetSpec) GetType() PresetType {
 	if x != nil {
 		return x.Type
 	}
-	return AccessGrantType_ACCESS_GRANT_TYPE_UNSPECIFIED
+	return PresetType_PRESET_TYPE_UNSPECIFIED
 }
 
-func (x *AccessGrantSpec) GetAccessRoles() []*Role {
+func (x *PresetSpec) GetAccessRoles() []*Role {
 	if x != nil {
 		return x.AccessRoles
 	}
 	return nil
 }
 
-// Role describes a role for an access list to be created by Teleport.
+// Role describes a role to be created by Teleport for an access list.
 type Role struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name of role, Teleport will add a base prefix and suffix
-	// the access list UID to this name to ensure uniqueness.
+	// name of role, Teleport will add a identifiable suffix to this role name
+	// that will:
+	//   - ensure uniqueness by including the access list UID which also
+	//     ties this role to that access list making it easier to query.
+	//   - add a infix like "acl-preset" that easily identifies that this role
+	//     belongs to an access list and was created using a preset.
 	Name          string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Spec          *types.RoleSpecV6 `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3047,18 +3051,20 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"#UpsertAccessListWithMembersResponse\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x128\n" +
-	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"\x80\x02\n" +
-	"*CreateAccessListWithMembersAndRolesRequest\x12C\n" +
+	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"\xe7\x01\n" +
+	"!CreateAccessListWithPresetRequest\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x128\n" +
-	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\x12S\n" +
-	"\x11access_grant_spec\x18\x03 \x01(\v2'.teleport.accesslist.v1.AccessGrantSpecR\x0faccessGrantSpec\"\xac\x01\n" +
-	"+CreateAccessListWithMembersAndRolesResponse\x12C\n" +
+	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\x12C\n" +
+	"\vpreset_spec\x18\x03 \x01(\v2\".teleport.accesslist.v1.PresetSpecR\n" +
+	"presetSpec\"\xa3\x01\n" +
+	"\"CreateAccessListWithPresetResponse\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x128\n" +
-	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"\x8f\x01\n" +
-	"\x0fAccessGrantSpec\x12;\n" +
-	"\x04type\x18\x01 \x01(\x0e2'.teleport.accesslist.v1.AccessGrantTypeR\x04type\x12?\n" +
+	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"\x85\x01\n" +
+	"\n" +
+	"PresetSpec\x126\n" +
+	"\x04type\x18\x01 \x01(\x0e2\".teleport.accesslist.v1.PresetTypeR\x04type\x12?\n" +
 	"\faccess_roles\x18\x02 \x03(\v2\x1c.teleport.accesslist.v1.RoleR\vaccessRoles\"A\n" +
 	"\x04Role\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12%\n" +
@@ -3149,11 +3155,12 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x8c\x01\n" +
 	"\x1bListUserAccessListsResponse\x12E\n" +
 	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*w\n" +
-	"\x0fAccessGrantType\x12!\n" +
-	"\x1dACCESS_GRANT_TYPE_UNSPECIFIED\x10\x00\x12\x1f\n" +
-	"\x1bACCESS_GRANT_TYPE_LONG_TERM\x10\x01\x12 \n" +
-	"\x1cACCESS_GRANT_TYPE_SHORT_TERM\x10\x022\xf9\x1f\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*`\n" +
+	"\n" +
+	"PresetType\x12\x1b\n" +
+	"\x17PRESET_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15PRESET_TYPE_LONG_TERM\x10\x01\x12\x1a\n" +
+	"\x16PRESET_TYPE_SHORT_TERM\x10\x022\xde\x1f\n" +
 	"\x11AccessListService\x12o\n" +
 	"\x0eGetAccessLists\x12-.teleport.accesslist.v1.GetAccessListsRequest\x1a..teleport.accesslist.v1.GetAccessListsResponse\x12w\n" +
 	"\x0fListAccessLists\x12..teleport.accesslist.v1.ListAccessListsRequest\x1a/.teleport.accesslist.v1.ListAccessListsResponse\"\x03\x88\x02\x01\x12x\n" +
@@ -3177,8 +3184,8 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"\x1cDeleteStaticAccessListMember\x12;.teleport.accesslist.v1.DeleteStaticAccessListMemberRequest\x1a<.teleport.accesslist.v1.DeleteStaticAccessListMemberResponse\x12\x89\x01\n" +
 	"'DeleteAllAccessListMembersForAccessList\x12F.teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest\x1a\x16.google.protobuf.Empty\x12o\n" +
 	"\x1aDeleteAllAccessListMembers\x129.teleport.accesslist.v1.DeleteAllAccessListMembersRequest\x1a\x16.google.protobuf.Empty\x12\x96\x01\n" +
-	"\x1bUpsertAccessListWithMembers\x12:.teleport.accesslist.v1.UpsertAccessListWithMembersRequest\x1a;.teleport.accesslist.v1.UpsertAccessListWithMembersResponse\x12\xae\x01\n" +
-	"#CreateAccessListWithMembersAndRoles\x12B.teleport.accesslist.v1.CreateAccessListWithMembersAndRolesRequest\x1aC.teleport.accesslist.v1.CreateAccessListWithMembersAndRolesResponse\x12\x84\x01\n" +
+	"\x1bUpsertAccessListWithMembers\x12:.teleport.accesslist.v1.UpsertAccessListWithMembersRequest\x1a;.teleport.accesslist.v1.UpsertAccessListWithMembersResponse\x12\x93\x01\n" +
+	"\x1aCreateAccessListWithPreset\x129.teleport.accesslist.v1.CreateAccessListWithPresetRequest\x1a:.teleport.accesslist.v1.CreateAccessListWithPresetResponse\x12\x84\x01\n" +
 	"\x15ListAccessListReviews\x124.teleport.accesslist.v1.ListAccessListReviewsRequest\x1a5.teleport.accesslist.v1.ListAccessListReviewsResponse\x12\x8d\x01\n" +
 	"\x18ListAllAccessListReviews\x127.teleport.accesslist.v1.ListAllAccessListReviewsRequest\x1a8.teleport.accesslist.v1.ListAllAccessListReviewsResponse\x12\x87\x01\n" +
 	"\x16CreateAccessListReview\x125.teleport.accesslist.v1.CreateAccessListReviewRequest\x1a6.teleport.accesslist.v1.CreateAccessListReviewResponse\x12g\n" +
@@ -3203,7 +3210,7 @@ func file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP() []byte {
 var file_teleport_accesslist_v1_accesslist_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_accesslist_v1_accesslist_service_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_teleport_accesslist_v1_accesslist_service_proto_goTypes = []any{
-	(AccessGrantType)(0),                                   // 0: teleport.accesslist.v1.AccessGrantType
+	(PresetType)(0),                                        // 0: teleport.accesslist.v1.PresetType
 	(*GetAccessListsRequest)(nil),                          // 1: teleport.accesslist.v1.GetAccessListsRequest
 	(*GetAccessListsResponse)(nil),                         // 2: teleport.accesslist.v1.GetAccessListsResponse
 	(*ListAccessListsRequest)(nil),                         // 3: teleport.accesslist.v1.ListAccessListsRequest
@@ -3228,9 +3235,9 @@ var file_teleport_accesslist_v1_accesslist_service_proto_goTypes = []any{
 	(*ListAllAccessListMembersResponse)(nil),               // 22: teleport.accesslist.v1.ListAllAccessListMembersResponse
 	(*UpsertAccessListWithMembersRequest)(nil),             // 23: teleport.accesslist.v1.UpsertAccessListWithMembersRequest
 	(*UpsertAccessListWithMembersResponse)(nil),            // 24: teleport.accesslist.v1.UpsertAccessListWithMembersResponse
-	(*CreateAccessListWithMembersAndRolesRequest)(nil),     // 25: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesRequest
-	(*CreateAccessListWithMembersAndRolesResponse)(nil),    // 26: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesResponse
-	(*AccessGrantSpec)(nil),                                // 27: teleport.accesslist.v1.AccessGrantSpec
+	(*CreateAccessListWithPresetRequest)(nil),              // 25: teleport.accesslist.v1.CreateAccessListWithPresetRequest
+	(*CreateAccessListWithPresetResponse)(nil),             // 26: teleport.accesslist.v1.CreateAccessListWithPresetResponse
+	(*PresetSpec)(nil),                                     // 27: teleport.accesslist.v1.PresetSpec
 	(*Role)(nil),                                           // 28: teleport.accesslist.v1.Role
 	(*GetAccessListMemberRequest)(nil),                     // 29: teleport.accesslist.v1.GetAccessListMemberRequest
 	(*GetStaticAccessListMemberRequest)(nil),               // 30: teleport.accesslist.v1.GetStaticAccessListMemberRequest
@@ -3286,13 +3293,13 @@ var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	59, // 12: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.members:type_name -> teleport.accesslist.v1.Member
 	56, // 13: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
 	59, // 14: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	56, // 15: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	59, // 16: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesRequest.members:type_name -> teleport.accesslist.v1.Member
-	27, // 17: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesRequest.access_grant_spec:type_name -> teleport.accesslist.v1.AccessGrantSpec
-	56, // 18: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
-	59, // 19: teleport.accesslist.v1.CreateAccessListWithMembersAndRolesResponse.members:type_name -> teleport.accesslist.v1.Member
-	0,  // 20: teleport.accesslist.v1.AccessGrantSpec.type:type_name -> teleport.accesslist.v1.AccessGrantType
-	28, // 21: teleport.accesslist.v1.AccessGrantSpec.access_roles:type_name -> teleport.accesslist.v1.Role
+	56, // 15: teleport.accesslist.v1.CreateAccessListWithPresetRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	59, // 16: teleport.accesslist.v1.CreateAccessListWithPresetRequest.members:type_name -> teleport.accesslist.v1.Member
+	27, // 17: teleport.accesslist.v1.CreateAccessListWithPresetRequest.preset_spec:type_name -> teleport.accesslist.v1.PresetSpec
+	56, // 18: teleport.accesslist.v1.CreateAccessListWithPresetResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
+	59, // 19: teleport.accesslist.v1.CreateAccessListWithPresetResponse.members:type_name -> teleport.accesslist.v1.Member
+	0,  // 20: teleport.accesslist.v1.PresetSpec.type:type_name -> teleport.accesslist.v1.PresetType
+	28, // 21: teleport.accesslist.v1.PresetSpec.access_roles:type_name -> teleport.accesslist.v1.Role
 	60, // 22: teleport.accesslist.v1.Role.spec:type_name -> types.RoleSpecV6
 	59, // 23: teleport.accesslist.v1.GetStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
 	61, // 24: teleport.accesslist.v1.GetAccessListOwnersResponse.owners:type_name -> teleport.accesslist.v1.AccessListOwner
@@ -3330,7 +3337,7 @@ var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	41, // 56: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
 	42, // 57: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersRequest
 	23, // 58: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:input_type -> teleport.accesslist.v1.UpsertAccessListWithMembersRequest
-	25, // 59: teleport.accesslist.v1.AccessListService.CreateAccessListWithMembersAndRoles:input_type -> teleport.accesslist.v1.CreateAccessListWithMembersAndRolesRequest
+	25, // 59: teleport.accesslist.v1.AccessListService.CreateAccessListWithPreset:input_type -> teleport.accesslist.v1.CreateAccessListWithPresetRequest
 	43, // 60: teleport.accesslist.v1.AccessListService.ListAccessListReviews:input_type -> teleport.accesslist.v1.ListAccessListReviewsRequest
 	45, // 61: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:input_type -> teleport.accesslist.v1.ListAllAccessListReviewsRequest
 	47, // 62: teleport.accesslist.v1.AccessListService.CreateAccessListReview:input_type -> teleport.accesslist.v1.CreateAccessListReviewRequest
@@ -3362,7 +3369,7 @@ var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
 	65, // 88: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:output_type -> google.protobuf.Empty
 	65, // 89: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:output_type -> google.protobuf.Empty
 	24, // 90: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:output_type -> teleport.accesslist.v1.UpsertAccessListWithMembersResponse
-	26, // 91: teleport.accesslist.v1.AccessListService.CreateAccessListWithMembersAndRoles:output_type -> teleport.accesslist.v1.CreateAccessListWithMembersAndRolesResponse
+	26, // 91: teleport.accesslist.v1.AccessListService.CreateAccessListWithPreset:output_type -> teleport.accesslist.v1.CreateAccessListWithPresetResponse
 	44, // 92: teleport.accesslist.v1.AccessListService.ListAccessListReviews:output_type -> teleport.accesslist.v1.ListAccessListReviewsResponse
 	46, // 93: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:output_type -> teleport.accesslist.v1.ListAllAccessListReviewsResponse
 	48, // 94: teleport.accesslist.v1.AccessListService.CreateAccessListReview:output_type -> teleport.accesslist.v1.CreateAccessListReviewResponse
