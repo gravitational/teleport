@@ -201,11 +201,9 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
 	}
 
-	if slices.Contains(m.Types, AWSMatcherEC2) {
-		if m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
-			if os.Getenv(constants.UnstableEnableEICEEnvVar) == "" {
-				return trace.BadParameter(constants.EICEDisabledMessage)
-			}
+	if slices.Contains(m.Types, AWSMatcherEC2) && m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
+		if os.Getenv(constants.UnstableEnableEICEEnvVar) != "yes" {
+			return trace.BadParameter(constants.EICEDisabledMessage)
 		}
 	}
 

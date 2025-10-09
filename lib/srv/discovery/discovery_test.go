@@ -67,6 +67,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -867,7 +868,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	// the same EICE Node in the cluster, causing a conflict.
 	//
 	// After removing the EICE feature, this test must be removed as well.
-	t.Setenv("TELEPORT_UNSTABLE_ENABLE_EICE", "1")
+	t.Setenv(constants.UnstableEnableEICEEnvVar, "yes")
 	ctx := context.Background()
 	logger := logtest.NewLogger()
 
