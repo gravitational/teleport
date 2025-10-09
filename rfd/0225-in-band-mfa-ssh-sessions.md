@@ -340,10 +340,10 @@ client certificate will be used when dialing.
 ### Per-session MFA SSH Certificates
 
 Per-session MFA SSH certificates are not required in the new design except for backwards compatibility with legacy
-clients. They were previously used to convey session metadata and enforce MFA at the Teleport Agent. With the new
+clients and agents. They were previously used to convey session metadata and enforce MFA at the agents. With the new
 architecture, the Proxy and Auth service handle these responsibilities directly. Support for per-session MFA SSH
-certificates via `ProxySSH` RPC will initially be retained during the transition period to ensure backward compatibility
-with existing clients (see [Backward Compatibility](#backward-compatibility)).
+certificates via `ProxySSH` RPC will initially be retained during the transition period to ensure backwards compatibility
+with existing clients and agents (see [Backwards Compatibility](#backwards-compatibility)).
 
 ### Session Enforcement at the Control Plane
 
@@ -363,7 +363,7 @@ The Relay will be updated to support the v2 `TransportService` and invoke the MF
 Proxy. Additionally, it would need to be authorized to invoke the Decision service's `EvaluateSSHAccess` RPC and MFA
 service's `StartAuthenticateChallenge` RPC.
 
-### Backward Compatibility
+### Backwards Compatibility
 
 #### Transition Period
 
@@ -378,6 +378,14 @@ use the new v2 `TransportService` RPCs to maintain access to SSH features.
 
 After the transition period, support for the deprecated `ProxySSH` RPC will be removed, and only the new v2
 `TransportService` RPCs will be supported.
+
+#### Agents
+
+Agents will continue to support per-session MFA SSH certificate verification during the transition period to ensure
+compatibility with clients that have not yet migrated to the new v2 `TransportService`.
+
+After the transition period, the per-session MFA SSH certificate verification logic will be removed and agents will no
+longer accept per-session MFA SSH certificates.
 
 ### Audit Events
 
