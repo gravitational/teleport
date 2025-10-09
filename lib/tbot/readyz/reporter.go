@@ -18,7 +18,11 @@
 
 package readyz
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/jonboulle/clockwork"
+)
 
 // Reporter can be used by a service to report its status.
 type Reporter interface {
@@ -32,6 +36,7 @@ type Reporter interface {
 type reporter struct {
 	mu     *sync.Mutex
 	status *ServiceStatus
+	clock  clockwork.Clock
 	notify func()
 }
 
@@ -45,6 +50,10 @@ func (r *reporter) ReportReason(status Status, reason string) {
 
 	r.status.Status = status
 	r.status.Reason = reason
+
+	updatedAt := r.clock.Now()
+	r.status.UpdatedAt = &updatedAt
+
 	r.notify()
 }
 

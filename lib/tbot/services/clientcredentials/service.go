@@ -51,7 +51,7 @@ func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifeti
 			identityGenerator:  deps.IdentityGenerator,
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(ServiceType, svc.String())
 		return svc, nil
 	}
 }

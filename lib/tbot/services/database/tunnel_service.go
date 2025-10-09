@@ -62,7 +62,7 @@ func TunnelServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(TunnelServiceType, svc.String())
 		return svc, nil
 	}
 }
