@@ -90,9 +90,9 @@ service AccessListService {
   // UpsertAccessListWithMembers creates or updates an access list with members.
   rpc UpsertAccessListWithMembers(UpsertAccessListWithMembersRequest) returns (UpsertAccessListWithMembersResponse);
 
-  // CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
-  // the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
-  rpc CreateAccessListWithMembersAndRoles(CreateAccessListWithMembersAndRolesRequest) returns (CreateAccessListWithMembersAndRolesResponse);
+  // CreateAccessListWithPreset creates an access list (with members) where Teleport performs automatic
+  // actions depending on the preset requested. E.g. creating role resources and then assigning them as grants.
+  rpc CreateAccessListWithPreset(CreateAccessListWithPresetRequest) returns (CreateAccessListWithPresetResponse);
 
   // ListAccessListReviews will list access list reviews for a particular access
   // list.
@@ -303,44 +303,44 @@ message UpsertAccessListWithMembersResponse {
   repeated Member members = 2;
 }
 
-// CreateAccessListWithMembersAndRolesRequest is the request for creating
-// an access list with members and roles (created by Teleport).
-message CreateAccessListWithMembersAndRolesRequest {
+// CreateAccessListWithPresetRequest is the request for creating
+// an access list with a preset.
+message CreateAccessListWithPresetRequest {
   // access_list is the access list to create.
   AccessList access_list = 1;
   // members is the list of access list members to create.
   repeated Member members = 2;
-  // access_grant_spec describes what type of access grant is requested.
-  AccessGrantSpec access_grant_spec = 3;
+  // preset_spec describes what type of preset was requested.
+  PresetSpec preset_spec = 3;
 }
 
 // CreateAccessListWithMembersAndPresetResponse is the response for creating
 // an access list with members and roles.
-message CreateAccessListWithMembersAndRolesResponse {
+message CreateAccessListWithPresetResponse {
   // access_list is the access list that was created.
   AccessList access_list = 1;
   // members is the list of access list members that were created.
   repeated Member members = 2;
 }
 
-// AccessGrantType describes what type of access grant was requested.
-enum AccessGrantType {
-  // ACCESS_GRANT_TYPE_UNSPECIFIED is the zero value.
-  ACCESS_GRANT_TYPE_UNSPECIFIED = 0;
-  // ACCESS_GRANT_TYPE_LONG_TERM describes a grant where members are granted
+// PresetType describes what type of preset was requested.
+enum PresetType {
+  // PRESET_TYPE_UNSPECIFIED is the zero value.
+  PRESET_TYPE_UNSPECIFIED = 0;
+  // PRESET_TYPE_LONG_TERM describes a preset where members are granted
   // roles that grants long term access.
-  ACCESS_GRANT_TYPE_LONG_TERM = 1;
-  // GRANT_TYPE_SHORT_TERM describes a request where members are granted
+  PRESET_TYPE_LONG_TERM = 1;
+  // GRANT_TYPE_SHORT_TERM describes a preset where members are granted
   // roles that require them to request for access and upon approval gain short
   // term access. And owners are granted roles that allows them to review those
   // access requests.
-  ACCESS_GRANT_TYPE_SHORT_TERM = 2;
+  PRESET_TYPE_SHORT_TERM = 2;
 }
 
-// AccessGrantSpec describes what type of grant was requested and
-// defines the fields necessary to create appropriate roles.
-message AccessGrantSpec {
-  AccessGrantType type = 1;
+// PresetSpec defines the fields necessary for Teleport to perform actions
+// based on preset.
+message PresetSpec {
+  PresetType type = 1;
   // access_roles is a list of role specs that defines access to resources.
   // Teleport will create a role per spec. Multi specs can be provided to
   // provide flexibility in defining access.
@@ -354,10 +354,14 @@ message AccessGrantSpec {
   repeated Role access_roles = 2;
 }
 
-// Role describes a role for an access list to be created by Teleport.
+// Role describes a role to be created by Teleport for an access list.
 message Role {
-  // name of role, Teleport will add a base prefix and suffix
-  // the access list UID to this name to ensure uniqueness.
+  // name of role, Teleport will add a identifiable suffix to this role name
+  // that will:
+  //  - ensure uniqueness by including the access list UID which also
+  //    ties this role to that access list making it easier to query.
+  //  - add a infix like "acl-preset" that easily identifies that this role
+  //    belongs to an access list and was created using a preset.
   string name = 1;
   types.RoleSpecV6 spec = 2;
 }
