@@ -44,6 +44,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 
 func (process *TeleportProcess) initDatabases() {
 	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.ExpectService(teleport.ComponentDatabase)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 

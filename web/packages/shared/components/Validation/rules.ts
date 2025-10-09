@@ -261,6 +261,39 @@ const requiredPort: Rule = port => () => {
 };
 
 /**
+ * requiredMaxLength checks for strings or arrays over a given length.
+ *
+ * @param message The custom error message to display to users.
+ * @param maxLength The maximum length to allow.
+ * @param value The value input.
+ */
+const requiredMaxLength =
+  <T = string>(
+    message: string,
+    maxLength: number
+  ): Rule<T | T[] | readonly T[]> =>
+  value =>
+  () => {
+    if (typeof value === 'string') {
+      const valid = value.trim().length <= maxLength;
+      return {
+        valid,
+        message: valid ? undefined : message,
+      };
+    }
+
+    if (Array.isArray(value)) {
+      const valid = value.length <= maxLength;
+      return {
+        valid,
+        message: valid ? undefined : message,
+      };
+    }
+
+    return { valid: false, message: 'value must be a string or an array' };
+  };
+
+/**
  * A rule function that combines multiple inner rule functions. All rules must
  * return `valid`, otherwise it returns a comma separated string containing all
  * invalid rule messages.
@@ -370,6 +403,7 @@ export {
   requiredRoleArn,
   requiredIamRoleName,
   requiredEmailLike,
+  requiredMaxLength,
   requiredAll,
   requiredMatchingRoleNameAndRoleArn,
   validAwsIAMRoleName,

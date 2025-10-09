@@ -35,13 +35,17 @@ import Dialog, {
 } from 'design/DialogConfirmation';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
+import { FieldTextArea } from 'shared/components/FieldTextArea/FieldTextArea';
 import { Option } from 'shared/components/Select';
 import {
   TraitsEditor,
   TraitsOption,
 } from 'shared/components/TraitsEditor/TraitsEditor';
 import Validation from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredMaxLength,
+} from 'shared/components/Validation/rules';
 
 import { editBotMutationFunction, fetchRoles } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
@@ -69,6 +73,10 @@ export function EditDialog(props: {
   const [selectedMaxSessionDuration, setSelectedMaxSessionDuration] = useState<
     string | null
   >(null);
+  const [selectedDescription, setSelectedDescription] = useState<string | null>(
+    null
+  );
+
   const { isSuccess, data, error, isLoading } = useGetBot(
     { botName },
     {
@@ -104,11 +112,13 @@ export function EditDialog(props: {
       })) ?? null;
     const max_session_ttl =
       selectedMaxSessionDuration?.trim().replaceAll(' ', '') ?? null;
+    const description = selectedDescription?.trim();
 
     const req = {
       roles,
       traits,
       max_session_ttl,
+      description,
     };
 
     mutate({ botName, req });
@@ -117,7 +127,8 @@ export function EditDialog(props: {
   const isDirty =
     selectedRoles !== null ||
     selectedTraits !== null ||
-    selectedMaxSessionDuration !== null;
+    selectedMaxSessionDuration !== null ||
+    selectedDescription !== null;
 
   const missingPermissions = [
     ...(hasReadPermission ? [] : ['bots.read']),
@@ -188,6 +199,17 @@ export function EditDialog(props: {
                   value={data?.name ?? ''}
                   readonly={true}
                   helperText={'Bot name cannot be changed'}
+                />
+                <FieldTextArea
+                  label="Description"
+                  placeholder="Description"
+                  value={selectedDescription ?? data?.description ?? ''}
+                  onChange={e => setSelectedDescription(e.target.value)}
+                  rule={requiredMaxLength(
+                    'Description must be 200 characters or shorter.',
+                    200
+                  )}
+                  helperText={'200 characters maximum'}
                 />
                 <FieldSelectAsync
                   menuPosition="fixed"

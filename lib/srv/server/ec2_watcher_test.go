@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -54,11 +55,11 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 	return &output, nil
 }
 
-func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) innerEC2ClientGetter {
-	return func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) matcherEC2ClientGetter {
+	return func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		var roleARN string
-		if assumeRole != nil {
-			roleARN = assumeRole.RoleARN
+		if matcher.AssumeRole != nil {
+			roleARN = matcher.AssumeRole.RoleARN
 		}
 		return &mockEC2Client{
 			output: m[roleARN],
@@ -327,6 +328,26 @@ func TestEC2Watcher(t *testing.T) {
 		require.Fail(t, "unexpected instance: %v", inst)
 	default:
 	}
+}
+
+func TestMatchersToEC2InstanceFetchers(t *testing.T) {
+	ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		return nil, errors.New("ec2 client getter invocation must not fail when creating fetchers")
+	}
+
+	matchers := []types.AWSMatcher{{
+		Params: &types.InstallerParams{
+			InstallTeleport: true,
+		},
+		Types:   []string{"EC2"},
+		Regions: []string{"us-west-2"},
+		Tags:    map[string]utils.Strings{"*": {"*"}},
+		SSM:     &types.AWSSSM{},
+	}}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), matchers, ec2ClientGetter, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, fetchers)
 }
 
 func TestConvertEC2InstancesToServerInfos(t *testing.T) {
