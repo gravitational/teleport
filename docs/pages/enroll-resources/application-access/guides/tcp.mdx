@@ -35,14 +35,9 @@ Proxy Service.
   already have.
 - Host where you will run the Teleport Application Service.
 
-We will assume your Teleport cluster is accessible at `teleport.example.com`
-and `*.teleport.example.com`. You can substitute the address of your Teleport
-Proxy Service. (For Teleport Cloud customers, this will be similar to
-`mytenant.teleport.sh`.)
-
-<Admonition type="note">
-(!docs/pages/includes/dns-app-access.mdx!)
-</Admonition>
+We will assume your Teleport cluster is accessible at `teleport.example.com`.
+You can substitute the address of your Teleport Proxy Service. (For Teleport
+Cloud customers, this will be similar to `mytenant.teleport.sh`.)
 
 ## Step 1/4. Start PostgreSQL container
 
@@ -128,7 +123,7 @@ $ tsh login --proxy=teleport.example.com
 $ tsh apps ls
 Application Description   Type Public Address                   Labels
 ----------- ------------- ---- -------------------------------- -----------
-tcp-app                   TCP  tcp-app.root.gravitational.io
+tcp-app                   TCP  tcp-app.teleport.example.com
 ```
 
 Your TCP application should show up and be denoted with a `TCP` type.
