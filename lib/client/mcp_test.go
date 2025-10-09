@@ -109,6 +109,9 @@ func (m *mockMCPServerDialerClient) IssueUserCertsWithMFA(_ context.Context, par
 		Subject:   subject,
 		NotAfter:  m.clock.Now().Add(cmp.Or(params.TTL, time.Minute)),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &KeyRing{
 		AppTLSCredentials: map[string]TLSCredential{
 			params.RouteToApp.Name: {
