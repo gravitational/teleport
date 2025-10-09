@@ -111,12 +111,60 @@ and [Architecture](../../../reference/architecture/machine-id-architecture.mdx) 
       icon: <Icon name="lock" size="xl" />,
       to: "./linux-tpm",
       name: "Linux TPM",
-    }
+    },
+    {
+      icon: <Icon name="zero-trust.svg" size="xl" />,
+      to: "../reference/machine-workload-identity/machine-id/bound-keypair/getting-started",
+      name: "Bound Keypair Joining",
+    }  
   ]}
 />
 
-### Further reading
+### CI/CD
 
-**CI/CD**
+Read the following guides for how to deploy Machine ID on a continuous integration and continuous deployment platform.
 
-- Learn how to [deploy Machine ID](../../mwi-ci-cd.mdx) in a CI/CD pipeline.
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "/docs/machine-workload-identity/machine-id/deployment/azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "/docs/machine-workload-identity/machine-id/deployment/bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "/docs/machine-workload-identity/machine-id/deployment/circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "/docs/machine-workload-identity/machine-id/deployment/gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="githubActions" size="xl" />,
+      to: "/docs/machine-workload-identity/machine-id/deployment/github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="jenkins" size="xl" />,
+      to: "/docs/machine-workload-identity/machine-id/deployment/jenkins",
+      name: "Jenkins",
+    },
+    {
+      icon: <Icon name="spacelift" size="xl" />,
+      to: "/docs/zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      name: "Spacelift",
+    },
+    {
+      icon: <Icon name="terraform" size="xl" />,
+      to: "/docs/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud",
+      name: "Terraform Cloud",
+    }
+  ]}
+/>
