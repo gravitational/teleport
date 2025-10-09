@@ -301,6 +301,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	tconf.Proxy.DisableWebInterface = true
 	tconf.SSH.Enabled = true
 	tconf.SSH.DisableCreateHostUser = true
+	tconf.Hostname = "auth-local" // Required for self-signed TLS cert generation.
 
 	// deliberately create a teleport instance that will end up binding
 	// unspecified addr (`0.0.0.0`/`::`). we use this further down to confirm

@@ -1,6 +1,6 @@
 module go-client
 
-go 1.24.7
+go 1.24.8
 
 require github.com/gravitational/teleport/api v0.0.0-20250818183108-571669ac0707
 
