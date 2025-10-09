@@ -266,14 +266,17 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.TargetServer == nil {
 		return trace.BadParameter("target server is required")
 	}
-	if s.TargetServer.IsOpenSSHNode() {
+	switch s.TargetServer.GetSubKind() {
+	case types.SubKindTeleportNode:
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes (agentless)")
+		}
+	case types.SubKindOpenSSHNode:
 		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	} else {
-		if s.UserAgent == nil {
-			return trace.BadParameter("user agent required for teleport nodes")
-		}
+	case types.SubKindOpenSSHEICENode:
+		// agentless signer is set once the forwarding server is started.
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
