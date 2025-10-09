@@ -22,6 +22,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
@@ -38,7 +39,7 @@ import (
 // will be removed by AWS after 60 seconds and can only be used to authenticate the provided [login].
 // More information: https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
 func GenerateAndUploadKey(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-	if os.Getenv(constants.UnstableEnableEICEEnvVar) != "yes" {
+	if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); eiceEnabled {
 		return nil, trace.BadParameter(constants.EICEDisabledMessage)
 	}
 
@@ -95,7 +96,7 @@ func GenerateAndUploadKey(ctx context.Context, target types.Server, integration 
 // DialInstance opens a tunnel to the target host and returns a [net.Conn] that
 // may be used to connect to the instance.
 func DialInstance(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-	if os.Getenv(constants.UnstableEnableEICEEnvVar) != "yes" {
+	if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); eiceEnabled {
 		return nil, trace.BadParameter(constants.EICEDisabledMessage)
 	}
 
