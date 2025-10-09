@@ -1156,9 +1156,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// PUT Machine ID bot by name
 	// TODO(nicholasmarais1158) DELETE IN v20.0.0
 	// Replaced by `PUT /v2/webapi/sites/:site/machine-id/bot/:name` which allows editing more than just roles.
-	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
+	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV1))
 	// PUT Machine ID bot by name
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `PUT /v3/webapi/sites/:site/machine-id/bot/:name` which allows editing description.
 	h.PUT("/v2/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
+	// PUT Machine ID bot by name
+	h.PUT("/v3/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV3))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
@@ -1170,6 +1174,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 	// GET Machine ID bot instances (paged)
 	h.GET("/v2/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstancesV2))
+	// GET Machine ID bot instance metrics.
+	h.GET("/webapi/sites/:site/machine-id/bot-instance/metrics", h.WithClusterAuth(h.botInstanceMetrics))
 
 	// List workload identities
 	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))

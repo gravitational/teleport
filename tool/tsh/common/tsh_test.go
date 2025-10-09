@@ -7025,10 +7025,11 @@ func TestSCP(t *testing.T) {
 	})
 
 	// Create a second server to test ambiguous matching.
+	const secondServerHostname = "second-node"
 	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
-			cfg.Hostname = "second-node"
+			cfg.Hostname = secondServerHostname
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.SSH.Enabled = true
@@ -7222,6 +7223,42 @@ func TestSCP(t *testing.T) {
 			expected: map[string][]byte{
 				filepath.Base(sourceFile1): expectedFile1,
 				filepath.Base(sourceFile2): expectedFile2,
+			},
+		},
+		{
+			name:   "two hosts without templates",
+			source: []string{sshHostname + ":" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return secondServerHostname + ":" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts with templates",
+			source: []string{"shark.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "2.3.4.5:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts, one no matching host",
+			source: []string{"2.3.4.5:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "asdf.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "no matching hosts", i...)
 			},
 		},
 	}

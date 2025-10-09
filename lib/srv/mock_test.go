@@ -27,6 +27,7 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -128,6 +129,9 @@ func newMockServer(t *testing.T) *mockServer {
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = bk.Close()
+	})
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
@@ -138,9 +142,6 @@ func newMockServer(t *testing.T) *mockServer {
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, bk.Close())
-	})
 
 	authCfg := &auth.InitConfig{
 		Backend:        bk,
@@ -148,10 +149,14 @@ func newMockServer(t *testing.T) *mockServer {
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
+		HostUUID:       uuid.NewString(),
 	}
 
 	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
 
 	return &mockServer{
 		auth:                authServer,
