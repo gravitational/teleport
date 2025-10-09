@@ -687,6 +687,12 @@ const (
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
+	// KindAppAuthConfig is the resource kind for app auth configs.
+	KindAppAuthConfig = "app_auth_config"
+
+	// SubKindJWTAppAuthConfig represents an OIDC JWT app config subkind.
+	SubKindJWTAppAuthConfig = "jwt"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
