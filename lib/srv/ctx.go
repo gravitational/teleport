@@ -734,7 +734,7 @@ func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID, ch
 }
 
 // GetNewSessionID gets the ID for a new session in this server context.
-func (c *ServerContext) GetNewSessionID(ctx context.Context) rsession.ID {
+func (c *ServerContext) GetNewSessionID() rsession.ID {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.newSessionID
