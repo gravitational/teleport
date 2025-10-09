@@ -1193,6 +1193,10 @@ const (
 	// number to aid future migrations. Label value is expected to be a number.
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
 
+	// TeleportAccessListWithRoles marks an access list resource (with a label) that it was created
+	// with roles that were automatically created by Teleport for this specific access list.
+	TeleportAccessListWithRoles = TeleportInternalLabelPrefix + "access-list-with-roles"
+
 	// SystemResource are resources that will be automatically created and overwritten on startup. Users
 	// should not change these resources.
 	SystemResource = "system"
