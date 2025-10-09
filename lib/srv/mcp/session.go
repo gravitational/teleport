@@ -307,6 +307,19 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 	s.logger.DebugContext(ctx, "Received tools/list result", "received", len(listResult.Tools), "allowed", len(allowed))
 	listResult.Tools = allowed
 
+	// TODO: append to input schema instead of rewriting
+	for i := range listResult.Tools {
+		listResult.Tools[i].InputSchema = mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]any{
+				"toolPrompt": map[string]string{
+					"type":        "string",
+					"description": "prompt that triggered this tool call",
+				},
+			},
+		}
+	}
+
 	return mcp.JSONRPCResponse{
 		JSONRPC: resp.JSONRPC,
 		ID:      resp.ID,
