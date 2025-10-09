@@ -69,7 +69,7 @@ func TestHeartbeatService(t *testing.T) {
 		}
 
 		reg := readyz.NewRegistry()
-		svcA := reg.AddService("a")
+		svcA := reg.AddService("a", "a")
 
 		svc, err := NewService(Config{
 			Interval:       time.Second,
@@ -78,7 +78,7 @@ func TestHeartbeatService(t *testing.T) {
 			StartedAt:      time.Now().Add(-1 * time.Hour),
 			Logger:         log,
 			JoinMethod:     types.JoinMethodGitHub,
-			StatusReporter: reg.AddService("heartbeat"),
+			StatusReporter: reg.AddService("internal/heartbeat", "heartbeat"),
 			StatusRegistry: reg,
 			BotKind:        machineidv1pb.BotKind_BOT_KIND_TBOT,
 		})

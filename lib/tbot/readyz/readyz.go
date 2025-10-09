@@ -62,13 +62,17 @@ type Registry struct {
 //
 // Note: you should add all of your services before any service reports its status
 // otherwise AllServicesReported will unblock too early.
-func (r *Registry) AddService(name string) Reporter {
+func (r *Registry) AddService(serviceType, name string) Reporter {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// TODO(boxofrad): If you add the same service multiple times, you could end
+	// up unblocking AllServicesReported prematurely. The impact is low, it just
+	// means we'd send a heartbeat sooner than is desirable, but we should panic
+	// or return an error from this method instead.
 	status, ok := r.services[name]
 	if !ok {
-		status = &ServiceStatus{}
+		status = &ServiceStatus{ServiceType: serviceType}
 		r.services[name] = status
 	}
 
@@ -151,6 +155,9 @@ type ServiceStatus struct {
 
 	// UpdatedAt is the time at which the service's status last changed.
 	UpdatedAt *time.Time `json:"updated_at"`
+
+	// ServiceType is exposed in bot heartbeats, but not the `/readyz` endpoint.
+	ServiceType string `json:"-"`
 }
 
 // Clone the status to avoid data races.
