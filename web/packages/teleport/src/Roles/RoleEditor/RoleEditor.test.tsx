@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, within } from '@testing-library/react';
+import { fireEvent, waitFor, within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 
 import { render, screen, userEvent } from 'design/utils/testing';
@@ -202,6 +202,27 @@ it('calls onRoleUpdate on each modification in the standard editor', async () =>
     withDefaults({
       metadata: { name: 'new_role_name', description: 'some-description' },
     })
+  );
+});
+
+it('calls onRoleUpdate after the first rendering of a non-standard role', async () => {
+  cfg.isPolicyEnabled = true;
+  const onRoleUpdate = jest.fn();
+  const nonStandardRole = withDefaults({
+    unsupportedField: true,
+  } as any as Role);
+  render(
+    <TestRoleEditor
+      demoMode
+      onRoleUpdate={onRoleUpdate}
+      originalRole={newRoleWithYaml(nonStandardRole)}
+    />
+  );
+  await waitFor(() => {
+    expect(onRoleUpdate).toHaveBeenCalledTimes(1);
+  });
+  expect(onRoleUpdate).toHaveBeenLastCalledWith(
+    withDefaults({ unsupportedField: true } as any as Role)
   );
 });
 
