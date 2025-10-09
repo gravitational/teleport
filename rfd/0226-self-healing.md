@@ -91,31 +91,33 @@ and use the streaming API to ensure health checks can scale to a large number of
 clients.
 
 To avoid introducing too much new behavior we will base our implementation off of
-the existing `pick_first` policy[^5]. The difference is when the existing connection enters the `TRANSIENT_FAILURE` state[^6] an additional connection will be created.
+the existing `pick_first` policy[^5]. The primary difference will be when the existing
+connection enters the `TRANSIENT_FAILURE` state[^6] new connection attempts will be
+made until either the existing connection returns to `READY` or the new connection
+reaches the `READY` state.
 
 If the new connection reaches the `READY` state it will replace the old connection
 and the old connection will be shutdown.
 
-If the new connection fails to connect or hits an unhealthy service it will be
-shutdown and another new connection will be created.
+Clients will discover the new load balancing policy via the `/webapi/ping` endpoint.
 
-If the old connection recovers before a new connection is able to reach the `READY`
-state, we will stop creating new connections and begin using the old connection again.
+It will be set in the JSON response as follows:
 
-To use this new behavior we will configure gRPC clients with the following dial
-option where `teleport_pick_healthy` is the name of the custom load balancer
-policy we will implement and register with the gRPC library.
-
-```golang
-grpc.WithDefaultServiceConfig(`{
-    "loadBalancingConfig": [{"teleport_pick_healthy": {}}],
-    "healthCheckConfig": {
-        "serviceName": ""
+```json
+{
+    "grpc_client_lb_policy": {
+        "loadBalancingConfig": [{"teleport_pick_healthy": {}}],
+        "healthCheckConfig": {
+            "serviceName": ""
+        }
     }
-}`)
+}
 ```
 
-This can be passed to Teleport's `api.Client` via the `api.Config.DialOpts` field.
+This can be configured on a Proxy server by setting the environment variable
+`TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY`. When not specified clients will continue
+using the default `pick_first` policy. This will allow us to opt-in to this new
+behavior.
 
 ### Proxy Reconnects
 
@@ -134,7 +136,7 @@ backend and the agent tracker's default Proxy expiry is exceeded.
 
 This can take ~13 minutes based on the Proxy ServerAnnounceTTL = 10 minutes and
 the tracker.DefaultProxyExpirey = 3 minutes. To put this into perspective this is
-roughly equal to the quartly downtime budget when targeting `99.99` availability.
+roughly equal to the quarterly downtime budget when targeting `99.99` availability.
 
 To speed up this process we will support configuring a lower `ServerAnnounceTTL`.
 
@@ -179,13 +181,13 @@ servers.
 Proxy heartbeats will be detected by looking for changes in the `server.Expiry()`
 value when events are received by the `ProxyWatcher *services.GenericWatcher[types.Server, readonly.Server]`.
 
-This behavior is backwards compatibile with existing agent Proxy tracking.
+This behavior is backwards compatible with existing agent Proxy tracking.
 
 If one of the Agents reversetunnels is connected to an expired Proxy. The agent will
 begin creating new connections attempting to reach a non-expired Proxy.
 
 Today the agent never closes reversetunnel connections. To solve this Agents will
-evaluate whether they can disconnected from Proxies when they have more than the
+evaluate whether they can disconnect from Proxies when they have more than the
 desired connection count. Connections will only be closed if the Proxy is expired
 or there are excess connections to the desired Proxy set.
 
@@ -204,14 +206,18 @@ be an issue. Assuming the streams are not a major contributor to the typical aut
 load we see it may be beneficial to periodically move new requests to new connections
 while leaving old connections open for long lived streams to continue.
 
+As an alternative approach we could also configure a `MaxConnectionAge` on the server
+side. This would force clients to disconnect after the specific age but may be less
+graceful than the option described above.
+
 #### Periodic Tunnel Reconnects
-Reconnecting reveresetunnels during a failure can lead to imbalanced and suboptimal
+Reconnecting reversetunnels during a failure can lead to imbalanced and suboptimal
 routing that should be addressed when the Teleport cluster recovers. To address
-this we need a way to trigger periodic reconnects. This can be acheived by having
+this we need a way to trigger periodic reconnects. This can be achieved by having
 the proxy send reconnects at a specific interval + jitter.
 
 The default behavior will remain the same where periodic reconnects are never sent.
-We will add an environement variable `TELEPORT_UNSTABLE_REVERSETUNNEL_RECONNECT_INTERVAL`
+We will add an environment variable `TELEPORT_UNSTABLE_REVERSETUNNEL_RECONNECT_INTERVAL`
 that when set on a Proxy will enable the behavior.
 
 Agents should reconnect to a non-expired proxy server before they close a tunnel
