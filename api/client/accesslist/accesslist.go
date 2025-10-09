@@ -371,10 +371,10 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 	return accessList, updatedMembers, nil
 }
 
-// CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
-// the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
-func (c *Client) CreateAccessListWithMembersAndRoles(ctx context.Context, req *accesslistv1.CreateAccessListWithMembersAndRolesRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.CreateAccessListWithMembersAndRoles(ctx, req)
+// CreateAccessListWithPreset creates an access list (with members) where Teleport performs automatic
+// actions depending on the preset requested. E.g. creating role resources and then assigning them as grants.
+func (c *Client) CreateAccessListWithPreset(ctx context.Context, req *accesslistv1.CreateAccessListWithPresetRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.CreateAccessListWithPreset(ctx, req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
