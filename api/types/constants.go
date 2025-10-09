@@ -1170,11 +1170,6 @@ const (
 	// It is used to report stats for a given Integration / DiscoveryConfig.
 	TeleportInternalDiscoveryConfigName = TeleportInternalLabelPrefix + "discovery-config-name"
 
-	// TeleportInternalManagedByIntegrationLabel is the label used to identify
-	// resources managed by an integration and should be removed when the
-	// referenced integration is deleted.
-	TeleportInternalManagedByIntegrationLabel = TeleportInternalLabelPrefix + "managed-by-integration"
-
 	// TeleportDowngradedLabel identifies resources that have been automatically
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.

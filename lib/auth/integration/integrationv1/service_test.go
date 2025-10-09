@@ -686,9 +686,24 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
 				require.NoError(t, err)
-				problematicConfig := mustMakeDiscoveryConfig(t, ig)
-				problematicConfig.Metadata.Name = "problematicconfig"
-				_, err = localClient.CreateDiscoveryConfig(ctx, problematicConfig)
+				userConfig, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{
+						Name: "user-config",
+					},
+					discoveryconfig.Spec{
+						DiscoveryGroup: igName,
+						AWS: []types.AWSMatcher{
+							{
+								Types:       []string{"rds"},
+								Regions:     []string{"us-east-1"},
+								Integration: igName,
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				userConfig.Metadata.Labels = nil
+				_, err = localClient.CreateDiscoveryConfig(ctx, userConfig)
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
@@ -704,13 +719,13 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
 				require.NoError(t, err)
-				_, err = localClient.GetDiscoveryConfig(context.Background(), "problematicconfig")
+				_, err = localClient.GetDiscoveryConfig(context.Background(), "user-config")
 				require.NoError(t, err)
 			},
 			ErrAssertion: trace.IsBadParameter,
 		},
 		{
-			Name: "delete AWS OIDC integration with associated resources",
+			Name: "delete AWS OIDC integration with associated resources without integration label",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{
 					{
@@ -725,7 +740,9 @@ func TestIntegrationCRUD(t *testing.T) {
 				ig := sampleIntegrationFn(t, igName)
 				_, err := localClient.CreateIntegration(ctx, ig)
 				require.NoError(t, err)
-				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+				config := mustMakeDiscoveryConfig(t, ig)
+				config.Metadata.Labels = nil
+				_, err = localClient.CreateDiscoveryConfig(ctx, config)
 				require.NoError(t, err)
 				_, err = localClient.UpsertApplicationServer(ctx, mustMakeAppServer(t, ig))
 				require.NoError(t, err)
@@ -772,7 +789,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: noError,
 		},
 		{
-			Name: "delete AWS OIDC integration with associated resources with internal label",
+			Name: "delete AWS OIDC integration with associated resources with integration label",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{
 					{
@@ -788,16 +805,16 @@ func TestIntegrationCRUD(t *testing.T) {
 				_, err := localClient.CreateIntegration(ctx, ig)
 				require.NoError(t, err)
 
-				// discovery config with implicit rules
+				// discovery config with AWS matchers, label
 				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
 				require.NoError(t, err)
 
-				// discovery config explicit integration labels
+				// discovery config with label, but no AWS matchers
 				config, err := discoveryconfig.NewDiscoveryConfig(
 					header.Metadata{
 						Name: "my-config",
 						Labels: map[string]string{
-							types.TeleportInternalManagedByIntegrationLabel: igName,
+							types.IntegrationLabel: igName,
 						},
 					},
 					discoveryconfig.Spec{
@@ -812,7 +829,7 @@ func TestIntegrationCRUD(t *testing.T) {
 					header.Metadata{
 						Name: "my-other-config",
 						Labels: map[string]string{
-							types.TeleportInternalManagedByIntegrationLabel: "nobody",
+							types.IntegrationLabel: "nobody",
 						},
 					},
 					discoveryconfig.Spec{
@@ -826,7 +843,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				appServer, err := types.NewAppServerV3(types.Metadata{
 					Name: "integration-app",
 					Labels: map[string]string{
-						types.TeleportInternalManagedByIntegrationLabel: igName,
+						types.IntegrationLabel: igName,
 					},
 				}, types.AppServerSpecV3{
 					HostID: "host",
@@ -834,7 +851,7 @@ func TestIntegrationCRUD(t *testing.T) {
 						Metadata: types.Metadata{
 							Name: "integration-app",
 							Labels: map[string]string{
-								types.TeleportInternalManagedByIntegrationLabel: igName,
+								types.IntegrationLabel: igName,
 							},
 						},
 						Spec: types.AppSpecV3{

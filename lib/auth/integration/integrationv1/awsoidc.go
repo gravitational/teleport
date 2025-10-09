@@ -103,9 +103,9 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 			return trace.Wrap(err)
 		}
 
-		// delete if explicitly managed by integration
-		managedByLabel, _ := config.GetLabel(types.TeleportInternalManagedByIntegrationLabel)
-		if managedByLabel == ig.GetName() {
+		// check for labels from the aws oidc integration
+		igLabel, _ := config.GetLabel(types.IntegrationLabel)
+		if igLabel == ig.GetName() {
 			configsToDelete = append(configsToDelete, config.GetName())
 			continue
 		}
@@ -119,9 +119,10 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 		if len(awsMatchers) == len(config.Spec.AWS) {
 			continue
 		}
-		// TODO(alexhemard): remove implicit deletion logic and only check label
-		// discovery_configs can be assumed to be created by the integration
-		// and deleted if:
+
+		// fallback if there's no label
+		// discovery_configs can be assumed to be created by the integration and
+		// deleted if:
 		// 1. only has matchers referencing this integration
 		// 2. has valid uuid name
 		if config.IsMatchersEmpty() {
@@ -168,9 +169,9 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 	}
 
 	for _, appServer := range appServers {
-		// TODO(alexhemard): remove implicit deletion logic and only check label
-		managedByLabel, _ := appServer.GetApp().GetLabel(types.TeleportInternalManagedByIntegrationLabel)
-		if managedByLabel == ig.GetName() ||
+		// check for labels, fallback to checking integration in spec
+		igLabel, _ := appServer.GetApp().GetLabel(types.IntegrationLabel)
+		if igLabel == ig.GetName() ||
 			appServer.GetApp().GetIntegration() == ig.GetName() {
 			s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
 				"app_server", appServer.GetName(),
