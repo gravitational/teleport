@@ -39,8 +39,8 @@ func TestReadyz(t *testing.T) {
 
 	reg := readyz.NewRegistry(readyz.WithClock(clock))
 
-	a := reg.AddService("a")
-	b := reg.AddService("b")
+	a := reg.AddService("svc", "a")
+	b := reg.AddService("svc", "b")
 
 	srv := httptest.NewServer(readyz.HTTPHandler(reg))
 	srv.URL = srv.URL + "/readyz"
@@ -156,8 +156,8 @@ func TestReadyz(t *testing.T) {
 func TestAllServicesReported(t *testing.T) {
 	reg := readyz.NewRegistry()
 
-	a := reg.AddService("a")
-	b := reg.AddService("b")
+	a := reg.AddService("svc", "a")
+	b := reg.AddService("svc", "b")
 
 	select {
 	case <-reg.AllServicesReported():
