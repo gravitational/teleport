@@ -144,6 +144,8 @@ message BotInstanceStatus {
   BotInstanceStatusHeartbeat initial_heartbeat = 3;
   // The N most recent heartbeats for this bot instance.
   repeated BotInstanceStatusHeartbeat latest_heartbeats = 4;
+  // The health of the services/output `tbot` is running.
+  repeated BotInstanceServiceHealth service_health = 5;
 }
 
 // BotInstanceServiceHealth is a snapshot of a `tbot` service's health.

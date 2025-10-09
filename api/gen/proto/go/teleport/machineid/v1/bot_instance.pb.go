@@ -534,8 +534,10 @@ type BotInstanceStatus struct {
 	InitialHeartbeat *BotInstanceStatusHeartbeat `protobuf:"bytes,3,opt,name=initial_heartbeat,json=initialHeartbeat,proto3" json:"initial_heartbeat,omitempty"`
 	// The N most recent heartbeats for this bot instance.
 	LatestHeartbeats []*BotInstanceStatusHeartbeat `protobuf:"bytes,4,rep,name=latest_heartbeats,json=latestHeartbeats,proto3" json:"latest_heartbeats,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The health of the services/output `tbot` is running.
+	ServiceHealth []*BotInstanceServiceHealth `protobuf:"bytes,5,rep,name=service_health,json=serviceHealth,proto3" json:"service_health,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BotInstanceStatus) Reset() {
@@ -592,6 +594,13 @@ func (x *BotInstanceStatus) GetInitialHeartbeat() *BotInstanceStatusHeartbeat {
 func (x *BotInstanceStatus) GetLatestHeartbeats() []*BotInstanceStatusHeartbeat {
 	if x != nil {
 		return x.LatestHeartbeats
+	}
+	return nil
+}
+
+func (x *BotInstanceStatus) GetServiceHealth() []*BotInstanceServiceHealth {
+	if x != nil {
+		return x.ServiceHealth
 	}
 	return nil
 }
@@ -772,12 +781,13 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\n" +
 	"public_key\x18\x06 \x01(\fR\tpublicKey\x12F\n" +
 	"\n" +
-	"join_attrs\x18\b \x01(\v2'.teleport.workloadidentity.v1.JoinAttrsR\tjoinAttrsJ\x04\b\a\x10\bR\vfingerprint\"\xb1\x03\n" +
+	"join_attrs\x18\b \x01(\v2'.teleport.workloadidentity.v1.JoinAttrsR\tjoinAttrsJ\x04\b\a\x10\bR\vfingerprint\"\x89\x04\n" +
 	"\x11BotInstanceStatus\x12m\n" +
 	"\x16initial_authentication\x18\x01 \x01(\v26.teleport.machineid.v1.BotInstanceStatusAuthenticationR\x15initialAuthentication\x12m\n" +
 	"\x16latest_authentications\x18\x02 \x03(\v26.teleport.machineid.v1.BotInstanceStatusAuthenticationR\x15latestAuthentications\x12^\n" +
 	"\x11initial_heartbeat\x18\x03 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\x10initialHeartbeat\x12^\n" +
-	"\x11latest_heartbeats\x18\x04 \x03(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\x10latestHeartbeats\"\x94\x02\n" +
+	"\x11latest_heartbeats\x18\x04 \x03(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\x10latestHeartbeats\x12V\n" +
+	"\x0eservice_health\x18\x05 \x03(\v2/.teleport.machineid.v1.BotInstanceServiceHealthR\rserviceHealth\"\x94\x02\n" +
 	"\x18BotInstanceServiceHealth\x12M\n" +
 	"\aservice\x18\x01 \x01(\v23.teleport.machineid.v1.BotInstanceServiceIdentifierR\aservice\x12F\n" +
 	"\x06status\x18\x02 \x01(\x0e2..teleport.machineid.v1.BotInstanceHealthStatusR\x06status\x12\x1b\n" +
@@ -838,14 +848,15 @@ var file_teleport_machineid_v1_bot_instance_proto_depIdxs = []int32{
 	4,  // 10: teleport.machineid.v1.BotInstanceStatus.latest_authentications:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
 	3,  // 11: teleport.machineid.v1.BotInstanceStatus.initial_heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
 	3,  // 12: teleport.machineid.v1.BotInstanceStatus.latest_heartbeats:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	7,  // 13: teleport.machineid.v1.BotInstanceServiceHealth.service:type_name -> teleport.machineid.v1.BotInstanceServiceIdentifier
-	0,  // 14: teleport.machineid.v1.BotInstanceServiceHealth.status:type_name -> teleport.machineid.v1.BotInstanceHealthStatus
-	9,  // 15: teleport.machineid.v1.BotInstanceServiceHealth.updated_at:type_name -> google.protobuf.Timestamp
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	6,  // 13: teleport.machineid.v1.BotInstanceStatus.service_health:type_name -> teleport.machineid.v1.BotInstanceServiceHealth
+	7,  // 14: teleport.machineid.v1.BotInstanceServiceHealth.service:type_name -> teleport.machineid.v1.BotInstanceServiceIdentifier
+	0,  // 15: teleport.machineid.v1.BotInstanceServiceHealth.status:type_name -> teleport.machineid.v1.BotInstanceHealthStatus
+	9,  // 16: teleport.machineid.v1.BotInstanceServiceHealth.updated_at:type_name -> google.protobuf.Timestamp
+	17, // [17:17] is the sub-list for method output_type
+	17, // [17:17] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_proto_init() }
