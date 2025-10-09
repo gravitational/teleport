@@ -20,10 +20,13 @@ package lite
 
 import (
 	"context"
+	"crypto/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -100,4 +103,41 @@ func TestConnectionURIGeneration(t *testing.T) {
 			require.Equal(t, tt.expected, conf.ConnectionURI())
 		})
 	}
+}
+
+func TestCloseDuringOutstandingTransactions(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
+	t.Cleanup(func() {
+		// The order of this clean up must be called last after tempdir would be removed post close.
+		wg.Wait()
+
+	})
+
+	bk, err := NewWithConfig(context.Background(), Config{
+		Path:  t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		bk.Close() // trigger clean up
+	})
+
+	createRandomItem := func() backend.Item {
+		bytes := make([]byte, 2*1024*1024)
+		rand.Read(bytes)
+		return backend.Item{
+			Key:   backend.NewKey(uuid.New().String()),
+			Value: bytes,
+		}
+	}
+
+	for range 5000 {
+		wg.Go(func() {
+			// Generate writes from different context
+			bk.Create(context.Background(), createRandomItem())
+		})
+	}
+
+	time.Sleep(5 * time.Millisecond)
 }
