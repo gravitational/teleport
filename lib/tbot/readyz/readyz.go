@@ -18,18 +18,38 @@
 
 package readyz
 
-import "sync"
+import (
+	"sync"
+	"time"
+
+	"github.com/jonboulle/clockwork"
+)
 
 // NewRegistry returns a Registry to track the health of tbot's services.
-func NewRegistry() *Registry {
-	return &Registry{
+func NewRegistry(opts ...NewRegistryOpt) *Registry {
+	r := &Registry{
+		clock:    clockwork.NewRealClock(),
 		services: make(map[string]*ServiceStatus),
 		notifyCh: make(chan struct{}),
 	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
+}
+
+// NewRegistryOpt can be passed to NewRegistry to provide optional configuration.
+type NewRegistryOpt func(r *Registry)
+
+// WithClock sets the registry's clock.
+func WithClock(clock clockwork.Clock) NewRegistryOpt {
+	return func(r *Registry) { r.clock = clock }
 }
 
 // Registry tracks the status/health of tbot's services.
 type Registry struct {
+	clock clockwork.Clock
+
 	mu       sync.Mutex
 	services map[string]*ServiceStatus
 	reported int
@@ -54,6 +74,7 @@ func (r *Registry) AddService(name string) Reporter {
 
 	return &reporter{
 		mu:     &r.mu,
+		clock:  r.clock,
 		status: status,
 		notify: sync.OnceFunc(r.maybeNotifyLocked),
 	}
@@ -127,6 +148,9 @@ type ServiceStatus struct {
 
 	// Reason string describing why the service has its current status.
 	Reason string `json:"reason,omitempty"`
+
+	// UpdatedAt is the time at which the service's status last changed.
+	UpdatedAt *time.Time `json:"updated_at"`
 }
 
 // Clone the status to avoid data races.

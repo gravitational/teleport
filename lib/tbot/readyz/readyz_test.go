@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -32,7 +34,10 @@ import (
 func TestReadyz(t *testing.T) {
 	t.Parallel()
 
-	reg := readyz.NewRegistry()
+	now := time.Now().UTC().Truncate(time.Second)
+	clock := clockwork.NewFakeClockAt(now)
+
+	reg := readyz.NewRegistry(readyz.WithClock(clock))
 
 	a := reg.AddService("a")
 	b := reg.AddService("b")
@@ -79,8 +84,9 @@ func TestReadyz(t *testing.T) {
 
 		require.Equal(t,
 			readyz.ServiceStatus{
-				Status: readyz.Unhealthy,
-				Reason: "database is down",
+				Status:    readyz.Unhealthy,
+				Reason:    "database is down",
+				UpdatedAt: &now,
 			},
 			response,
 		)
@@ -104,8 +110,8 @@ func TestReadyz(t *testing.T) {
 			readyz.OverallStatus{
 				Status: readyz.Unhealthy,
 				Services: map[string]*readyz.ServiceStatus{
-					"a": {Status: readyz.Healthy},
-					"b": {Status: readyz.Unhealthy, Reason: "database is down"},
+					"a": {Status: readyz.Healthy, UpdatedAt: &now},
+					"b": {Status: readyz.Unhealthy, Reason: "database is down", UpdatedAt: &now},
 				},
 			},
 			response,
@@ -130,8 +136,8 @@ func TestReadyz(t *testing.T) {
 			readyz.OverallStatus{
 				Status: readyz.Healthy,
 				Services: map[string]*readyz.ServiceStatus{
-					"a": {Status: readyz.Healthy},
-					"b": {Status: readyz.Healthy},
+					"a": {Status: readyz.Healthy, UpdatedAt: &now},
+					"b": {Status: readyz.Healthy, UpdatedAt: &now},
 				},
 			},
 			response,
