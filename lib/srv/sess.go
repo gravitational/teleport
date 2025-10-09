@@ -824,19 +824,11 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		return nil, nil, trace.BadParameter("session creation only supported in context of ssh access or proxying permit")
 	}
 
-	sid := scx.GetNewSessionID(ctx)
-	if sid == "" {
-		// Some flows (particularly tests) do not set the session ID ahead of time.
-		sid = rsession.NewID()
-		scx.SetNewSessionID(ctx, sid, ch)
-		r.logger.WarnContext(ctx, "newSessionID should be set prior to session creation. If this log is seen outside of tests, this is a bug.")
-	}
-
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
-		ID:   sid,
+		ID:   scx.GetNewSessionID(),
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
