@@ -103,8 +103,8 @@ $ tbot keypair create --proxy-server <Var name="example.teleport.sh"/>:443 --sta
 ```
 
 Adjust the `--static-key-path` value as desired. If you didn't run this command
-on the bot host directly, you'll need to transfer it to the bot machine via your
-preferred means, like `scp`, Ansible, etc.
+on the bot host directly, be prepared to transfer this to the bot host in the
+next step.
 
 In either case, the command will generate a keypair and print some instructions.
 For example, this is shown when using an environment variable key:
@@ -182,13 +182,15 @@ $ tctl create -f token.yaml
 
 Now that you've generated the private key, it needs to be stored and made
 available to your job. Exactly how to do this will depend on your provider and
-environment, as well as whether you'll be using an environment variable or file.
+environment, as well as whether you'll be making it available via an environment
+variable or a file.
 
 ### Storing the key in a file on the bot host
 
-Copy the generated private key from your local machine to the bot host via any
-supported means. This might be as simple as copying via `scp`, copying and
-pasting the file contents, or any other process.
+Ensure the private key file you generated is made available on the bot host. If
+you generated it on your local machine, this might mean copying it via `scp`,
+provisioning the key via Ansible, or transferring it to the bot host through
+whichever means you prefer.
 
 Take care to ensure the resulting file on the bot host will only be readable by
 the account that will run the `tbot` process.
