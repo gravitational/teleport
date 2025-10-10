@@ -149,8 +149,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
 	t.Run("ClientIdleConnection", suite.bind(testClientIdleConnection))
 	t.Run("CmdLabels", suite.bind(testCmdLabels))
+	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
-	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", suite.bind(testDataTransfer))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
@@ -199,12 +199,12 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedClustersSkipNameValidation", suite.bind(testTrustedClustersSkipNameValidation))
-	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
