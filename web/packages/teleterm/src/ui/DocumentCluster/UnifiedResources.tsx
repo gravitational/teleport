@@ -36,8 +36,8 @@ import {
 } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   getResourceAvailabilityFilter,
+  makeTargetHealth,
   ResourceAvailabilityFilter,
-  ResourceHealthStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourceDefinition,
@@ -550,11 +550,7 @@ const mapToSharedResource = (
           ).title,
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
-          targetHealth: database.targetHealth && {
-            status: database.targetHealth.status as ResourceHealthStatus,
-            error: database.targetHealth.error,
-            message: database.targetHealth.message,
-          },
+          targetHealth: makeTargetHealth(database.targetHealth),
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,
@@ -563,13 +559,13 @@ const mapToSharedResource = (
     }
     case 'kube': {
       const { resource: kube } = resource;
-
       return {
         resource: {
           kind: 'kube_cluster' as const,
           labels: kube.labels,
           name: kube.name,
           requiresRequest: resource.requiresRequest,
+          targetHealth: makeTargetHealth(kube.targetHealth),
         },
         ui: {
           ActionButton: <ConnectKubeActionButton kube={kube} />,
