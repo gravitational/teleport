@@ -96,6 +96,7 @@ teleport:
     # to open additional tunnels to a Relay group if Teleport is configured to
     # connect to a Proxy Server. If a Relay group consists of more than one
     # Relay Service instance, the address should point to a Load Balancer.
+    # Used in Teleport v18.3.0 and later for the SSH service.
     relay_server: teleport-relay.example.com:3042
 
     # cache:

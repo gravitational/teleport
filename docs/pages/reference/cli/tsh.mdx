@@ -338,7 +338,7 @@ $ tsh login [<flags>] [<cluster>]
 These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
-A relay address specified (or explicitly disabled with the "none" value) at login time will be stored in the `tsh` configuration directory for the specified proxy; if unspecified, the relay address may fall back to a default value specified by the Teleport control plane.
+A relay address specified (or explicitly disabled with the "none" value) at login time will be stored in the `tsh` configuration directory for the specified proxy; if unspecified, the relay address may fall back to a default value specified by the Teleport control plane. Use of a Relay requires `tsh` v18.3.0 or later.
 
 ### Examples
 
@@ -1192,6 +1192,8 @@ $ tsh ssh [<flags>] <[user@]host> [<command>...]
 
 These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+Use of a relay (as specified at `tsh login` time or through the `--relay` flag) requires `tsh` v18.3.0 or later.
 
 ### Examples
 
