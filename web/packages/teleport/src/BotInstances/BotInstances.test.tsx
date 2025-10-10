@@ -31,6 +31,7 @@ import {
   userEvent,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -236,8 +237,13 @@ describe('BotInstances', () => {
       })
     ).toBeInTheDocument();
 
+    const summarySection = screen
+      .getByRole('heading', {
+        name: 'Summary',
+      })
+      .closest('section');
     expect(
-      screen.getByText('kind: bot_instance version: v1')
+      within(summarySection!).getByText('test-bot-name')
     ).toBeInTheDocument();
   });
 
