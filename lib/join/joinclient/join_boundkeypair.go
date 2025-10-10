@@ -124,7 +124,7 @@ func boundKeypairJoin(
 func solveBoundKeypairChallenge(bkParams *BoundKeypairParams, challengeMsg *messages.BoundKeypairChallenge) ([]byte, error) {
 	signer, err := bkParams.GetSigner(string(challengeMsg.PublicKey))
 	if err != nil {
-		return nil, trace.Wrap(err, "could not lookup signer for public key %+v", string(challengeMsg.PublicKey))
+		return nil, trace.Wrap(err, "could not lookup signer for public key %s", string(challengeMsg.PublicKey))
 	}
 
 	alg, err := jwt.AlgorithmForPublicKey(signer.Public())
