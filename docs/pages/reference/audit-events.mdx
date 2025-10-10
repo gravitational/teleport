@@ -1,0 +1,6978 @@
+---
+title: "Audit Event Reference"
+description: "Provides a comprehensive list of Teleport audit events and their fields."
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+{/*cSpell:disable*/}
+
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
+Teleport components emit audit events to record activity within the cluster. 
+
+Audit event payloads have an `event` field that describes the event, which is
+often an operation performed against a dynamic resource (e.g.,
+`access_list.create` for the creation of an Access List) or some other user
+behavior, such as a local user login (`user.login`). The `code` field
+includes a string with pattern `[A-Z0-9]{6}` that is unique to an audit event,
+such as `TAP03I` for the creation of an application resource.
+
+In some cases, an audit event describes both a success state and a failure
+state, while the `event` field is the same for both states. In this case, the
+`code` field differs between states. For example, `access_list.create`
+describes both successful and failed Access List creations, while the success
+event has code `TAL001I` and the failure has code `TAL001E`. For other
+events, like `db.session.query.failed` and `db.session.query`, the event
+type describes only the success or failure state.
+
+You can set up Teleport to export audit events to third-party services for
+storage, visualization, and analysis. For more information, read [Exporting
+Teleport Audit Events](
+../zero-trust-access/export-audit-events/export-audit-events.mdx).
+
+## access_graph.crown_jewel.create
+
+Crown Jewel Created
+
+Example:
+
+```json
+{
+  "code": "CJ001I",
+  "event": "access_graph.crown_jewel.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph.crown_jewel.delete
+
+Crown Jewel Deleted
+
+Example:
+
+```json
+{
+  "code": "CJ003I",
+  "event": "access_graph.crown_jewel.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph.crown_jewel.update
+
+Crown Jewel Updated
+
+Example:
+
+```json
+{
+  "code": "CJ002I",
+  "event": "access_graph.crown_jewel.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph.path.changed
+
+Access Path Changed
+
+Example:
+
+```json
+{
+  "code": "TAG001I",
+  "event": "access_graph.path.changed",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_list.create
+
+There are multiple events with the `access_list.create` type.
+
+### TAL001I
+
+Access list created
+
+Example:
+
+```json
+{
+  "code": "TAL001I",
+  "event": "access_list.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL001E
+
+Access list create failed
+
+Example:
+
+```json
+{
+  "code": "TAL001E",
+  "event": "access_list.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_list.delete
+
+There are multiple events with the `access_list.delete` type.
+
+### TAL003I
+
+Access list deleted
+
+Example:
+
+```json
+{
+  "code": "TAL003I",
+  "event": "access_list.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL003E
+
+Access list delete failed
+
+Example:
+
+```json
+{
+  "code": "TAL003E",
+  "event": "access_list.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_list.member.add
+
+There are multiple events with the `access_list.member.add` type.
+
+### TAL005I
+
+Access list member added
+
+Example:
+
+```json
+{
+  "code": "TAL005I",
+  "event": "access_list.member.add",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+### TAL005E
+
+Access list member addition failure
+
+Example:
+
+```json
+{
+  "code": "TAL005E",
+  "event": "access_list.member.add",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+## access_list.member.delete
+
+There are multiple events with the `access_list.member.delete` type.
+
+### TAL007I
+
+Access list member removed
+
+Example:
+
+```json
+{
+  "code": "TAL007I",
+  "event": "access_list.member.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+### TAL007E
+
+Access list member removal failure
+
+Example:
+
+```json
+{
+  "code": "TAL007E",
+  "event": "access_list.member.delete",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "carrot"
+    },
+    {
+      "member_name": "apple"
+    },
+    {
+      "member_name": "banana"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+## access_list.member.delete_all_members
+
+There are multiple events with the `access_list.member.delete_all_members` type.
+
+### TAL008I
+
+All members removed from access list
+
+Example:
+
+```json
+{
+  "code": "TAL008I",
+  "event": "access_list.member.delete_all_members",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "updated_by": "mike"
+}
+```
+
+### TAL008E
+
+Access list member delete all members failure
+
+Example:
+
+```json
+{
+  "code": "TAL008E",
+  "event": "access_list.member.delete_all_members",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "updated_by": "mike"
+}
+```
+
+## access_list.member.update
+
+There are multiple events with the `access_list.member.update` type.
+
+### TAL006I
+
+Access list member updated
+
+Example:
+
+```json
+{
+  "code": "TAL006I",
+  "event": "access_list.member.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+### TAL006E
+
+Access list member update failure
+
+Example:
+
+```json
+{
+  "code": "TAL006E",
+  "event": "access_list.member.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "access_list_name": "access-list",
+  "access_list_title": "example_title",
+  "members": [
+    {
+      "member_name": "user"
+    }
+  ],
+  "updated_by": "mike"
+}
+```
+
+## access_list.review
+
+There are multiple events with the `access_list.review` type.
+
+### TAL004I
+
+Access list reviewed
+
+Example:
+
+```json
+{
+  "code": "TAL004I",
+  "event": "access_list.review",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL004E
+
+Access list review failed
+
+Example:
+
+```json
+{
+  "code": "TAL004E",
+  "event": "access_list.review",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_list.update
+
+There are multiple events with the `access_list.update` type.
+
+### TAL002I
+
+Access list updated
+
+Example:
+
+```json
+{
+  "code": "TAL002I",
+  "event": "access_list.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+### TAL002E
+
+Access list update failed
+
+Example:
+
+```json
+{
+  "code": "TAL002E",
+  "event": "access_list.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "access-list",
+  "updated_by": "mike",
+  "access_list_title": "example_title"
+}
+```
+
+## access_request.create
+
+Access Request Created
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5000I",
+  "event": "access_request.create",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+  "user": "Carrie_Sandoval",
+  "state": "PENDING",
+  "roles": [
+    "admin"
+  ]
+}
+```
+
+## access_request.delete
+
+Access Request Deleted
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5003I",
+  "event": "access_request.delete",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_request.expire
+
+Access Request Expired
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5005I",
+  "event": "access_request.expire",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_request.review
+
+Access Request Reviewed
+
+Example:
+
+```json
+{
+  "code": "T5002I",
+  "event": "access_request.review",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_request.search
+
+Resource Access Search
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "T5004I",
+  "ei": 0,
+  "event": "access_request.search",
+  "namespace": "default",
+  "resource_type": "db_server",
+  "search_as_roles": [
+    "admin",
+    "really-long-role-name-1",
+    "really-long-role-name-2",
+    "really-long-role-name-3",
+    "really-long-role-name-4",
+    "really-long-role-name-5",
+    "really-long-role-name-6",
+    "really-long-role-name-7",
+    "really-long-role-name-8",
+    "really-long-role-name-9"
+  ],
+  "time": "2022-06-08T15:10:35.368Z",
+  "uid": "b13d61-b97-475f-86ef-1fedf",
+  "user": "foo"
+}
+```
+
+## access_request.update
+
+Access Request Updated
+
+Example:
+
+```json
+{
+  "id": "66b827b2-1b0b-512b-965d-6c789388d3c9",
+  "code": "T5001I",
+  "event": "access_request.update",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+  "state": "APPROVED",
+  "updated_by": "Sam_Waters"
+}
+```
+
+## app.create
+
+Application Created
+
+Example:
+
+```json
+{
+  "code": "TAP03I",
+  "ei": 0,
+  "event": "app.create",
+  "time": "2022-09-27T19:07:35.00Z",
+  "uid": "45cabf1e-3f19-4f83-a360-01ac0a176b67",
+  "aws_role_arn": "arn:aws:iam::1234567890:role/steve",
+  "name": "dynamic-app",
+  "user": "mike"
+}
+```
+
+## app.delete
+
+Application Deleted
+
+Example:
+
+```json
+{
+  "code": "TAP05I",
+  "ei": 0,
+  "event": "app.delete",
+  "time": "2022-09-27T19:11:35.00Z",
+  "uid": "d2342a20-9697-4a5d-9658-5d473e04624a",
+  "aws_role_arn": "arn:aws:iam::1234567890:role/steve",
+  "name": "dynamic-app",
+  "user": "mike"
+}
+```
+
+## app.session.chunk
+
+App Session Data
+
+Example:
+
+```json
+{
+  "code": "T2008I",
+  "ei": 0,
+  "event": "app.session.chunk",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "session_chunk_id": "3a54f32d-210f-4338-abf5-133bfe19ccc0",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2020-10-30T17:28:14.705Z",
+  "uid": "8ea5be3d-07b1-4308-8e0d-2d2ec57cbb20",
+  "user": "alice",
+  "app_name": "test"
+}
+```
+
+## app.session.dynamodb.request
+
+App Session DynamoDB Request
+
+Example:
+
+```json
+{
+  "code": "T2013I",
+  "ei": 1,
+  "event": "app.session.dynamodb.request",
+  "app_name": "dyno1",
+  "app_public_addr": "dynamodb.root.com",
+  "app_uri": "https://console.aws.amazon.com/dynamodbv2/home",
+  "aws_host": "dynamodb.us-west-2.amazonaws.com",
+  "aws_region": "us-west-2",
+  "aws_role_arn": "arn:aws:iam::123456789012:role/GavinDynamoDBRole",
+  "aws_service": "dynamodb",
+  "body": {
+    "TableName": "test-table"
+  },
+  "cluster_name": "root.com",
+  "method": "POST",
+  "path": "/",
+  "raw_query": "",
+  "session_chunk_id": "3a54f32d-210f-4338-abf5-133bfe19ccc0",
+  "status_code": 200,
+  "target": "DynamoDB_20120810.Scan",
+  "time": "2022-10-19T19:04:07.763Z",
+  "uid": "f6f38f69-46e9-4110-a773-2c88278d08ca",
+  "user": "alice"
+}
+```
+
+## app.session.end
+
+App Session Ended
+
+Example:
+
+```json
+{
+  "app_name": "ponger",
+  "app_public_addr": "ponger.root.gravitational.io",
+  "app_uri": "tcp://localhost:9876",
+  "cluster_name": "root",
+  "code": "T2011I",
+  "ei": 0,
+  "event": "app.session.end",
+  "namespace": "default",
+  "server_id": "8e70002c-7a07-4513-a3fa-ac556a1d7534",
+  "sid": "11c328b4-5a1e-4adc-b7cb-206389e5f130",
+  "time": "2022-08-10T19:54:40.444Z",
+  "uid": "ac8c9b6b-46a0-4b0e-8d85-2204101d5615",
+  "user": "alice"
+}
+```
+
+## app.session.start
+
+App Session Started
+
+Example:
+
+```json
+{
+  "addr.remote": "50.34.48.113:56902",
+  "code": "T2007I",
+  "ei": 0,
+  "event": "app.session.start",
+  "namespace": "default",
+  "public_addr": "dumper.test.domain.com",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2020-10-30T17:28:14.381Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "kimlisa",
+  "app_name": "test"
+}
+```
+
+## app.update
+
+Application Updated
+
+Example:
+
+```json
+{
+  "code": "TAP04I",
+  "ei": 0,
+  "event": "app.update",
+  "time": "2022-09-27T19:09:35.00Z",
+  "uid": "9909a8d6-b45f-455c-953d-ba1a62340810",
+  "aws_role_arn": "arn:aws:iam::1234567890:role/steve",
+  "name": "dynamic-app",
+  "user": "mike"
+}
+```
+
+## auth
+
+Auth Attempt Failed
+
+Example:
+
+```json
+{
+  "code": "T3007W",
+  "error": "ssh: principal \"fsdfdsf\" not in the set of valid principals for given certificate: [\"root\"]",
+  "event": "auth",
+  "success": false,
+  "time": "2019-04-22T02:09:06Z",
+  "uid": "036659d6-fdf7-40a4-aa80-74d6ac73b9c0",
+  "user": "admin@example.com"
+}
+```
+
+## auth_preference.update
+
+Cluster Authentication Preferences Updated
+
+Example:
+
+```json
+{
+  "code": "TCAUTH001I",
+  "event": "auth_preference.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## auto_update_agent_rollout.force_done
+
+Automatic Update Agent Rollout Forced Done.
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "auto_update_agent_rollout.force_done",
+  "code": "AUAR002I",
+  "time": "0001-01-01T00:00:00Z",
+  "user": "system",
+  "groups": [
+    "prod"
+  ],
+  "success": true
+}
+```
+
+## auto_update_agent_rollout.rollback
+
+Automatic Update Agent Rollout Rollback
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "auto_update_agent_rollout.rollback",
+  "code": "AUAR003I",
+  "time": "0001-01-01T00:00:00Z",
+  "user": "system",
+  "groups": [
+    "prod"
+  ],
+  "success": true
+}
+```
+
+## auto_update_agent_rollout.trigger
+
+Automatic Update Agent Rollout Triggered
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "auto_update_agent_rollout.trigger",
+  "code": "AUAR001I",
+  "time": "0001-01-01T00:00:00Z",
+  "user": "system",
+  "groups": [
+    "dev",
+    "prod"
+  ],
+  "success": true
+}
+```
+
+## auto_update_config.create
+
+Automatic Update Config Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:46790",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUC001I",
+  "ei": 0,
+  "event": "auto_update_config.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-config",
+  "success": true,
+  "time": "2025-03-04T15:49:31.946Z",
+  "uid": "6fcbf7ed-b44c-4b83-bb70-02a574564e0b",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_config.delete
+
+Automatic Update Config Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:39518",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUC003I",
+  "ei": 0,
+  "event": "auto_update_config.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-config",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "af17ab4a-d5a2-44a3-93ce-89390b50d52f",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_config.update
+
+Automatic Update Config Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:46798",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUC002I",
+  "ei": 0,
+  "event": "auto_update_config.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-config",
+  "success": true,
+  "time": "2025-03-04T15:49:37.633Z",
+  "uid": "94c580a9-6f87-4a23-9fe5-f93de4390cff",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_version.create
+
+Automatic Update Version Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:41608",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUV001I",
+  "ei": 0,
+  "event": "auto_update_version.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-version",
+  "success": true,
+  "time": "2025-03-04T15:41:24.433Z",
+  "uid": "3d677d2f-91d0-4b5a-966d-183a59cec888",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_version.delete
+
+Automatic Update Version Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:50316",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUV003I",
+  "ei": 0,
+  "event": "auto_update_version.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-version",
+  "success": true,
+  "time": "2025-03-04T15:25:44.805Z",
+  "uid": "c4d0d165-3a17-46ac-baa7-c7f521629997",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## auto_update_version.update
+
+Automatic Update Version Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:42540",
+  "cluster_name": "autest.cloud.gravitational.io",
+  "code": "AUV002I",
+  "ei": 0,
+  "event": "auto_update_version.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "autoupdate-version",
+  "success": true,
+  "time": "2025-03-04T15:27:36.039Z",
+  "uid": "b7f9dde2-2899-46f1-bd4e-699d7b630e33",
+  "updated_by": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user": "b6eae9ed-bfde-40ba-a880-948a2c598b2b.autest.cloud.gravitational.io",
+  "user_kind": 1
+}
+```
+
+## aws_identity_center.resource_sync.failed
+
+AWS IAM Identity Center Resource Sync Failed
+
+Example:
+
+```json
+{
+  "code": "TAIC001E",
+  "event": "aws_identity_center.resource_sync.failed",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## aws_identity_center.resource_sync.success
+
+AWS IAM Identity Center Resource Sync Completed
+
+Example:
+
+```json
+{
+  "code": "TAIC001I",
+  "event": "aws_identity_center.resource_sync.success",
+  "message": "Periodic account, permission set and account assignment sync",
+  "success": true,
+  "time": "2025-02-11T15:29:30.045Z",
+  "total_account_assignments": 12,
+  "total_accounts": 4,
+  "total_permission_sets": 3,
+  "total_user_groups": 5
+}
+```
+
+## billing.create_card
+
+Credit Card Added
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL00I",
+  "ei": 0,
+  "event": "billing.create_card",
+  "time": "2021-03-18T16:29:05.044Z",
+  "uid": "5c40b62a-4ddd-466c-87a0-fa2922f743d0",
+  "user": "root"
+}
+```
+
+## billing.delete_card
+
+Credit Card Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL01I",
+  "ei": 0,
+  "event": "billing.delete_card",
+  "time": "2021-03-18T16:28:51.219Z",
+  "uid": "056517e0-f7e1-4286-b437-c75f3a865af4",
+  "user": "root"
+}
+```
+
+## billing.update_card
+
+Credit Card Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL02I",
+  "ei": 0,
+  "event": "billing.update_card",
+  "time": "2021-03-18T16:28:49.067Z",
+  "uid": "0a06aba1-b87c-4d58-8922-e173f6b9729f",
+  "user": "root"
+}
+```
+
+## billing.update_info
+
+Billing Information Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "some-name",
+  "code": "TBL03I",
+  "ei": 0,
+  "event": "billing.update_info",
+  "time": "2021-03-18T16:29:15.719Z",
+  "uid": "95344b33-d25c-4875-896e-f21abc911547",
+  "user": "root"
+}
+```
+
+## bot.create
+
+Bot Created
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "TB001I",
+  "ei": 0,
+  "event": "bot.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## bot.delete
+
+Bot Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "TB003I",
+  "ei": 0,
+  "event": "bot.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "review2",
+  "time": "2023-12-08T09:52:30.579Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## bot.join
+
+There are multiple events with the `bot.join` type.
+
+### TJ001I
+
+Bot Joined
+
+Example:
+
+```json
+{
+  "attributes": {
+    "actor": "strideynet",
+    "actor_id": "16336790",
+    "base_ref": "",
+    "environment": "",
+    "event_name": "push",
+    "head_ref": "",
+    "job_workflow_ref": "strideynet/sandbox/.github/workflows/build.yaml@refs/heads/main",
+    "ref": "refs/heads/main",
+    "ref_type": "branch",
+    "repository": "strideynet/sandbox",
+    "repository_id": "539963344",
+    "repository_owner": "strideynet",
+    "repository_owner_id": "16336790",
+    "repository_visibility": "private",
+    "run_attempt": "6",
+    "run_id": "3547291254",
+    "run_number": "73",
+    "sha": "758c69462083ad67f0714112aab31fdeb1ba3a59",
+    "sub": "repo:strideynet/sandbox:ref:refs/heads/main",
+    "workflow": "Demo"
+  },
+  "bot_name": "github-demo",
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ001I",
+  "ei": 0,
+  "event": "bot.join",
+  "method": "github",
+  "success": true,
+  "time": "2022-12-05T17:11:03.268Z",
+  "token_name": "github-bot",
+  "uid": "15a82555-b5aa-4eb8-820e-551f991bf902"
+}
+```
+
+### TJ001E
+
+Bot Join Failed
+
+Example:
+
+```json
+{
+  "attributes": {
+    "actor": "strideynet",
+    "actor_id": "16336790",
+    "base_ref": "",
+    "environment": "",
+    "event_name": "push",
+    "head_ref": "",
+    "job_workflow_ref": "strideynet/sandbox/.github/workflows/build.yaml@refs/heads/main",
+    "ref": "refs/heads/main",
+    "ref_type": "branch",
+    "repository": "strideynet/sandbox",
+    "repository_id": "539963344",
+    "repository_owner": "strideynet",
+    "repository_owner_id": "16336790",
+    "repository_visibility": "private",
+    "run_attempt": "3",
+    "run_id": "8604159359",
+    "run_number": "100",
+    "sha": "0c9c5361d15154caf1c151dc1f430ea3552c9b93",
+    "sub": "repo:strideynet/sandbox:ref:refs/heads/main",
+    "workflow": "Demo"
+  },
+  "bot_name": "unknown",
+  "cluster_name": "leaf.tele.ottr.sh",
+  "code": "TJ001E",
+  "ei": 0,
+  "error": "id token claims did not match any allow rules",
+  "event": "bot.join",
+  "method": "unknown",
+  "success": false,
+  "time": "2024-04-08T17:33:48.877Z",
+  "uid": "2bc5e2cb-5ba1-47d7-a7ae-381cf323ae7f"
+}
+```
+
+## bot.update
+
+Bot Updated
+
+Example:
+
+```json
+{
+  "code": "TB002I",
+  "event": "bot.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## cert.create
+
+Certificate Issued
+
+Example:
+
+```json
+{
+  "cert_type": "user",
+  "code": "TC000I",
+  "event": "cert.create",
+  "identity": {
+    "user": "alice"
+  },
+  "time": "2022-02-04T19:43:23.529Z"
+}
+```
+
+## client.disconnect
+
+Client Disconnected
+
+Example:
+
+```json
+{
+  "code": "T3006I",
+  "event": "client.disconnect",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## cluster_networking_config.update
+
+Cluster Networking Configuration Updated
+
+Example:
+
+```json
+{
+  "code": "TCNET002I",
+  "event": "cluster_networking_config.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## contact.create
+
+Contact Created
+
+Example:
+
+```json
+{
+  "code": "TCTC001I",
+  "event": "contact.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## contact.delete
+
+Contact Deleted
+
+Example:
+
+```json
+{
+  "code": "TCTC002I",
+  "event": "contact.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## db.create
+
+Database Created
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB03I",
+  "db_labels": {
+    "env": "local",
+    "teleport.dev/origin": "dynamic"
+  },
+  "db_protocol": "postgres",
+  "db_uri": "localhost:5432",
+  "ei": 0,
+  "event": "db.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "postgres-local",
+  "time": "2021-10-08T15:42:15.39Z",
+  "uid": "9d37514f-aef5-426f-9fda-31fd35d070f5",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## db.delete
+
+Database Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB05I",
+  "ei": 0,
+  "event": "db.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "postgres-local",
+  "time": "2021-10-08T15:42:36.005Z",
+  "uid": "74f5e6b9-50c4-4195-bb26-d615641255bc",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## db.session.cassandra.batch
+
+Cassandra Batch
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "db.session.cassandra.batch",
+  "code": "TCA01I",
+  "time": "2022-06-02T08:46:33.825Z",
+  "cluster_name": "im-a-cluster-name",
+  "user": "alice",
+  "sid": "a724c7e8-8e00-45a6-afac-82023d0f86b6",
+  "db_service": "cassandra",
+  "db_protocol": "cassandra",
+  "db_uri": "localhost:65054",
+  "db_user": "cassandra",
+  "consistency": "ConsistencyLevel QUORUM [0x0004]",
+  "batch_type": "BatchType LOGGED [0x00]",
+  "children": [
+    {
+      "query": "INSERT INTO batch_table (id) VALUES 1"
+    },
+    {
+      "query": "INSERT INTO batch_table (id) VALUES 2"
+    }
+  ]
+}
+```
+
+## db.session.cassandra.execute
+
+Cassandra Execute
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "db.session.cassandra.execute",
+  "code": "TCA03I",
+  "time": "2022-06-02T08:46:33.825Z",
+  "cluster_name": "im-a-cluster-name",
+  "user": "alice",
+  "sid": "2126ee07-cfe1-4213-8032-70b3e6e1ac79",
+  "db_service": "cassandra",
+  "db_protocol": "cassandra",
+  "db_uri": "localhost:65054",
+  "db_user": "cassandra",
+  "query_id": "d34e638934721c3bcd69933f992a00cb"
+}
+```
+
+## db.session.cassandra.prepare
+
+Cassandra Prepare Event
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "db.session.cassandra.prepare",
+  "code": "TCA02I",
+  "time": "2022-06-02T08:46:33.825Z",
+  "cluster_name": "im-a-cluster-name",
+  "user": "alice",
+  "sid": "2126ee07-cfe1-4213-8032-70b3e6e1ac79",
+  "db_service": "cassandra",
+  "db_protocol": "cassandra",
+  "db_uri": "localhost:65054",
+  "db_user": "cassandra",
+  "query": "SELECT * FROM system_schema.keyspaces"
+}
+```
+
+## db.session.cassandra.register
+
+Cassandra Register
+
+Example:
+
+```json
+{
+  "ei": 0,
+  "event": "db.session.cassandra.register",
+  "code": "TCA04I",
+  "time": "2022-06-02T08:46:33.825Z",
+  "cluster_name": "im-a-cluster-name",
+  "user": "alice",
+  "sid": "2126ee07-cfe1-4213-8032-70b3e6e1ac79",
+  "db_service": "cassandra",
+  "db_protocol": "cassandra",
+  "db_uri": "localhost:65054",
+  "db_user": "cassandra",
+  "event_types": [
+    "TOPOLOGY_CHANGE",
+    "STATUS_CHANGE",
+    "SCHEMA_CHANGE"
+  ]
+}
+```
+
+## db.session.dynamodb.request
+
+There are multiple events with the `db.session.dynamodb.request` type.
+
+### TDY01I
+
+DynamoDB Request
+
+Example:
+
+```json
+{
+  "cluster_name": "root.com",
+  "code": "TDY01I",
+  "event": "db.session.dynamodb.request",
+  "db_name": "",
+  "db_protocol": "dynamodb",
+  "db_service": "ddb1",
+  "db_user": "DynamoDBRole",
+  "ei": 1,
+  "uri": "dynamodb.us-west-2.amazonaws.com",
+  "body": {
+    "TableName": "test-table"
+  },
+  "method": "POST",
+  "path": "",
+  "raw_query": "",
+  "status_code": 200,
+  "target": "DynamoDB_20120810.Scan",
+  "time": "2022-12-23T19:14:07.763Z",
+  "uid": "12345678-46e9-4110-a773-2c88278d08ca",
+  "user": "alice@example.com"
+}
+```
+
+### TDY01E
+
+DynamoDB Request Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "root.com",
+  "code": "TDY01E",
+  "event": "db.session.dynamodb.request",
+  "db_name": "",
+  "db_protocol": "dynamodb",
+  "db_service": "ddb1",
+  "db_user": "DynamoDBRole",
+  "ei": 1,
+  "uri": "dynamodb.us-west-2.amazonaws.com",
+  "body": {
+    "TableName": "test-table"
+  },
+  "method": "POST",
+  "path": "",
+  "raw_query": "",
+  "status_code": 0,
+  "target": "DynamoDB_20120810.Scan",
+  "time": "2022-12-23T19:04:07.763Z",
+  "uid": "12345678-46e9-4110-a773-2c88278d08ca",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.elasticsearch.request
+
+There are multiple events with the `db.session.elasticsearch.request` type.
+
+### TES00I
+
+Elasticsearch Request
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TES00I",
+  "body": null,
+  "category": 0,
+  "db_protocol": "elasticsearch",
+  "db_service": "myelastic",
+  "db_uri": "localhost:9201",
+  "db_user": "elasticuser",
+  "ei": 101,
+  "event": "db.session.elasticsearch.request",
+  "headers": {
+    "Accept": [
+      "*/*"
+    ],
+    "User-Agent": [
+      "curl/7.79.1"
+    ]
+  },
+  "method": "GET",
+  "path": "/",
+  "query": "",
+  "raw_query": "",
+  "sid": "b739c817-bc11-4eaa-b256-c6646d7fcc21",
+  "target": "",
+  "time": "2022-09-27T11:43:58.433Z",
+  "uid": "730a8de0-79a9-486f-b9c6-3820c3a6977c",
+  "user": "alice"
+}
+```
+
+### TES00E
+
+Elasticsearch Request Failed
+
+Example:
+
+```json
+{
+  "code": "TES00E",
+  "event": "db.session.elasticsearch.request",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## db.session.end
+
+Database Session Ended
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB01I",
+  "db_name": "",
+  "db_protocol": "mongodb",
+  "db_service": "mongo-primary",
+  "db_uri": "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+  "db_user": "alice",
+  "ei": 16,
+  "event": "db.session.end",
+  "sid": "13c04d4b-2e94-4106-a3a1-5ab8aae10465",
+  "time": "2021-07-14T07:06:25.608Z",
+  "uid": "0a2387cd-3fa2-4424-9c14-e33af17e4ab1",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.malformed_packet
+
+Database Malformed Packet
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDB06I",
+  "db_name": "master",
+  "db_protocol": "sqlserver",
+  "db_service": "sqlserver02",
+  "db_uri": "localhost:1433",
+  "db_user": "sqlserver",
+  "ei": 50,
+  "event": "db.session.malformed_packet",
+  "payload": "AwEAkAAAAgByAGEAbQBfADEAIABuAHYAYQByAGMAaABhAHIAKAA0ADAAMAAwACkAC0AAXwBtAHMAcABhAHIAYQBtAF8AMAAA50AfCQTQADQWAHMAcAB0AF8AbQBvAG4AaQB0AG8AcgALQABfAG0AcwBwAGEAcgBhAG0AXwAxAADnQB8JBNAANAYAZABiAG8A",
+  "sid": "3ed38c42-eef0-419b-b893-f2f10990f117",
+  "time": "2022-06-02T08:46:33.825Z",
+  "uid": "503e310d-8d88-4bea-bbbb-a1b35456a03a",
+  "user": "alice"
+}
+```
+
+## db.session.mysql.create_db
+
+MySQL Create Database
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY08I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.create_db",
+  "schema_name": "another_database",
+  "time": "2022-04-13T20:00:09.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.debug
+
+MySQL Debug
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY12I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.debug",
+  "time": "2022-04-13T20:00:05.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.drop_db
+
+MySQL Drop Database
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY09I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.drop_db",
+  "schema_name": "another_database",
+  "time": "2022-04-13T20:00:08.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.init_db
+
+MySQL Change Database
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY07I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.init_db",
+  "schema_name": "another_database",
+  "time": "2022-04-13T20:00:10.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.process_kill
+
+MySQL Kill Process
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY11I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.process_kill",
+  "process_id": 60,
+  "time": "2022-04-13T20:00:06.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.refresh
+
+MySQL Refresh
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY13I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.refresh",
+  "subcommand": "REFRESH_THREADS",
+  "time": "2022-04-13T20:00:04.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.shut_down
+
+MySQL Shut Down
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY10I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "event": "db.session.mysql.shut_down",
+  "time": "2022-04-13T20:00:07.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.bulk_execute
+
+MySQL Statement Bulk Execute
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY06I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.bulk_execute",
+  "parameters": null,
+  "statement_id": 1,
+  "time": "2022-02-10T20:57:53.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.close
+
+MySQL Statement Close
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY03I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.close",
+  "statement_id": 1,
+  "time": "2022-02-10T20:57:56.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.execute
+
+MySQL Statement Execute
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY01I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.execute",
+  "parameters": null,
+  "statement_id": 1,
+  "time": "2022-02-10T20:57:54.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.fetch
+
+MySQL Statement Fetch
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY05I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.fetch",
+  "rows_count": 5,
+  "statement_id": 1,
+  "time": "2022-02-10T20:57:55.000Z",
+  "uid": "0a2bd129-7c2f-4e68-9c84-a17dc4415444",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.prepare
+
+MySQL Statement Prepare
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY00I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.prepare",
+  "query": "UPDATE `test`.`user` SET `age` = '7' WHERE (`name` = 'alice')",
+  "time": "2022-02-10T20:57:50.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.reset
+
+MySQL Statement Reset
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY04I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.reset",
+  "statement_id": 1,
+  "time": "2022-02-10T20:57:52.000Z",
+  "uid": "0a2bd129-7c2f-4e68-9c84-a17dc4415444",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.mysql.statements.send_long_data
+
+MySQL Statement Send Long Data
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMY02I",
+  "db_name": "test",
+  "db_protocol": "mysql",
+  "db_service": "self-hosted-mysql",
+  "db_uri": "localhost:3306",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.mysql.statements.send_long_data",
+  "statement_id": 1,
+  "parameter_id": 2,
+  "data_size": 32,
+  "time": "2022-02-10T20:57:51.000Z",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.opensearch.request
+
+There are multiple events with the `db.session.opensearch.request` type.
+
+### TOS00I
+
+OpenSearch Request
+
+Example:
+
+```json
+{
+  "category": 2,
+  "cluster_name": "im-a-cluster-name",
+  "code": "TOS00I",
+  "db_protocol": "opensearch",
+  "db_service": "opensearch-aws",
+  "db_uri": "opensearch-aws-aaa111.eu-central-1.es.amazonaws.com:443",
+  "db_user": "arn:aws:iam::1234567890:role/teleport-db-role",
+  "ei": 1,
+  "event": "db.session.opensearch.request",
+  "headers": {
+    "Accept-Encoding": [
+      "gzip"
+    ],
+    "Content-Type": [
+      "application/json"
+    ],
+    "User-Agent": [
+      "Go-http-client/1.1"
+    ]
+  },
+  "method": "GET",
+  "path": "/_count",
+  "query": "",
+  "raw_query": "",
+  "sid": "370e5d86-84a6-4995-8476-dbea80f9eacf",
+  "status_code": 200,
+  "target": "",
+  "time": "2023-03-11T11:08:29.954Z",
+  "uid": "d15f795c-1f63-4076-bdd4-ffe88cde716e",
+  "user": "alice@example.com"
+}
+```
+
+### TOS00E
+
+OpenSearch Request Failed
+
+Example:
+
+```json
+{
+  "category": 2,
+  "cluster_name": "im-a-cluster-name",
+  "code": "TOS00E",
+  "db_protocol": "opensearch",
+  "db_service": "opensearch-aws",
+  "db_uri": "opensearch-aws-aaa111.eu-central-1.es.amazonaws.com:443",
+  "db_user": "arn:aws:iam::1234567890:role/does-not-exist",
+  "ei": 1,
+  "event": "db.session.opensearch.request",
+  "headers": {
+    "Accept-Encoding": [
+      "gzip"
+    ],
+    "Content-Type": [
+      "application/json"
+    ],
+    "User-Agent": [
+      "Go-http-client/1.1"
+    ]
+  },
+  "method": "GET",
+  "path": "/_count",
+  "query": "",
+  "raw_query": "",
+  "sid": "2d9a43c1-14ab-40fa-88db-195312f3401c",
+  "status_code": 0,
+  "target": "",
+  "time": "2023-03-11T11:08:29.954Z",
+  "uid": "01ad9a74-c8d6-497f-83db-e1c0be83d8da",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.permissions.update
+
+Database User Permissions Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDB07I",
+  "db_name": "master",
+  "db_protocol": "postgres",
+  "db_service": "postgres-local",
+  "db_uri": "localhost:1433",
+  "db_user": "alice",
+  "ei": 50,
+  "event": "db.session.permissions.update",
+  "sid": "3ed38c42-eef0-419b-b893-f2f10990f117",
+  "time": "2022-06-02T08:46:33.825Z",
+  "uid": "503e310d-8d88-4bea-bbbb-a1b35456a03a",
+  "user": "alice",
+  "permission_summary": [
+    {
+      "counts": {
+        "table": 1,
+        "view": 2
+      },
+      "permission": "INSERT"
+    },
+    {
+      "counts": {
+        "table": 2,
+        "view": 4
+      },
+      "permission": "SELECT"
+    },
+    {
+      "counts": {
+        "table": 3
+      },
+      "permission": "UPDATE"
+    }
+  ]
+}
+```
+
+## db.session.postgres.function
+
+PostgreSQL Function Call
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TPG04I",
+  "db_name": "test",
+  "db_protocol": "postgres",
+  "db_service": "local",
+  "db_uri": "localhost:5432",
+  "db_user": "postgres",
+  "ei": 23,
+  "event": "db.session.postgres.function",
+  "sid": "5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f",
+  "function_oid": "123",
+  "function_args": [
+    "qweqweqwe"
+  ],
+  "time": "2021-12-16T00:40:37.073Z",
+  "uid": "295c88fc-4725-4de0-9049-64040fc69ec7",
+  "user": "alice"
+}
+```
+
+## db.session.postgres.statements.bind
+
+PostgreSQL Statement Bind
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TPG01I",
+  "db_name": "test",
+  "db_protocol": "postgres",
+  "db_service": "local",
+  "db_uri": "localhost:5432",
+  "db_user": "postgres",
+  "ei": 20,
+  "event": "db.session.postgres.statements.bind",
+  "parameters": [
+    "qweqweqwe"
+  ],
+  "portal_name": "",
+  "sid": "5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f",
+  "statement_name": "test-ps",
+  "time": "2021-12-16T00:40:37.071Z",
+  "uid": "d5bed7e5-6a15-441b-b8ee-a2abd73f3136",
+  "user": "alice"
+}
+```
+
+## db.session.postgres.statements.close
+
+PostgreSQL Statement Close
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TPG03I",
+  "db_name": "test",
+  "db_protocol": "postgres",
+  "db_service": "local",
+  "db_uri": "localhost:5432",
+  "db_user": "postgres",
+  "ei": 22,
+  "event": "db.session.postgres.statements.close",
+  "portal_name": "",
+  "sid": "5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f",
+  "statement_name": "test-ps",
+  "time": "2021-12-16T00:40:37.073Z",
+  "uid": "295c88fc-4725-4de0-9049-64040fc69ec7",
+  "user": "alice"
+}
+```
+
+## db.session.postgres.statements.execute
+
+PostgreSQL Statement Execute
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TPG02I",
+  "db_name": "test",
+  "db_protocol": "postgres",
+  "db_service": "local",
+  "db_uri": "localhost:5432",
+  "db_user": "postgres",
+  "ei": 21,
+  "event": "db.session.postgres.statements.execute",
+  "portal_name": "",
+  "sid": "5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f",
+  "time": "2021-12-16T00:40:37.071Z",
+  "uid": "a0f045a2-45a4-4a4d-b14a-5f986c1818ff",
+  "user": "alice"
+}
+```
+
+## db.session.postgres.statements.parse
+
+PostgreSQL Statement Parse
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TPG00I",
+  "db_name": "test",
+  "db_protocol": "postgres",
+  "db_service": "local",
+  "db_uri": "localhost:5432",
+  "db_user": "postgres",
+  "ei": 19,
+  "event": "db.session.postgres.statements.parse",
+  "query": "select id from test where id = $1::varchar",
+  "sid": "5e0c50cc-4ee7-4110-8d6e-735bf1f06f1f",
+  "statement_name": "test-ps",
+  "time": "2021-12-16T00:40:37.069Z",
+  "uid": "06781ebf-6c5b-463b-ad32-e7395afd4a59",
+  "user": "alice"
+}
+```
+
+## db.session.query
+
+Database Query
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB02I",
+  "db_name": "test",
+  "db_protocol": "mongodb",
+  "db_query": "{\"find\": \"test\",\"filter\": {},\"lsid\": {\"id\": {\"$binary\":{\"base64\":\"2KMk23/TTCKUtiAVU0fbgg==\",\"subType\":\"04\"}}},\"$clusterTime\": {\"clusterTime\": {\"$timestamp\":{\"t\":\"1626246087\",\"i\":\"1\"}},\"signature\": {\"hash\": {\"$binary\":{\"base64\":\"8X7BlnDAUxKgUo5lpI3XoKoNF54=\",\"subType\":\"00\"}},\"keyId\": {\"$numberLong\":\"6969719000615878659\"}}},\"$db\": \"test\"}",
+  "db_service": "mongo-primary",
+  "db_uri": "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+  "db_user": "alice",
+  "ei": 11,
+  "event": "db.session.query",
+  "sid": "13c04d4b-2e94-4106-a3a1-5ab8aae10465",
+  "success": true,
+  "time": "2021-07-14T07:03:49.783Z",
+  "uid": "c4550623-0538-452d-912b-1242715666c4",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.query.failed
+
+Database Query Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB02W",
+  "db_name": "houston",
+  "db_protocol": "mongodb",
+  "db_query": "{\"find\": \"test\",\"filter\": {},\"lsid\": {\"id\": {\"$binary\":{\"base64\":\"2KMk23/TTCKUtiAVU0fbgg==\",\"subType\":\"04\"}}},\"$clusterTime\": {\"clusterTime\": {\"$timestamp\":{\"t\":\"1626246227\",\"i\":\"1\"}},\"signature\": {\"hash\": {\"$binary\":{\"base64\":\"zBJKAl6VcjwQrr05N0O4qrQ92PY=\",\"subType\":\"00\"}},\"keyId\": {\"$numberLong\":\"6969719000615878659\"}}},\"$db\": \"houston\"}",
+  "db_service": "mongo-primary",
+  "db_uri": "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+  "db_user": "alice",
+  "ei": 13,
+  "error": "access to database denied",
+  "event": "db.session.query.failed",
+  "message": "access to database denied",
+  "sid": "13c04d4b-2e94-4106-a3a1-5ab8aae10465",
+  "success": false,
+  "time": "2021-07-14T07:05:22.32Z",
+  "uid": "21796ef9-a5dc-4595-a833-b893ac620488",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.spanner.rpc
+
+There are multiple events with the `db.session.spanner.rpc` type.
+
+### TSPN001W
+
+Spanner RPC Denied
+
+Example:
+
+```json
+{
+  "args": {
+    "database": "projects/project-id/instances/instance-id/databases/prod-db",
+    "session_count": 100,
+    "session_template": {}
+  },
+  "cluster_name": "root",
+  "code": "TSPN001W",
+  "db_name": "prod-db",
+  "db_origin": "dynamic",
+  "db_protocol": "spanner",
+  "db_service": "teleport-spanner",
+  "db_type": "spanner",
+  "db_uri": "spanner.googleapis.com:443",
+  "db_user": "some-user",
+  "error": "access to db denied. User does not have permissions. Confirm database user and name.",
+  "event": "db.session.spanner.rpc",
+  "message": "access to db denied. User does not have permissions. Confirm database user and name.",
+  "procedure": "BatchCreateSessions",
+  "sid": "04364984-a6d0-4e2c-93c7-5c44e2359502",
+  "success": false,
+  "time": "2024-03-13T01:25:48.568Z",
+  "uid": "1de57538-2eea-438b-a52d-3098f8093b28",
+  "user": "alice@example.com"
+}
+```
+
+### TSPN001I
+
+Spanner RPC
+
+Example:
+
+```json
+{
+  "args": {
+    "query_options": {},
+    "request_options": {},
+    "seqno": 1,
+    "session": "projects/project-id/instances/instance-id/databases/dev-db/sessions/ABCDEF1234567890Aye8_QwuELYD9rxa74YTWc-lu9LNuDDADbi4EOGm2C2j0ixe",
+    "sql": "select * from TestTable",
+    "transaction": {
+      "Selector": {
+        "SingleUse": {
+          "Mode": {
+            "ReadOnly": {
+              "TimestampBound": {
+                "Strong": true
+              },
+              "return_read_timestamp": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "cluster_name": "root",
+  "code": "TSPN001I",
+  "db_name": "dev-db",
+  "db_origin": "dynamic",
+  "db_protocol": "spanner",
+  "db_service": "teleport-spanner",
+  "db_type": "spanner",
+  "db_uri": "spanner.googleapis.com:443",
+  "db_user": "some-user",
+  "event": "db.session.spanner.rpc",
+  "procedure": "ExecuteStreamingSql",
+  "sid": "406b9883-0e16-42f2-9d0b-b3bd956f9cd4",
+  "success": true,
+  "time": "2024-03-13T00:02:44.739Z",
+  "uid": "e0625e79-9399-4ea3-aa8b-dba1eb98658d",
+  "user": "alice@example.com"
+}
+```
+
+## db.session.sqlserver.rpc_request
+
+SQLServer RPC Request
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TMS00I",
+  "db_name": "master",
+  "db_protocol": "sqlserver",
+  "db_service": "sqlserver02",
+  "db_uri": "localhost:1433",
+  "db_user": "sqlserver",
+  "ei": 7,
+  "event": "db.session.sqlserver.rpc_request",
+  "parameters": [
+    "SELECT\ndtb.collation_name AS [Collation],\ndtb.name AS [DatabaseName2]\nFROM\nmaster.sys.databases AS dtb\nWHERE\n(dtb.name=@_msparam_0)"
+  ],
+  "proc_name": "Sp_ExecuteSql",
+  "sid": "6b37d89b-0d9c-4681-976b-ba12588a1bcd",
+  "time": "2022-06-02T08:29:17.693Z",
+  "uid": "a29dfad1-5a71-4c48-b4e0-10d1d857a23c",
+  "user": "alice"
+}
+```
+
+## db.session.start
+
+There are multiple events with the `db.session.start` type.
+
+### TDB00I
+
+Database Session Started
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB00I",
+  "db_name": "",
+  "db_protocol": "mongodb",
+  "db_service": "mongo-primary",
+  "db_uri": "mongodb://mongo-1:27017,mongo-2:27018/?replicaSet=rs0",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.start",
+  "namespace": "default",
+  "server_id": "05ff66c9-a948-42f4-af0e-a1b6ba62561e",
+  "sid": "13c04d4b-2e94-4106-a3a1-5ab8aae10465",
+  "success": true,
+  "time": "2021-07-14T07:01:31.958Z",
+  "uid": "4a613b84-7315-41f4-9219-1afd6b08d4da",
+  "user": "alice@example.com"
+}
+```
+
+### TDB00W
+
+Database Session Denied
+
+Example:
+
+```json
+{
+  "code": "TDB00W",
+  "event": "db.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## db.session.user.create
+
+There are multiple events with the `db.session.user.create` type.
+
+### TDB08I
+
+Database User Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDB08I",
+  "db_name": "master",
+  "db_protocol": "postgres",
+  "db_service": "postgres-local",
+  "db_uri": "localhost:1433",
+  "db_user": "alice",
+  "ei": 0,
+  "event": "db.session.user.create",
+  "private_key_policy": "none",
+  "roles": null,
+  "sid": "47f20b91-f5c3-4eef-85e1-9509252238e7",
+  "success": true,
+  "time": "2022-06-02T08:46:33.825Z",
+  "uid": "95e74359-e5a1-4c76-970e-c522b550dbb9",
+  "user": "alice",
+  "user_kind": 1,
+  "username": "alice"
+}
+```
+
+### TDB08W
+
+Database User Creation Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDB08W",
+  "db_name": "master",
+  "db_protocol": "postgres",
+  "db_service": "postgres-local",
+  "db_uri": "localhost:1433",
+  "db_user": "alice",
+  "ei": 0,
+  "error": "dummy error",
+  "event": "db.session.user.create",
+  "message": "dummy error",
+  "private_key_policy": "none",
+  "roles": null,
+  "sid": "3fd14bfe-be21-40a4-b1da-744fa14f5108",
+  "success": false,
+  "time": "2022-06-02T08:46:33.825Z",
+  "uid": "4a4a6a70-c81d-4326-8565-3f7bd23b874f",
+  "user": "ben",
+  "user_kind": 1,
+  "username": "ben"
+}
+```
+
+## db.session.user.deactivate
+
+There are multiple events with the `db.session.user.deactivate` type.
+
+### TDB09I
+
+Database User Deactivated
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDB09I",
+  "db_name": "master",
+  "db_protocol": "postgres",
+  "db_service": "postgres-local",
+  "db_uri": "localhost:1433",
+  "db_user": "alice",
+  "delete": false,
+  "ei": 5,
+  "event": "db.session.user.deactivate",
+  "private_key_policy": "none",
+  "sid": "c362e10b-dbc4-44e5-b90f-0bee5dd0c623",
+  "success": true,
+  "time": "2022-06-02T08:46:33.825Z",
+  "uid": "0ab70491-4d33-4bc5-be58-27922a647f50",
+  "user": "ben",
+  "user_kind": 1,
+  "username": "ben"
+}
+```
+
+### TDB09W
+
+Database User Deactivate Failure
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDB09W",
+  "db_name": "master",
+  "db_protocol": "postgres",
+  "db_service": "postgres-local",
+  "db_uri": "localhost:1433",
+  "db_user": "alice",
+  "delete": false,
+  "ei": 4,
+  "error": "dummy error",
+  "event": "db.session.user.deactivate",
+  "message": "dummy error",
+  "private_key_policy": "none",
+  "sid": "3bb429a1-be03-4c03-827c-98ff846dacf7",
+  "success": false,
+  "time": "2022-06-02T08:46:33.825Z",
+  "uid": "c6569248-ac06-417d-b5b6-e0bf94eccb1a",
+  "user": "ben",
+  "user_kind": 1,
+  "username": "ben"
+}
+```
+
+## db.update
+
+Database Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "TDB04I",
+  "db_labels": {
+    "env": "local",
+    "teleport.dev/origin": "dynamic"
+  },
+  "db_protocol": "postgres",
+  "db_uri": "localhost:5432",
+  "ei": 0,
+  "event": "db.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "postgres-local",
+  "time": "2021-10-08T15:42:24.581Z",
+  "uid": "fe631a5a-6418-49d6-99e7-5280654663ec",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## desktop.clipboard.receive
+
+Clipboard Data Received
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP03I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "ei": 0,
+  "event": "desktop.clipboard.receive",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:39:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "length": 512
+}
+```
+
+## desktop.clipboard.send
+
+Clipboard Data Sent
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP02I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "ei": 0,
+  "event": "desktop.clipboard.send",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:39:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "length": 512
+}
+```
+
+## desktop.directory.read
+
+There are multiple events with the `desktop.directory.read` type.
+
+### TDP05I
+
+Directory Sharing Read
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP05I",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 9766,
+  "event": "desktop.directory.read",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "b9329a34-ab0c-4aa0-9fc8-1054d491e818",
+  "success": true,
+  "time": "2022-10-21T23:07:36.496189Z",
+  "uid": "a6ea5e5b-daac-47c2-9ce5-3f868e51a146",
+  "user": "joe"
+}
+```
+
+### TDP05W
+
+Directory Sharing Read Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP05W",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 9766,
+  "event": "desktop.directory.read",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "b9329a34-ab0c-4aa0-9fc8-1054d491e818",
+  "success": false,
+  "time": "2022-10-21T23:07:36.496189Z",
+  "uid": "a6ea5e5b-daac-47c2-9ce5-3f868e51a146",
+  "user": "joe"
+}
+```
+
+## desktop.directory.share
+
+There are multiple events with the `desktop.directory.share` type.
+
+### TDP04I
+
+Directory Sharing Started
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP04I",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 3317,
+  "event": "desktop.directory.share",
+  "proto": "tdp",
+  "sid": "6ecf916d-dedf-4769-afc0-d08e55fbebf7",
+  "success": true,
+  "time": "2022-10-21T22:36:27.314409Z",
+  "uid": "f38b07d4-2f3e-400b-a91a-bad7283db775",
+  "user": "joe"
+}
+```
+
+### TDP04W
+
+Directory Sharing Start Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP04W",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 3317,
+  "event": "desktop.directory.share",
+  "proto": "tdp",
+  "sid": "6ecf916d-dedf-4769-afc0-d08e55fbebf7",
+  "success": false,
+  "time": "2022-10-21T22:36:27.314409Z",
+  "uid": "f38b07d4-2f3e-400b-a91a-bad7283db775",
+  "user": "joe"
+}
+```
+
+## desktop.directory.write
+
+There are multiple events with the `desktop.directory.write` type.
+
+### TDP06I
+
+Directory Sharing Write
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP06I",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 7428,
+  "event": "desktop.directory.write",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "ea959406-27e4-4b11-85c4-1a485ff48417",
+  "success": true,
+  "time": "2022-10-21T23:19:34.519058Z",
+  "uid": "6bb2ebdf-d7e2-4a03-80ae-514ff9a5c71f",
+  "user": "joe"
+}
+```
+
+### TDP06W
+
+Directory Sharing Write Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP06W",
+  "desktop_addr": "ec2-54-162-177-255.compute-1.amazonaws.com:3389",
+  "desktop_name": "desktop-name",
+  "directory_id": 2,
+  "directory_name": "windows-server-2012-shared",
+  "ei": 7428,
+  "event": "desktop.directory.write",
+  "file_path": "powershell-scripts/domain-controller.ps1",
+  "length": 734,
+  "offset": 0,
+  "proto": "tdp",
+  "sid": "ea959406-27e4-4b11-85c4-1a485ff48417",
+  "success": false,
+  "time": "2022-10-21T23:19:34.519058Z",
+  "uid": "6bb2ebdf-d7e2-4a03-80ae-514ff9a5c71f",
+  "user": "joe"
+}
+```
+
+## device
+
+Device Enrolled
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV005I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "99d39707-efdd-436c-94f3-6a1aeef1fbf2",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device",
+  "status": {
+    "success": true
+  },
+  "time": "2023-01-12T19:28:36.842Z",
+  "uid": "94d33b77-82cd-4558-8893-0320699bf755",
+  "user": {
+    "user": "this user wont render properly"
+  }
+}
+```
+
+## device.authenticate
+
+Device Authenticated
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV006I",
+  "ei": 0,
+  "event": "device.authenticate",
+  "success": true,
+  "time": "2023-01-12T19:34:48.1Z",
+  "uid": "fa279611-91d8-47b5-9fad-b8ea3e5286e0",
+  "user": "lisa"
+}
+```
+
+## device.authenticate.confirm
+
+Device Web Authentication Confirmed
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV009I",
+  "device": {
+    "device_id": "f84f6b35-6226-4e73-8205-3bcbd7d12970",
+    "web_authentication": true,
+    "web_session_id": "my-session-id-12345"
+  },
+  "ei": 0,
+  "event": "device.authenticate.confirm",
+  "success": false,
+  "time": "2024-04-08T19:35:48.1Z",
+  "uid": "b1361d51-70fa-4f1b-803c-a252c2877707",
+  "user": "llama",
+  "user_kind": 1
+}
+```
+
+## device.create
+
+Device Registered
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV001I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "99d39707-efdd-436c-94f3-6a1aeef1fbf2",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device.create",
+  "success": true,
+  "time": "2023-01-12T19:28:36.842Z",
+  "uid": "94d33b77-82cd-4558-8893-0320699bf755",
+  "user": "3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name"
+}
+```
+
+## device.delete
+
+Device Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV002I",
+  "device": {
+    "device_id": "99d39707-efdd-436c-94f3-6a1aeef1fbf2"
+  },
+  "ei": 0,
+  "event": "device.delete",
+  "success": true,
+  "time": "2023-01-12T20:33:20.527Z",
+  "uid": "a12e693e-1c45-43e4-a9d1-5fd8399e303c",
+  "user": "3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name"
+}
+```
+
+## device.token.create
+
+Device Enroll Token Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV003I",
+  "device": {
+    "device_id": "99d39707-efdd-436c-94f3-6a1aeef1fbf2"
+  },
+  "ei": 0,
+  "event": "device.token.create",
+  "success": true,
+  "time": "2023-01-12T19:51:54.168Z",
+  "uid": "24cce2a0-57b7-494e-a196-c7fd2482b10c",
+  "user": "3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name"
+}
+```
+
+## device.token.spent
+
+Device Enroll Token Spent
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV004I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "0e288b23-f99f-4635-b182-06e9308095a8",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device.token.spent",
+  "success": true,
+  "time": "2023-01-12T21:31:29.191Z",
+  "uid": "bbbc496f-820b-4f49-ae0d-1c1b29faee85",
+  "user": "lisa"
+}
+```
+
+## device.update
+
+Device Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV007I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "0e288b23-f99f-4635-b182-06e9308095a8",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device.update",
+  "success": true,
+  "time": "2023-01-12T21:31:29.191Z",
+  "uid": "bbbc496f-820b-4f49-ae0d-1c1b29faee85",
+  "user": "lisa"
+}
+```
+
+## device.webtoken.create
+
+Device Web Token Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV008I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "credential_id": "c7572891-8426-4e62-874f-c793029d53a6",
+    "device_id": "f84f6b35-6226-4e73-8205-3bcbd7d12970",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device.webtoken.create",
+  "success": true,
+  "time": "2024-03-05T17:18:43.296Z",
+  "uid": "b1361d51-70fa-4f1b-803c-a252c2877707",
+  "user": "llama",
+  "user_kind": 1
+}
+```
+
+## discovery_config.create
+
+Discovery Config Created
+
+Example:
+
+```json
+{
+  "code": "DC001I",
+  "event": "discovery_config.create",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "discovery-config",
+  "updated_by": "joe"
+}
+```
+
+## discovery_config.delete
+
+Discovery Config Deleted
+
+Example:
+
+```json
+{
+  "code": "DC003I",
+  "event": "discovery_config.delete",
+  "time": "2023-05-08T19:21:38.144Z",
+  "name": "discovery-config",
+  "updated_by": "joe"
+}
+```
+
+## discovery_config.delete_all
+
+All Discovery Configs Deleted
+
+Example:
+
+```json
+{
+  "code": "DC004I",
+  "event": "discovery_config.delete_all",
+  "time": "2023-05-08T19:21:39.144Z",
+  "name": "discovery-config",
+  "updated_by": "joe"
+}
+```
+
+## discovery_config.update
+
+Discovery Config Updated
+
+Example:
+
+```json
+{
+  "code": "DC002I",
+  "event": "discovery_config.update",
+  "time": "2023-05-08T19:21:37.144Z",
+  "name": "discovery-config",
+  "updated_by": "joe"
+}
+```
+
+## exec
+
+There are multiple events with the `exec` type.
+
+### T3002I
+
+Command Execution
+
+Example:
+
+```json
+{
+  "code": "T3002I",
+  "proto": "kube",
+  "kubernetes_cluster": "clusterOne",
+  "ei": 0,
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "151.181.228.114:51752",
+  "event": "exec",
+  "namespace": "default",
+  "sid": "8d57a9d5-3848-5ce2-a326-85eb4a6d2eed",
+  "time": "2020-10-30T17:28:14.705Z",
+  "uid": "8ea5be3d-07b1-4308-8e0d-2d2ec57cbb20",
+  "user": "alex"
+}
+```
+
+### T3002E
+
+Command Execution Failed
+
+Example:
+
+```json
+{
+  "code": "T3002E",
+  "event": "exec",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## external_audit_storage.disable
+
+External Audit Storage Disabled
+
+Example:
+
+```json
+{
+  "code": "TEA002I",
+  "event": "external_audit_storage.disable",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## external_audit_storage.enable
+
+External Audit Storage Enabled
+
+Example:
+
+```json
+{
+  "code": "TEA001I",
+  "event": "external_audit_storage.enable",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## git.command
+
+There are multiple events with the `git.command` type.
+
+### TGIT001E
+
+Git Command Failed
+
+Example:
+
+```json
+{
+  "code": "TGIT001E",
+  "event": "git.command",
+  "time": "2024-12-07T11:11:11.111Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "user": "Linus.Torvalds",
+  "service": "git-upload-pack",
+  "exitError": "some-error",
+  "path": "my-org/my-repo"
+}
+```
+
+### TGIT001I
+
+Git Command
+
+Example:
+
+```json
+{
+  "code": "TGIT001I",
+  "event": "git.command",
+  "time": "2024-12-07T11:11:11.112Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "user": "Linus.Torvalds",
+  "service": "git-upload-pack",
+  "path": "my-org/my-repo"
+}
+```
+
+## github.created
+
+GitHub Auth Connector Created
+
+Example:
+
+```json
+{
+  "code": "T8000I",
+  "event": "github.created",
+  "name": "new_github_connector",
+  "time": "2020-06-05T19:28:00Z",
+  "uid": "2b7bb323-35d1-4b9c-9a6d-00ab34c95fb8",
+  "user": "unimplemented"
+}
+```
+
+## github.deleted
+
+GitHub Auth Connector Deleted
+
+Example:
+
+```json
+{
+  "code": "T8001I",
+  "event": "github.deleted",
+  "name": "new_github_connector",
+  "time": "2020-06-05T19:28:28Z",
+  "uid": "26f12a67-d593-40df-b3d3-965faee60143",
+  "user": "unimplemented"
+}
+```
+
+## github.updated
+
+GitHub Auth Connector Updated
+
+Example:
+
+```json
+{
+  "code": "T80002I",
+  "event": "github.updated",
+  "name": "new_github_connector",
+  "time": "2020-06-05T19:28:28Z",
+  "uid": "26f12a67-d593-40df-b3d3-965faee60143",
+  "user": "unimplemented"
+}
+```
+
+## health_check_config.create
+
+Health Check Config Created
+
+Example:
+
+```json
+{
+  "cluster_name": "gavin-leaf.cloud.gravitational.io",
+  "code": "THCC001I",
+  "ei": 0,
+  "event": "health_check_config.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example-cfg",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "gavin"
+}
+```
+
+## health_check_config.delete
+
+Health Check Config Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "gavin-leaf.cloud.gravitational.io",
+  "code": "THCC003I",
+  "ei": 0,
+  "event": "health_check_config.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example-cfg",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "gavin"
+}
+```
+
+## health_check_config.update
+
+Health Check Config Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "gavin-leaf.cloud.gravitational.io",
+  "code": "THCC002I",
+  "ei": 0,
+  "event": "health_check_config.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example-cfg",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "gavin"
+}
+```
+
+## instance.join
+
+There are multiple events with the `instance.join` type.
+
+### TJ002I
+
+Instance Joined
+
+Example:
+
+```json
+{
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ002I",
+  "ei": 0,
+  "event": "instance.join",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98"
+}
+```
+
+### TJ002E
+
+Instance Join Failed
+
+Example:
+
+```json
+{
+  "code": "TJ002E",
+  "event": "instance.join",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## integration.create
+
+Integration Created
+
+Example:
+
+```json
+{
+  "code": "IG001I",
+  "event": "integration.create",
+  "time": "2023-05-09T19:21:36.144Z",
+  "name": "integration",
+  "updated_by": "joe"
+}
+```
+
+## integration.delete
+
+Integration Deleted
+
+Example:
+
+```json
+{
+  "code": "IG003I",
+  "event": "integration.delete",
+  "time": "2023-05-09T19:21:38.144Z",
+  "name": "integration",
+  "updated_by": "joe"
+}
+```
+
+## integration.update
+
+Integration Updated
+
+Example:
+
+```json
+{
+  "code": "IG002I",
+  "event": "integration.update",
+  "time": "2023-05-09T19:21:37.144Z",
+  "name": "integration",
+  "updated_by": "joe"
+}
+```
+
+## join_token.bound_keypair.join_state_verification_failed
+
+Bound Keypair Join Verification Failed
+
+Example:
+
+```json
+{
+  "code": "TBK003W",
+  "event": "join_token.bound_keypair.join_state_verification_failed",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## join_token.bound_keypair.recovery
+
+Bound Keypair Recovery
+
+Example:
+
+```json
+{
+  "code": "TBK001I",
+  "event": "join_token.bound_keypair.recovery",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## join_token.bound_keypair.rotation
+
+Bound Keypair Rotation
+
+Example:
+
+```json
+{
+  "code": "TBK002I",
+  "event": "join_token.bound_keypair.rotation",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## join_token.create
+
+Join Token Created
+
+Example:
+
+```json
+{
+  "code": "TJT00I",
+  "event": "join_token.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## kube.create
+
+Kubernetes Created
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "T3010I",
+  "kube_labels": {
+    "env": "local",
+    "teleport.dev/origin": "dynamic"
+  },
+  "ei": 0,
+  "event": "kube.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "kube-local",
+  "time": "2022-09-08T15:42:36.005Z",
+  "uid": "9d37514f-aef5-426f-9fda-31fd35d070f5",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## kube.delete
+
+Kubernetes Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "T3012I",
+  "ei": 0,
+  "event": "kube.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "kube-local",
+  "time": "2022-09-08T15:42:36.005Z",
+  "uid": "74f5e6b9-50c4-4195-bb26-d615641255bc",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## kube.request
+
+Kubernetes Request
+
+Example:
+
+```json
+{
+  "addr.local": "127.0.0.1:3027",
+  "addr.remote": "[::1]:43026",
+  "code": "T3009I",
+  "ei": 0,
+  "event": "kube.request",
+  "kubernetes_cluster": "gke_teleport-a",
+  "login": "awly",
+  "namespace": "default",
+  "proto": "kube",
+  "request_path": "/api/v1/namespaces/teletest/pods/test-pod",
+  "resource_api_group": "core/v1",
+  "resource_kind": "pods",
+  "resource_name": "test-pod",
+  "resource_namespace": "teletest",
+  "response_code": 200,
+  "server_id": "9b67377e-d61e-4865-96d6-fa71989fd9e9",
+  "time": "2020-11-12T20:35:44.978Z",
+  "uid": "8c1459a8-9199-4d25-bc5d-38e000ddd9ab",
+  "user": "alex",
+  "verb": "GET"
+}
+```
+
+## kube.update
+
+Kubernetes Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "root",
+  "code": "T3011I",
+  "kube_labels": {
+    "env": "local",
+    "teleport.dev/origin": "dynamic"
+  },
+  "ei": 0,
+  "event": "kube.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "kube-local",
+  "time": "2022-09-08T15:42:36.005Z",
+  "uid": "fe631a5a-6418-49d6-99e7-5280654663ec",
+  "user": "05ff66c9-a948-42f4-af0e-a1b6ba62561e.root"
+}
+```
+
+## lock.created
+
+Lock Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TLK00I",
+  "ei": 0,
+  "event": "lock.created",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "lock-name",
+  "time": "2021-08-06T18:47:19.75Z",
+  "uid": "070fcb2a-e1cf-5b84-8190-14448cc63c76",
+  "user": "df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name"
+}
+```
+
+## lock.deleted
+
+Lock Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TLK01I",
+  "ei": 0,
+  "event": "lock.deleted",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "lock-name",
+  "time": "2021-08-06T18:49:51.626Z",
+  "uid": "e4630384-ac85-5a43-9ba9-3355b8d5cae4",
+  "user": "df83fda8-1111-5567-8bcc-c282dec3290e.im-a-cluster-name"
+}
+```
+
+## login_rule.create
+
+Login Rule Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TLR00I",
+  "ei": 0,
+  "event": "login_rule.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "test_rule",
+  "time": "2023-01-25T19:21:36.144Z",
+  "uid": "266e8563-729e-412f-ba26-1050fbec0cd6",
+  "user": "nic"
+}
+```
+
+## login_rule.delete
+
+Login Rule Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TLR01I",
+  "ei": 0,
+  "event": "login_rule.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "test_rule",
+  "time": "2023-01-25T19:21:36.144Z",
+  "uid": "266e8563-729e-412f-ba26-1050fbec0cd6",
+  "user": "nic"
+}
+```
+
+## mcp.session.end
+
+There are multiple events with the `mcp.session.end` type.
+
+### TMCP002I
+
+MCP Session Ended
+
+Example:
+
+```json
+{
+  "code": "TMCP002I",
+  "ei": 0,
+  "event": "mcp.session.end",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true
+}
+```
+
+### TMCP002E
+
+MCP Session End Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP002E",
+  "ei": 0,
+  "event": "mcp.session.end",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true,
+  "error": "HTTP 405 Method Not Allowed"
+}
+```
+
+## mcp.session.invalid_http_request
+
+MCP Session Invalid Request
+
+Example:
+
+```json
+{
+  "code": "TMCP006E",
+  "ei": 0,
+  "event": "mcp.session.invalid_http_request",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "method": "OPTIONS",
+  "path": "/"
+}
+```
+
+## mcp.session.listen_sse_stream
+
+There are multiple events with the `mcp.session.listen_sse_stream` type.
+
+### TMCP005I
+
+MCP Session Listen
+
+Example:
+
+```json
+{
+  "code": "TMCP005I",
+  "ei": 0,
+  "event": "mcp.session.listen_sse_stream",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true
+}
+```
+
+### TMCP005E
+
+MCP Session Listen Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP005E",
+  "ei": 0,
+  "event": "mcp.session.listen_sse_stream",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T12:22:22.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": false,
+  "error": "HTTP 405 Method Not Allowed"
+}
+```
+
+## mcp.session.notification
+
+There are multiple events with the `mcp.session.notification` type.
+
+### TMCP004I
+
+MCP Session Notification
+
+Example:
+
+```json
+{
+  "code": "TMCP004I",
+  "ei": 0,
+  "event": "mcp.session.notification",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.333Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true,
+  "message": {
+    "method": "notifications/initialized",
+    "jsonrpc": "2.0"
+  }
+}
+```
+
+### TMCP004E
+
+MCP Session Notification Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP004E",
+  "ei": 0,
+  "event": "mcp.session.notification",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.333Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": false,
+  "message": {
+    "method": "notifications/initialized",
+    "jsonrpc": "2.0"
+  },
+  "error": "HTTP 401 Unauthorized"
+}
+```
+
+## mcp.session.request
+
+There are multiple events with the `mcp.session.request` type.
+
+### TMCP003I
+
+MCP Session Request
+
+Example:
+
+```json
+{
+  "code": "TMCP003I",
+  "ei": 0,
+  "event": "mcp.session.request",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.222Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": true,
+  "message": {
+    "id": 0,
+    "method": "initialize",
+    "params": {
+      "clientInfo": {
+        "name": "claude-ai",
+        "version": "0.1.0"
+      },
+      "protocolVersion": "2024-11-05"
+    },
+    "jsonrpc": "2.0"
+  }
+}
+```
+
+### TMCP003E
+
+MCP Session Request Failure
+
+Example:
+
+```json
+{
+  "code": "TMCP003E",
+  "ei": 0,
+  "event": "mcp.session.request",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.555Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything",
+  "success": false,
+  "error": "access denied",
+  "message": {
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "write_file",
+      "arguments": {
+        "path": "/etc/passwd"
+      }
+    },
+    "jsonrpc": "2.0"
+  }
+}
+```
+
+## mcp.session.start
+
+MCP Session Started
+
+Example:
+
+```json
+{
+  "code": "TMCP001I",
+  "ei": 0,
+  "event": "mcp.session.start",
+  "namespace": "default",
+  "server_id": "a0518380-0d53-4188-ac8b-8ddd8103e45b",
+  "sid": "6593cf87-9839-4f18-abf8-c54873aaeb4e",
+  "time": "2025-05-23T11:11:11.111Z",
+  "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
+  "user": "ai-user",
+  "app_name": "mcp-everything"
+}
+```
+
+## mfa.delete
+
+There are multiple events with the `mfa.delete` type.
+
+### T1006I
+
+MFA Device Added
+
+Example:
+
+```json
+{
+  "cluster_name": "localhost",
+  "code": "T1006I",
+  "mfa_device_name": "usb-c",
+  "mfa_device_type": "U2F",
+  "mfa_device_uuid": "7a6fbf23-d75c-4c62-8215-e962d0f2a1f3",
+  "ei": 0,
+  "event": "mfa.delete",
+  "time": "2021-03-03T22:58:34.737Z",
+  "uid": "9be91d9e-79ec-422b-b6ae-ccf7235476d4",
+  "user": "awly"
+}
+```
+
+### T1007I
+
+MFA Device Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "localhost",
+  "code": "T1007I",
+  "mfa_device_name": "usb-c",
+  "mfa_device_type": "U2F",
+  "mfa_device_uuid": "7a6fbf23-d75c-4c62-8215-e962d0f2a1f3",
+  "ei": 0,
+  "event": "mfa.delete",
+  "time": "2021-03-03T22:58:44.737Z",
+  "uid": "c6afe861-d53c-42ce-837c-7920d2398b44",
+  "user": "awly"
+}
+```
+
+## mfa_auth_challenge.create
+
+MFA Authentication Attempt
+
+Example:
+
+```json
+{
+  "challenge_allow_reuse": false,
+  "challenge_scope": "CHALLENGE_SCOPE_LOGIN",
+  "cluster_name": "zarq",
+  "code": "T1015I",
+  "ei": 0,
+  "event": "mfa_auth_challenge.create",
+  "time": "2024-04-16T21:46:59.317Z",
+  "uid": "815bbcf4-fb05-4e08-917c-7259e9332d69",
+  "user": "llama",
+  "user_kind": 1
+}
+```
+
+## mfa_auth_challenge.validate
+
+There are multiple events with the `mfa_auth_challenge.validate` type.
+
+### T1016I
+
+MFA Authentication Success
+
+Example:
+
+```json
+{
+  "code": "T1016I",
+  "event": "mfa_auth_challenge.validate",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T1016W
+
+MFA Authentication Failure
+
+Example:
+
+```json
+{
+  "code": "T1016W",
+  "event": "mfa_auth_challenge.validate",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## oidc.created
+
+OIDC Auth Connector Created
+
+Example:
+
+```json
+{
+  "code": "T8100I",
+  "event": "oidc.created",
+  "name": "new_oidc_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## oidc.deleted
+
+OIDC Auth Connector Deleted
+
+Example:
+
+```json
+{
+  "code": "T8101I",
+  "event": "oidc.deleted",
+  "name": "new_oidc_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## oidc.updated
+
+OIDC Auth Connector Updated
+
+Example:
+
+```json
+{
+  "code": "T8102I",
+  "event": "oidc.updated",
+  "name": "new_oidc_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## okta.access_list.sync
+
+There are multiple events with the `okta.access_list.sync` type.
+
+### TOK006I
+
+Okta access list synchronization completed
+
+Example:
+
+```json
+{
+  "code": "TOK006I",
+  "event": "okta.access_list.sync",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+### TOK006E
+
+Okta access list synchronization failed
+
+Example:
+
+```json
+{
+  "code": "TOK006E",
+  "event": "okta.access_list.sync",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+## okta.applications.update
+
+Okta applications have been updated
+
+Example:
+
+```json
+{
+  "code": "TOK002I",
+  "event": "okta.applications.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "added": 5,
+  "updated": 1,
+  "deleted": 7
+}
+```
+
+## okta.assignment.cleanup
+
+There are multiple events with the `okta.assignment.cleanup` type.
+
+### TOK005I
+
+Okta assignment has been cleaned up
+
+Example:
+
+```json
+{
+  "code": "TOK005I",
+  "event": "okta.assignment.cleanup",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+### TOK005E
+
+Okta assignment failed to clean up
+
+Example:
+
+```json
+{
+  "code": "TOK005E",
+  "event": "okta.assignment.cleanup",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+## okta.assignment.process
+
+There are multiple events with the `okta.assignment.process` type.
+
+### TOK004I
+
+Okta assignment has been processed
+
+Example:
+
+```json
+{
+  "code": "TOK004I",
+  "event": "okta.assignment.process",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+### TOK004E
+
+Okta assignment failed to process
+
+Example:
+
+```json
+{
+  "code": "TOK004E",
+  "event": "okta.assignment.process",
+  "time": "2023-05-08T19:21:36.144Z",
+  "name": "assignment-id",
+  "source": "source",
+  "user": "mike"
+}
+```
+
+## okta.groups.update
+
+Okta groups have been updated
+
+Example:
+
+```json
+{
+  "code": "TOK001I",
+  "event": "okta.groups.update",
+  "time": "2023-05-08T19:21:36.144Z",
+  "added": 5,
+  "updated": 1,
+  "deleted": 7
+}
+```
+
+## okta.sync.failure
+
+Okta synchronization failed
+
+Example:
+
+```json
+{
+  "code": "TOK003E",
+  "event": "okta.sync.failure",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+## okta.user.sync
+
+There are multiple events with the `okta.user.sync` type.
+
+### TOK007I
+
+Okta user synchronization completed
+
+Example:
+
+```json
+{
+  "code": "TOK007I",
+  "event": "okta.user.sync",
+  "time": "2023-05-08T19:21:36.144Z",
+  "num_users_created": 5,
+  "num_users_deleted": 1,
+  "num_users_modified": 7
+}
+```
+
+### TOK007E
+
+Okta user synchronization failed
+
+Example:
+
+```json
+{
+  "code": "TOK007E",
+  "event": "okta.user.sync",
+  "time": "2023-05-08T19:21:36.144Z"
+}
+```
+
+## plugin.create
+
+Plugin Created
+
+Example:
+
+```json
+{
+  "code": "PG001I",
+  "event": "plugin.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## plugin.delete
+
+Plugin Deleted
+
+Example:
+
+```json
+{
+  "code": "PG003I",
+  "event": "plugin.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## plugin.update
+
+Plugin Updated
+
+Example:
+
+```json
+{
+  "code": "PG002I",
+  "event": "plugin.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## port
+
+There are multiple events with the `port` type.
+
+### T3003I
+
+Port Forwarding Start
+
+Example:
+
+```json
+{
+  "code": "T3003I",
+  "event": "port",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3003E
+
+Port Forwarding Failure
+
+Example:
+
+```json
+{
+  "code": "T3003E",
+  "event": "port",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3003S
+
+Port Forwarding Stop
+
+Example:
+
+```json
+{
+  "code": "T3003S",
+  "event": "port",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## privilege_token.create
+
+Privilege Token Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "T6002I",
+  "ei": 0,
+  "event": "privilege_token.create",
+  "expires": "2021-11-01T22:29:47.989984Z",
+  "name": "user@example.com",
+  "time": "2021-11-01T22:24:47.99Z",
+  "ttl": "5m0s",
+  "uid": "6a9d5ac1-08c5-5c1e-9ebd-086d34155b08",
+  "user": "user@example.com"
+}
+```
+
+## recovery_code.generated
+
+Recovery Codes Generated
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "T1008I",
+  "ei": 0,
+  "event": "recovery_code.generated",
+  "time": "2021-08-05T21:16:17.13Z",
+  "uid": "ed0f6962-e34d-5fa4-bd41-7961cf2c51bb",
+  "user": "user@example.com"
+}
+```
+
+## recovery_code.used
+
+There are multiple events with the `recovery_code.used` type.
+
+### T1009I
+
+Recovery Code Used
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "T1009I",
+  "ei": 0,
+  "event": "recovery_code.used",
+  "success": true,
+  "time": "2021-08-05T21:22:46.042Z",
+  "uid": "4bb44dfe-70dc-5820-8c65-0baf40f62d13",
+  "user": "user@example.com"
+}
+```
+
+### T1009W
+
+Recovery Code Use Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "localhost",
+  "code": "T1009W",
+  "ei": 0,
+  "error": "recovery code did not match",
+  "event": "recovery_code.used",
+  "message": "recovery code did not match",
+  "success": false,
+  "time": "2021-08-05T23:32:41.273Z",
+  "uid": "714625ab-48d5-51d0-ab1f-c4b267881594",
+  "user": "user@example.com"
+}
+```
+
+## recovery_token.create
+
+Recovery Token Created
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "T6001I",
+  "ei": 0,
+  "event": "recovery_token.create",
+  "expires": "2021-08-05T21:56:14.935267Z",
+  "name": "user@example.com",
+  "time": "2021-08-05T21:41:14.935Z",
+  "ttl": "15m0s",
+  "uid": "29cd2ad5-f1cd-54d2-85fc-4910fbfc9bfa",
+  "user": "user@example.com"
+}
+```
+
+## reset_password_token.create
+
+Reset Password Token Created
+
+Example:
+
+```json
+{
+  "code": "T6000I",
+  "name": "hello",
+  "event": "reset_password_token.create",
+  "time": "2020-06-05T16:24:22Z",
+  "ttl": "8h0m0s",
+  "uid": "85fef5df-6dca-475e-a049-393f4cf1d6a3",
+  "user": "b331fb6c-85f9-4cb0-b308-3452420bf81e.one"
+}
+```
+
+## resize
+
+Terminal Resize
+
+Example:
+
+```json
+{
+  "code": "T2002I",
+  "ei": 3,
+  "event": "resize",
+  "login": "root",
+  "namespace": "default",
+  "sid": "56408539-6536-11e9-80a1-427cfde50f5a",
+  "size": "80:25",
+  "time": "2019-04-22T19:39:52.432Z",
+  "uid": "917d8108-3617-4273-ab37-7bbf8e7c1ab9",
+  "user": "admin@example.com"
+}
+```
+
+## role.created
+
+User Role Created
+
+Example:
+
+```json
+{
+  "code": "T9000I",
+  "event": "role.created",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## role.deleted
+
+User Role Deleted
+
+Example:
+
+```json
+{
+  "code": "T9001I",
+  "event": "role.deleted",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## role.updated
+
+User Role Updated
+
+Example:
+
+```json
+{
+  "code": "T9002I",
+  "event": "role.updated",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## saml.created
+
+SAML Connector Created
+
+Example:
+
+```json
+{
+  "code": "T8200I",
+  "event": "saml.created",
+  "name": "new_saml_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## saml.deleted
+
+SAML Connector Deleted
+
+Example:
+
+```json
+{
+  "code": "T8201I",
+  "event": "saml.deleted",
+  "name": "new_saml_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## saml.idp.auth
+
+SAML IdP authentication
+
+Example:
+
+```json
+{
+  "code": "TSI000I",
+  "event": "saml.idp.auth",
+  "time": "2023-01-25T19:21:36.144Z",
+  "user": "mike",
+  "session_id": "123456",
+  "success": true,
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+## saml.idp.service.provider.create
+
+There are multiple events with the `saml.idp.service.provider.create` type.
+
+### TSI001I
+
+SAML IdP service provider created
+
+Example:
+
+```json
+{
+  "code": "TSI001I",
+  "event": "saml.idp.service.provider.create",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI001W
+
+SAML IdP service provider create failed
+
+Example:
+
+```json
+{
+  "code": "TSI001W",
+  "event": "saml.idp.service.provider.create",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+## saml.idp.service.provider.delete
+
+There are multiple events with the `saml.idp.service.provider.delete` type.
+
+### TSI003I
+
+SAML IdP service provider deleted
+
+Example:
+
+```json
+{
+  "code": "TSI003I",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI003W
+
+SAML IdP service provider delete failed
+
+Example:
+
+```json
+{
+  "code": "TSI003W",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI004I
+
+All SAML IdP service provider deleted
+
+Example:
+
+```json
+{
+  "code": "TSI004I",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike"
+}
+```
+
+### TSI004W
+
+SAML IdP service provider delete failed
+
+Example:
+
+```json
+{
+  "code": "TSI004W",
+  "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike"
+}
+```
+
+## saml.idp.service.provider.update
+
+There are multiple events with the `saml.idp.service.provider.update` type.
+
+### TSI002I
+
+SAML IdP service provider updated
+
+Example:
+
+```json
+{
+  "code": "TSI002I",
+  "event": "saml.idp.service.provider.update",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+### TSI002W
+
+SAML IdP service provider update failed
+
+Example:
+
+```json
+{
+  "code": "TSI002W",
+  "event": "saml.idp.service.provider.update",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike",
+  "service_provider_entity_id": "valid-entity-id"
+}
+```
+
+## saml.updated
+
+SAML Connector Updated
+
+Example:
+
+```json
+{
+  "code": "T8202I",
+  "event": "saml.updated",
+  "name": "new_saml_connector",
+  "time": "2020-06-05T19:29:14Z",
+  "uid": "6208b4b9-0077-41aa-967a-f173b6bcc0d3",
+  "user": "unimplemented"
+}
+```
+
+## scim.create
+
+There are multiple events with the `scim.create` type.
+
+### TSCIM001I
+
+SCIM Resource Creation Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM001I",
+  "event": "scim.create",
+  "success": true,
+  "request": {
+    "id": "ff5cea87-db00-4fa8-a30f-99f220f61075",
+    "source_address": "127.0.0.1",
+    "user_agent": "carrier pigeon",
+    "method": "PUT",
+    "path": "/scim/v2/Users",
+    "body": {
+      "active": true,
+      "id": "external-id-0987654321",
+      "nickName": "bofh",
+      "schemas": [
+        "urn:ietf:params:scim:schemas:core:2.0:User"
+      ],
+      "userName": "root@localhost"
+    }
+  },
+  "integration": "okta",
+  "resource_type": "user",
+  "external_id": "external-id-0987654321",
+  "teleport_id": "root@localhost"
+}
+```
+
+### TSCIM001E
+
+SCIM Resource Creation Failed
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM001E",
+  "event": "scim.create",
+  "success": false,
+  "error": "Too many candidates",
+  "integration": "okta",
+  "resource_type": "group",
+  "teleport_id": "access-list-guid",
+  "external_id": "0987654321",
+  "display": "Some group"
+}
+```
+
+## scim.delete
+
+There are multiple events with the `scim.delete` type.
+
+### TSCIM003I
+
+SCIM Delete Succeeded
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM003I",
+  "event": "scim.delete",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-00123456789",
+  "display": "test@example.com"
+}
+```
+
+### TSCIM003E
+
+SCIM Delete Failed
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM003E",
+  "event": "scim.delete",
+  "resource_type": "group",
+  "success": false,
+  "error": "no such group",
+  "integration": "okta",
+  "teleport_id": "access-list-guid",
+  "external_id": "external-id-00123456789",
+  "display": "some group"
+}
+```
+
+## scim.get
+
+There are multiple events with the `scim.get` type.
+
+### TSCIM004I
+
+SCIM Resource Fetch Succeeded
+
+Example:
+
+```json
+{
+  "code": "TSCIM004I",
+  "event": "scim.get",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TSCIM004E
+
+SCIM Resource Fetch Failed
+
+Example:
+
+```json
+{
+  "code": "TSCIM004E",
+  "event": "scim.get",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## scim.list
+
+There are multiple events with the `scim.list` type.
+
+### TSCIM005I
+
+SCIM Resource Listing Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM005I",
+  "event": "scim.list",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "root@localhost",
+  "external_id": "external-id-0987654321",
+  "display": "local admin"
+}
+```
+
+### TSCIM005IE
+
+SCIM Resource Listing Failed
+
+Example:
+
+```json
+{
+  "code": "TSCIM005IE",
+  "event": "scim.list",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## scim.update
+
+There are multiple events with the `scim.update` type.
+
+### TSCIM002I
+
+SCIM Update Succeeded
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM002I",
+  "event": "scim.update",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "externa-id-00123456789",
+  "display": "test@example.com"
+}
+```
+
+### TSCIM002E
+
+SCIM Update Failed
+
+Example:
+
+```json
+{
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM002E",
+  "event": "scim.update",
+  "resource_type": "user",
+  "success": false,
+  "error": "no such user",
+  "integration": "okta",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-000123456789",
+  "display": "test@example.com"
+}
+```
+
+## scp
+
+There are multiple events with the `scp` type.
+
+### T3004I
+
+SCP Download
+
+Example:
+
+```json
+{
+  "code": "T3004I",
+  "action": "download",
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "127.0.0.1:55594",
+  "event": "scp",
+  "login": "root",
+  "namespace": "default",
+  "path": "~/fsdfsdfsdfsdfs",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "183ca6de-c24b-4f67-854f-163c01245fa1",
+  "user": "admin@example.com"
+}
+```
+
+### T3004E
+
+SCP Download Failed
+
+Example:
+
+```json
+{
+  "action": "download",
+  "addr.local": "192.168.0.105:3022",
+  "addr.remote": "127.0.0.1:39932",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3004E",
+  "command": "/home/path scp --remote-addr=\"127.0.0.1:39932\" --local-addr=\"111.222.0.105:3022\" -f ~/sdfsdf",
+  "ei": 0,
+  "event": "scp",
+  "exitCode": "1",
+  "exitError": "exit status 1",
+  "login": "root",
+  "namespace": "default",
+  "path": "~/sdfsdf",
+  "server_id": "8045a8cc-49bb-4e02-bdc99313",
+  "sid": "8ff117ec-70a2-4481-8e359cf6",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "30e13b84-a51f-467676258b9bf",
+  "user": "root"
+}
+```
+
+### T3005I
+
+SCP Upload
+
+Example:
+
+```json
+{
+  "action": "upload",
+  "addr.local": "192.168.0.105:3022",
+  "addr.remote": "127.0.0.1:57058",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3005I",
+  "command": "/home/path scp --remote-addr=\"127.0.0.1:57058\" --local-addr=\"111.222.0.105:3022\" -t ~/",
+  "ei": 0,
+  "event": "scp",
+  "exitCode": "0",
+  "login": "root",
+  "namespace": "default",
+  "path": "~/",
+  "server_id": "8045a8cc-49bb-4e02-bdc5-a782a313",
+  "sid": "b484b5cc-9065-40fa-9a0c-db3",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root"
+}
+```
+
+### T3005E
+
+SCP Upload Failed
+
+Example:
+
+```json
+{
+  "code": "T3005E",
+  "event": "scp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3010E
+
+SCP Disallowed
+
+Example:
+
+```json
+{
+  "code": "T3010E",
+  "event": "scp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## secreports.audit.query.run
+
+Access Monitoring Query Executed
+
+Example:
+
+```json
+{
+  "cluster_name": "root.com",
+  "code": "SRE001I",
+  "data_scanned_in_bytes": 4045,
+  "days": 90,
+  "event": "secreports.audit.query.run",
+  "query": "select * FROM cert_create",
+  "success": true,
+  "time": "2023-10-09T10:09:10.473Z",
+  "total_execution_time_in_millis": 1440,
+  "uid": "dc29d36c-c5b6-4ffc-9aa7-2d9ba18a3953",
+  "user": "marek"
+}
+```
+
+## secreports.report.run
+
+Access Monitoring Report Executed
+
+Example:
+
+```json
+{
+  "cluster_name": "root.com",
+  "code": "SRE002I",
+  "data_scanned_in_bytes": 13258,
+  "event": "secreports.report.run",
+  "name": "privilege_access_report_90_days",
+  "success": true,
+  "time": "2023-10-09T09:10:03.633Z",
+  "total_execution_time_in_millis": 14082,
+  "uid": "f44871b9-7247-467b-a760-8159d3f47bac",
+  "user": "system"
+}
+```
+
+## session.command
+
+Session Command
+
+Example:
+
+```json
+{
+  "argv": [
+    "google.com"
+  ],
+  "cgroup_id": 4294968064,
+  "code": "T4000I",
+  "ei": 5,
+  "event": "session.command",
+  "login": "root",
+  "namespace": "default",
+  "path": "/bin/ping",
+  "pid": 2653,
+  "ppid": 2660,
+  "program": "ping",
+  "return_code": 0,
+  "server_id": "96f2bed2-ebd1-494a-945c-2fd57de41644",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "time": "2020-01-13T18:05:53.919Z",
+  "uid": "734930bb-00e6-4ee6-8798-37f1e9473fac",
+  "user": "benarent"
+}
+```
+
+## session.connect
+
+Session Connected
+
+Example:
+
+```json
+{
+  "addr.local": "192.168.0.106:43858",
+  "addr.remote": "192.168.0.106:3022",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T2010I",
+  "ei": 0,
+  "event": "session.connect",
+  "server_addr": "192.168.0.106:43858",
+  "server_id": "bd5eff-f59b-4fb3-b8ed-757c52ff",
+  "time": "2022-02-04T18:15:28.572Z",
+  "uid": "f2a0f9-d78c-4c38-b3fa-ca63453b"
+}
+```
+
+## session.data
+
+Session Data
+
+Example:
+
+```json
+{
+  "addr.local": "172.10.1.1:3022",
+  "addr.remote": "172.10.1.254:46992",
+  "code": "T2006I",
+  "ei": 2147483646,
+  "event": "session.data",
+  "login": "root",
+  "rx": 3974,
+  "server_id": "b331fb6c-85f9-4cb0-b308-3452420bf81e",
+  "sid": "5fc8bf85-a73e-11ea-afd1-0242ac0a0101",
+  "time": "2020-06-05T15:14:51Z",
+  "tx": 4730,
+  "uid": "2f2f07d0-8a01-4abe-b1c0-5001fd86829b",
+  "user": "Stanley_Cooper"
+}
+```
+
+## session.disk
+
+Session File Access
+
+Example:
+
+```json
+{
+  "code": "T4001I",
+  "event": "session.disk",
+  "namespace": "default",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "server_id": "96f2bed2",
+  "login": "root",
+  "user": "benarent",
+  "pid": 2653,
+  "cgroup_id": 4294968064,
+  "program": "bash",
+  "path": "/etc/profile.d/",
+  "flags": 2100000,
+  "return_code": 0,
+  "time": "2019-04-22T19:39:26.676Z"
+}
+```
+
+## session.end
+
+Session Ended
+
+Example:
+
+```json
+{
+  "cluster_name": "kimlisa.cloud.gravitational.io",
+  "code": "T2004I",
+  "ei": 1,
+  "enhanced_recording": false,
+  "event": "session.end",
+  "interactive": false,
+  "login": "root",
+  "namespace": "default",
+  "participants": [
+    "foo"
+  ],
+  "server_addr": "172.31.30.254:32962",
+  "server_hostname": "ip-172-31-30-254",
+  "server_id": "d3ddd1f8-b602-488b-00c66e29879f",
+  "session_start": "2021-05-21T22:23:55.313562027Z",
+  "session_stop": "2021-05-21T22:54:27.122508023Z",
+  "sid": "9d92ad96-a45c-4add-463cc7bc48b1",
+  "time": "2021-05-21T22:54:27.123Z",
+  "uid": "984ac949-6605-4f0a-e450aa5665f4",
+  "user": "foo"
+}
+```
+
+## session.join
+
+User Joined
+
+Example:
+
+```json
+{
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "151.181.228.114:51752",
+  "code": "T2001I",
+  "ei": 4,
+  "event": "session.join",
+  "login": "root",
+  "namespace": "default",
+  "server_id": "de3800ea-69d9-4d72-a108-97e57f8eb393",
+  "sid": "56408539-6536-11e9-80a1-427cfde50f5a",
+  "time": "2019-04-22T19:39:52.434Z",
+  "uid": "13d26190-289b-41d4-af67-c8c8b0617ebe",
+  "user": "admin@example.com"
+}
+```
+
+## session.leave
+
+User Disconnected
+
+Example:
+
+```json
+{
+  "code": "T2003I",
+  "event": "session.leave",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session.network
+
+Session Network Connection
+
+Example:
+
+```json
+{
+  "code": "T4002I",
+  "event": "session.network",
+  "namespace": "default",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "server_id": "96f2bed2",
+  "login": "root",
+  "user": "benarent",
+  "pid": 2653,
+  "cgroup_id": 4294968064,
+  "program": "bash",
+  "src_addr": "10.217.136.161",
+  "dst_addr": "190.58.129.4",
+  "dst_port": "3000",
+  "version": 4,
+  "time": "2019-04-22T19:39:26.676Z",
+  "action": 1
+}
+```
+
+## session.process_exit
+
+Session Process Exit
+
+Example:
+
+```json
+{
+  "code": "T4003I",
+  "event": "session.process_exit",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session.recording.access
+
+Session Recording Accessed
+
+Example:
+
+```json
+{
+  "code": "T2012I",
+  "event": "session.recording.access",
+  "sid": "44c6cea8-362f-11ea-83aa-125400432324",
+  "success": true,
+  "time": "2022-07-14T18:04:37.067Z",
+  "uid": "7d440ee1-15f6-4b56-9391-344e8984fd97",
+  "user": "ops@gravitational.io"
+}
+```
+
+## session.rejected
+
+Session Rejected
+
+Example:
+
+```json
+{
+  "code": "T1006W",
+  "event": "session.rejected",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session.start
+
+Session Started
+
+Example:
+
+```json
+{
+  "addr.local": "172.31.28.130:3022",
+  "addr.remote": "151.181.228.114:51454",
+  "code": "T2000I",
+  "ei": 0,
+  "event": "session.start",
+  "login": "root",
+  "namespace": "default",
+  "server_id": "de3800ea-69d9-4d72-a108-97e57f8eb393",
+  "sid": "56408539-6536-11e9-80a1-427cfde50f5a",
+  "size": "80:25",
+  "time": "2019-04-22T19:39:26.676Z",
+  "uid": "84c07a99-856c-419f-9de5-15560451a116",
+  "user": "admin@example.com"
+}
+```
+
+## session.upload
+
+Session Uploaded
+
+Example:
+
+```json
+{
+  "code": "T2005I",
+  "event": "session.upload",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## session_recording_config.update
+
+Session Recording Configuration Updated
+
+Example:
+
+```json
+{
+  "code": "TCREC003I",
+  "event": "session_recording_config.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## sftp
+
+There are multiple events with the `sftp` type.
+
+### TS001I
+
+SFTP Open
+
+Example:
+
+```json
+{
+  "action": 1,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS001I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS001E
+
+SFTP Open Failed
+
+Example:
+
+```json
+{
+  "action": 1,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS001E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS007I
+
+SFTP Setstat
+
+Example:
+
+```json
+{
+  "action": 7,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS007I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS007E
+
+SFTP Setstat Failed
+
+Example:
+
+```json
+{
+  "action": 7,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS007E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS009I
+
+SFTP Opendir
+
+Example:
+
+```json
+{
+  "action": 9,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS009I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS009E
+
+SFTP Opendir Failed
+
+Example:
+
+```json
+{
+  "action": 9,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS009E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS010I
+
+SFTP Readdir
+
+Example:
+
+```json
+{
+  "action": 10,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS010I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS010E
+
+SFTP Readdir Failed
+
+Example:
+
+```json
+{
+  "action": 10,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS010E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS011I
+
+SFTP Remove
+
+Example:
+
+```json
+{
+  "action": 11,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS011I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS011E
+
+SFTP Remove Failed
+
+Example:
+
+```json
+{
+  "action": 11,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS011E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS012I
+
+SFTP Mkdir
+
+Example:
+
+```json
+{
+  "action": 12,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS012I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS012E
+
+SFTP Mkdir Failed
+
+Example:
+
+```json
+{
+  "action": 12,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS012E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS013I
+
+SFTP Rmdir
+
+Example:
+
+```json
+{
+  "action": 13,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS013I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS013E
+
+SFTP Rmdir Failed
+
+Example:
+
+```json
+{
+  "action": 13,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS013E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS016I
+
+SFTP Rename
+
+Example:
+
+```json
+{
+  "action": 16,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS016I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS016E
+
+SFTP Rename Failed
+
+Example:
+
+```json
+{
+  "action": 16,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS016E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS018I
+
+SFTP Symlink
+
+Example:
+
+```json
+{
+  "action": 18,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS018I",
+  "ei": 0,
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS018E
+
+SFTP Symlink Failed
+
+Example:
+
+```json
+{
+  "action": 18,
+  "addr.local": "[::1]:3022",
+  "addr.remote": "127.0.0.1:41106",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TS018E",
+  "ei": 0,
+  "error": "EOF",
+  "event": "sftp",
+  "login": "root",
+  "namespace": "default",
+  "path": "/tmp/file",
+  "server_hostname": "im-a-server-hostname",
+  "server_id": "e106fdd0-51db-4efa-a9ab-c3afa7a1565a",
+  "sid": "",
+  "time": "2019-04-22T19:41:23Z",
+  "uid": "16bfdc34-2766-a5d3-dfd6f7ff7ad6",
+  "user": "root",
+  "working_directory": "/root"
+}
+```
+
+### TS019I
+
+SFTP Link
+
+Example:
+
+```json
+{
+  "code": "TS019I",
+  "event": "sftp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TS019E
+
+SFTP Link Failed
+
+Example:
+
+```json
+{
+  "code": "TS019E",
+  "event": "sftp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### TS020E
+
+SFTP Disallowed
+
+Example:
+
+```json
+{
+  "code": "TS020E",
+  "event": "sftp",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## sftp_summary
+
+File Transfer Completed
+
+Example:
+
+```json
+{
+  "code": "TS021I",
+  "event": "sftp_summary",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## sigstore_policy.create
+
+Sigstore Policy Created
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "TSSP001I",
+  "ei": 0,
+  "event": "sigstore_policy.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+## sigstore_policy.delete
+
+Sigstore Policy Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "TSSP003I",
+  "ei": 0,
+  "event": "sigstore_policy.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+## sigstore_policy.update
+
+Sigstore Policy Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "TSSP002I",
+  "ei": 0,
+  "event": "sigstore_policy.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+## spiffe.svid.issued
+
+There are multiple events with the `spiffe.svid.issued` type.
+
+### TSPIFFE000I
+
+SPIFFE SVID Issued
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:54378",
+  "cluster_name": "leaf.tele.ottr.sh",
+  "code": "TSPIFFE000I",
+  "dns_sans": null,
+  "ei": 0,
+  "event": "spiffe.svid.issued",
+  "hint": "",
+  "ip_sans": null,
+  "serial_number": "d1:e5:fc:bf:19:67:e7:8c:7a:21:37:b5:05:ea:77:41",
+  "spiffe_id": "spiffe://example.teleport.com/bar",
+  "svid_type": "x509",
+  "time": "2024-02-02T15:48:25.35Z",
+  "uid": "45e13afc-0890-4ffb-b125-99d93c26d7de",
+  "user": "bot-test12",
+  "user_kind": 2
+}
+```
+
+### TSPIFFE000E
+
+SPIFFE SVID Issued Failure
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE000E",
+  "event": "spiffe.svid.issued",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## ssm.run
+
+There are multiple events with the `ssm.run` type.
+
+### TDS00I
+
+SSM Command Executed
+
+Example:
+
+```json
+{
+  "account_id": "278576220453",
+  "cluster_name": "localhost",
+  "code": "TDS00I",
+  "command_id": "e8a5f3ba-e9e5-4cbd-979b-18fd1e7ad00f",
+  "ei": 0,
+  "event": "ssm.run",
+  "exit_code": 0,
+  "instance_id": "i-057d0ffe877128673",
+  "region": "eu-central-1",
+  "status": "Success",
+  "time": "2022-09-14T14:45:38.122Z",
+  "uid": "d053a9a4-6362-4d46-8868-55d83b7b338f"
+}
+```
+
+### TDS00W
+
+SSM Command Execution Failed
+
+Example:
+
+```json
+{
+  "account_id": "278576220453",
+  "cluster_name": "localhost",
+  "code": "TDS00W",
+  "command_id": "c2936d68-fc0c-4c16-a860-916a97f57644",
+  "ei": 0,
+  "event": "ssm.run",
+  "exit_code": 1,
+  "instance_id": "i-057d0ffe877128673",
+  "region": "eu-central-1",
+  "status": "Failure",
+  "time": "2022-09-14T14:45:38.122Z",
+  "uid": "ad123558-1d20-42dd-bf82-a7c544d76550"
+}
+```
+
+## stable_unix_user.create
+
+Stable UNIX user created
+
+Example:
+
+```json
+{
+  "code": "TSUU001I",
+  "event": "stable_unix_user.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## static_host_user.create
+
+Static Host User Created
+
+Example:
+
+```json
+{
+  "code": "SHU001I",
+  "event": "static_host_user.create",
+  "time": "2023-05-09T19:21:36.144Z",
+  "name": "test-user",
+  "user": "bob"
+}
+```
+
+## static_host_user.delete
+
+Static Host User Deleted
+
+Example:
+
+```json
+{
+  "code": "SHU003I",
+  "updated_by": "joe",
+  "event": "static_host_user.delete",
+  "time": "2023-05-09T19:21:38.144Z",
+  "name": "test-user",
+  "user": "bob"
+}
+```
+
+## static_host_user.update
+
+Static Host User Updated
+
+Example:
+
+```json
+{
+  "code": "SHU002I",
+  "event": "static_host_user.update",
+  "time": "2023-05-09T19:21:37.144Z",
+  "name": "test-user",
+  "user": "bob"
+}
+```
+
+## subsystem
+
+There are multiple events with the `subsystem` type.
+
+### T3001I
+
+Subsystem Requested
+
+Example:
+
+```json
+{
+  "code": "T3001I",
+  "event": "subsystem",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T3001E
+
+Subsystem Request Failed
+
+Example:
+
+```json
+{
+  "code": "T3001E",
+  "event": "subsystem",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## trusted_cluster.create
+
+Trusted Cluster Created
+
+Example:
+
+```json
+{
+  "code": "T7000I",
+  "event": "trusted_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## trusted_cluster.delete
+
+Trusted Cluster Deleted
+
+Example:
+
+```json
+{
+  "code": "T7001I",
+  "event": "trusted_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## trusted_cluster_token.create
+
+Trusted Cluster Token Created
+
+Example:
+
+```json
+{
+  "code": "T7002I",
+  "event": "trusted_cluster_token.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## unknown
+
+Unknown Event
+
+Example:
+
+```json
+{
+  "code": "TCC00E",
+  "event": "unknown",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## upgradewindowstart.update
+
+Upgrade Window Start Updated
+
+Example:
+
+```json
+{
+  "code": "TUW01I",
+  "time": "2022-04-13T20:00:04.000Z",
+  "user": "alice@example.com",
+  "event": "upgradewindowstart.update",
+  "upgrade_window_start": "23:00"
+}
+```
+
+## user.create
+
+User Created
+
+Example:
+
+```json
+{
+  "code": "T1002I",
+  "connector": "local",
+  "name": "hello",
+  "event": "user.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "roles": [
+    "admin"
+  ],
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "22a273678c-ee78-5ffc-a298-68a841555c98",
+  "user": "b331fb6c-85f9-4cb0-b308-3452420bf81e.one"
+}
+```
+
+## user.delete
+
+User Deleted
+
+Example:
+
+```json
+{
+  "code": "T1004I",
+  "uid": "b121fc4c-e419-56a2-a760-19cd746c0650",
+  "time": "2020-06-05T16:24:05Z",
+  "event": "user.delete",
+  "name": "bob",
+  "user": "benarent"
+}
+```
+
+## user.login
+
+There are multiple events with the `user.login` type.
+
+### T1000I
+
+Local Login
+
+Example:
+
+```json
+{
+  "code": "T1000I",
+  "event": "user.login",
+  "method": "local",
+  "success": true,
+  "time": "2019-04-22T00:49:03Z",
+  "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef2",
+  "user": "admin@example.com"
+}
+```
+
+### T1000W
+
+Local Login Failed
+
+Example:
+
+```json
+{
+  "code": "T1000W",
+  "error": "user(name=\"fsdfsdf\") not found",
+  "event": "user.login",
+  "method": "local",
+  "success": false,
+  "time": "2019-04-22T18:06:32Z",
+  "uid": "597bf08b-75b2-4dda-a578-e387c5ce9b76",
+  "user": "fsdfsdf"
+}
+```
+
+### T1010I
+
+SSO Test Flow Login
+
+Example:
+
+```json
+{
+  "attributes": {
+    "amr": [
+      "pwd"
+    ],
+    "at_hash": "7_foQ_0QRVU5dIq_B72_zw",
+    "aud": "0oa17kaknnntGFKiJ0h8",
+    "auth_time": 1653294514,
+    "email": "ops@gravitational.io",
+    "email_verified": true,
+    "exp": 1653298115,
+    "groups": [
+      "Everyone",
+      "okta-admin",
+      "okta-dev"
+    ],
+    "iat": 1653294515,
+    "idp": "00oafg105f5D4gv5Y0h7",
+    "iss": "https://dev-813354.oktapreview.com",
+    "jti": "ID.e_EKsCvMELMLa-Gx0aciOazUvPEFdZSxhTj42zccz3g",
+    "sub": "00uafg106hK16pwqE0h7",
+    "ver": 1
+  },
+  "cluster_name": "boson.tener.io",
+  "code": "T1010I",
+  "ei": 0,
+  "event": "user.login",
+  "method": "oidc",
+  "success": true,
+  "time": "2022-05-23T08:28:37.067Z",
+  "uid": "7d440ee1-15f6-4b56-9391-344e8984fd97",
+  "user": "ops@gravitational.io"
+}
+```
+
+### T1011W
+
+SSO Test Flow Login Failed
+
+Example:
+
+```json
+{
+  "attributes": {
+    "amr": [
+      "pwd"
+    ],
+    "at_hash": "Xz4ibHjouHuIIBOSgWm07w",
+    "aud": "0oa17kaknnntGFKiJ0h8",
+    "auth_time": 1653294514,
+    "email": "ops@gravitational.io",
+    "email_verified": true,
+    "exp": 1653298153,
+    "groups": [
+      "Everyone",
+      "okta-admin",
+      "okta-dev"
+    ],
+    "iat": 1653294553,
+    "idp": "00oafg105f5D4gv5Y0h7",
+    "iss": "https://dev-813354.oktapreview.com",
+    "jti": "ID.h0qtjVPXttmNEHb-yHOvziD20Mru4qiw8L3i74se8YA",
+    "sub": "00uafg106hK16pwqE0h7",
+    "ver": 1
+  },
+  "cluster_name": "boson.tener.io",
+  "code": "T1011W",
+  "ei": 0,
+  "error": "No roles mapped from claims. The mappings may contain typos.",
+  "event": "user.login",
+  "message": "Failed to calculate user attributes.\n\tNo roles mapped from claims. The mappings may contain typos.",
+  "method": "oidc",
+  "success": false,
+  "time": "2022-05-23T08:29:14.126Z",
+  "uid": "6fa08495-170a-4de9-884f-9931fbdb5982"
+}
+```
+
+### T1012I
+
+Headless Login Requested
+
+Example:
+
+```json
+{
+  "addr.remote": "1.1.1.1:42",
+  "code": "T1012I",
+  "cluster_name": "root.cluster",
+  "event": "user.login",
+  "method": "headless",
+  "ei": 0,
+  "success": false,
+  "time": "2019-04-22T00:49:03Z",
+  "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef4",
+  "user": "admin@example.com"
+}
+```
+
+### T1013I
+
+Headless Login Approved
+
+Example:
+
+```json
+{
+  "addr.remote": "2.2.2.2:42",
+  "code": "T1013I",
+  "cluster_name": "root.cluster",
+  "event": "user.login",
+  "method": "headless",
+  "ei": 0,
+  "success": true,
+  "time": "2019-04-22T00:49:03Z",
+  "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef5",
+  "user": "admin@example.com",
+  "message": "Headless login was requested from the address 1.1.1.1:42"
+}
+```
+
+### T1013W
+
+Headless Login Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "2.2.2.2:42",
+  "code": "T1013W",
+  "error": "user(name=\"fsdfsdf\") not found",
+  "cluster_name": "root.cluster",
+  "event": "user.login",
+  "method": "headless",
+  "ei": 0,
+  "success": true,
+  "time": "2019-04-22T00:49:03Z",
+  "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef5",
+  "user": "admin@example.com",
+  "message": "Headless login was requested from the address 1.1.1.1:42"
+}
+```
+
+### T1014W
+
+Headless Login Rejected
+
+Example:
+
+```json
+{
+  "addr.remote": "2.2.2.2:42",
+  "code": "T1014W",
+  "cluster_name": "root.cluster",
+  "event": "user.login",
+  "method": "headdless",
+  "ei": 0,
+  "success": false,
+  "time": "2019-04-22T00:49:03Z",
+  "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef6",
+  "user": "admin@example.com",
+  "message": "Headless login was requested from the address 1.1.1.1:42"
+}
+```
+
+### T1001I
+
+SSO Login
+
+Example:
+
+```json
+{
+  "code": "T1001I",
+  "event": "user.login",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### T1001W
+
+SSO Login Failed
+
+Example:
+
+```json
+{
+  "code": "T1001W",
+  "event": "user.login",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## user.password_change
+
+User Password Updated
+
+Example:
+
+```json
+{
+  "code": "T1005I",
+  "event": "user.password_change",
+  "time": "2020-06-05T19:26:53Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0",
+  "user": "Ivan_Jordan"
+}
+```
+
+## user.update
+
+User Updated
+
+Example:
+
+```json
+{
+  "code": "T1003I",
+  "event": "user.update",
+  "name": "bob",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "3a8cd55b5-bce9-5a4c-882d-8e0a5ae10008",
+  "expires": 111111,
+  "roles": [
+    "root"
+  ]
+}
+```
+
+## user_login.invalid_access_list
+
+Access list skipped.
+
+Example:
+
+```json
+{
+  "code": "TAL009W",
+  "event": "user_login.invalid_access_list",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## user_task.create
+
+User Task Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:52763",
+  "cluster_name": "lenix",
+  "code": "UT001I",
+  "ei": 0,
+  "event": "user_task.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "d217950f-cb5f-5703-96ef-39ab8cd86601",
+  "success": true,
+  "time": "2024-10-17T14:00:34.186Z",
+  "uid": "709840ec-288e-4056-ba20-c8f4b12a478f",
+  "updated_by": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user_kind": 1,
+  "user_task_integration": "teleportdev",
+  "user_task_issue_type": "ec2-ssm-invocation-failure",
+  "user_task_type": "discover-ec2"
+}
+```
+
+## user_task.delete
+
+User Task Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:52915",
+  "cluster_name": "lenix",
+  "code": "UT003I",
+  "ei": 0,
+  "event": "user_task.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "d217950f-cb5f-5703-96ef-39ab8cd86601",
+  "success": true,
+  "time": "2024-10-17T14:01:11.031Z",
+  "uid": "7699b806-e717-4821-85a5-d2f41acbe373",
+  "updated_by": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user_kind": 1
+}
+```
+
+## user_task.update
+
+User Task Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:52833",
+  "cluster_name": "lenix",
+  "code": "UT002I",
+  "current_user_task_state": "OPEN",
+  "ei": 0,
+  "event": "user_task.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "d217950f-cb5f-5703-96ef-39ab8cd86601",
+  "success": true,
+  "time": "2024-10-17T14:01:02.853Z",
+  "uid": "0ba36761-4a6a-429e-bce4-1825d80ce06a",
+  "updated_by": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "updated_user_task_state": "OPEN",
+  "user": "30a6b2e1-3b61-4965-92cf-b4f84e9dc683.lenix",
+  "user_kind": 1,
+  "user_task_integration": "teleportdev",
+  "user_task_issue_type": "ec2-ssm-invocation-failure",
+  "user_task_type": "discover-ec2"
+}
+```
+
+## windows.desktop.session.end
+
+Windows Desktop Session Ended
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP01I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "desktop_labels": {
+    "env": "prod",
+    "foo": "bar"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.end",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:19:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator"
+}
+```
+
+## windows.desktop.session.start
+
+There are multiple events with the `windows.desktop.session.start` type.
+
+### TDP00I
+
+Windows Desktop Session Started
+
+Example:
+
+```json
+{
+  "addr.remote": "100.104.52.89:3389",
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP00I",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "desktop_labels": {
+    "env": "prod",
+    "foo": "bar"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.start",
+  "proto": "tdp",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "success": true,
+  "time": "2021-10-18T23:18:29.144Z",
+  "uid": "cf15cc08-f818-4f09-91c5-238e1326b22b",
+  "user": "joe",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator"
+}
+```
+
+### TDP00W
+
+Windows Desktop Session Denied
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TDP00W",
+  "desktop_addr": "100.104.52.89:3389",
+  "desktop_name": "desktop-name",
+  "desktop_labels": {
+    "env": "prod",
+    "foo": "bar"
+  },
+  "ei": 0,
+  "event": "windows.desktop.session.start",
+  "sid": "b7f734d8-bdc2-4996-8959-0b42a11708e7",
+  "time": "2021-10-18T23:39:13.105Z",
+  "uid": "84d408d1-3314-4a30-b7b7-35970633c9de",
+  "user": "joe",
+  "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
+  "windows_domain": "desktopaccess.com",
+  "windows_user": "Administrator"
+}
+```
+
+## workload_identity.create
+
+Workload Identity Created
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "WID001I",
+  "ei": 0,
+  "event": "workload_identity.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## workload_identity.delete
+
+Workload Identity Deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "WID003I",
+  "ei": 0,
+  "event": "workload_identity.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## workload_identity.update
+
+Workload Identity Updated
+
+Example:
+
+```json
+{
+  "cluster_name": "leaf.tele.ottr.sh:443",
+  "code": "WID002I",
+  "ei": 0,
+  "event": "workload_identity.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "made-by-noah",
+  "time": "2023-12-08T10:53:39.798Z",
+  "uid": "0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab",
+  "user": "noah"
+}
+```
+
+## workload_identity_x509_issuer_override.create
+
+Workload Identity X.509 Issuer Override Created
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.71:59517",
+  "cluster_name": "clustername",
+  "code": "WID007I",
+  "ei": 0,
+  "event": "workload_identity_x509_issuer_override.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-28T08:42:14.526Z",
+  "uid": "d99124ab-34f8-490e-b839-ca881e7cc6ba",
+  "user": "alice",
+  "user_kind": 1
+}
+```
+
+## workload_identity_x509_issuer_override.delete
+
+Workload Identity X.509 Issuer Override Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "203.0.113.77:64794",
+  "cluster_name": "clustername",
+  "code": "WID008I",
+  "ei": 0,
+  "event": "workload_identity_x509_issuer_override.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "default",
+  "time": "2025-03-26T01:14:36.881Z",
+  "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
+  "user": "bob",
+  "user_kind": 1
+}
+```
+
+## x11-forward
+
+There are multiple events with the `x11-forward` type.
+
+### T3008I
+
+X11 Forwarding Requested
+
+Example:
+
+```json
+{
+  "addr.local": "192.000.0.000:3022",
+  "addr.remote": "127.0.0.1:50000",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3008I",
+  "ei": 0,
+  "event": "x11-forward",
+  "login": "root",
+  "success": true,
+  "time": "2022-01-20T18:31:45.012Z",
+  "uid": "6333-37a7-4c3c-9180-f3abc8e2b",
+  "user": "lisa"
+}
+```
+
+### T3008W
+
+X11 Forwarding Request Failed
+
+Example:
+
+```json
+{
+  "addr.local": "192.000.0.000:3022",
+  "addr.remote": "127.0.0.1:60000",
+  "cluster_name": "im-a-cluster-name",
+  "code": "T3008W",
+  "ei": 0,
+  "error": "lisa was here",
+  "event": "x11-forward",
+  "login": "root",
+  "success": false,
+  "time": "2022-01-20T19:49:02.307Z",
+  "uid": "0629c7-3d98-4451-ac90-dc5330",
+  "user": "lisa"
+}
+```
