@@ -203,7 +203,7 @@ function Wrapper(props?: {
         <TeleportProviderBasic teleportCtx={ctx}>
           <Router history={history}>
             <Route path={cfg.routes.botInstances}>
-              <Box height={820} overflow={'auto'}>
+              <Box height={820}>
                 <BotInstances />
               </Box>
             </Route>
