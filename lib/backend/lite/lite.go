@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -279,6 +280,12 @@ type Backend struct {
 	buf    *backend.CircularBuffer
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// mu guards the wait group and closed flag
+	mu        sync.Mutex
+	wg        sync.WaitGroup
+	closed    bool
+	closeOnce sync.Once
 }
 
 func (l *Backend) GetName() string {
@@ -996,9 +1003,18 @@ func (l *Backend) CloseWatchers() {
 	l.buf.Clear()
 }
 
-func (l *Backend) closeDatabase() error {
-	l.buf.Close()
-	return l.db.Close()
+func (l *Backend) closeDatabase() (err error) {
+	l.closeOnce.Do(func() {
+		l.buf.Close()
+		err = l.db.Close()
+		l.mu.Lock()
+		l.closed = true
+		l.mu.Unlock()
+		// Wait for outstanding transactions to complete
+		l.wg.Wait()
+	})
+
+	return
 }
 
 func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (err error) {
@@ -1009,6 +1025,15 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 			l.logger.WarnContext(ctx, "SLOW TRANSACTION", "duration", diff, "stack", string(debug.Stack()))
 		}
 	}()
+
+	l.mu.Lock()
+	if !l.closed {
+		// If the DB is not closed then we optimistically add the new transactions to the
+		// wait group so that we can await their completion on [Backend.Close] call.
+		l.wg.Add(1)
+		defer l.wg.Done()
+	}
+	l.mu.Unlock()
 
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
