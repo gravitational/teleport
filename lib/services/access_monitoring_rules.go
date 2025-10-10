@@ -22,6 +22,7 @@ import (
 	"context"
 	"slices"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/gravitational/trace"
 
@@ -156,12 +157,8 @@ func validateSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule) e
 }
 
 func validateTimeSchedule(schedule *accessmonitoringrulesv1.TimeSchedule) error {
-	if schedule.GetTimezone() == "" {
-		return trace.BadParameter("timezone is required")
-	}
-
 	if _, err := time.LoadLocation(schedule.GetTimezone()); err != nil {
-		return trace.Wrap(err, "timezone is invalid")
+		return trace.Wrap(err, "invalid timezone: refer to the IANA Time Zone Database for valid options")
 	}
 
 	if len(schedule.GetShifts()) == 0 {
