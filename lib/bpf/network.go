@@ -23,6 +23,7 @@ package bpf
 import (
 	"context"
 	_ "embed"
+	"io"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -36,13 +37,11 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostNetworkEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostNetworkEvents,
-			Help: "Number of lost network events.",
-		},
-	)
+var lostNetworkEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostNetworkEvents,
+		Help: "Number of lost network events.",
+	},
 )
 
 type conn struct {
@@ -50,13 +49,13 @@ type conn struct {
 
 	event4Chan chan []byte
 	event6Chan chan []byte
-	toClose    []interface{ Close() error }
+	toClose    []io.Closer
 
 	closed bool
 	mtx    sync.Mutex
 }
 
-func startConn(bufferSize int) (*conn, error) {
+func startConn() (*conn, error) {
 	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +99,7 @@ func startConn(bufferSize int) (*conn, error) {
 		},
 	}
 
-	toClose := make([]interface{ Close() error }, 0)
+	toClose := make([]io.Closer, 0)
 	for _, kprobe := range kprobes {
 		kp, err := link.Kprobe(kprobe.symbol, kprobe.prog, nil)
 		if err != nil {
@@ -119,18 +118,25 @@ func startConn(bufferSize int) (*conn, error) {
 		toClose = append(toClose, kret)
 	}
 
-	eventBuf, err := ringbuf.NewReader(objs.Ipv4Events)
+	eventBufV4, err := ringbuf.NewReader(objs.Ipv4Events)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	eventBufV6, err := ringbuf.NewReader(objs.Ipv6Events)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	bpfEvents := make(chan []byte, 100)
-	go sendEvents(bpfEvents, eventBuf)
+	bpfv4Events := make(chan []byte, 100)
+	go sendEvents(bpfv4Events, eventBufV4)
+
+	bpfv6Events := make(chan []byte, 100)
+	go sendEvents(bpfv6Events, eventBufV6)
 
 	return &conn{
 		objs:       &objs,
-		event4Chan: bpfEvents,
-		event6Chan: make(chan []byte, 100),
+		event4Chan: bpfv4Events,
+		event6Chan: bpfv6Events,
 		toClose:    toClose,
 	}, nil
 }
@@ -168,7 +174,7 @@ func (c *conn) endSession(cgroupID uint64) error {
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (c *conn) close() {
-	//c.lost.Close()
+	// c.lost.Close()
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -187,6 +193,8 @@ func (c *conn) close() {
 	if err := c.objs.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
+
+	logger.DebugContext(context.Background(), "Closed conn BPF module")
 }
 
 // v4Events contains raw events off the perf buffer.

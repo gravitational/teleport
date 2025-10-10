@@ -97,7 +97,7 @@ static int trace_connect_return(int ret, short ipver)
 
     struct sock **skpp;
     skpp = bpf_map_lookup_elem(&currsock, &id);
-    if (skpp == 0) {
+    if (skpp == NULL) {
         return 0;   // missed entry
     }
 
