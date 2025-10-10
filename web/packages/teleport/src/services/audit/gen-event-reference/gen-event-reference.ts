@@ -48,18 +48,6 @@ export function eventsWithoutExamples(
   );
 }
 
-// codeDesc returns the description of the given event, depending on whether the
-// description is a function or a string.
-function codeDesc(event: Event): string {
-  if (typeof event.codeDesc == 'function') {
-    return (event.codeDesc as Function)({
-      code: event.code,
-      event: event.raw.event,
-    });
-  }
-  return event.codeDesc;
-}
-
 // removeUnknowns removes any event fixtures in the fixtures array that do not
 // have a formatter.
 export function removeUnknowns(
@@ -95,7 +83,7 @@ Event: \`${event.raw.event}\``;
 export function createEventSection(event: Event): string {
   return `## ${event.raw.event}
 
-${codeDesc(event) + '\n'}
+${event.codeDesc + '\n'}
 ${exampleOrAttributes(event)}
 `;
 }
@@ -115,7 +103,7 @@ export function createMultipleEventsSection(events: Event[]): string {
         '\n' +
         `### ${event.code}
 
-${codeDesc(event) + '\n'}
+${event.codeDesc + '\n'}
 ${exampleOrAttributes(event)}
 `
       );

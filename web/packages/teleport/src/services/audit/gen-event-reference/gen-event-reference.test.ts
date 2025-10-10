@@ -151,61 +151,6 @@ Example:
 \`\`\`
 `,
     },
-    {
-      description: 'Event with only the raw.event field',
-      event: {
-        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
-        codeDesc: 'Credit Card Deleted',
-        code: 'TBL01I',
-        raw: {
-          event: 'billing.delete_card',
-        },
-      },
-      expected: `## billing.delete_card
-
-Credit Card Deleted
-
-Code: \`TBL01I\`
-
-Event: \`billing.delete_card\`
-`,
-    },
-    {
-      description: 'description is a function',
-      event: {
-        codeDesc: ({ code, event }) => {
-          const eventName = 'Port forwarding';
-
-          switch (code) {
-            case 'ABC123':
-              return `${eventName} Start`;
-            case 'DEF123':
-              return `${eventName} Stop`;
-            case 'GHI123':
-              return `${eventName} Failure`;
-          }
-        },
-        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
-        code: 'ABC123',
-        raw: {
-          event: 'port',
-          user: 'myuser',
-        },
-      },
-      expected: `## port
-
-Port forwarding Start
-
-Example:
-
-\`\`\`json
-{
-  "event": "port",
-  "user": "myuser"
-}
-\`\`\`
-`,
-    },
   ];
 
   test.each(testCases)('$description', testCase => {
