@@ -64,7 +64,7 @@ func WorkloadAPIServiceBuilder(
 	crlCache CRLGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -76,11 +76,12 @@ func WorkloadAPIServiceBuilder(
 			trustBundleCache:          trustBundleCache,
 			crlCache:                  crlCache,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.StatusReporter,
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return bot.NewServicePair(svc, sidecar), nil
 	}
+	return bot.NewServiceBuilder(WorkloadAPIServiceType, cfg.Name, buildFn)
 }
 
 // WorkloadAPIService implements a gRPC server that fulfills the SPIFFE
