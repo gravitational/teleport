@@ -49,7 +49,7 @@ type describes only the success or failure state.
 You can set up Teleport to export audit events to third-party services for
 storage, visualization, and analysis. For more information, read [Exporting
 Teleport Audit Events](
-../admin-guides/management/export-audit-events/export-audit-events.mdx).`;
+../zero-trust-access/export-audit-events/export-audit-events.mdx).`;
 
 if (process.argv.length !== 3) {
   console.error(
