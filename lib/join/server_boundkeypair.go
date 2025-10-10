@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // handleBoundKeypairJoin takes over the join process after the ClientInit
@@ -121,7 +122,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	diag := diagnostic.New()
 	diag.Set(func(i *diagnostic.Info) {
 		i.RemoteAddr = req.JoinRequest.RemoteAddr
-		i.Role = req.JoinRequest.Role.String()
+		i.Role = joinutils.SanitizeUntrustedString(req.JoinRequest.Role.String())
 		i.RequestedJoinMethod = string(types.JoinMethodBoundKeypair)
 		i.BotInstanceID = req.JoinRequest.BotInstanceID
 		i.BotGeneration = uint64(req.JoinRequest.BotGeneration)

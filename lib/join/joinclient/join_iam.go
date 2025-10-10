@@ -58,7 +58,16 @@ func iamJoin(
 		iam.WithFIPSEndpoint(joinParams.FIPS),
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating signed sts:GetCallerIdentity request")
+		err = trace.Wrap(err, "creating signed sts:GetCallerIdentity request")
+		sendGivingUpErr := stream.Send(&messages.GivingUp{
+			Reason: messages.GivingUpReasonChallengeSolutionFailed,
+			Msg:    err.Error(),
+		})
+		return nil, trace.NewAggregate(
+			err,
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
+
 	}
 
 	if err := stream.Send(&messages.IAMChallengeSolution{
