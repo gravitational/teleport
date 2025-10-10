@@ -220,14 +220,19 @@ func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
 	}
 
 	// Build user services.
-	for idx, buildService := range b.cfg.Services {
+	for idx, builder := range b.cfg.Services {
 		reloadCh, unsubscribe := reloadBroadcaster.Subscribe()
 		closers = append(closers, unsubscribe)
 
-		service, err := buildService(ServiceDependencies{
+		_, name := builder.GetTypeAndName()
+
+		// TODO: Defer the actual registration until we filter out services
+		// that don't run in oneshot mode.
+		reporter := statusRegistry.AddService(name)
+
+		service, err := builder.Build(ServiceDependencies{
 			Client:             identityService.GetClient(),
 			Resolver:           resolver,
-			Logger:             b.cfg.Logger,
 			ClientBuilder:      clientBuilder,
 			IdentityGenerator:  identityGenerator,
 			ProxyPinger:        proxyPinger,
@@ -235,6 +240,11 @@ func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
 			BotIdentityReadyCh: identityService.Ready(),
 			ReloadCh:           reloadCh,
 			StatusRegistry:     statusRegistry,
+			StatusReporter:     reporter,
+			Logger: b.cfg.Logger.With(
+				teleport.ComponentKey,
+				teleport.Component(teleport.ComponentTBot, "svc", name),
+			),
 		})
 		if err != nil {
 			return nil, closeFn, trace.Wrap(err, "building service [%d]", idx)
