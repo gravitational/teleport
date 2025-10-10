@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2023 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -36,9 +36,272 @@ type EventField struct {
 
 // Events is a map containing the description and schema for all Teleport events
 var events = map[string]*Event{
+	"AWSICResourceSync": {
+		Description: "is emitted when the AWS Identity Center integration imports resources from Identity Center and reconciles them to Teleport",
+		Fields: []*EventField{
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "total_account_assignments",
+				Description: "account assignments imported from Identity Center. Account assignments are permissions assigned to users or groups",
+				Type:        "integer",
+			},
+			{
+				Name:        "total_accounts",
+				Description: "imported AWS accounts",
+				Type:        "integer",
+			},
+			{
+				Name:        "total_permission_sets",
+				Description: "permission sets imported from Identity Center",
+				Type:        "integer",
+			},
+			{
+				Name:        "total_user_groups",
+				Description: "user groups imported from Identity Center",
+				Type:        "integer",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
+	"AccessGraphSettingsUpdate": {
+		Description: "is emitted when the Access Graph Settings config is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
 	"AccessListCreate": {
 		Description: "is emitted when an access list is created",
 		Fields: []*EventField{
+			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
 			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
@@ -109,6 +372,11 @@ var events = map[string]*Event{
 	"AccessListDelete": {
 		Description: "is emitted when an access list is deleted",
 		Fields: []*EventField{
+			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
 			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
@@ -185,6 +453,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -230,6 +503,11 @@ var events = map[string]*Event{
 							Name:        "member_name",
 							Description: "is the name of the member",
 							Type:        "string",
+						},
+						{
+							Name:        "membership_kind",
+							Description: "describes the kind of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`",
+							Type:        "integer",
 						},
 						{
 							Name:        "reason",
@@ -290,6 +568,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -335,6 +618,11 @@ var events = map[string]*Event{
 							Name:        "member_name",
 							Description: "is the name of the member",
 							Type:        "string",
+						},
+						{
+							Name:        "membership_kind",
+							Description: "describes the kind of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`",
+							Type:        "integer",
 						},
 						{
 							Name:        "reason",
@@ -395,6 +683,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -440,6 +733,11 @@ var events = map[string]*Event{
 							Name:        "member_name",
 							Description: "is the name of the member",
 							Type:        "string",
+						},
+						{
+							Name:        "membership_kind",
+							Description: "describes the kind of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`",
+							Type:        "integer",
 						},
 						{
 							Name:        "reason",
@@ -500,6 +798,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -545,6 +848,11 @@ var events = map[string]*Event{
 							Name:        "member_name",
 							Description: "is the name of the member",
 							Type:        "string",
+						},
+						{
+							Name:        "membership_kind",
+							Description: "describes the kind of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`",
+							Type:        "integer",
 						},
 						{
 							Name:        "reason",
@@ -599,6 +907,11 @@ var events = map[string]*Event{
 	"AccessListReview": {
 		Description: "is emitted when an access list is reviewed",
 		Fields: []*EventField{
+			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
 			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
@@ -723,6 +1036,11 @@ var events = map[string]*Event{
 		Description: "is emitted when an access list is updated",
 		Fields: []*EventField{
 			{
+				Name:        "access_list_title",
+				Description: "is the access list's title",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -789,6 +1107,61 @@ var events = map[string]*Event{
 			},
 		},
 	},
+	"AccessPathChanged": {
+		Description: "is emitted when access graph detects a change in a access path",
+		Fields: []*EventField{
+			{
+				Name:        "affected_resource_name",
+				Description: "is the name of the affected resource",
+				Type:        "string",
+			},
+			{
+				Name:        "affected_resource_source",
+				Description: "is the source of the affected resource, ex: Teleport, AWS, GitLab, etc",
+				Type:        "string",
+			},
+			{
+				Name:        "affected_resource_type",
+				Description: "is the type of the affected resource, ex: user, role, etc",
+				Type:        "string",
+			},
+			{
+				Name:        "change_id",
+				Description: "is the id of the change",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
 	"AccessRequestCreate": {
 		Description: "is emitted when access request has been created or updated",
 		Fields: []*EventField{
@@ -818,6 +1191,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -931,6 +1314,14 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "resource_names",
+				Description: "contains the names of the requested resources",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
 				Name:        "reviewer",
 				Description: "is the author of the review (only used in the access_request.review event variant)",
 				Type:        "string",
@@ -983,6 +1374,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1005,6 +1406,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"AccessRequestDelete": {
@@ -1026,6 +1455,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -1108,6 +1547,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1118,6 +1567,99 @@ var events = map[string]*Event{
 			{
 				Name:        "user",
 				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AccessRequestExpire": {
+		Description: "is emitted when access request has expired",
+		Fields: []*EventField{
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "expiry",
+				Description: "is the time at which the access request resource will expire",
+				Type:        "string",
+			},
+			{
+				Name:        "id",
+				Description: "is access request ID",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
 				Type:        "string",
 			},
 		},
@@ -1141,6 +1683,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -1264,6 +1816,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1275,6 +1837,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -1315,6 +1905,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
 				Name:        "app_uri",
 				Description: "is the application endpoint",
 				Type:        "string",
@@ -1327,6 +1922,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -1414,6 +2019,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1435,6 +2050,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -1460,6 +2103,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -1544,6 +2197,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1565,6 +2228,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -1615,6 +2306,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
 				Name:        "app_uri",
 				Description: "is the application endpoint",
 				Type:        "string",
@@ -1627,6 +2323,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -1725,6 +2431,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "session_chunk_id",
 				Description: "is the ID of the session that was created for this 5 minute application log chunk",
 				Type:        "string",
@@ -1769,6 +2480,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1780,6 +2501,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -1825,6 +2574,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
 				Name:        "app_uri",
 				Description: "is the application endpoint",
 				Type:        "string",
@@ -1863,6 +2617,16 @@ var events = map[string]*Event{
 				Name:        "body",
 				Description: "is the HTTP request json body. The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly",
 				Type:        "object",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
 			},
 			{
 				Name:        "cluster_name",
@@ -1969,6 +2733,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -1980,6 +2754,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -2030,6 +2832,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
 				Name:        "app_uri",
 				Description: "is the application endpoint",
 				Type:        "string",
@@ -2042,6 +2849,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -2140,6 +2957,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -2179,6 +3001,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -2190,6 +3022,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -2225,6 +3085,11 @@ var events = map[string]*Event{
 				Name:        "app_public_addr",
 				Description: "is the configured application public address",
 				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
 			},
 			{
 				Name:        "app_uri",
@@ -2350,6 +3215,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
 				Name:        "app_uri",
 				Description: "is the application endpoint",
 				Type:        "string",
@@ -2362,6 +3232,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -2465,6 +3345,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -2504,6 +3389,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -2515,6 +3410,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -2560,6 +3483,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
 				Name:        "app_uri",
 				Description: "is the application endpoint",
 				Type:        "string",
@@ -2572,6 +3500,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -2659,6 +3597,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -2681,6 +3629,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"AuditQueryRun": {
@@ -2702,6 +3678,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -2819,6 +3805,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -2830,6 +3826,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -2862,6 +3886,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -2959,6 +3993,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -2970,6 +4014,2060 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AuthPreferenceUpdate": {
+		Description: "is emitted when the auth preference is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "admin_actions_mfa_changed",
+				Description: "indicates whether MFA for admin actions was altered while updating the authentication preference",
+				Type:        "integer",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateAgentRolloutForceDone": {
+		Description: "is emitted when one or many groups from the auto update agent rollout are manually forced into the done state",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name: "groups",
+				Type: "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateAgentRolloutRollback": {
+		Description: "is emitted when one or many groups from the auto update agent rollout are manually rolledback",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name: "groups",
+				Type: "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateAgentRolloutTrigger": {
+		Description: "is emitted when one or many groups from the auto update agent rollout are manually triggered",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name: "groups",
+				Type: "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateConfigCreate": {
+		Description: "is emitted when an auto update config is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateConfigDelete": {
+		Description: "is emitted when an auto update config is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateConfigUpdate": {
+		Description: "is emitted when an auto update config is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateVersionCreate": {
+		Description: "is emitted when an auto update version is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateVersionDelete": {
+		Description: "is emitted when an auto update version is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"AutoUpdateVersionUpdate": {
+		Description: "is emitted when an auto update version is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -2995,6 +6093,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -3069,6 +6177,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -3080,6 +6198,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -3105,6 +6251,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -3179,6 +6335,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -3190,6 +6356,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -3215,6 +6409,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -3289,6 +6493,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -3301,15 +6515,414 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"BotCreate": {
+		Description: "is emitted when a bot is created/upserted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"BotDelete": {
+		Description: "is emitted when a bot is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"BotJoin": {
 		Description: "records a bot join event",
 		Fields: []*EventField{
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "attributes",
 				Description: "is a map of attributes received from the join method provider",
 				Type:        "object",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the bot instance which has joined or renewed",
+				Type:        "string",
 			},
 			{
 				Name:        "bot_name",
@@ -3349,6 +6962,444 @@ var events = map[string]*Event{
 			{
 				Name:        "method",
 				Description: "is the event field indicating what join method was used",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "token_name",
+				Description: "is the name of the provision token used to join",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user_name",
+				Description: "is the name of the user associated with the bot which has joined",
+				Type:        "string",
+			},
+		},
+	},
+	"BotUpdate": {
+		Description: "is emitted when a bot is created/updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"BoundKeypairJoinStateVerificationFailed": {
+		Description: "is emitted when join state verification fails, potentially indicating a compromised keypair",
+		Fields: []*EventField{
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the bot attempting to join, if any",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "token_name",
+				Description: "is the name of the provision token used to join",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
+	"BoundKeypairRecovery": {
+		Description: "is emitted when a client performs a self recovery using a bound_keypair joining token. This event is also emitted upon first join",
+		Fields: []*EventField{
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the bot attempting to join, if any",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "public_key",
+				Description: "is the public key at the completion of the joining process, in SSH authorized_keys format. If a keypair rotation occurred, this is the keypair trusted at the end of the join process",
+				Type:        "string",
+			},
+			{
+				Name:        "recovery_count",
+				Description: "is the recovery counter value at the time of this recovery",
+				Type:        "integer",
+			},
+			{
+				Name:        "recovery_mode",
+				Description: "is the bound keypair token's configured recovery mode",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "token_name",
+				Description: "is the name of the provision token used to join",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
+	"BoundKeypairRotation": {
+		Description: "is emitted when a keypair rotation takes place",
+		Fields: []*EventField{
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the bot attempting to join, if any",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "new_public_key",
+				Description: "is the new public key after rotation. If rotation fails, this value will be empty",
+				Type:        "string",
+			},
+			{
+				Name:        "previous_public_key",
+				Description: "is the previous public key in SSH authorized_keys format. On first join using a registration secret, this value will be empty",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
 				Type:        "string",
 			},
 			{
@@ -3397,6 +7448,16 @@ var events = map[string]*Event{
 			{
 				Name:        "batch_type",
 				Description: "is the type of batch",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -3603,6 +7664,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -3614,6 +7685,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -3641,6 +7740,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -3811,6 +7920,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -3822,6 +7941,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -3849,6 +7996,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -4024,6 +8181,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -4035,6 +8202,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -4062,6 +8257,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -4235,6 +8440,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -4246,6 +8461,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -4261,6 +8504,28 @@ var events = map[string]*Event{
 				Name:        "cert_type",
 				Description: "is the type of certificate that was just issued",
 				Type:        "string",
+			},
+			{
+				Name:        "certificate_authority",
+				Description: "holds information about the issuer of the certificate",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "domain",
+						Description: "of the cert authority",
+						Type:        "string",
+					},
+					{
+						Name:        "subject_key_id",
+						Description: "is BASE32-encoded subject key ID from authority certificate",
+						Type:        "string",
+					},
+					{
+						Name:        "type",
+						Description: "of the cert authority",
+						Type:        "string",
+					},
+				},
 			},
 			{
 				Name:        "cluster_name",
@@ -4342,6 +8607,16 @@ var events = map[string]*Event{
 						},
 					},
 					{
+						Name:        "bot_instance_id",
+						Description: "indicates the name of the Machine ID bot instance this identity was issued to, if any",
+						Type:        "string",
+					},
+					{
+						Name:        "bot_name",
+						Description: "indicates the name of the Machine ID bot this identity was issued to, if any",
+						Type:        "string",
+					},
+					{
 						Name:        "client_ip",
 						Description: "is an observed IP of the client that this Identity represents",
 						Type:        "string",
@@ -4360,6 +8635,28 @@ var events = map[string]*Event{
 						Type:        "array",
 						Items: &EventField{
 							Type: "string",
+						},
+					},
+					{
+						Name:        "device_extensions",
+						Description: "holds the device trust device extensions for the identity, if any",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "asset_tag",
+								Description: "is the device inventory identifier",
+								Type:        "string",
+							},
+							{
+								Name:        "credential_id",
+								Description: "is the identifier for the credential used by the device to authenticate itself",
+								Type:        "string",
+							},
+							{
+								Name:        "device_id",
+								Description: "is the trusted device identifier",
+								Type:        "string",
+							},
 						},
 					},
 					{
@@ -4383,6 +8680,11 @@ var events = map[string]*Event{
 					{
 						Name:        "impersonator",
 						Description: "is a username of a user impersonating this user",
+						Type:        "string",
+					},
+					{
+						Name:        "join_token",
+						Description: "is the name of the join token used when a Machine ID bot joined, if any. It is not set for bots using the `token` join method",
 						Type:        "string",
 					},
 					{
@@ -4477,6 +8779,16 @@ var events = map[string]*Event{
 								Description: "is the ID of the application session",
 								Type:        "string",
 							},
+							{
+								Name:        "target_port",
+								Description: "signifies that the user accessed a specific port in a multi-port TCP app. The value must be between 1 and 65535",
+								Type:        "integer",
+							},
+							{
+								Name:        "uri",
+								Description: "is the application URI",
+								Type:        "string",
+							},
 						},
 					},
 					{
@@ -4500,6 +8812,14 @@ var events = map[string]*Event{
 								Type:        "string",
 							},
 							{
+								Name:        "roles",
+								Description: "is an optional list of database roles to embed",
+								Type:        "array",
+								Items: &EventField{
+									Type: "string",
+								},
+							},
+							{
 								Name:        "service_name",
 								Description: "is the Teleport database proxy service name the cert is for",
 								Type:        "string",
@@ -4507,6 +8827,43 @@ var events = map[string]*Event{
 							{
 								Name:        "username",
 								Description: "is an optional database username to embed",
+								Type:        "string",
+							},
+						},
+					},
+					{
+						Name:        "scope_pin",
+						Description: "pins a certificate to a specific scope and set of scoped roles",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "assignments",
+								Description: "encodes the scoped role assignments relevant to access-control decisions about the pinned identity. This may include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this means all assignments that are not orthogonal to the pinned scope",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name: "key",
+										Type: "string",
+									},
+									{
+										Name: "value",
+										Type: "object",
+										Fields: []*EventField{
+											{
+												Name:        "roles",
+												Description: "is a list of scoped roles that are assigned to the pinned identity at the target scope",
+												Type:        "array",
+												Items: &EventField{
+													Type: "string",
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Name:        "scope",
+								Description: "is the target scope that this pin is associated with. This is the scope that the certificate/identity is pinned to. Any resources in parent/orthogonal scopes are not necessarily subject to the privileges/policies conveyed by this pin",
 								Type:        "string",
 							},
 						},
@@ -4546,6 +8903,11 @@ var events = map[string]*Event{
 				Description: "is a unique event identifier",
 				Type:        "string",
 			},
+			{
+				Name:        "user_agent",
+				Description: "identifies the type of client that attempted the event",
+				Type:        "string",
+			},
 		},
 	},
 	"ClientDisconnect": {
@@ -4577,6 +8939,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -4675,6 +9047,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "time",
 				Description: "is event time",
 				Type:        "string",
@@ -4709,6 +9086,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -4720,6 +9107,1465 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"ClusterNetworkingConfigUpdate": {
+		Description: "is emitted when the cluster networking config is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"ContactCreate": {
+		Description: "is emitted when a contact is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "contact_type",
+				Description: "is the type of the contact being deleted ('Business' or 'Security')",
+				Type:        "integer",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "email",
+				Description: "is the Email of the contact being deleted",
+				Type:        "string",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"ContactDelete": {
+		Description: "is emitted when a contact is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "contact_type",
+				Description: "is the type of the contact being deleted ('Business' or 'Security')",
+				Type:        "integer",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "email",
+				Description: "is the Email of the contact being deleted",
+				Type:        "string",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"CreateMFAAuthChallenge": {
+		Description: "records the creation of an MFA auth challenge",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "challenge_allow_reuse",
+				Description: "defines whether the MFA challenge allows reuse",
+				Type:        "boolean",
+			},
+			{
+				Name:        "challenge_scope",
+				Description: "is the authorization scope for this MFA challenge. Only applies to WebAuthn challenges",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"CrownJewelCreate": {
+		Description: "is emitted when a Access Graph CrownJewel is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "crown_jewel_query",
+				Description: "is the query used to track the crown jewel",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"CrownJewelDelete": {
+		Description: "is emitted when a Access Graph CrownJewel is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"CrownJewelUpdate": {
+		Description: "is emitted when a Access Graph CrownJewel is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "current_crown_jewel_query",
+				Description: "is the current query used to track the crown jewel",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_crown_jewel_query",
+				Description: "is the new query used to track the crown jewel",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -4745,6 +10591,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -4907,6 +10763,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -4928,6 +10794,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -4953,6 +10847,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -5037,6 +10941,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -5059,10 +10973,38 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
-	"DatabaseSessionEnd": {
-		Description: "is emitted when a user ends the database session",
+	"DatabasePermissionUpdate": {
+		Description: "is emitted when a user database permissions are updated",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -5073,6 +11015,21 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "affected_object_counts",
+				Description: "counts how many distinct objects of each kind were affected",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "integer",
+					},
+				},
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -5080,6 +11037,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -5194,6 +11161,36 @@ var events = map[string]*Event{
 				Name:        "login",
 				Description: "is OS login",
 				Type:        "string",
+			},
+			{
+				Name:        "permission_summary",
+				Description: "is a summary of applied permissions",
+				Type:        "array",
+				Items: &EventField{
+					Type: "object",
+					Fields: []*EventField{
+						{
+							Name:        "counts",
+							Description: "stores information how many objects of particular kind (e.g. \"table\") were affected",
+							Type:        "object",
+							Fields: []*EventField{
+								{
+									Name: "key",
+									Type: "string",
+								},
+								{
+									Name: "value",
+									Type: "integer",
+								},
+							},
+						},
+						{
+							Name:        "permission",
+							Description: "is a particular database-level permission, e.g. \"SELECT\"",
+							Type:        "string",
+						},
+					},
+				},
 			},
 			{
 				Name:        "private_key_policy",
@@ -5245,6 +11242,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -5256,6 +11263,589 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"DatabaseSessionCommandResult": {
+		Description: "represents the result of a user command. It is expected that for each user command/query there will be a corresponding result",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "affected_records",
+				Description: "represents the number of records that were affected by the command",
+				Type:        "integer",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_redshift_cluster_id",
+				Description: "is cluster ID for Redshift databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_region",
+				Description: "is AWS regions for AWS hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_instance_id",
+				Description: "is instance ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_project_id",
+				Description: "is project ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_labels",
+				Description: "is the database resource labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "db_name",
+				Description: "is the name of the database a user is connecting to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_origin",
+				Description: "is the database origin source",
+				Type:        "string",
+			},
+			{
+				Name:        "db_protocol",
+				Description: "is the database type, e.g. postgres or mysql",
+				Type:        "string",
+			},
+			{
+				Name:        "db_roles",
+				Description: "is a list of database roles for auto-provisioned users",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "db_service",
+				Description: "is the name of the database service proxying the database",
+				Type:        "string",
+			},
+			{
+				Name:        "db_type",
+				Description: "is the database type",
+				Type:        "string",
+			},
+			{
+				Name:        "db_uri",
+				Description: "is the database URI to connect to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_user",
+				Description: "is the database username used to connect",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"DatabaseSessionEnd": {
+		Description: "is emitted when a user ends the database session",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_redshift_cluster_id",
+				Description: "is cluster ID for Redshift databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_region",
+				Description: "is AWS regions for AWS hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_instance_id",
+				Description: "is instance ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_project_id",
+				Description: "is project ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_labels",
+				Description: "is the database resource labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "db_name",
+				Description: "is the name of the database a user is connecting to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_origin",
+				Description: "is the database origin source",
+				Type:        "string",
+			},
+			{
+				Name:        "db_protocol",
+				Description: "is the database type, e.g. postgres or mysql",
+				Type:        "string",
+			},
+			{
+				Name:        "db_roles",
+				Description: "is a list of database roles for auto-provisioned users",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "db_service",
+				Description: "is the name of the database service proxying the database",
+				Type:        "string",
+			},
+			{
+				Name:        "db_type",
+				Description: "is the database type",
+				Type:        "string",
+			},
+			{
+				Name:        "db_uri",
+				Description: "is the database URI to connect to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_user",
+				Description: "is the database username used to connect",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "participants",
+				Description: "is the list of participants in a session",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "session_start",
+				Description: "is the timestamp at which the session began",
+				Type:        "string",
+			},
+			{
+				Name:        "session_stop",
+				Description: "is the timestamp at which the session ended",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -5286,6 +11876,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -5448,6 +12048,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -5459,6 +12069,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -5486,6 +12124,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -5679,6 +12327,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -5690,6 +12348,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -5727,6 +12413,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -5863,6 +12559,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "postgres_pid",
+				Description: "is the Postgres backend PID that was created for a Postgres connection. This can be useful for backend process cancellation or termination and it is not a sensitive or secret value",
+				Type:        "integer",
+			},
+			{
 				Name:        "private_key_policy",
 				Description: "is the private key policy of the private key used to start this session",
 				Type:        "string",
@@ -5913,6 +12614,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -5957,6 +12663,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -5968,6 +12684,39 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_agent",
+				Description: "identifies the type of client that attempted the event",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -5995,6 +12744,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -6160,6 +12919,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -6180,6 +12949,589 @@ var events = map[string]*Event{
 			{
 				Name:        "user",
 				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"DatabaseUserCreate": {
+		Description: "is emitted when a database user is provisioned",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_redshift_cluster_id",
+				Description: "is cluster ID for Redshift databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_region",
+				Description: "is AWS regions for AWS hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_instance_id",
+				Description: "is instance ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_project_id",
+				Description: "is project ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_labels",
+				Description: "is the database resource labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "db_name",
+				Description: "is the name of the database a user is connecting to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_origin",
+				Description: "is the database origin source",
+				Type:        "string",
+			},
+			{
+				Name:        "db_protocol",
+				Description: "is the database type, e.g. postgres or mysql",
+				Type:        "string",
+			},
+			{
+				Name:        "db_roles",
+				Description: "is a list of database roles for auto-provisioned users",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "db_service",
+				Description: "is the name of the database service proxying the database",
+				Type:        "string",
+			},
+			{
+				Name:        "db_type",
+				Description: "is the database type",
+				Type:        "string",
+			},
+			{
+				Name:        "db_uri",
+				Description: "is the database URI to connect to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_user",
+				Description: "is the database username used to connect",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "roles",
+				Description: "is an optional list of granted database roles",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "username",
+				Description: "is the username chosen for the database user. Due to database limitations (e.g. username length, allowed charset) it may differ from Teleport username",
+				Type:        "string",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"DatabaseUserDeactivate": {
+		Description: "is emitted when a database user is disabled or deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_redshift_cluster_id",
+				Description: "is cluster ID for Redshift databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_region",
+				Description: "is AWS regions for AWS hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_instance_id",
+				Description: "is instance ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_project_id",
+				Description: "is project ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_labels",
+				Description: "is the database resource labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "db_name",
+				Description: "is the name of the database a user is connecting to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_origin",
+				Description: "is the database origin source",
+				Type:        "string",
+			},
+			{
+				Name:        "db_protocol",
+				Description: "is the database type, e.g. postgres or mysql",
+				Type:        "string",
+			},
+			{
+				Name:        "db_roles",
+				Description: "is a list of database roles for auto-provisioned users",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "db_service",
+				Description: "is the name of the database service proxying the database",
+				Type:        "string",
+			},
+			{
+				Name:        "db_type",
+				Description: "is the database type",
+				Type:        "string",
+			},
+			{
+				Name:        "db_uri",
+				Description: "is the database URI to connect to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_user",
+				Description: "is the database username used to connect",
+				Type:        "string",
+			},
+			{
+				Name:        "delete",
+				Description: "indicates if the user was deleted entirely or merely disabled",
+				Type:        "boolean",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "username",
+				Description: "is the username chosen for the database user. Due to database limitations (e.g. username length, allowed charset) it may differ from Teleport username",
+				Type:        "string",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
 				Type:        "string",
 			},
 		},
@@ -6216,6 +13568,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -6228,6 +13590,11 @@ var events = map[string]*Event{
 			{
 				Name:        "desktop_addr",
 				Description: "is the address of the desktop being accessed",
+				Type:        "string",
+			},
+			{
+				Name:        "desktop_name",
+				Description: "is the name of the desktop resource",
 				Type:        "string",
 			},
 			{
@@ -6315,6 +13682,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -6326,6 +13703,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -6366,6 +13771,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -6378,6 +13793,11 @@ var events = map[string]*Event{
 			{
 				Name:        "desktop_addr",
 				Description: "is the address of the desktop being accessed",
+				Type:        "string",
+			},
+			{
+				Name:        "desktop_name",
+				Description: "is the name of the desktop resource",
 				Type:        "string",
 			},
 			{
@@ -6465,6 +13885,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -6476,6 +13906,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -6556,6 +14014,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -6568,6 +14036,11 @@ var events = map[string]*Event{
 			{
 				Name:        "desktop_addr",
 				Description: "is the address of the desktop being accessed",
+				Type:        "string",
+			},
+			{
+				Name:        "desktop_name",
+				Description: "is the name of the desktop resource",
 				Type:        "string",
 			},
 			{
@@ -6690,6 +14163,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -6701,6 +14184,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -6741,6 +14252,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -6753,6 +14274,11 @@ var events = map[string]*Event{
 			{
 				Name:        "desktop_addr",
 				Description: "is the address of the desktop being accessed",
+				Type:        "string",
+			},
+			{
+				Name:        "desktop_name",
+				Description: "is the name of the desktop resource",
 				Type:        "string",
 			},
 			{
@@ -6860,6 +14386,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -6871,6 +14407,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -6911,6 +14475,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -6923,6 +14497,11 @@ var events = map[string]*Event{
 			{
 				Name:        "desktop_addr",
 				Description: "is the address of the desktop being accessed",
+				Type:        "string",
+			},
+			{
+				Name:        "desktop_name",
+				Description: "is the name of the desktop resource",
 				Type:        "string",
 			},
 			{
@@ -7045,6 +14624,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -7056,6 +14645,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -7106,6 +14723,16 @@ var events = map[string]*Event{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
 					},
 				},
 			},
@@ -7175,6 +14802,16 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "bot_instance_id",
+						Description: "is the ID of the Bot Instance if this action is associated with one",
+						Type:        "string",
+					},
+					{
+						Name:        "bot_name",
+						Description: "is the name of the Bot if this action is associated with one",
+						Type:        "string",
+					},
+					{
 						Name:        "gcp_service_account",
 						Description: "is the GCP service account user assumes when accessing GCP API",
 						Type:        "string",
@@ -7224,12 +14861,50 @@ var events = map[string]*Event{
 								Description: "of the device",
 								Type:        "integer",
 							},
+							{
+								Name:        "web_authentication",
+								Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+								Type:        "boolean",
+							},
+							{
+								Name:        "web_authentication_id",
+								Description: "web authentication attempt ID. Present in events related to device web authentication",
+								Type:        "string",
+							},
 						},
 					},
 					{
 						Name:        "user",
 						Description: "is teleport user name",
 						Type:        "string",
+					},
+					{
+						Name:        "user_cluster_name",
+						Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+						Type:        "string",
+					},
+					{
+						Name:        "user_kind",
+						Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+						Type:        "integer",
+					},
+					{
+						Name:        "user_origin",
+						Description: "specifies the origin of this user account",
+						Type:        "integer",
+					},
+					{
+						Name:        "user_roles",
+						Description: "specifies the roles user for the user to perform the action",
+						Type:        "array",
+						Items: &EventField{
+							Type: "string",
+						},
+					},
+					{
+						Name:        "user_traits",
+						Description: "hold claim data used to populate a role at runtime for this session",
+						Type:        "object",
 					},
 				},
 			},
@@ -7254,6 +14929,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -7295,6 +14980,16 @@ var events = map[string]*Event{
 						Name:        "os_type",
 						Description: "of the device",
 						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
 					},
 				},
 			},
@@ -7378,6 +15073,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -7389,6 +15094,786 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"DiscoveryConfigCreate": {
+		Description: "is emitted when a discovery config is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"DiscoveryConfigDelete": {
+		Description: "is emitted when a discovery config is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"DiscoveryConfigDeleteAll": {
+		Description: "is emitted when all discovery configs are deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"DiscoveryConfigUpdate": {
+		Description: "is emitted when a discovery config is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -7417,6 +15902,16 @@ var events = map[string]*Event{
 				Name:        "body",
 				Description: "is the HTTP request json body. The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly",
 				Type:        "object",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
 			},
 			{
 				Name:        "cluster_name",
@@ -7605,6 +16100,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -7616,6 +16121,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -7643,6 +16176,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -7848,6 +16391,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -7859,6 +16412,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -7896,6 +16477,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -8070,6 +16661,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -8109,6 +16705,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -8120,6 +16726,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -8342,6 +16976,299 @@ var events = map[string]*Event{
 			},
 		},
 	},
+	"GitCommand": {
+		Description: "is emitted when a user performs a Git fetch or push command",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "actions",
+				Description: "defines details for a Git push",
+				Type:        "array",
+				Items: &EventField{
+					Type: "object",
+					Fields: []*EventField{
+						{
+							Name:        "action",
+							Description: "type like create or update",
+							Type:        "string",
+						},
+						{
+							Name:        "new",
+							Description: "is the new hash",
+							Type:        "string",
+						},
+						{
+							Name:        "old",
+							Description: "is the old hash",
+							Type:        "string",
+						},
+						{
+							Name:        "reference",
+							Description: "name like ref/main/my_branch",
+							Type:        "string",
+						},
+					},
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "command",
+				Description: "is the executed command name",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "exitCode",
+				Description: "specifies command exit code",
+				Type:        "string",
+			},
+			{
+				Name:        "exitError",
+				Description: "is an optional exit error, set if command has failed",
+				Type:        "string",
+			},
+			{
+				Name:        "forwarded_by",
+				Description: "tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "namespace",
+				Description: "is a namespace of the server event",
+				Type:        "string",
+			},
+			{
+				Name:        "path",
+				Description: "is the Git repo path, usually <org>/<repo>",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "server_addr",
+				Description: "is the address of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_hostname",
+				Description: "is the hostname of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_id",
+				Description: "is the UUID of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_labels",
+				Description: "are the labels (static and dynamic) of the server the session occurred on",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "server_sub_kind",
+				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "service",
+				Description: "is the type of the git request like git-upload-pack or git-receive-pack",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
 	"GithubConnectorCreate": {
 		Description: "fires when a Github connector is created",
 		Fields: []*EventField{
@@ -8354,6 +17281,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -8361,6 +17298,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -8409,6 +17356,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -8448,6 +17400,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -8469,6 +17431,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -8484,6 +17474,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -8491,6 +17491,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -8539,6 +17549,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -8578,6 +17593,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -8599,6 +17624,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -8614,6 +17667,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -8621,6 +17684,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -8669,6 +17742,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -8708,6 +17786,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -8730,11 +17818,628 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"HealthCheckConfigCreate": {
+		Description: "is emitted when a HealthCheckConfig is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"HealthCheckConfigDelete": {
+		Description: "is emitted when a HealthCheckConfig is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"HealthCheckConfigUpdate": {
+		Description: "is emitted when a HealthCheckConfig is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"InstanceJoin": {
 		Description: "records an instance join event",
 		Fields: []*EventField{
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
 			{
 				Name:        "attributes",
 				Description: "is a map of attributes received from the join method provider",
@@ -8786,6 +18491,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "role",
 				Description: "is the role that the node requested when attempting to join",
 				Type:        "string",
@@ -8814,6 +18524,774 @@ var events = map[string]*Event{
 				Name:        "uid",
 				Description: "is a unique event identifier",
 				Type:        "string",
+			},
+		},
+	},
+	"IntegrationCreate": {
+		Description: "is emitted when an integration resource is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_oidc",
+				Description: "contains metadata for AWS OIDC integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "issuer_s3_uri",
+						Description: "is the Identity Provider that was configured in AWS",
+						Type:        "string",
+					},
+					{
+						Name:        "role_arn",
+						Description: "contains the Role ARN used to set up the Integration. This is the AWS Role that Teleport will use to issue tokens for API Calls",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "aws_ra",
+				Description: "contains metadata for AWS IAM Roles Anywhere integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "trust_anchor_arn",
+						Description: "contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_oidc",
+				Description: "contains metadata for Azure OIDC integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "client_id",
+						Description: "specifies the ID of Azure enterprise application (client)",
+						Type:        "string",
+					},
+					{
+						Name:        "tenant_id",
+						Description: "specifies the ID of Entra Tenant (Directory)",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "github",
+				Description: "contains metadata for GitHub integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "organization",
+						Description: "specifies the name of the organization for the GitHub integration",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sub_kind",
+				Description: "is the sub kind of the integration resource",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"IntegrationDelete": {
+		Description: "is emitted when an integration is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_oidc",
+				Description: "contains metadata for AWS OIDC integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "issuer_s3_uri",
+						Description: "is the Identity Provider that was configured in AWS",
+						Type:        "string",
+					},
+					{
+						Name:        "role_arn",
+						Description: "contains the Role ARN used to set up the Integration. This is the AWS Role that Teleport will use to issue tokens for API Calls",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "aws_ra",
+				Description: "contains metadata for AWS IAM Roles Anywhere integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "trust_anchor_arn",
+						Description: "contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_oidc",
+				Description: "contains metadata for Azure OIDC integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "client_id",
+						Description: "specifies the ID of Azure enterprise application (client)",
+						Type:        "string",
+					},
+					{
+						Name:        "tenant_id",
+						Description: "specifies the ID of Entra Tenant (Directory)",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "github",
+				Description: "contains metadata for GitHub integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "organization",
+						Description: "specifies the name of the organization for the GitHub integration",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sub_kind",
+				Description: "is the sub kind of the integration resource",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"IntegrationUpdate": {
+		Description: "is emitted when an integration resource is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_oidc",
+				Description: "contains metadata for AWS OIDC integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "issuer_s3_uri",
+						Description: "is the Identity Provider that was configured in AWS",
+						Type:        "string",
+					},
+					{
+						Name:        "role_arn",
+						Description: "contains the Role ARN used to set up the Integration. This is the AWS Role that Teleport will use to issue tokens for API Calls",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "aws_ra",
+				Description: "contains metadata for AWS IAM Roles Anywhere integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "trust_anchor_arn",
+						Description: "contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_oidc",
+				Description: "contains metadata for Azure OIDC integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "client_id",
+						Description: "specifies the ID of Azure enterprise application (client)",
+						Type:        "string",
+					},
+					{
+						Name:        "tenant_id",
+						Description: "specifies the ID of Entra Tenant (Directory)",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "github",
+				Description: "contains metadata for GitHub integrations",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "organization",
+						Description: "specifies the name of the organization for the GitHub integration",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sub_kind",
+				Description: "is the sub kind of the integration resource",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -8846,6 +19324,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -9010,6 +19498,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -9049,6 +19542,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9060,6 +19563,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "verb",
@@ -9095,6 +19626,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -9194,6 +19735,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9215,6 +19766,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -9240,6 +19819,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -9324,6 +19913,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9346,6 +19945,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"KubernetesClusterUpdate": {
@@ -9367,6 +19994,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -9469,6 +20106,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9491,6 +20138,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"LockCreate": {
@@ -9512,6 +20187,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -9550,6 +20235,70 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "lock",
+				Description: "is a common lock event metadata",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "target",
+						Description: "describes the set of interactions that the lock applies to",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "access_request",
+								Description: "specifies the UUID of an access request",
+								Type:        "string",
+							},
+							{
+								Name:        "bot_instance_id",
+								Description: "is the bot instance ID if this is a bot identity and is ignored otherwise",
+								Type:        "string",
+							},
+							{
+								Name:        "device",
+								Description: "is the device ID of a trusted device. Requires Teleport Enterprise",
+								Type:        "string",
+							},
+							{
+								Name:        "join_token",
+								Description: "is the name of the join token used when this identity originally joined. This is only valid for bot identities, and cannot be used to target `token`-joined bots",
+								Type:        "string",
+							},
+							{
+								Name:        "login",
+								Description: "specifies the name of a local UNIX user",
+								Type:        "string",
+							},
+							{
+								Name:        "mfa_device",
+								Description: "specifies the UUID of a user MFA device",
+								Type:        "string",
+							},
+							{
+								Name:        "role",
+								Description: "specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles",
+								Type:        "string",
+							},
+							{
+								Name:        "server_id",
+								Description: "is the host id of the Teleport instance",
+								Type:        "string",
+							},
+							{
+								Name:        "user",
+								Description: "specifies the name of a Teleport user",
+								Type:        "string",
+							},
+							{
+								Name:        "windows_desktop",
+								Description: "specifies the name of a Windows desktop",
+								Type:        "string",
+							},
+						},
+					},
+				},
+			},
+			{
 				Name:        "login",
 				Description: "is OS login",
 				Type:        "string",
@@ -9566,7 +20315,7 @@ var events = map[string]*Event{
 			},
 			{
 				Name:        "target",
-				Description: "describes the set of interactions that the lock applies to",
+				Description: "describes the set of interactions that the lock applies to Deprecated: use Lock instead",
 				Type:        "object",
 				Fields: []*EventField{
 					{
@@ -9575,8 +20324,18 @@ var events = map[string]*Event{
 						Type:        "string",
 					},
 					{
+						Name:        "bot_instance_id",
+						Description: "is the bot instance ID if this is a bot identity and is ignored otherwise",
+						Type:        "string",
+					},
+					{
 						Name:        "device",
 						Description: "is the device ID of a trusted device. Requires Teleport Enterprise",
+						Type:        "string",
+					},
+					{
+						Name:        "join_token",
+						Description: "is the name of the join token used when this identity originally joined. This is only valid for bot identities, and cannot be used to target `token`-joined bots",
 						Type:        "string",
 					},
 					{
@@ -9587,11 +20346,6 @@ var events = map[string]*Event{
 					{
 						Name:        "mfa_device",
 						Description: "specifies the UUID of a user MFA device",
-						Type:        "string",
-					},
-					{
-						Name:        "node",
-						Description: "specifies the UUID of a Teleport node. A matching node is also prevented from heartbeating to the auth server. DEPRECATED: use ServerID instead",
 						Type:        "string",
 					},
 					{
@@ -9651,6 +20405,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9672,6 +20436,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -9697,6 +20489,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -9730,6 +20532,70 @@ var events = map[string]*Event{
 				Name:        "impersonator",
 				Description: "is a user acting on behalf of another user",
 				Type:        "string",
+			},
+			{
+				Name:        "lock",
+				Description: "is a common lock event metadata",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "target",
+						Description: "describes the set of interactions that the lock applies to",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "access_request",
+								Description: "specifies the UUID of an access request",
+								Type:        "string",
+							},
+							{
+								Name:        "bot_instance_id",
+								Description: "is the bot instance ID if this is a bot identity and is ignored otherwise",
+								Type:        "string",
+							},
+							{
+								Name:        "device",
+								Description: "is the device ID of a trusted device. Requires Teleport Enterprise",
+								Type:        "string",
+							},
+							{
+								Name:        "join_token",
+								Description: "is the name of the join token used when this identity originally joined. This is only valid for bot identities, and cannot be used to target `token`-joined bots",
+								Type:        "string",
+							},
+							{
+								Name:        "login",
+								Description: "specifies the name of a local UNIX user",
+								Type:        "string",
+							},
+							{
+								Name:        "mfa_device",
+								Description: "specifies the UUID of a user MFA device",
+								Type:        "string",
+							},
+							{
+								Name:        "role",
+								Description: "specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles",
+								Type:        "string",
+							},
+							{
+								Name:        "server_id",
+								Description: "is the host id of the Teleport instance",
+								Type:        "string",
+							},
+							{
+								Name:        "user",
+								Description: "specifies the name of a Teleport user",
+								Type:        "string",
+							},
+							{
+								Name:        "windows_desktop",
+								Description: "specifies the name of a Windows desktop",
+								Type:        "string",
+							},
+						},
+					},
+				},
 			},
 			{
 				Name:        "login",
@@ -9781,6 +20647,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9802,6 +20678,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -9827,6 +20731,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -9911,6 +20825,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -9932,6 +20856,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -9957,6 +20909,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -10041,6 +21003,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -10063,6 +21035,1524 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"MCPSessionEnd": {
+		Description: "is emitted when an MCP session ends",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_labels",
+				Description: "are the configured application labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "app_name",
+				Description: "is the configured application name",
+				Type:        "string",
+			},
+			{
+				Name:        "app_public_addr",
+				Description: "is the configured application public address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
+				Name:        "app_uri",
+				Description: "is the application endpoint",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "forwarded_by",
+				Description: "tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "namespace",
+				Description: "is a namespace of the server event",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "server_addr",
+				Description: "is the address of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_hostname",
+				Description: "is the hostname of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_id",
+				Description: "is the UUID of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_labels",
+				Description: "are the labels (static and dynamic) of the server the session occurred on",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "server_sub_kind",
+				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"MCPSessionInvalidHTTPRequest": {
+		Description: "is a blanket event for all requests that we do not understand (usually out of MCP spec)",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "app_labels",
+				Description: "are the configured application labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "app_name",
+				Description: "is the configured application name",
+				Type:        "string",
+			},
+			{
+				Name:        "app_public_addr",
+				Description: "is the configured application public address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
+				Name:        "app_uri",
+				Description: "is the application endpoint",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "headers",
+				Description: "are the HTTP request headers",
+				Type:        "object",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "method",
+				Description: "is the request HTTP method, like GET/POST/DELETE/etc",
+				Type:        "string",
+			},
+			{
+				Name:        "path",
+				Description: "is relative path in the URL",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "raw_query",
+				Description: "are the encoded query values",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"MCPSessionListenSSEStream": {
+		Description: "is emitted when client sends a GET request to a streamable HTTP MCP server for listening server notifications via a SSE stream",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "app_labels",
+				Description: "are the configured application labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "app_name",
+				Description: "is the configured application name",
+				Type:        "string",
+			},
+			{
+				Name:        "app_public_addr",
+				Description: "is the configured application public address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
+				Name:        "app_uri",
+				Description: "is the application endpoint",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"MCPSessionNotification": {
+		Description: "is emitted when a notification is sent by client during a MCP session",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "app_labels",
+				Description: "are the configured application labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "app_name",
+				Description: "is the configured application name",
+				Type:        "string",
+			},
+			{
+				Name:        "app_public_addr",
+				Description: "is the configured application public address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
+				Name:        "app_uri",
+				Description: "is the application endpoint",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"MCPSessionRequest": {
+		Description: "is emitted when a request is sent by client during a MCP session",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "app_labels",
+				Description: "are the configured application labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "app_name",
+				Description: "is the configured application name",
+				Type:        "string",
+			},
+			{
+				Name:        "app_public_addr",
+				Description: "is the configured application public address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
+				Name:        "app_uri",
+				Description: "is the application endpoint",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "contains details of the message",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "id",
+						Description: "is the ID of a request. Notifications have no IDs",
+						Type:        "string",
+					},
+					{
+						Name:        "jsonrpc",
+						Description: "specifies the version of the protocol",
+						Type:        "string",
+					},
+					{
+						Name:        "method",
+						Description: "is the method of this message",
+						Type:        "string",
+					},
+					{
+						Name:        "params",
+						Description: "is the optional parameters",
+						Type:        "object",
+					},
+				},
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"MCPSessionStart": {
+		Description: "is emitted when a user starts a MCP session",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_labels",
+				Description: "are the configured application labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "app_name",
+				Description: "is the configured application name",
+				Type:        "string",
+			},
+			{
+				Name:        "app_public_addr",
+				Description: "is the configured application public address",
+				Type:        "string",
+			},
+			{
+				Name:        "app_target_port",
+				Description: "signifies that the app is a multi-port TCP app and says which port was used to access the app. This field is not set for other types of apps, including single-port TCP apps",
+				Type:        "integer",
+			},
+			{
+				Name:        "app_uri",
+				Description: "is the application endpoint",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "clientInfo",
+				Description: "stores reported client agent information, e.g. \"claude-ai/0.1.0\"",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "forwarded_by",
+				Description: "tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "mcpSessionId",
+				Description: "is the session ID tracked by remote MCP servers",
+				Type:        "string",
+			},
+			{
+				Name:        "namespace",
+				Description: "is a namespace of the server event",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "server_addr",
+				Description: "is the address of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_hostname",
+				Description: "is the hostname of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_id",
+				Description: "is the UUID of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_labels",
+				Description: "are the labels (static and dynamic) of the server the session occurred on",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "server_sub_kind",
+				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
 		},
 	},
 	"MFADeviceAdd": {
@@ -10077,6 +22567,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -10084,6 +22584,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -10137,6 +22647,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -10176,6 +22691,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -10187,6 +22712,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -10202,6 +22755,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -10209,6 +22772,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -10262,6 +22835,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -10301,6 +22879,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -10312,6 +22900,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -10334,6 +22950,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -10504,6 +23130,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -10515,6 +23151,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -10542,6 +23206,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -10707,6 +23381,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -10718,6 +23402,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -10745,6 +23457,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -10915,6 +23637,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -10926,6 +23658,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -10953,6 +23713,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -11123,6 +23893,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -11134,6 +23914,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -11161,6 +23969,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -11331,6 +24149,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -11342,6 +24170,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -11369,6 +24225,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -11539,6 +24405,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -11550,6 +24426,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -11580,6 +24484,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -11742,6 +24656,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -11753,6 +24677,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -11783,6 +24735,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -11958,6 +24920,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -11969,6 +24941,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -11999,6 +24999,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -12166,6 +25176,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -12177,6 +25197,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -12204,6 +25252,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -12382,6 +25440,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -12393,6 +25461,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -12420,6 +25516,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -12595,6 +25701,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -12606,6 +25722,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -12633,6 +25777,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -12803,6 +25957,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -12814,6 +25978,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -12841,6 +26033,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -13011,6 +26213,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -13022,6 +26234,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -13049,6 +26289,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -13229,6 +26479,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -13240,6 +26500,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -13270,6 +26558,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -13354,6 +26652,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -13375,6 +26683,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -13400,6 +26736,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -13484,6 +26830,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -13505,6 +26861,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -13530,6 +26914,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -13614,6 +27008,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -13634,6 +27038,119 @@ var events = map[string]*Event{
 			{
 				Name:        "user",
 				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"OktaAccessListSync": {
+		Description: "records an access list sync event",
+		Fields: []*EventField{
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "numAccessListMembers",
+				Description: "are the number of access list members that were created/updated",
+				Type:        "integer",
+			},
+			{
+				Name:        "numAccessLists",
+				Description: "are the number of access lists that were created/updated",
+				Type:        "integer",
+			},
+			{
+				Name:        "numAppFilters",
+				Description: "is the number of application filters used for this sync",
+				Type:        "integer",
+			},
+			{
+				Name:        "numApps",
+				Description: "is the number of apps that were synchronized from this sync event",
+				Type:        "integer",
+			},
+			{
+				Name:        "numGroupFilters",
+				Description: "is the number of group filters used for this sync",
+				Type:        "integer",
+			},
+			{
+				Name:        "numGroups",
+				Description: "is the number of groups that were synchronized from this sync event",
+				Type:        "integer",
+			},
+			{
+				Name:        "numRoles",
+				Description: "are the number of roles that were created/updated",
+				Type:        "integer",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
 				Type:        "string",
 			},
 		},
@@ -13729,6 +27246,11 @@ var events = map[string]*Event{
 			{
 				Name:        "server_sub_kind",
 				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
 				Type:        "string",
 			},
 			{
@@ -13892,6 +27414,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "time",
 				Description: "is event time",
 				Type:        "string",
@@ -14007,6 +27534,91 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
+	"OktaUserSync": {
+		Description: "records an Okta user sync event",
+		Fields: []*EventField{
+			{
+				Name:        "appId",
+				Description: "is the optional ID of an Okta Application that Teleport is using as its gateway into Okta. The list of potential Teleport users are drawn from the list of Okta users assigned to this app - either directly or via a group assignement. If not set, the Okta sync service is drawing its user list from the whole organization",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "num_users_created",
+				Description: "is the number of Teleport users created in this synchronization pass",
+				Type:        "integer",
+			},
+			{
+				Name:        "num_users_deleted",
+				Description: "is the number of Teleport users deleted in this synchronization pass",
+				Type:        "integer",
+			},
+			{
+				Name:        "num_users_modified",
+				Description: "is the number of Teleport users modified in this synchronization pass",
+				Type:        "integer",
+			},
+			{
+				Name:        "num_users_total",
+				Description: "is the total number of Teleport users managed by the Okta integration at the end of the synchronzaton pass",
+				Type:        "integer",
+			},
+			{
+				Name:        "orgUrl",
+				Description: "is the URL of the Okta organization being synced to",
+				Type:        "string",
+			},
+			{
 				Name:        "success",
 				Description: "indicates the success or failure of the operation",
 				Type:        "boolean",
@@ -14042,6 +27654,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -14247,6 +27869,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -14260,9 +27892,676 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
 				Name:        "with_mfa",
 				Description: "is a UUID of an MFA device used to start this session",
 				Type:        "string",
+			},
+		},
+	},
+	"PluginCreate": {
+		Description: "is emitted when a plugin resource is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "has_credentials",
+				Description: "indicates whether the plugin has credentials",
+				Type:        "boolean",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "plugin_data",
+				Description: "is the plugin data of the plugin resource",
+				Type:        "object",
+			},
+			{
+				Name:        "plugin_type",
+				Description: "is the plugin type of the plugin resource. The value matches the types.PluginV1.Spec.Type field",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "reuses_credentials",
+				Description: "indicates whether the plugin reuses credentials",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"PluginDelete": {
+		Description: "is emitted when a plugin is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "has_credentials",
+				Description: "indicates whether the plugin has credentials",
+				Type:        "boolean",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "plugin_data",
+				Description: "is the plugin data of the plugin resource",
+				Type:        "object",
+			},
+			{
+				Name:        "plugin_type",
+				Description: "is the plugin type of the plugin resource. The value matches the types.PluginV1.Spec.Type field",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "reuses_credentials",
+				Description: "indicates whether the plugin reuses credentials",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"PluginUpdate": {
+		Description: "is emitted when a plugin resource is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "has_credentials",
+				Description: "indicates whether the plugin has credentials",
+				Type:        "boolean",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "plugin_data",
+				Description: "is the plugin data of the plugin resource",
+				Type:        "object",
+			},
+			{
+				Name:        "plugin_type",
+				Description: "is the plugin type of the plugin resource. The value matches the types.PluginV1.Spec.Type field",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "reuses_credentials",
+				Description: "indicates whether the plugin reuses credentials",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -14303,6 +28602,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -14336,6 +28645,67 @@ var events = map[string]*Event{
 				Name:        "impersonator",
 				Description: "is a user acting on behalf of another user",
 				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_cluster",
+				Description: "is a kubernetes cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_container_image",
+				Description: "is the image of the container within the pod",
+				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_container_name",
+				Description: "is the name of the container within the pod",
+				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_groups",
+				Description: "is a list of kubernetes groups for the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "kubernetes_labels",
+				Description: "are the labels (static and dynamic) of the kubernetes cluster the session occurred on",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "kubernetes_node_name",
+				Description: "is the node that runs the pod",
+				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_pod_name",
+				Description: "is the name of the pod",
+				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_pod_namespace",
+				Description: "is the namespace of the pod",
+				Type:        "string",
+			},
+			{
+				Name:        "kubernetes_users",
+				Description: "is a list of kubernetes usernames for the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
 			},
 			{
 				Name:        "login",
@@ -14397,6 +28767,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -14408,6 +28788,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -14430,6 +28838,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -14613,6 +29031,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -14624,6 +29052,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -14651,6 +29107,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -14826,6 +29292,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -14837,6 +29313,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -14864,6 +29368,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15034,6 +29548,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15045,6 +29569,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -15072,6 +29624,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15250,6 +29812,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15261,6 +29833,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -15288,6 +29888,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15463,6 +30073,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15474,6 +30094,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -15501,6 +30149,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15599,6 +30257,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15621,6 +30289,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"RecoveryCodeGenerate": {
@@ -15642,6 +30338,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15719,6 +30425,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15730,6 +30446,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -15752,6 +30496,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15844,6 +30598,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15855,6 +30619,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -15877,6 +30669,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -15954,6 +30756,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -15965,6 +30777,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -15997,6 +30837,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -16156,6 +31006,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -16200,6 +31055,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16211,6 +31076,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -16231,6 +31124,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -16238,6 +31141,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -16286,6 +31199,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -16325,6 +31243,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16346,6 +31274,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -16361,6 +31317,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -16368,6 +31334,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -16416,6 +31392,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -16455,6 +31436,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16476,6 +31467,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -16491,6 +31510,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -16498,6 +31527,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -16546,6 +31585,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -16585,6 +31629,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16606,6 +31660,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -16631,6 +31713,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -16639,6 +31731,277 @@ var events = map[string]*Event{
 				Name:        "code",
 				Description: "is a unique event code",
 				Type:        "string",
+			},
+			{
+				Name:        "connector",
+				Description: "is the new SAML connector",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "kind",
+						Description: "is a resource kind",
+						Type:        "string",
+					},
+					{
+						Name:        "metadata",
+						Description: "holds resource metadata",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "cluster_name",
+								Description: "identifies the originating teleport cluster",
+								Type:        "string",
+							},
+							{
+								Name:        "code",
+								Description: "is a unique event code",
+								Type:        "string",
+							},
+							{
+								Name:        "ei",
+								Description: "is a monotonically incremented index in the event sequence",
+								Type:        "integer",
+							},
+							{
+								Name:        "event",
+								Description: "is the event type",
+								Type:        "string",
+							},
+							{
+								Name:        "time",
+								Description: "is event time",
+								Type:        "string",
+							},
+							{
+								Name:        "uid",
+								Description: "is a unique event identifier",
+								Type:        "string",
+							},
+						},
+					},
+					{
+						Name:        "spec",
+						Description: "is an SAML connector specification",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "acs",
+								Description: "is a URL for assertion consumer service on the service provider (Teleport's side)",
+								Type:        "string",
+							},
+							{
+								Name:        "allow_idp_initiated",
+								Description: "is a flag that indicates if the connector can be used for IdP-initiated logins",
+								Type:        "boolean",
+							},
+							{
+								Name:        "assertion_key_pair",
+								Description: "is a key pair used for decrypting SAML assertions",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "cert",
+										Description: "is a PEM-encoded x509 certificate",
+										Type:        "string",
+									},
+									{
+										Name:        "private_key",
+										Description: "is a PEM encoded x509 private key",
+										Type:        "string",
+									},
+								},
+							},
+							{
+								Name:        "attributes_to_roles",
+								Description: "is a list of mappings of attribute statements to roles",
+								Type:        "array",
+								Items: &EventField{
+									Type: "object",
+									Fields: []*EventField{
+										{
+											Name:        "name",
+											Description: "is an attribute statement name",
+											Type:        "string",
+										},
+										{
+											Name:        "roles",
+											Description: "is a list of static teleport roles to map to",
+											Type:        "array",
+											Items: &EventField{
+												Type: "string",
+											},
+										},
+										{
+											Name:        "value",
+											Description: "is an attribute statement value to match",
+											Type:        "string",
+										},
+									},
+								},
+							},
+							{
+								Name:        "audience",
+								Description: "uniquely identifies our service provider",
+								Type:        "string",
+							},
+							{
+								Name:        "cert",
+								Description: "is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate",
+								Type:        "string",
+							},
+							{
+								Name:        "client_redirect_settings",
+								Description: "defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "allowedHttpsHostnames",
+										Description: "list of hostnames allowed for https client redirect URLs",
+										Type:        "array",
+										Items: &EventField{
+											Type: "string",
+										},
+									},
+									{
+										Name:        "insecureAllowedCidrRanges",
+										Description: "list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+										Type:        "array",
+										Items: &EventField{
+											Type: "string",
+										},
+									},
+								},
+							},
+							{
+								Name:        "display",
+								Description: "controls how this connector is displayed",
+								Type:        "string",
+							},
+							{
+								Name:        "entity_descriptor",
+								Description: "is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements",
+								Type:        "string",
+							},
+							{
+								Name:        "entity_descriptor_url",
+								Description: "is a URL that supplies a configuration XML",
+								Type:        "string",
+							},
+							{
+								Name:        "force_authn",
+								Description: "specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO",
+								Type:        "integer",
+							},
+							{
+								Name:        "issuer",
+								Description: "is the identity provider issuer",
+								Type:        "string",
+							},
+							{
+								Name:        "mfa",
+								Description: "contains settings to enable SSO MFA checks through this auth connector",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "cert",
+										Description: "is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate",
+										Type:        "string",
+									},
+									{
+										Name:        "enabled",
+										Description: "specified whether this SAML connector supports MFA checks. Defaults to false",
+										Type:        "boolean",
+									},
+									{
+										Name:        "entityDescriptor",
+										Description: "is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl",
+										Type:        "string",
+									},
+									{
+										Name:        "entityDescriptorUrl",
+										Description: "is a URL that supplies a configuration XML",
+										Type:        "string",
+									},
+									{
+										Name:        "forceAuthn",
+										Description: "specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions",
+										Type:        "integer",
+									},
+									{
+										Name:        "issuer",
+										Description: "is the identity provider issuer. Usually set from EntityDescriptor",
+										Type:        "string",
+									},
+									{
+										Name:        "sso",
+										Description: "is the URL of the identity provider's SSO service. Usually set from EntityDescriptor",
+										Type:        "string",
+									},
+								},
+							},
+							{
+								Name:        "preferred_request_binding",
+								Description: "is a preferred SAML request binding method. Value must be either \"http-post\" or \"http-redirect\". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured",
+								Type:        "string",
+							},
+							{
+								Name:        "provider",
+								Description: "is the external identity provider",
+								Type:        "string",
+							},
+							{
+								Name:        "service_provider_issuer",
+								Description: "is the issuer of the service provider (Teleport)",
+								Type:        "string",
+							},
+							{
+								Name:        "signing_key_pair",
+								Description: "is an x509 key pair used to sign AuthnRequest",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "cert",
+										Description: "is a PEM-encoded x509 certificate",
+										Type:        "string",
+									},
+									{
+										Name:        "private_key",
+										Description: "is a PEM encoded x509 private key",
+										Type:        "string",
+									},
+								},
+							},
+							{
+								Name:        "single_logout_url",
+								Description: "is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled",
+								Type:        "string",
+							},
+							{
+								Name:        "sso",
+								Description: "is the URL of the identity provider's SSO service",
+								Type:        "string",
+							},
+							{
+								Name:        "user_matchers",
+								Description: "is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login",
+								Type:        "array",
+								Items: &EventField{
+									Type: "string",
+								},
+							},
+						},
+					},
+					{
+						Name:        "sub_kind",
+						Description: "is an optional resource sub kind, used in some resources",
+						Type:        "string",
+					},
+					{
+						Name:        "version",
+						Description: "is the resource version. It must be specified. Supported values are: `v2`",
+						Type:        "string",
+					},
+				},
 			},
 			{
 				Name:        "ei",
@@ -16715,6 +32078,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16736,6 +32109,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -16761,6 +32162,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -16845,6 +32256,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16866,6 +32287,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -16891,6 +32340,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -16899,6 +32358,277 @@ var events = map[string]*Event{
 				Name:        "code",
 				Description: "is a unique event code",
 				Type:        "string",
+			},
+			{
+				Name:        "connector",
+				Description: "is the updated SAML connector",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "kind",
+						Description: "is a resource kind",
+						Type:        "string",
+					},
+					{
+						Name:        "metadata",
+						Description: "holds resource metadata",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "cluster_name",
+								Description: "identifies the originating teleport cluster",
+								Type:        "string",
+							},
+							{
+								Name:        "code",
+								Description: "is a unique event code",
+								Type:        "string",
+							},
+							{
+								Name:        "ei",
+								Description: "is a monotonically incremented index in the event sequence",
+								Type:        "integer",
+							},
+							{
+								Name:        "event",
+								Description: "is the event type",
+								Type:        "string",
+							},
+							{
+								Name:        "time",
+								Description: "is event time",
+								Type:        "string",
+							},
+							{
+								Name:        "uid",
+								Description: "is a unique event identifier",
+								Type:        "string",
+							},
+						},
+					},
+					{
+						Name:        "spec",
+						Description: "is an SAML connector specification",
+						Type:        "object",
+						Fields: []*EventField{
+							{
+								Name:        "acs",
+								Description: "is a URL for assertion consumer service on the service provider (Teleport's side)",
+								Type:        "string",
+							},
+							{
+								Name:        "allow_idp_initiated",
+								Description: "is a flag that indicates if the connector can be used for IdP-initiated logins",
+								Type:        "boolean",
+							},
+							{
+								Name:        "assertion_key_pair",
+								Description: "is a key pair used for decrypting SAML assertions",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "cert",
+										Description: "is a PEM-encoded x509 certificate",
+										Type:        "string",
+									},
+									{
+										Name:        "private_key",
+										Description: "is a PEM encoded x509 private key",
+										Type:        "string",
+									},
+								},
+							},
+							{
+								Name:        "attributes_to_roles",
+								Description: "is a list of mappings of attribute statements to roles",
+								Type:        "array",
+								Items: &EventField{
+									Type: "object",
+									Fields: []*EventField{
+										{
+											Name:        "name",
+											Description: "is an attribute statement name",
+											Type:        "string",
+										},
+										{
+											Name:        "roles",
+											Description: "is a list of static teleport roles to map to",
+											Type:        "array",
+											Items: &EventField{
+												Type: "string",
+											},
+										},
+										{
+											Name:        "value",
+											Description: "is an attribute statement value to match",
+											Type:        "string",
+										},
+									},
+								},
+							},
+							{
+								Name:        "audience",
+								Description: "uniquely identifies our service provider",
+								Type:        "string",
+							},
+							{
+								Name:        "cert",
+								Description: "is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate",
+								Type:        "string",
+							},
+							{
+								Name:        "client_redirect_settings",
+								Description: "defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "allowedHttpsHostnames",
+										Description: "list of hostnames allowed for https client redirect URLs",
+										Type:        "array",
+										Items: &EventField{
+											Type: "string",
+										},
+									},
+									{
+										Name:        "insecureAllowedCidrRanges",
+										Description: "list of CIDRs allowed for HTTP or HTTPS client redirect URLs",
+										Type:        "array",
+										Items: &EventField{
+											Type: "string",
+										},
+									},
+								},
+							},
+							{
+								Name:        "display",
+								Description: "controls how this connector is displayed",
+								Type:        "string",
+							},
+							{
+								Name:        "entity_descriptor",
+								Description: "is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements",
+								Type:        "string",
+							},
+							{
+								Name:        "entity_descriptor_url",
+								Description: "is a URL that supplies a configuration XML",
+								Type:        "string",
+							},
+							{
+								Name:        "force_authn",
+								Description: "specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO",
+								Type:        "integer",
+							},
+							{
+								Name:        "issuer",
+								Description: "is the identity provider issuer",
+								Type:        "string",
+							},
+							{
+								Name:        "mfa",
+								Description: "contains settings to enable SSO MFA checks through this auth connector",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "cert",
+										Description: "is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate",
+										Type:        "string",
+									},
+									{
+										Name:        "enabled",
+										Description: "specified whether this SAML connector supports MFA checks. Defaults to false",
+										Type:        "boolean",
+									},
+									{
+										Name:        "entityDescriptor",
+										Description: "is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl",
+										Type:        "string",
+									},
+									{
+										Name:        "entityDescriptorUrl",
+										Description: "is a URL that supplies a configuration XML",
+										Type:        "string",
+									},
+									{
+										Name:        "forceAuthn",
+										Description: "specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions",
+										Type:        "integer",
+									},
+									{
+										Name:        "issuer",
+										Description: "is the identity provider issuer. Usually set from EntityDescriptor",
+										Type:        "string",
+									},
+									{
+										Name:        "sso",
+										Description: "is the URL of the identity provider's SSO service. Usually set from EntityDescriptor",
+										Type:        "string",
+									},
+								},
+							},
+							{
+								Name:        "preferred_request_binding",
+								Description: "is a preferred SAML request binding method. Value must be either \"http-post\" or \"http-redirect\". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured",
+								Type:        "string",
+							},
+							{
+								Name:        "provider",
+								Description: "is the external identity provider",
+								Type:        "string",
+							},
+							{
+								Name:        "service_provider_issuer",
+								Description: "is the issuer of the service provider (Teleport)",
+								Type:        "string",
+							},
+							{
+								Name:        "signing_key_pair",
+								Description: "is an x509 key pair used to sign AuthnRequest",
+								Type:        "object",
+								Fields: []*EventField{
+									{
+										Name:        "cert",
+										Description: "is a PEM-encoded x509 certificate",
+										Type:        "string",
+									},
+									{
+										Name:        "private_key",
+										Description: "is a PEM encoded x509 private key",
+										Type:        "string",
+									},
+								},
+							},
+							{
+								Name:        "single_logout_url",
+								Description: "is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled",
+								Type:        "string",
+							},
+							{
+								Name:        "sso",
+								Description: "is the URL of the identity provider's SSO service",
+								Type:        "string",
+							},
+							{
+								Name:        "user_matchers",
+								Description: "is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login",
+								Type:        "array",
+								Items: &EventField{
+									Type: "string",
+								},
+							},
+						},
+					},
+					{
+						Name:        "sub_kind",
+						Description: "is an optional resource sub kind, used in some resources",
+						Type:        "string",
+					},
+					{
+						Name:        "version",
+						Description: "is the resource version. It must be specified. Supported values are: `v2`",
+						Type:        "string",
+					},
+				},
 			},
 			{
 				Name:        "ei",
@@ -16975,6 +32705,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -16997,6 +32737,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"SAMLIdPAuthAttempt": {
@@ -17011,6 +32779,21 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "attribute_mapping",
+				Description: "is a map of attribute name and value which will be asserted in SAML response",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -17018,6 +32801,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -17130,6 +32923,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -17143,6 +32946,34 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
 				Name:        "with_mfa",
 				Description: "is a UUID of an MFA device used to start this session",
 				Type:        "string",
@@ -17152,6 +32983,21 @@ var events = map[string]*Event{
 	"SAMLIdPServiceProviderCreate": {
 		Description: "is emitted when a service provider has been added",
 		Fields: []*EventField{
+			{
+				Name:        "attribute_mapping",
+				Description: "is a map of attribute name and value which will be asserted in SAML response",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
 			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
@@ -17217,6 +33063,21 @@ var events = map[string]*Event{
 	"SAMLIdPServiceProviderDelete": {
 		Description: "is emitted when a service provider has been deleted",
 		Fields: []*EventField{
+			{
+				Name:        "attribute_mapping",
+				Description: "is a map of attribute name and value which will be asserted in SAML response",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
 			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
@@ -17338,6 +33199,21 @@ var events = map[string]*Event{
 		Description: "is emitted when a service provider has been updated",
 		Fields: []*EventField{
 			{
+				Name:        "attribute_mapping",
+				Description: "is a map of attribute name and value which will be asserted in SAML response",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -17399,8 +33275,237 @@ var events = map[string]*Event{
 			},
 		},
 	},
+	"SCIMListingEvent": {
+		Description: "records an attempt to list SCIM resources",
+		Fields: []*EventField{
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "count",
+				Description: "is the requested page size from the client. A zero value indicates that the client did not request a specific page size",
+				Type:        "integer",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "filter",
+				Description: "is the listing filter function supplied by the client, if any",
+				Type:        "string",
+			},
+			{
+				Name:        "integration",
+				Description: "is the name of the integration/access plugin that the SCIM service was operating on for this event",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "request",
+				Description: "holds metadata about the original SCIM request that triggered this event",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "body",
+						Description: "holds a representation of the arbitrary JSON body of the initial request. May be empty for list operations, hold a SCIM resource definition for creation and update operations, or a SCIM PATCH description for patch update requests",
+						Type:        "object",
+					},
+					{
+						Name:        "id",
+						Description: "is a Teleport-generated arbitrary unique ID for the SCIM request that triggered the enclosing event. It will be included in all structured log messages involved in the handling of this request",
+						Type:        "string",
+					},
+					{
+						Name:        "method",
+						Description: "is the HTTP method used by the SCIM HTTP request that triggered the enclosing event (e.g. GET, PUT, etc)",
+						Type:        "string",
+					},
+					{
+						Name:        "path",
+						Description: "is the fully-qualified path of the SCIM request that triggered the enclosing event",
+						Type:        "string",
+					},
+					{
+						Name:        "source_address",
+						Description: "is the source IP address for the SCIM HTTP request that triggered the enclosing  event",
+						Type:        "string",
+					},
+					{
+						Name:        "user_agent",
+						Description: "is the user agent string from the HTTP request that triggered the enclosing event",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "resource_count",
+				Description: "is the number of resources returned in response to this request",
+				Type:        "integer",
+			},
+			{
+				Name:        "resource_type",
+				Description: "is the SCIM resource type of the Teleport resource involved in this event. Valid values include, but are not limited to, \"user\" and \"group\"",
+				Type:        "string",
+			},
+			{
+				Name:        "start_index",
+				Description: "is the 1-based start index requested by the client, if any. A zero value indicates that the client did not request a specific starting index for the page",
+				Type:        "integer",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
+	"SCIMResourceEvent": {
+		Description: "records an attmpted operation on a specific SCIM resource",
+		Fields: []*EventField{
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "display",
+				Description: "is a human-readable name or identifier for the Teleport resource affected by the event",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "external_id",
+				Description: "is the ID used by the external SCIM client to to refer to the resource affected by this event",
+				Type:        "string",
+			},
+			{
+				Name:        "integration",
+				Description: "is the name of the integration/access plugin that the SCIM service was operating on for this event",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "request",
+				Description: "holds metadata about the original SCIM request that triggered this event",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "body",
+						Description: "holds a representation of the arbitrary JSON body of the initial request. May be empty for list operations, hold a SCIM resource definition for creation and update operations, or a SCIM PATCH description for patch update requests",
+						Type:        "object",
+					},
+					{
+						Name:        "id",
+						Description: "is a Teleport-generated arbitrary unique ID for the SCIM request that triggered the enclosing event. It will be included in all structured log messages involved in the handling of this request",
+						Type:        "string",
+					},
+					{
+						Name:        "method",
+						Description: "is the HTTP method used by the SCIM HTTP request that triggered the enclosing event (e.g. GET, PUT, etc)",
+						Type:        "string",
+					},
+					{
+						Name:        "path",
+						Description: "is the fully-qualified path of the SCIM request that triggered the enclosing event",
+						Type:        "string",
+					},
+					{
+						Name:        "source_address",
+						Description: "is the source IP address for the SCIM HTTP request that triggered the enclosing  event",
+						Type:        "string",
+					},
+					{
+						Name:        "user_agent",
+						Description: "is the user agent string from the HTTP request that triggered the enclosing event",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "resource_type",
+				Description: "is the SCIM resource type of the Teleport resource involved in this event. Valid values include, but are not limited to, \"user\" and \"group\"",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "teleport_id",
+				Description: "is the name of the Teleport resource involved in this event",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+		},
+	},
 	"SCP": {
-		Description: "is emitted when data transfer has occurred between server and client",
+		Description: "is emitted when data transfer has occurred between server and client Deprecated: use SFTP",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -17433,6 +33538,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -17551,6 +33666,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -17590,6 +33710,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -17601,6 +33731,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -17708,6 +33866,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -17821,6 +33989,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -17865,6 +34038,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -17878,6 +34061,34 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
 				Name:        "with_mfa",
 				Description: "is a UUID of an MFA device used to start this session",
 				Type:        "string",
@@ -17885,6 +34096,915 @@ var events = map[string]*Event{
 			{
 				Name:        "working_directory",
 				Description: "is the current directory the SFTP server is in",
+				Type:        "string",
+			},
+		},
+	},
+	"SFTPSummary": {
+		Description: "is emitted at the end of an SFTP transfer",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "file_transfer_stats",
+				Description: "contains statistics about transferred files",
+				Type:        "array",
+				Items: &EventField{
+					Type: "object",
+					Fields: []*EventField{
+						{
+							Name: "bytes_read",
+							Type: "integer",
+						},
+						{
+							Name: "bytes_written",
+							Type: "integer",
+						},
+						{
+							Name: "path",
+							Type: "string",
+						},
+					},
+				},
+			},
+			{
+				Name:        "forwarded_by",
+				Description: "tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "namespace",
+				Description: "is a namespace of the server event",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "server_addr",
+				Description: "is the address of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_hostname",
+				Description: "is the hostname of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_id",
+				Description: "is the UUID of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_labels",
+				Description: "are the labels (static and dynamic) of the server the session occurred on",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "server_sub_kind",
+				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"SPIFFEFederationCreate": {
+		Description: "is emitted when a SPIFFE federation is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"SPIFFEFederationDelete": {
+		Description: "is emitted when a SPIFFE federation is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"SPIFFESVIDIssued": {
+		Description: "is an event recorded when a SPIFFE SVID is issued",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "attributes",
+				Description: "is the collection of data that was used to make the decision on whether to issue the workload identity credential & to perform templating",
+				Type:        "object",
+			},
+			{
+				Name:        "audiences",
+				Description: "is the list of audiences in the issued SVID. Only present if the SVID is a JWT",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "dns_sans",
+				Description: "is the list of DNS SANs in the issued SVID",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "hint",
+				Description: "is the hint of the issued SVID",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "ip_sans",
+				Description: "is the list of IP SANs in the issued SVID",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "jti",
+				Description: "is the JTI of the issued SVID. Only present if the SVID is a JWT",
+				Type:        "string",
+			},
+			{
+				Name:        "label_selectors",
+				Description: "label selectors specified by the client when requesting the SVID",
+				Type:        "array",
+				Items: &EventField{
+					Type: "object",
+					Fields: []*EventField{
+						{
+							Name: "key",
+							Type: "string",
+						},
+						{
+							Name: "values",
+							Type: "array",
+							Items: &EventField{
+								Type: "string",
+							},
+						},
+					},
+				},
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name_selector",
+				Description: "name selector specified by the client when requesting the SVID",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "serial_number",
+				Description: "is the serial number of the issued SVID",
+				Type:        "string",
+			},
+			{
+				Name:        "spiffe_id",
+				Description: "is the SPIFFE ID of the issued SVID",
+				Type:        "string",
+			},
+			{
+				Name:        "svid_type",
+				Description: "is `jwt` or `x509",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "workload_identity",
+				Description: "WorkloadIdentity resource that was used to issue the SVID, this will be empty if the legacy RPCs were used",
+				Type:        "string",
+			},
+			{
+				Name:        "workload_identity_revision",
+				Description: "revision of the WorkloadIdentity resource that was used to issue the SVID. This will be empty if the legacy RPCs were used",
 				Type:        "string",
 			},
 		},
@@ -17908,6 +35028,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -18086,6 +35216,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -18097,6 +35237,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -18149,6 +35317,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "invocation_url",
+				Description: "is a link to AWS Web Console for this invocation. An invocation is the execution of a Command in an Instance",
+				Type:        "string",
+			},
+			{
 				Name:        "region",
 				Description: "is the AWS region the command was ran in",
 				Type:        "string",
@@ -18156,6 +35329,16 @@ var events = map[string]*Event{
 			{
 				Name:        "status",
 				Description: "represents the success or failure status of a script run",
+				Type:        "string",
+			},
+			{
+				Name:        "stderr",
+				Description: "contains the stderr of the executed command. Only the first 24000 chars are returned",
+				Type:        "string",
+			},
+			{
+				Name:        "stdout",
+				Description: "contains the stdout of the executed command. Only the first 24000 chars are returned",
 				Type:        "string",
 			},
 			{
@@ -18224,6 +35407,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -18331,6 +35524,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -18342,6 +35545,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "version",
@@ -18377,6 +35608,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -18500,6 +35741,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -18539,6 +35785,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -18550,6 +35806,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -18642,6 +35926,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "time",
 				Description: "is event time",
 				Type:        "string",
@@ -18682,6 +35971,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -18785,6 +36084,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -18824,6 +36128,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -18840,6 +36154,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -18867,6 +36209,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -18990,6 +36342,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -19029,6 +36386,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -19040,6 +36407,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -19077,6 +36472,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -19262,6 +36667,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "session_recording",
 				Description: "is the type of session recording",
 				Type:        "string",
@@ -19316,6 +36726,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -19327,6 +36747,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -19364,6 +36812,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -19498,6 +36956,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -19537,6 +37000,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -19548,6 +37021,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -19585,6 +37086,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -19683,6 +37194,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -19722,6 +37238,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -19733,6 +37259,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -19765,6 +37319,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -19888,6 +37452,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "sid",
 				Description: "is a unique UUID of the session",
 				Type:        "string",
@@ -19932,6 +37501,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -19943,6 +37522,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "version",
@@ -20033,6 +37640,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -20053,6 +37670,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "format",
+				Description: "is the format the session recording was accessed",
+				Type:        "string",
+			},
+			{
 				Name:        "gcp_service_account",
 				Description: "is the GCP service account user assumes when accessing GCP API",
 				Type:        "string",
@@ -20070,6 +37692,11 @@ var events = map[string]*Event{
 			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "session_type",
+				Description: "is type of the session",
 				Type:        "string",
 			},
 			{
@@ -20112,6 +37739,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -20123,6 +37760,222 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"SessionRecordingConfigUpdate": {
+		Description: "is emitted when the session recording config is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -20155,6 +38008,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -20258,6 +38121,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
 				Name:        "time",
 				Description: "is event time",
 				Type:        "string",
@@ -20292,6 +38160,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -20303,6 +38181,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -20335,6 +38241,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -20375,6 +38291,14 @@ var events = map[string]*Event{
 			{
 				Name:        "initial_command",
 				Description: "is the command used to start this session",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "invited",
+				Description: "is a list of invited users to this session",
 				Type:        "array",
 				Items: &EventField{
 					Type: "string",
@@ -20462,6 +38386,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "reason",
+				Description: "is the reason for starting this session",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -20499,6 +38428,11 @@ var events = map[string]*Event{
 			{
 				Name:        "server_sub_kind",
 				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
 				Type:        "string",
 			},
 			{
@@ -20551,6 +38485,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -20562,6 +38506,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -20625,8 +38597,8 @@ var events = map[string]*Event{
 			},
 		},
 	},
-	"Subsystem": {
-		Description: "is emitted when a user requests a new subsystem",
+	"SigstorePolicyCreate": {
+		Description: "is emitted when a SigstorePolicy is created",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -20657,6 +38629,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -20677,8 +38659,8 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
-				Name:        "exitError",
-				Description: "contains error in case of unsucessfull attempt",
+				Name:        "expires",
+				Description: "is set if resource expires",
 				Type:        "string",
 			},
 			{
@@ -20698,7 +38680,7 @@ var events = map[string]*Event{
 			},
 			{
 				Name:        "name",
-				Description: "is a subsystem name",
+				Description: "is a resource name",
 				Type:        "string",
 			},
 			{
@@ -20746,6 +38728,683 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"SigstorePolicyDelete": {
+		Description: "is emitted when a SigstorePolicy is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"SigstorePolicyUpdate": {
+		Description: "is emitted when a SigstorePolicy is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"SpannerRPC": {
+		Description: "is an event emitted when a Spanner client calls a Spanner RPC",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "args",
+				Description: "are the RPC arguments",
+				Type:        "object",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_redshift_cluster_id",
+				Description: "is cluster ID for Redshift databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_aws_region",
+				Description: "is AWS regions for AWS hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_instance_id",
+				Description: "is instance ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_gcp_project_id",
+				Description: "is project ID for GCP hosted databases",
+				Type:        "string",
+			},
+			{
+				Name:        "db_labels",
+				Description: "is the database resource labels",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "db_name",
+				Description: "is the name of the database a user is connecting to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_origin",
+				Description: "is the database origin source",
+				Type:        "string",
+			},
+			{
+				Name:        "db_protocol",
+				Description: "is the database type, e.g. postgres or mysql",
+				Type:        "string",
+			},
+			{
+				Name:        "db_roles",
+				Description: "is a list of database roles for auto-provisioned users",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "db_service",
+				Description: "is the name of the database service proxying the database",
+				Type:        "string",
+			},
+			{
+				Name:        "db_type",
+				Description: "is the database type",
+				Type:        "string",
+			},
+			{
+				Name:        "db_uri",
+				Description: "is the database URI to connect to",
+				Type:        "string",
+			},
+			{
+				Name:        "db_user",
+				Description: "is the database username used to connect",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "private_key_policy",
+				Description: "is the private key policy of the private key used to start this session",
+				Type:        "string",
+			},
+			{
+				Name:        "procedure",
+				Description: "is the name of the remote procedure",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "sid",
+				Description: "is a unique UUID of the session",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -20757,6 +39416,1068 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "with_mfa",
+				Description: "is a UUID of an MFA device used to start this session",
+				Type:        "string",
+			},
+		},
+	},
+	"StableUNIXUserCreate": {
+		Description: "is emitted whenever a new stable UNIX user is written in the cluster state storage",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name: "stableUnixUser",
+				Type: "object",
+				Fields: []*EventField{
+					{
+						Name: "uid",
+						Type: "integer",
+					},
+					{
+						Name: "username",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"StaticHostUserCreate": {
+		Description: "is emitted when a static host user is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"StaticHostUserDelete": {
+		Description: "is emitted when a static host user is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"StaticHostUserUpdate": {
+		Description: "is emitted when a static host user is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"Subsystem": {
+		Description: "is emitted when a user requests a new subsystem",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "exitError",
+				Description: "contains error in case of unsucessfull attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "forwarded_by",
+				Description: "tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a subsystem name",
+				Type:        "string",
+			},
+			{
+				Name:        "namespace",
+				Description: "is a namespace of the server event",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "server_addr",
+				Description: "is the address of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_hostname",
+				Description: "is the hostname of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_id",
+				Description: "is the UUID of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_labels",
+				Description: "are the labels (static and dynamic) of the server the session occurred on",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name: "key",
+						Type: "string",
+					},
+					{
+						Name: "value",
+						Type: "string",
+					},
+				},
+			},
+			{
+				Name:        "server_sub_kind",
+				Description: "is the sub kind of the server the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "server_version",
+				Description: "is the component version the session occurred on",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -20772,6 +40493,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -20779,6 +40510,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -20827,6 +40568,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -20866,6 +40612,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -20887,6 +40643,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -20902,6 +40686,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -20909,6 +40703,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -20957,6 +40761,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -20996,6 +40805,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21017,6 +40836,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -21042,6 +40889,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -21126,6 +40983,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21147,6 +41014,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -21222,6 +41117,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -21306,6 +41211,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21322,6 +41237,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "with_mfa",
@@ -21342,6 +41285,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -21349,6 +41302,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -21402,6 +41365,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -21449,6 +41417,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21471,6 +41449,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"UserDelete": {
@@ -21485,6 +41491,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -21492,6 +41508,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -21540,6 +41566,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -21579,6 +41610,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21600,6 +41641,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -21648,6 +41717,16 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
 				Name:        "cluster_name",
 				Description: "identifies the originating teleport cluster",
 				Type:        "string",
@@ -21655,6 +41734,11 @@ var events = map[string]*Event{
 			{
 				Name:        "code",
 				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "connector_id",
+				Description: "is the ID of the connector used",
 				Type:        "string",
 			},
 			{
@@ -21769,6 +41853,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21786,6 +41880,102 @@ var events = map[string]*Event{
 				Description: "identifies the type of client that attempted the event",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"UserLoginAccessListInvalid": {
+		Description: "is emitted when a user who is a member of an invalid access list logs in. It is used to indicate that the access list could not be applied to the user's session",
+		Fields: []*EventField{
+			{
+				Name:        "access_list_name",
+				Description: "is the name of the invalid access list",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "missing_roles",
+				Description: "are the names of the non-existent roles being referenced by the access list, causing it to be invalid",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is the username of the access list member who attempted to log in",
+				Type:        "string",
+			},
 		},
 	},
 	"UserPasswordChange": {
@@ -21800,6 +41990,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -21807,6 +42007,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -21842,6 +42052,11 @@ var events = map[string]*Event{
 			{
 				Name:        "login",
 				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
 				Type:        "string",
 			},
 			{
@@ -21884,6 +42099,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -21895,6 +42120,698 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"UserTaskCreate": {
+		Description: "is emitted when a user task is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_task_integration",
+				Description: "is type of associated integration",
+				Type:        "string",
+			},
+			{
+				Name:        "user_task_issue_type",
+				Description: "is type of the issue task",
+				Type:        "string",
+			},
+			{
+				Name:        "user_task_type",
+				Description: "is type of the task",
+				Type:        "string",
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"UserTaskDelete": {
+		Description: "is emitted when a user task is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"UserTaskUpdate": {
+		Description: "is emitted when a user task is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "current_user_task_state",
+				Description: "is the current UserTask State",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_user_task_state",
+				Description: "is the updated UserTask State",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_task_integration",
+				Description: "is type of associated integration",
+				Type:        "string",
+			},
+			{
+				Name:        "user_task_issue_type",
+				Description: "is type of the issue task",
+				Type:        "string",
+			},
+			{
+				Name:        "user_task_type",
+				Description: "is type of the task",
+				Type:        "string",
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -21917,6 +42834,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -22004,6 +42931,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -22026,6 +42963,34 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
 	"UserUpdate": {
@@ -22040,6 +43005,16 @@ var events = map[string]*Event{
 				},
 			},
 			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
 				Name:        "aws_role_arn",
 				Description: "is AWS IAM role user assumes when accessing AWS console",
 				Type:        "string",
@@ -22047,6 +43022,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -22100,6 +43085,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "required_private_key_policy",
 				Description: "is the private key policy enforced for this login",
 				Type:        "string",
@@ -22147,6 +43137,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -22169,10 +43169,38 @@ var events = map[string]*Event{
 				Description: "is teleport user name",
 				Type:        "string",
 			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
 		},
 	},
-	"WindowsDesktopSessionEnd": {
-		Description: "is emitted when a user ends a Windows desktop session",
+	"ValidateMFAAuthResponse": {
+		Description: "records the validation of an MFA auth callenge response",
 		Fields: []*EventField{
 			{
 				Name:        "access_requests",
@@ -22190,6 +43218,231 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "challenge_allow_reuse",
+				Description: "defines whether the MFA challenge used for authentication can be reused",
+				Type:        "boolean",
+			},
+			{
+				Name:        "challenge_scope",
+				Description: "is the authorization scope of the MFA challenge used for authentication. Only applies to WebAuthn challenges",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "error",
+				Description: "includes system error message for the failed attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "message",
+				Description: "is a user-friendly message for successfull or unsuccessfull auth attempt",
+				Type:        "string",
+			},
+			{
+				Name:        "mfa_device",
+				Description: "is the MFA device used",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "mfa_device_name",
+						Description: "is the user-specified name of the MFA device",
+						Type:        "string",
+					},
+					{
+						Name:        "mfa_device_type",
+						Description: "is the type of this MFA device",
+						Type:        "string",
+					},
+					{
+						Name:        "mfa_device_uuid",
+						Description: "is the UUID of the MFA device generated by Teleport",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "success",
+				Description: "indicates the success or failure of the operation",
+				Type:        "boolean",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"WindowsDesktopSessionEnd": {
+		Description: "is emitted when a user ends a Windows desktop session",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -22266,6 +43519,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
 				Name:        "recorded",
 				Description: "is true if the session was recorded, false otherwise",
 				Type:        "boolean",
@@ -22325,6 +43583,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -22336,6 +43604,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "windows_desktop_service",
@@ -22394,6 +43690,59 @@ var events = map[string]*Event{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
 				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name: "certificate",
+				Type: "object",
+				Fields: []*EventField{
+					{
+						Name: "crl_distribution_points",
+						Type: "array",
+						Items: &EventField{
+							Type: "string",
+						},
+					},
+					{
+						Name: "enhanced_key_usage",
+						Type: "array",
+						Items: &EventField{
+							Type: "string",
+						},
+					},
+					{
+						Name: "extended_key_usage",
+						Type: "array",
+						Items: &EventField{
+							Type: "integer",
+						},
+					},
+					{
+						Name: "key_usage",
+						Type: "integer",
+					},
+					{
+						Name: "serial_number",
+						Type: "string",
+					},
+					{
+						Name: "subject",
+						Type: "string",
+					},
+					{
+						Name: "upn",
+						Type: "string",
+					},
+				},
 			},
 			{
 				Name:        "cluster_name",
@@ -22466,6 +43815,11 @@ var events = map[string]*Event{
 				Type:        "string",
 			},
 			{
+				Name:        "nla",
+				Description: "indicates whether Teleport performed Network Level Authentication (NLA) when initiating this session",
+				Type:        "boolean",
+			},
+			{
 				Name:        "private_key_policy",
 				Description: "is the private key policy of the private key used to start this session",
 				Type:        "string",
@@ -22525,6 +43879,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -22536,6 +43900,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 			{
 				Name:        "windows_desktop_service",
@@ -22556,6 +43948,1570 @@ var events = map[string]*Event{
 				Name:        "with_mfa",
 				Description: "is a UUID of an MFA device used to start this session",
 				Type:        "string",
+			},
+		},
+	},
+	"WorkloadIdentityCreate": {
+		Description: "is emitted when a WorkloadIdentity is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "workload_identity_data",
+				Description: "is a copy of the WorkloadIdentity resource",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityDelete": {
+		Description: "is emitted when a WorkloadIdentity is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityUpdate": {
+		Description: "is emitted when a WorkloadIdentity is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+			{
+				Name:        "workload_identity_data",
+				Description: "is a copy of the WorkloadIdentity resource",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityX509IssuerOverrideCreate": {
+		Description: "",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityX509IssuerOverrideDelete": {
+		Description: "",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityX509RevocationCreate": {
+		Description: "is emitted when a WorkloadIdentityX509Revocation is created",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "reason",
+				Description: "is the specified reason for the revocation",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityX509RevocationDelete": {
+		Description: "is emitted when a WorkloadIdentityX509Revocation is deleted",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
+			},
+		},
+	},
+	"WorkloadIdentityX509RevocationUpdate": {
+		Description: "is emitted when a WorkloadIdentityX509Revocation is updated",
+		Fields: []*EventField{
+			{
+				Name:        "access_requests",
+				Description: "are the IDs of access requests created by the user",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "addr.local",
+				Description: "is a target address on the host",
+				Type:        "string",
+			},
+			{
+				Name:        "addr.remote",
+				Description: "is a client (user's) address",
+				Type:        "string",
+			},
+			{
+				Name:        "aws_role_arn",
+				Description: "is AWS IAM role user assumes when accessing AWS console",
+				Type:        "string",
+			},
+			{
+				Name:        "azure_identity",
+				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "cluster_name",
+				Description: "identifies the originating teleport cluster",
+				Type:        "string",
+			},
+			{
+				Name:        "code",
+				Description: "is a unique event code",
+				Type:        "string",
+			},
+			{
+				Name:        "ei",
+				Description: "is a monotonically incremented index in the event sequence",
+				Type:        "integer",
+			},
+			{
+				Name:        "event",
+				Description: "is the event type",
+				Type:        "string",
+			},
+			{
+				Name:        "expires",
+				Description: "is set if resource expires",
+				Type:        "string",
+			},
+			{
+				Name:        "gcp_service_account",
+				Description: "is the GCP service account user assumes when accessing GCP API",
+				Type:        "string",
+			},
+			{
+				Name:        "impersonator",
+				Description: "is a user acting on behalf of another user",
+				Type:        "string",
+			},
+			{
+				Name:        "login",
+				Description: "is OS login",
+				Type:        "string",
+			},
+			{
+				Name:        "name",
+				Description: "is a resource name",
+				Type:        "string",
+			},
+			{
+				Name:        "proto",
+				Description: "specifies protocol that was captured",
+				Type:        "string",
+			},
+			{
+				Name:        "reason",
+				Description: "is the specified reason for the revocation",
+				Type:        "string",
+			},
+			{
+				Name:        "required_private_key_policy",
+				Description: "is the private key policy enforced for this login",
+				Type:        "string",
+			},
+			{
+				Name:        "time",
+				Description: "is event time",
+				Type:        "string",
+			},
+			{
+				Name:        "trusted_device",
+				Description: "contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication",
+				Type:        "object",
+				Fields: []*EventField{
+					{
+						Name:        "asset_tag",
+						Description: "inventory identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "credential_id",
+						Description: "credential identifier",
+						Type:        "string",
+					},
+					{
+						Name:        "device_id",
+						Description: "of the device",
+						Type:        "string",
+					},
+					{
+						Name:        "device_origin",
+						Description: "origin",
+						Type:        "integer",
+					},
+					{
+						Name:        "os_type",
+						Description: "of the device",
+						Type:        "integer",
+					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
+				},
+			},
+			{
+				Name:        "ttl",
+				Description: "is a TTL of reset password token represented as duration, e.g. \"10m\" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)",
+				Type:        "string",
+			},
+			{
+				Name:        "uid",
+				Description: "is a unique event identifier",
+				Type:        "string",
+			},
+			{
+				Name:        "updated_by",
+				Description: "if set indicates the user who modified the resource",
+				Type:        "string",
+			},
+			{
+				Name:        "user",
+				Description: "is teleport user name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
@@ -22588,6 +45544,16 @@ var events = map[string]*Event{
 			{
 				Name:        "azure_identity",
 				Description: "is the Azure identity user assumes when accessing Azure API",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_instance_id",
+				Description: "is the ID of the Bot Instance if this action is associated with one",
+				Type:        "string",
+			},
+			{
+				Name:        "bot_name",
+				Description: "is the name of the Bot if this action is associated with one",
 				Type:        "string",
 			},
 			{
@@ -22685,6 +45651,16 @@ var events = map[string]*Event{
 						Description: "of the device",
 						Type:        "integer",
 					},
+					{
+						Name:        "web_authentication",
+						Description: "if web authentication, aka on-behalf-of device authentication, was performed. Only present in \"device.authenticate\" type events",
+						Type:        "boolean",
+					},
+					{
+						Name:        "web_authentication_id",
+						Description: "web authentication attempt ID. Present in events related to device web authentication",
+						Type:        "string",
+					},
 				},
 			},
 			{
@@ -22696,6 +45672,34 @@ var events = map[string]*Event{
 				Name:        "user",
 				Description: "is teleport user name",
 				Type:        "string",
+			},
+			{
+				Name:        "user_cluster_name",
+				Description: "represents the Teleport Cluster name the user belongs to. For leaf clusters, this field represents the root cluster name. For root clusters, this field holds the cluster name",
+				Type:        "string",
+			},
+			{
+				Name:        "user_kind",
+				Description: "indicates what type of user this is, e.g. a human or Machine ID bot user",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_origin",
+				Description: "specifies the origin of this user account",
+				Type:        "integer",
+			},
+			{
+				Name:        "user_roles",
+				Description: "specifies the roles user for the user to perform the action",
+				Type:        "array",
+				Items: &EventField{
+					Type: "string",
+				},
+			},
+			{
+				Name:        "user_traits",
+				Description: "hold claim data used to populate a role at runtime for this session",
+				Type:        "object",
 			},
 		},
 	},
