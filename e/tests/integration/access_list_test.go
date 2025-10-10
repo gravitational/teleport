@@ -13,12 +13,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/tests/common"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestNestedAccessListCycleValidation tests the concurrent safety of nested Access List cycle validation.
@@ -320,15 +318,6 @@ func TestAccessListMaxDepthValidation(t *testing.T) {
 // - should not be able to add themselves as a member
 // - If an owner is also a member, they should be able to add a new member
 func TestAccessListOwnerPermissions(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	})
-
 	sut := common.InitSUT(t, common.WithUser(t, "alice", "requester"))
 
 	testAccessList, err := accesslist.NewAccessList(header.Metadata{
@@ -398,4 +387,147 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 		_, _, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, acl, members)
 		require.True(t, trace.IsAccessDenied(err))
 	})
+}
+
+func TestAccessListNestedGrants(t *testing.T) {
+	ctx := context.Background()
+
+	sut := common.InitSUT(t)
+
+	var (
+		noneRole                          = common.CreateRole(t, sut, "none", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		rootACLRole                       = common.CreateRole(t, sut, "root_acl", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		rootACLRoleForUpdate              = common.CreateRole(t, sut, "root_acl_for_update", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		rootACLRoleForUpsert              = common.CreateRole(t, sut, "root_acl_for_upsert", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		rootACLRoleForUpsertWithMembers   = common.CreateRole(t, sut, "root_acl_for_upsert_with_members", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		nestedACLRole                     = common.CreateRole(t, sut, "nested_acl", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		nestedACLRoleForUpdate            = common.CreateRole(t, sut, "nested_acl_for_update", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		nestedACLRoleForUpsert            = common.CreateRole(t, sut, "nested_acl_for_upsert", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+		nestedACLRoleForUpsertWithMembers = common.CreateRole(t, sut, "nested_acl_for_upsert_with_members", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+	)
+
+	alice := common.MustCreateUser(t, sut, "alice", noneRole.GetName())
+	admin := common.MustCreateUser(t, sut, "admin", "editor")
+
+	adminAuthClt := sut.GetClusterClientForUser(t, admin.GetName()).AuthClient
+
+	rootAccessList := common.CreateAccessList(t, sut,
+		common.WithName("test_root_acl"),
+		common.WithOwners(admin.GetName()),
+		common.WithGrants(accesslist.Grants{
+			Roles: []string{rootACLRole.GetName()},
+		}),
+	)
+	nestedAccessList := common.CreateAccessList(t, sut,
+		common.WithName("test_nested_acl"),
+		common.WithOwners(admin.GetName()),
+		common.WithGrants(accesslist.Grants{
+			Roles: []string{nestedACLRole.GetName()},
+		}),
+	)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+	})
+
+	nestedACLMember := common.CreateAccessListMember(t, sut,
+		rootAccessList.GetName(),
+		nestedAccessList.GetName(),
+		accesslist.MembershipKindList,
+	)
+	aliceMember := common.CreateAccessListMember(t, sut,
+		nestedAccessList.GetName(),
+		alice.GetName(),
+		accesslist.MembershipKindUser,
+	)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+		rootACLRole,
+		nestedACLRole,
+	})
+
+	var err error
+
+	rootAccessList.Spec.Grants.Roles = append(rootAccessList.Spec.Grants.Roles, rootACLRoleForUpdate.GetName())
+	nestedAccessList.Spec.Grants.Roles = append(nestedAccessList.Spec.Grants.Roles, nestedACLRoleForUpdate.GetName())
+	_, err = adminAuthClt.AccessListClient().UpdateAccessList(ctx, rootAccessList)
+	require.NoError(t, err)
+	_, err = adminAuthClt.AccessListClient().UpdateAccessList(ctx, nestedAccessList)
+	require.NoError(t, err)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+		rootACLRole, rootACLRoleForUpdate,
+		nestedACLRole, nestedACLRoleForUpdate,
+	})
+
+	rootAccessList.Spec.Grants.Roles = append(rootAccessList.Spec.Grants.Roles, rootACLRoleForUpsert.GetName())
+	nestedAccessList.Spec.Grants.Roles = append(nestedAccessList.Spec.Grants.Roles, nestedACLRoleForUpsert.GetName())
+	_, err = adminAuthClt.AccessListClient().UpsertAccessList(ctx, rootAccessList)
+	require.NoError(t, err)
+	_, err = adminAuthClt.AccessListClient().UpsertAccessList(ctx, nestedAccessList)
+	require.NoError(t, err)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+		rootACLRole, rootACLRoleForUpdate, rootACLRoleForUpsert,
+		nestedACLRole, nestedACLRoleForUpdate, nestedACLRoleForUpsert,
+	})
+
+	rootAccessList.Spec.Grants.Roles = append(rootAccessList.Spec.Grants.Roles, rootACLRoleForUpsertWithMembers.GetName())
+	nestedAccessList.Spec.Grants.Roles = append(nestedAccessList.Spec.Grants.Roles, nestedACLRoleForUpsertWithMembers.GetName())
+	_, _, err = adminAuthClt.AccessListClient().UpsertAccessListWithMembers(ctx, rootAccessList, []*accesslist.AccessListMember{nestedACLMember})
+	require.NoError(t, err)
+	_, _, err = adminAuthClt.AccessListClient().UpsertAccessListWithMembers(ctx, nestedAccessList, []*accesslist.AccessListMember{aliceMember})
+	require.NoError(t, err)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+		rootACLRole, rootACLRoleForUpdate, rootACLRoleForUpsert, rootACLRoleForUpsertWithMembers,
+		nestedACLRole, nestedACLRoleForUpdate, nestedACLRoleForUpsert, nestedACLRoleForUpsertWithMembers,
+	})
+
+	membershipRequiresRole := common.CreateRole(t, sut, "membership_requires_1", common.RoleAllowDesc{}, common.RoleDenyDesc{})
+	rootAccessList.Spec.MembershipRequires = accesslist.Requires{Roles: []string{membershipRequiresRole.GetName()}}
+	_, _, err = adminAuthClt.AccessListClient().UpsertAccessListWithMembers(ctx, rootAccessList, []*accesslist.AccessListMember{nestedACLMember})
+	require.NoError(t, err)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+		nestedACLRole, nestedACLRoleForUpdate, nestedACLRoleForUpsert, nestedACLRoleForUpsertWithMembers,
+	})
+
+	rootAccessList.Spec.MembershipRequires = accesslist.Requires{}
+	_, _, err = adminAuthClt.AccessListClient().UpsertAccessListWithMembers(ctx, rootAccessList, []*accesslist.AccessListMember{nestedACLMember})
+	require.NoError(t, err)
+
+	eventuallyHasRoles(t, sut, alice, []types.Role{
+		noneRole,
+		rootACLRole, rootACLRoleForUpdate, rootACLRoleForUpsert, rootACLRoleForUpsertWithMembers,
+		nestedACLRole, nestedACLRoleForUpdate, nestedACLRoleForUpsert, nestedACLRoleForUpsertWithMembers,
+	})
+}
+
+func eventuallyHasRoles(t *testing.T, sut *common.SUT, user types.User, roles []types.Role) {
+	t.Helper()
+	ctx := context.Background()
+
+	// trigger UserLoginState refresh.
+	_ = sut.CreateWebClientForUser(t, user.GetName())
+
+	var expectedRoles []string
+	for _, r := range roles {
+		expectedRoles = append(expectedRoles, r.GetName())
+	}
+	slices.Sort(expectedRoles)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		uls, err := sut.Teleport.Process.GetAuthServer().GetUserLoginState(ctx, user.GetName())
+		require.NoError(t, err)
+
+		actualRoles := uls.GetRoles()
+		slices.Sort(actualRoles)
+		require.Equal(t, expectedRoles, actualRoles)
+	}, time.Second*10, time.Second*1)
 }

@@ -126,7 +126,7 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 
 	var accessListMembers []*accesslist.AccessListMember
 	for _, member := range cfg.Members {
-		accessListMembers = append(accessListMembers, MustCreateMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
+		accessListMembers = append(accessListMembers, NewAccessListMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
 	}
 
 	_, _, err = sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListWithMembers(t.Context(), accessList, accessListMembers)
@@ -135,7 +135,7 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 	return accessList
 }
 
-func MustCreateMember(t *testing.T, aclName, memberName string, memberType string) *accesslist.AccessListMember {
+func NewAccessListMember(t *testing.T, aclName, memberName string, memberType string) *accesslist.AccessListMember {
 	t.Helper()
 
 	clock := clockwork.NewRealClock()
@@ -152,6 +152,16 @@ func MustCreateMember(t *testing.T, aclName, memberName string, memberType strin
 			MembershipKind: memberType,
 		},
 	)
+	require.NoError(t, err)
+	return member
+}
+
+func CreateAccessListMember(t *testing.T, sut *SUT, aclName, memberName string, memberType string) *accesslist.AccessListMember {
+	t.Helper()
+	ctx := t.Context()
+
+	member := NewAccessListMember(t, aclName, memberName, memberType)
+	member, err := sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListMember(ctx, member)
 	require.NoError(t, err)
 	return member
 }
