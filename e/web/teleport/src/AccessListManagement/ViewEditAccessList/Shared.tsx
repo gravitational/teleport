@@ -17,20 +17,13 @@ import {
   AccessList,
   AccessListGrant,
   AccessListMember,
-  AccessListMemberKind,
   AccessListOwner,
   AccessListRequires,
 } from 'e-teleport/services/accessmanagement';
 import type { Access } from 'teleport/services/user';
 
 import { accessListRequiresReview } from '../AccessListManagementContext';
-import {
-  matchRoles,
-  matchTraits,
-  TruncatingLabel,
-  UserOption,
-  type MemberSelection,
-} from '../Shared/Shared';
+import { TruncatingLabel, type MemberSelection } from '../Shared/Shared';
 
 export type AccessListRequiresWithTraitConvenience = AccessListRequires &
   TraitConvenience;
@@ -198,65 +191,6 @@ export function getNewAndExistingUsersForAddingNewUsers(
   });
 
   return { duplicateUsers, newUsers };
-}
-
-// getEligibleUsersForAddingNewUsers returns users
-// who hasn't been enrolled already and meets the
-// eligibility requirement.
-//
-// Eligible users can have more roles assigned
-// aside from the roles defined in eligibiliy.
-export function getEligibleUsersForAddingNewUsers(
-  eligibility: AccessListRequires,
-  fetchedUsers: UserOption[],
-  existingUsers: { name: string }[]
-): Option<MemberSelection>[] {
-  if (
-    fetchedUsers.length === 0 ||
-    (eligibility.roles.length === 0 &&
-      Object.keys(eligibility.traits).length === 0)
-  ) {
-    return [];
-  }
-
-  let filteredUsers = matchRoles(eligibility.roles, fetchedUsers);
-  filteredUsers = matchTraits(eligibility.traits, filteredUsers);
-
-  return filterExistingUsersAndConvertToOption(filteredUsers, existingUsers);
-}
-
-export function filterExistingUsersAndConvertToOption(
-  userOpts: UserOption[],
-  existingUsers: { name: string }[]
-) {
-  return (
-    userOpts
-      // Filter out existing users among users.
-      .filter(u => existingUsers.every(m => m.name !== u.value.name))
-      // Convert to type Option for dropdowns.
-      .map(u => ({
-        label: u.value.name,
-        value: {
-          name: u.value.name,
-          membershipKind: AccessListMemberKind.User,
-        },
-      }))
-  );
-}
-
-export function convertAccessListsToUserOptions(
-  excludeSelfID: string,
-  acls: AccessList[],
-  existingUsers: { name: string }[]
-) {
-  return acls
-    .filter(
-      l => l.id !== excludeSelfID && existingUsers.every(m => m.name !== l.id)
-    )
-    .map(x => ({
-      label: x.title,
-      value: { name: x.id, membershipKind: AccessListMemberKind.List },
-    }));
 }
 
 export function ButtonPencil({

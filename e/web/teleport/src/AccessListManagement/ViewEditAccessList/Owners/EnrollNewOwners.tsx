@@ -133,6 +133,7 @@ export function EnrollNewOwners({
               selectedMembers={selectedOwners}
               setSelectedMembers={setSelectedOwners}
               attempt={attempt}
+              userKind="Owners"
             />
             {selectedOwnersContainAccessLists && (
               <EnrollingNestedListsAlert

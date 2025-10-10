@@ -9,10 +9,12 @@ import {
 } from '../Traits';
 import { EnrollNewMembersFields } from '../ViewEditAccessList/Members/EnrollNewMembers';
 import { useCreateAccessList } from './CreateAccessListContextProvider';
+import { GrantSection } from './GrantSection';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 export const OwnersSection = () => {
-  const { owners, setOwners, createAttempt } = useCreateAccessList();
+  const { owners, setOwners, ownerGrant, setOwnerGrant, createAttempt } =
+    useCreateAccessList();
   const isDisabled = createAttempt.status === 'processing';
   return (
     <>
@@ -24,13 +26,15 @@ export const OwnersSection = () => {
           reviews.
         </IconTooltip>
       </Flex>
-      <Text mb={5}>
+      <Text mb={3}>
         If a Teleport user is assigned as an owner but does not have all
         required roles and traits defined in this section, ownership will have
-        no effect.
+        no effect. They will not be granted any additional roles or traits by
+        the list.
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
-        editKind="Owner"
+        userKind="Owners"
+        rolesSelectedFor="eligibility"
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>
           setOwners({
@@ -56,12 +60,21 @@ export const OwnersSection = () => {
         />
       </Box>
       <EnrollNewMembersFields
+        userKind="Owners"
         selectedMembers={owners.selectedOwners}
         setSelectedMembers={vals =>
           setOwners({ ...owners, selectedOwners: vals ?? [] })
         }
         attempt={createAttempt}
       />
+      <Box mb={5}>
+        <GrantSection
+          grant={ownerGrant}
+          setGrant={setOwnerGrant}
+          isOptional={true}
+          userKind="Owners"
+        />
+      </Box>
     </>
   );
 };

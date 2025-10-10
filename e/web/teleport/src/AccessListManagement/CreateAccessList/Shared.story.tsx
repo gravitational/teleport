@@ -10,7 +10,7 @@ import cfg from 'teleport/config';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 export default {
-  title: 'TeleportE/AccessLists/Create/Roles Select',
+  title: 'TeleportE/AccessLists/Create/RolesSelect',
 };
 
 const rawRoles = [
@@ -31,7 +31,29 @@ export function Loaded() {
           isDisabled={false}
           onChange={setOptions}
           selected={options}
-          editKind={'Member'}
+          userKind={'Members'}
+          rolesSelectedFor="grants"
+        />
+        <EligibilityOrGrantRolesFieldSelectAndCreate
+          isDisabled={false}
+          onChange={setOptions}
+          selected={options}
+          userKind={'Owners'}
+          rolesSelectedFor="grants"
+        />
+        <EligibilityOrGrantRolesFieldSelectAndCreate
+          isDisabled={false}
+          onChange={setOptions}
+          selected={options}
+          userKind={'Members'}
+          rolesSelectedFor="eligibility"
+        />
+        <EligibilityOrGrantRolesFieldSelectAndCreate
+          isDisabled={false}
+          onChange={setOptions}
+          selected={options}
+          userKind={'Owners'}
+          rolesSelectedFor="eligibility"
         />
       </TeleportProviderBasicE>
     </Validation>
@@ -59,7 +81,8 @@ export function LoadError() {
           isDisabled={false}
           onChange={setOptions}
           selected={options}
-          editKind={'Member'}
+          userKind={'Members'}
+          rolesSelectedFor="grants"
         />
       </TeleportProviderBasicE>
     </Validation>
@@ -89,7 +112,8 @@ export function Loading() {
           isDisabled={false}
           onChange={setOptions}
           selected={options}
-          editKind={'Member'}
+          userKind={'Members'}
+          rolesSelectedFor="grants"
         />
       </TeleportProviderBasicE>
     </Validation>

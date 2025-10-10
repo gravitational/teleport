@@ -144,6 +144,9 @@ export function EditEligibilityOrGrantRoles({
     editBtnTitle = `Save Eligibility`;
   }
 
+  const forGrants = editKind === 'Grants' || editKind == 'OwnerGrants';
+  const forOwner = editKind === 'Owner' || editKind === 'OwnerGrants';
+
   return (
     <Validation>
       {({ validator }) => (
@@ -170,7 +173,8 @@ export function EditEligibilityOrGrantRoles({
               onChange={(vals: Option[]) => setSelectedRoles(vals || [])}
               selected={selectedRoles}
               autoFocus={true}
-              editKind={editKind}
+              rolesSelectedFor={forGrants ? 'grants' : 'eligibility'}
+              userKind={forOwner ? 'Owners' : 'Members'}
               optional={true}
             />
             <Box mt={2}>

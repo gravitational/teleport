@@ -60,7 +60,7 @@ export function TraitsCreator({
 
   const inputSize = 'medium';
   return (
-    <Box mb={4}>
+    <Box mb={4} mt={-2}>
       <ButtonWithAddIcon
         label={addBtnTxt}
         onClick={addLabel}

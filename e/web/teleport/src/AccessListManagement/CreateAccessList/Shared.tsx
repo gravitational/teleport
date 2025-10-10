@@ -1,44 +1,22 @@
 import { useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
+import Link from 'design/Link';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 import { debounce } from 'shared/utils/highbar';
 
-import {
-  AccessListMemberKind,
-  type AccessList,
-} from 'e-teleport/services/accessmanagement';
 import ResourceService from 'teleport/services/resources';
 
 import {
   ReactSelectAccessListMultiValue,
   ReactSelectAccessListOption,
-  type EditKind,
   type HybridUserOption,
   type MemberSelection,
 } from '../Shared/Shared';
-
-export function convertAccessListsToUserOptions(
-  acls: AccessList[],
-  existingUsers: HybridUserOption[]
-) {
-  return acls
-    .filter(l => existingUsers.every(m => m.value.name !== l.id))
-    .map(
-      x =>
-        ({
-          label: x.title,
-          value: {
-            name: x.id,
-            membershipKind: AccessListMemberKind.List,
-            roles: [],
-          },
-        }) satisfies HybridUserOption
-    );
-}
+import { RolesSelectedFor, UserKind } from '../Shared/types';
 
 // EligibilityOrGrantRolesFieldSelectAndCreate is used to define
 // eligibility (what roles are required to be eligible members/owners)
@@ -48,20 +26,22 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   onChange,
   selected,
   autoFocus = false,
-  editKind,
+  rolesSelectedFor,
   optional = false,
+  userKind,
 }: {
   isDisabled: boolean;
   onChange(opts: Option[]): void;
   selected: Option[];
   autoFocus?: boolean;
-  editKind: EditKind;
+  rolesSelectedFor: RolesSelectedFor;
   optional?: boolean;
+  userKind: UserKind;
 }) {
   let requiredErrMsg = 'Roles granted are required';
-  let label = 'Roles Granted';
+  let label = `Roles Granted to ${userKind}`;
 
-  if (editKind !== 'Grants') {
+  if (rolesSelectedFor === 'eligibility') {
     requiredErrMsg = `Eligibility roles are required`;
     label = `Required Roles (Optional)`;
   }
@@ -117,6 +97,7 @@ export function EligibleUsersFieldSelect({
   requiredErrMsg = '',
   autoFocus = false,
   noOptionsMsg = 'No users found',
+  userKind,
 }: {
   selected: Option<MemberSelection>[];
   isDisabled: boolean;
@@ -128,6 +109,8 @@ export function EligibleUsersFieldSelect({
   placeholder?: string;
   autoFocus?: boolean;
   noOptionsMsg?: string;
+  // If undefined, userKind refers to Teleport users.
+  userKind?: 'nested-access-list' | undefined;
 }) {
   const debouncedFn = useMemo(
     () =>
@@ -187,6 +170,20 @@ export function EligibleUsersFieldSelect({
           Option: ReactSelectAccessListOption,
           MultiValue: ReactSelectAccessListMultiValue,
         }}
+        {...(userKind === 'nested-access-list' && {
+          toolTipContent: (
+            <>
+              Learn more about{' '}
+              <Link
+                target="_blank"
+                href="https://goteleport.com/docs/identity-governance/access-lists/nested-access-lists/#how-it-works"
+              >
+                Nested Access Lists
+              </Link>
+            </>
+          ),
+          tooltipSticky: true,
+        })}
       />
     </FieldSelectCreatableWrapper>
   );

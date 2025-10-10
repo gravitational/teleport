@@ -34,7 +34,8 @@ export function ReviewMembershipRequires({
           label: r,
         }))}
         autoFocus={true}
-        editKind="Member"
+        userKind="Members"
+        rolesSelectedFor="eligibility"
         optional={true}
       />
       <Box mt={2}>

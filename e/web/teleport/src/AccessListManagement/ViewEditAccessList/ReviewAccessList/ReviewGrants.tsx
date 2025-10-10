@@ -28,7 +28,8 @@ export function ReviewGrants({ editedGrants, setEditedGrants }: Props) {
         }
         selected={editedGrants.roles.map(r => ({ value: r, label: r }))}
         autoFocus={true}
-        editKind="Grants"
+        userKind="Members"
+        rolesSelectedFor="eligibility"
         optional={editedGrants.traitLabels.length > 0}
       />
       <Box mt={2}>

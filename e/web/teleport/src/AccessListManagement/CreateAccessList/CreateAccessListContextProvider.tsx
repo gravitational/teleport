@@ -6,7 +6,6 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { useHistory } from 'react-router-dom';
 
 import { Validator } from 'shared/components/Validation';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
@@ -60,9 +59,12 @@ const CreateAccessListContext = createContext<State>(null);
 
 export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
   const ctx = useTeleport();
-  const history = useHistory();
-  const { attempt: createAttempt, setAttempt: setCreateAttempt } =
-    useAttempt('');
+
+  const {
+    attempt: createAttempt,
+    setAttempt: setCreateAttempt,
+    run: runAttempt,
+  } = useAttempt('');
   const { updateAccessListCache } = useAccessListManagementContext();
 
   const perms = ctx.storeUser.getAccessListAccess();
@@ -83,10 +85,11 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
     setOwnerGrant(defaultGrants);
     setMembers(defaultMembers);
     setMemberGrant(defaultGrants);
+    setCreateAttempt({ status: '' });
+    checkFeatureLimit();
   }
 
-  // Check if this feature is allowed with current license entitlement.
-  useEffect(() => {
+  function checkFeatureLimit() {
     if (
       cfg.oss.entitlements.AccessLists.enabled &&
       !cfg.oss.entitlements.AccessLists.limit
@@ -95,27 +98,24 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
     }
     const limit = cfg.oss.entitlements.AccessLists.limit;
 
-    function checkLimit() {
-      accessManagementService
-        .fetchAccessListsV2({ limit: limit + 5 })
-        .then(resp => {
-          if (resp.agents.length >= limit) {
-            setFeatureLimitReached(true);
-          }
-        });
-    }
+    accessManagementService
+      .fetchAccessListsV2({ limit: limit + 5 })
+      .then(resp => {
+        if (resp.agents.length >= limit) {
+          setFeatureLimitReached(true);
+        }
+      });
+  }
 
-    checkLimit();
+  // Check if this feature is allowed with current license entitlement.
+  useEffect(() => {
+    checkFeatureLimit();
   }, []);
 
   function onCreate(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
-
-    // We don't need to setAttempt to "success"
-    // since we are unmounting right after updating.
-    setCreateAttempt({ status: 'processing' });
 
     const listToCreate = makeAccessListForRequest({
       spec,
@@ -126,28 +126,27 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
       accessListCreator,
     });
 
-    accessManagementService
-      .createAccessList(listToCreate)
-      // After creating, go back to access list listing.
-      // Because of backend caching, we send the created list
-      // as router state to be used to update the listing.
-      .then(createdList => {
-        // Add member counts to the created list in case they don't exist.
-        if (!createdList.membersCount || !createdList.memberListCount) {
-          const [membersCount, memberListCount] = getMemberCounts(listToCreate);
-          createdList.membersCount = membersCount;
-          createdList.memberListCount = memberListCount;
-        }
+    runAttempt(() =>
+      accessManagementService
+        .createAccessList(listToCreate)
+        // After creating, go back to access list listing.
+        // Because of backend caching, we send the created list
+        // as router state to be used to update the listing.
+        .then(createdList => {
+          // Add member counts to the created list in case they don't exist.
+          if (!createdList.membersCount || !createdList.memberListCount) {
+            const [membersCount, memberListCount] =
+              getMemberCounts(listToCreate);
+            createdList.membersCount = membersCount;
+            createdList.memberListCount = memberListCount;
+          }
 
-        updateAccessListCache({
-          mutationType: 'created',
-          accessList: createdList,
-        });
-        history.replace(cfg.getAccessListManagementRoute());
-      })
-      .catch((e: Error) =>
-        setCreateAttempt({ status: 'failed', statusText: e.message })
-      );
+          updateAccessListCache({
+            mutationType: 'created',
+            accessList: createdList,
+          });
+        })
+    );
   }
 
   return (

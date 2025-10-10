@@ -9,10 +9,12 @@ import {
 } from '../Traits';
 import { EnrollNewMembersFields } from '../ViewEditAccessList/Members/EnrollNewMembers';
 import { useCreateAccessList } from './CreateAccessListContextProvider';
+import { GrantSection } from './GrantSection';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 export const MembersSection = () => {
-  const { members, setMembers, createAttempt } = useCreateAccessList();
+  const { members, setMembers, memberGrant, setMemberGrant, createAttempt } =
+    useCreateAccessList();
   const isDisabled = createAttempt.status === 'processing';
 
   return (
@@ -25,13 +27,15 @@ export const MembersSection = () => {
           owners in periodic reviews.
         </IconTooltip>
       </Flex>
-      <Text mb={5}>
-        If a member does not have all required roles and traits defined here,
-        membership will have no effect. They will not be granted any additional
-        roles or traits by the list.
+      <Text mb={3}>
+        If a Teleport user is assigned as a member but does not have all
+        required roles and traits defined in this section, membership will have
+        no effect. They will not be granted any additional roles or traits by
+        the list.
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
-        editKind="Member"
+        userKind="Members"
+        rolesSelectedFor="eligibility"
         optional={true}
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>
@@ -57,6 +61,7 @@ export const MembersSection = () => {
         />
       </Box>
       <EnrollNewMembersFields
+        userKind="Members"
         optional
         selectedMembers={members.selectedMembers}
         setSelectedMembers={vals =>
@@ -64,6 +69,14 @@ export const MembersSection = () => {
         }
         attempt={createAttempt}
       />
+      <Box mb={5}>
+        <GrantSection
+          grant={memberGrant}
+          setGrant={setMemberGrant}
+          isOptional={true}
+          userKind="Members"
+        />
+      </Box>
     </>
   );
 };

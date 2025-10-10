@@ -16,7 +16,7 @@ import type useAttempt from 'shared/hooks/useAttemptNext';
 
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
 import ResourceService, { type Role } from 'teleport/services/resources';
-import type { AllUserTraits, User } from 'teleport/services/user';
+import type { User } from 'teleport/services/user';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
@@ -219,38 +219,6 @@ export const TruncatingLabel = styled(Label)<{
       ? `background-color: ${p.theme.colors.interactive.tonal.informational[0]};`
       : ''}
 `;
-
-export function matchRoles(
-  rolesRequiredToBeEligible: string[],
-  userOptions: UserOption[]
-): UserOption[] {
-  return userOptions.filter(userOpt => {
-    const currRolesAssigned = userOpt.value.roles;
-    return rolesRequiredToBeEligible.every(requiredRole =>
-      currRolesAssigned.includes(requiredRole)
-    );
-  });
-}
-
-export function matchTraits(
-  traitsRequiredToBeEligible: AllUserTraits,
-  userOptions: UserOption[]
-): UserOption[] {
-  const requiredTraitKeys = Object.keys(traitsRequiredToBeEligible);
-
-  return userOptions.filter(userOpt => {
-    const currTraits = userOpt.value.allTraits;
-    return requiredTraitKeys.every(requiredTraitKey => {
-      const matchRequiredVals = traitsRequiredToBeEligible[requiredTraitKey];
-      return (
-        currTraits[requiredTraitKey] &&
-        matchRequiredVals.every(requiredVal =>
-          currTraits[requiredTraitKey].some(currVal => requiredVal == currVal)
-        )
-      );
-    });
-  });
-}
 
 export const NestedListLink = styled('button')`
   border: none;

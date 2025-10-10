@@ -14,6 +14,7 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { EligibleUsersFieldSelect } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
+import { UserKind } from 'e-teleport/AccessListManagement/Shared/types';
 import {
   EnrollingNestedListsAlert,
   getNewAndExistingUsersForAddingNewUsers,
@@ -40,11 +41,13 @@ export function EnrollNewMembersFields({
   setSelectedMembers,
   attempt,
   optional = false,
+  userKind,
 }: {
   attempt: Attempt;
   selectedMembers: Option<MemberSelection>[];
   setSelectedMembers: (vals: Option<MemberSelection>[]) => void;
   optional?: boolean;
+  userKind: UserKind;
 }) {
   const ctx = useTeleport();
 
@@ -143,10 +146,11 @@ export function EnrollNewMembersFields({
         }
         loadOptions={fetchUsersOptions}
         placeholder="Search for a user…"
-        label="Add Users"
+        label={`Add ${userKind}`}
         requiredErrMsg={requiredErrMsg}
       />
       <EligibleUsersFieldSelect
+        userKind="nested-access-list"
         disableCreate
         selected={
           selectedMembers.filter(
@@ -160,7 +164,7 @@ export function EnrollNewMembersFields({
         loadOptions={fetchAccessListsOptions}
         placeholder="Search for an access list…"
         noOptionsMsg="No access lists found."
-        label="Add Access Lists"
+        label={`Add Access Lists as ${userKind}`}
         requiredErrMsg={requiredErrMsg}
       />
     </>
@@ -281,6 +285,7 @@ export function EnrollNewMembers({
               </Alert>
             )}
             <EnrollNewMembersFields
+              userKind="Members"
               attempt={attempt}
               selectedMembers={selectedMembers}
               setSelectedMembers={setSelectedMembers}

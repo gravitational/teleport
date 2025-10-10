@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { Alert, Box, H2 } from 'design';
+import { Alert, Box } from 'design';
 import { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -10,6 +10,7 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Shared';
 import type { Role } from 'teleport/services/resources';
 
+import { UserKind } from '../Shared/types';
 import { TraitLabel, TraitsCreator } from '../Traits';
 import { useCreateAccessList } from './CreateAccessListContextProvider';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
@@ -18,13 +19,13 @@ import { Grant } from './types';
 export const GrantSection = ({
   grant,
   setGrant,
-  title,
   isOptional = false,
+  userKind,
 }: {
   grant: Grant;
   setGrant(g: Grant): void;
-  title: string;
   isOptional?: boolean;
+  userKind: UserKind;
 }) => {
   const { createAttempt } = useCreateAccessList();
   const isDisabled = createAttempt.status === 'processing';
@@ -56,14 +57,14 @@ export const GrantSection = ({
 
   return (
     <>
-      <H2 mb={2}>{title}</H2>
       <EligibilityOrGrantRolesFieldSelectAndCreate
+        userKind={userKind}
         isDisabled={isDisabled}
         onChange={(roles: Option[]) =>
           setGrant({ ...grant, rolesToGrant: roles || [] })
         }
         selected={grant.rolesToGrant}
-        editKind="Grants"
+        rolesSelectedFor="grants"
         optional={grant.traitsToGrant.length > 0 || isOptional}
       />
       {selectedRolesContainDenyRules && (

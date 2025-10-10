@@ -3,6 +3,8 @@ import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { Info } from 'design/Alert';
+
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
@@ -11,6 +13,7 @@ import { getAcl } from 'teleport/mocks/contexts';
 
 import { CreateAccessList } from './CreateAccessList';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
+import { Finished as FinishedComp } from './Finished';
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
@@ -46,7 +49,15 @@ export const Failed: StoryObj = {
         http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json(
             {
-              error: { message: 'Whoops, something went wrong.' },
+              error: { message: 'Whoops, listing access lists error' },
+            },
+            { status: 500 }
+          );
+        }),
+        http.post(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json(
+            {
+              error: { message: 'Whoops, creating list error' },
             },
             { status: 500 }
           );
@@ -57,6 +68,9 @@ export const Failed: StoryObj = {
   render() {
     return (
       <Provider>
+        <Info>
+          Dev: fill out form and click Create button to see failed state
+        </Info>
         <CreateAccessList />
       </Provider>
     );
@@ -97,6 +111,9 @@ export const LoadedWithoutLimit: StoryObj = {
         }),
         http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json({ accessLists: [] });
+        }),
+        http.post(cfg.getAccessManagementListUrl(), () => {
+          return HttpResponse.json({});
         }),
       ],
     },
@@ -153,6 +170,14 @@ export const LoadedReachedLimit: StoryObj = {
     );
   },
 };
+
+export function Finished() {
+  return (
+    <Provider>
+      <FinishedComp />
+    </Provider>
+  );
+}
 
 const Provider = props => {
   const ctx = createTeleportContextE({ customAcl: props.customAcl });
