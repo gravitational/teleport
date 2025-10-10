@@ -234,7 +234,7 @@ func (f *TrustBundleCacheFacade) Builder() bot.ServiceBuilder {
 				ClusterName:        deps.BotIdentity().ClusterName,
 				BotIdentityReadyCh: deps.BotIdentityReadyCh,
 				Logger:             deps.Logger,
-				StatusReporter:     deps.StatusReporter,
+				StatusReporter:     deps.GetStatusReporter(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)

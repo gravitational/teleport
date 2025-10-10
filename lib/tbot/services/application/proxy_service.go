@@ -68,7 +68,7 @@ func ProxyServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			alpnUpgradeCache:          alpnUpgradeCache,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		return svc, nil
 	}
