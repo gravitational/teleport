@@ -151,6 +151,12 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, pageSize int,
 			return false
 		}
 
+		for k, v := range filters.Labels {
+			if token.GetMetadata().GetLabels()[k] != v {
+				return false
+			}
+		}
+
 		return true
 	}
 

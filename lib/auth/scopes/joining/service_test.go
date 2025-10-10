@@ -152,6 +152,105 @@ func TestScopedJoiningService(t *testing.T) {
 	}
 }
 
+func TestScopedJoiningServiceList(t *testing.T) {
+
+	ctx := withAuthCtx(t.Context(), newAuthCtx(types.RoleAdmin))
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	svc, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	service, err := joining.New(joining.Config{
+		Logger:     logtest.NewLogger(),
+		Backend:    svc,
+		Authorizer: fakeAuthorizer{},
+	})
+	require.NoError(t, err)
+
+	initToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      "testtoken",
+			Namespace: defaults.Namespace,
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/aa",
+			JoinMethod:    "token",
+			Roles:         []string{"Node"},
+		},
+	}
+
+	created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: initToken,
+	})
+	require.NoError(t, err)
+	token1 := proto.CloneOf(created.Token)
+
+	initToken.Metadata.Name = "testoken2"
+	initToken.Metadata.Labels = map[string]string{"hello": "world"}
+	created, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: initToken,
+	})
+	require.NoError(t, err)
+	token2 := proto.CloneOf(created.Token)
+
+	cases := []struct {
+		name     string
+		req      *joiningv1.ListScopedTokensRequest
+		expected []*joiningv1.ScopedToken
+	}{
+		{
+			name:     "list all tokens without a filter",
+			req:      &joiningv1.ListScopedTokensRequest{},
+			expected: []*joiningv1.ScopedToken{token1, token2},
+		},
+		{
+			name: "list all tokens assigning to a scope within /test",
+			req: &joiningv1.ListScopedTokensRequest{
+				AssignedScope: &scopesv1.Filter{
+					Scope: "/test",
+					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				},
+			},
+			expected: []*joiningv1.ScopedToken{token1, token2},
+		},
+		{
+			name: "list all tokens assigning to a scope within /test with matching labels",
+			req: &joiningv1.ListScopedTokensRequest{
+				AssignedScope: &scopesv1.Filter{
+					Scope: "/test",
+					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				},
+				Labels: map[string]string{
+					"hello": "world",
+				},
+			},
+			expected: []*joiningv1.ScopedToken{token2},
+		},
+	}
+
+	sortFn := func(left *joiningv1.ScopedToken, right *joiningv1.ScopedToken) int {
+		return cmp.Compare(left.Metadata.Name, right.Metadata.Name)
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := service.ListScopedTokens(ctx, c.req)
+			require.NoError(t, err)
+			tokens := res.Tokens
+			slices.SortStableFunc(tokens, sortFn)
+			slices.SortStableFunc(c.expected, sortFn)
+			require.Len(t, tokens, len(c.expected))
+			for idx, tok := range tokens {
+				assertEqualScopedTokens(t, tok, c.expected[idx])
+			}
+		})
+	}
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	role string

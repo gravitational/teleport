@@ -125,6 +125,9 @@ func TestScopedTokenList(t *testing.T) {
 	test2.Metadata.Name = "test2"
 	test2.Scope = "/test/bb"
 	test2.Spec.AssignedScope = test2.Scope
+	test2.Metadata.Labels = map[string]string{
+		"hello": "world",
+	}
 
 	test3 := proto.CloneOf(test)
 	test3.Metadata.Name = "test3"
@@ -268,6 +271,20 @@ func TestScopedTokenList(t *testing.T) {
 				Roles: types.SystemRoles{types.RoleNode},
 			},
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3},
+		},
+		{
+			name: "tokens in /test scope filtered by label",
+			filters: &services.ScopedTokenFilters{
+				ResourceScope: &scopesv1.Filter{
+					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+					Scope: "/test",
+				},
+				Roles: types.SystemRoles{types.RoleNode},
+				Labels: map[string]string{
+					"hello": "world",
+				},
+			},
+			expected: []*joiningv1.ScopedToken{test2},
 		},
 	}
 

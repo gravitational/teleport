@@ -145,12 +145,18 @@ func getScopedTokenFiltersFromReq(req *scopedjoiningv1.ListScopedTokensRequest) 
 		AssignedScope: req.AssignedScope,
 		ResourceScope: req.ResourceScope,
 		Roles:         roles,
+		Labels:        req.Labels,
 	}
 
+	// we only want to return filters if at least one of the filters
+	// has been defined, otherwise we should return nil so that the
+	// backend can choose to perform a simple list operation instead
+	// of a list with filter
 	switch {
 	case filters.AssignedScope != nil:
 	case filters.ResourceScope != nil:
 	case len(filters.Roles) > 0:
+	case len(filters.Labels) > 0:
 	default:
 		filters = nil
 	}

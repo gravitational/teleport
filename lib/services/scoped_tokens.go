@@ -33,6 +33,7 @@ type ScopedTokenFilters struct {
 	Roles         types.SystemRoles
 	ResourceScope *scopesv1.Filter
 	AssignedScope *scopesv1.Filter
+	Labels        map[string]string
 }
 
 // ScopedTokenService handles CRUD operations for the ScopedToken resource.

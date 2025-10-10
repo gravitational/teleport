@@ -67,6 +67,9 @@ message ListScopedTokensRequest {
 
   // Filter tokens that apply at least one of the provided roles.
   repeated string roles = 5;
+
+  // Filter tokens that match all provided labels.
+  map<string, string> labels = 6;
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.
