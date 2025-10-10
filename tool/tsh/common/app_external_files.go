@@ -61,12 +61,6 @@ func removeExternalFilesForAllApps() error {
 	return nil
 }
 
-// This value is used to identify the section in the AWS config file that is managed by Teleport.
-// If it changes, the removal of the section during logout will not work correctly.
-func awsConfigCommentForProfile(appName string) string {
-	return fmt.Sprintf("Do not edit. Section managed by Teleport. Generated for accessing %s", appName)
-}
-
 // addAWSProfileToConfig adds a new profile to the AWS config file (ie. ~/.aws/config).
 // This profile will invoke the `tsh apps config --format aws-credential-process <app name>` command
 // which returns the credentials for accessing AWS.
@@ -77,10 +71,9 @@ func addAWSProfileToConfig(appName string) error {
 	}
 
 	credentialProcessCommand := fmt.Sprintf("tsh apps config --format aws-credential-process %s", appName)
-	sectionComment := awsConfigCommentForProfile(appName)
 	profileName := appName
 
-	if err := awsconfigfile.UpsertProfileCredentialProcess(awsConfigFileLocation, profileName, sectionComment, credentialProcessCommand); err != nil {
+	if err := awsconfigfile.UpsertProfileCredentialProcess(awsConfigFileLocation, profileName, credentialProcessCommand); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -93,9 +86,7 @@ func removeAWSProfileFromConfig(appName string) error {
 		return trace.Wrap(err)
 	}
 
-	sectionComment := awsConfigCommentForProfile(appName)
-
-	return trace.Wrap(awsconfigfile.RemoveCredentialProcessByComment(awsConfigFileLocation, sectionComment))
+	return trace.Wrap(awsconfigfile.RemoveTeleportManagedProfile(awsConfigFileLocation, appName))
 }
 
 func removeAllAWSProfilesFromConfig() error {
@@ -104,7 +95,5 @@ func removeAllAWSProfilesFromConfig() error {
 		return trace.Wrap(err)
 	}
 
-	sectionComment := awsConfigCommentForProfile("")
-
-	return trace.Wrap(awsconfigfile.RemoveCredentialProcessByComment(awsConfigFileLocation, sectionComment))
+	return trace.Wrap(awsconfigfile.RemoveAllTeleportManagedProfiles(awsConfigFileLocation))
 }
