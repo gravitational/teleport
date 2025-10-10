@@ -51,7 +51,6 @@ func TestProcessAssignments(t *testing.T) {
 		apps                   types.AppServers
 		deleteOktaAppIDs       map[string]bool
 		appsSkipAddToOkta      bool
-		reconcile              bool
 		assignments            types.OktaAssignments
 		expected               types.OktaAssignments
 		incrementTimeDuration  time.Duration
@@ -116,7 +115,6 @@ func TestProcessAssignments(t *testing.T) {
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 				application(t, hash, "app2", link, types.OriginOkta, testOrgURL, testHostID),
 			},
-			reconcile: true,
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
@@ -309,7 +307,6 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
-			reconcile: true,
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusProcessing, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
@@ -414,7 +411,6 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
-			reconcile: true,
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -449,7 +445,6 @@ func TestProcessAssignments(t *testing.T) {
 			apps: types.AppServers{
 				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
-			reconcile: true,
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime, false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -533,7 +528,7 @@ func TestProcessAssignments(t *testing.T) {
 
 			clock.Advance(test.incrementTimeDuration)
 
-			err := a.processAssignments(ctx, test.reconcile)
+			err := a.processAllAssignments(ctx)
 			test.errAssertionFunc(t, err)
 
 			actual, _, err := ap.ListOktaAssignments(ctx, 0, "")

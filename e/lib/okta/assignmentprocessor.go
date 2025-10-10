@@ -136,7 +136,7 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaapi.Inter
 		a.assignmentClient = newAssignmentClient(a.logger, oktaClient)
 		a.assignmentClientMu.Unlock()
 
-		if err := a.processAssignments(ctx, true); err != nil {
+		if err := a.processAllAssignments(ctx); err != nil {
 			a.logger.ErrorContext(ctx, "Error while processing assignments", "error", err)
 		}
 	}
@@ -147,9 +147,9 @@ func (a *assignmentProcessor) stop() {
 	close(a.stopCh)
 }
 
-// processAssignments will iterate through all of the assignments, spawning a goroutine to
+// processAllAssignments will iterate through all of the assignments, spawning a goroutine to
 // process each one.
-func (a *assignmentProcessor) processAssignments(ctx context.Context, reconcile bool) error {
+func (a *assignmentProcessor) processAllAssignments(ctx context.Context) error {
 	var wg sync.WaitGroup
 	assignments := a.assignmentGetter()
 	numAssignments := len(assignments)
@@ -182,7 +182,7 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context, reconcile 
 				if !ok {
 					return
 				}
-				errs <- a.processAssignment(ctx, assignment, reconcile)
+				errs <- a.processAssignment(ctx, assignment, true)
 			}
 		}()
 	}
@@ -215,9 +215,9 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
 	needsReprovision := assignment.IsFinalized() && !needsCleanup
 
+	// If the assignment was Finalized (Successfully processed in needCleanupState) delete Okta
+	// assignment from backend.
 	if assignment.IsFinalized() && needsCleanup {
-		// If the assignment was Finalized (Successfully processed in needCleanupState)
-		// delete Okta assignment from backend.
 		if err := a.deleteFinalizedAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -225,8 +225,13 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	}
 
 	// We only process non-pending assignments if reconcile is set or if the assignment needs to be cleaned up.
-	if !needsCleanup && !needsReprovision && !reconcile && assignment.GetStatus() != constants.OktaAssignmentStatusPending {
-		return nil
+	if !reconcile {
+		force := needsCleanup ||
+			needsReprovision ||
+			assignment.GetStatus() == constants.OktaAssignmentStatusPending
+		if !force {
+			return nil
+		}
 	}
 
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
@@ -243,12 +248,11 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	}
 
 	// Before we process, set finalized to false if we're re-processing.
-	if assignment.IsFinalized() && !needsCleanup {
-		var updateErr error
+	if needsReprovision {
 		assignment.SetFinalized(false)
-		assignment, updateErr = a.accessPoint.UpdateOktaAssignment(ctx, assignment)
-		if updateErr != nil {
-			return trace.Wrap(updateErr)
+		assignment, err = a.accessPoint.UpdateOktaAssignment(ctx, assignment)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -266,21 +270,17 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 		return trace.Wrap(err)
 	}
 
+	var processErr error
 	if needsCleanup {
-		err = a.cleanupTargets(ctx, assignment)
+		processErr = a.cleanupTargets(ctx, assignment)
 	} else {
-		err = a.processTargets(ctx, assignment)
+		processErr = a.processTargets(ctx, assignment)
 	}
-
-	// Set to success or failure depending on the errors from the targets.
 	nextStatus := constants.OktaAssignmentStatusSuccessful
-	finalized := false
-	if err != nil {
+	if processErr != nil {
 		nextStatus = constants.OktaAssignmentStatusFailed
-	} else if needsCleanup {
-		// If we successfully cleaned up the assignment, we'll need to note it.
-		finalized = true
 	}
+	finalized := processErr == nil && needsCleanup
 
 	// If we successfully finalized the assignment, we'll update the finalized flag here.
 	if finalized {
@@ -294,20 +294,22 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 			return trace.Wrap(updateErr)
 		}
 	} else {
-		updateErr := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), nextStatus, 0)
-		if updateErr != nil {
-			return trace.NewAggregate(trace.Wrap(updateErr), err)
+		if err := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), nextStatus, 0); err != nil {
+			return trace.NewAggregate(trace.Wrap(err), processErr)
 		}
 	}
 
-	// If the starting status and ending status are both successful and this doesn't need a cleanup, we won't emit anything.
-	if startStatus == nextStatus && startStatus == constants.OktaAssignmentStatusSuccessful && !needsCleanup {
-		return nil
+	// Emit the event if there was a processing error or cleanup was needed, or the starting and ending status aren't
+	// both successful.
+	emitEvent := processErr != nil ||
+		needsCleanup ||
+		startStatus != constants.OktaAssignmentStatusSuccessful ||
+		nextStatus != constants.OktaAssignmentStatusSuccessful
+	if emitEvent {
+		a.emitAuditEvent(ctx, assignment, startStatus, nextStatus, needsCleanup, processErr)
 	}
 
-	a.emitAuditEvent(ctx, assignment, startStatus, nextStatus, needsCleanup, err)
-
-	return trace.Wrap(err)
+	return trace.Wrap(processErr)
 }
 
 func (a *assignmentProcessor) shouldProcess(ctx context.Context, assignment types.OktaAssignment, needsCleanup bool) (bool, error) {
