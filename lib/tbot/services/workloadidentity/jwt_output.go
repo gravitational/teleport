@@ -55,7 +55,7 @@ func JWTOutputServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			trustBundleCache:          trustBundleCache,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		return svc, nil
 	}

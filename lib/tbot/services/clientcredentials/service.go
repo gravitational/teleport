@@ -50,7 +50,7 @@ func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifeti
 			reloadCh:           deps.ReloadCh,
 			identityGenerator:  deps.IdentityGenerator,
 			log:                deps.Logger,
-			statusReporter:     deps.StatusReporter,
+			statusReporter:     deps.GetStatusReporter(),
 		}
 		return svc, nil
 	}

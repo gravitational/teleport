@@ -57,7 +57,7 @@ func HostOutputServiceBuilder(cfg *HostOutputConfig, defaultCredentialLifetime b
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		return svc, nil
 	}

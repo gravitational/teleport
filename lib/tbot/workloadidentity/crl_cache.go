@@ -94,7 +94,7 @@ func (f *CRLCacheFacade) Builder() bot.ServiceBuilder {
 			f.crlCache, err = NewCRLCache(CRLCacheConfig{
 				RevocationsClient: deps.Client.WorkloadIdentityRevocationServiceClient(),
 				Logger:            deps.Logger,
-				StatusReporter:    deps.StatusReporter,
+				StatusReporter:    deps.GetStatusReporter(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)

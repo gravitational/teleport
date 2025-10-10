@@ -67,7 +67,7 @@ func OutputV1ServiceBuilder(cfg *OutputV1Config, opts ...OutputV1Option) bot.Ser
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		for _, opt := range opts {
 			opt.applyToV1Output(svc)

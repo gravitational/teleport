@@ -67,7 +67,7 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 			reloadCh:                  deps.ReloadCh,
 			botIdentityReadyCh:        deps.BotIdentityReadyCh,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 
 		for _, opt := range opts {

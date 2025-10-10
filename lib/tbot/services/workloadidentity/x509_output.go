@@ -69,7 +69,7 @@ func X509OutputServiceBuilder(
 			trustBundleCache:          trustBundleCache,
 			crlCache:                  crlCache,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		return svc, nil
 	}
