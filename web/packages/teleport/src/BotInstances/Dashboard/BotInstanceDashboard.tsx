@@ -35,6 +35,13 @@ import { getBotInstanceMetrics } from 'teleport/services/bot/bot';
 import { GetBotInstanceMetricsResponse } from 'teleport/services/bot/types';
 
 export function BotInstancesDashboard(props: {
+  /**
+   * Callback used when a dashbaord item is selected (e.g. "unsupported"
+   * instance versions). The given filter is used as an advanced query (in the
+   * Teleport predicate language) to filter the items in the instances list.
+   *
+   * @param filter query (verbatum) used to filter the bot instance list.
+   */
   onFilterSelected: (filter: string) => void;
 }) {
   const { onFilterSelected: onStatusSelected } = props;
