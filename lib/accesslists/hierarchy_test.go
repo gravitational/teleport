@@ -336,31 +336,25 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 			},
 		}
 
-		userAllRoles, err := types.NewUser(userName)
+		user, err := types.NewUser(userName)
 		require.NoError(t, err)
-		allRoles := append(
-			append(
-				rootList.Spec.MembershipRequires.Roles,
-				middleList.Spec.MembershipRequires.Roles...,
-			),
-			leafList.Spec.MembershipRequires.Roles...,
-		)
-		userAllRoles.SetRoles(allRoles)
 
-		typ, err := IsAccessListMember(ctx, userAllRoles, rootList, aclGetter, locks, clock)
-		require.NoError(t, err, "User should be member when meeting all requirements in chain")
+		// User should be member when meeting all requirements in chain.
+		user.SetRoles(slices.Concat(
+			rootList.Spec.MembershipRequires.Roles,
+			middleList.Spec.MembershipRequires.Roles,
+			leafList.Spec.MembershipRequires.Roles,
+		))
+		typ, err := IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
+		require.NoError(t, err)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
 
-		// User missing middle role
-		missingMiddleRoles := append(
+		// User should not be member when a required roles is missing in the middle of the chain.
+		user.SetRoles(slices.Concat(
 			rootList.Spec.MembershipRequires.Roles,
-			leafList.Spec.MembershipRequires.Roles...,
-		)
-		userMissingMiddle, err := types.NewUser(userName)
-		require.NoError(t, err)
-		userMissingMiddle.SetRoles(missingMiddleRoles)
-
-		typ, err = IsAccessListMember(ctx, userMissingMiddle, rootList, aclGetter, locks, clock)
+			leafList.Spec.MembershipRequires.Roles,
+		))
+		typ, err = IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
 		require.NoError(t, err)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
 	})
