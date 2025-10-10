@@ -16,58 +16,79 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
+
 import Box from 'design/Box';
 import { H1 } from 'design/Text';
 
-import { FieldRadio } from './FieldRadio';
+import { FieldRadio as Component } from './FieldRadio';
 
-export default {
-  title: 'Shared',
+type StoryProps = {
+  readOnly?: boolean;
+  disabled?: boolean;
 };
 
-export const FieldRadioStory = () => (
-  <Box width={600}>
-    <H1 mb={2}>Group 1</H1>
-    <FieldRadio
-      name="grp1"
-      label="Unchecked radio button"
-      defaultChecked={false}
-    />
-    <FieldRadio
-      name="grp1"
-      label="Checked radio button"
-      defaultChecked={true}
-    />
-    <FieldRadio name="grp1" label="Disabled radio button" disabled />
-    <FieldRadio name="grp1" size="small" label="Small radio button" />
-    <H1 mb={2}>Group 2</H1>
-    <FieldRadio
-      name="grp2"
-      label="Radio button with helper text"
-      helperText="I'm a helpful helper text"
-    />
-    <FieldRadio
-      name="grp2"
-      size="small"
-      label="Small radio button with helper text"
-      helperText="Another helpful helper text"
-    />
-    <FieldRadio
-      name="grp2"
-      disabled
-      label="Disabled radio button with helper text"
-      helperText="There's nothing you can do here"
-      defaultChecked={true}
-    />
-    <FieldRadio
-      name="grp2"
-      label="You must choose. But choose wisely, for while the true Grail will
+const meta: Meta<StoryProps> = {
+  title: 'Shared',
+  component: FieldRadio,
+  args: {
+    readOnly: false,
+    disabled: false,
+  },
+};
+export default meta;
+
+export function FieldRadio(props: StoryProps) {
+  return (
+    <Box width={600}>
+      <H1 mb={2}>Group 1</H1>
+      <Component
+        name="grp1"
+        label="Unchecked radio button"
+        defaultChecked={false}
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+      />
+      <Component
+        name="grp1"
+        label="Checked radio button"
+        defaultChecked={true}
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+      />
+      <Component
+        name="grp1"
+        size="small"
+        label="Small radio button"
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+      />
+      <H1 mb={2}>Group 2</H1>
+      <Component
+        name="grp2"
+        label="Radio button with helper text"
+        helperText="I'm a helpful helper text"
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+      />
+      <Component
+        name="grp2"
+        size="small"
+        label="Small radio button with helper text"
+        helperText="Another helpful helper text"
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+      />
+      <Component
+        name="grp2"
+        label="You must choose. But choose wisely, for while the true Grail will
       bring you life, the false Grail will take it from you."
-      helperText="I was chosen because I was the bravest and the most worthy.
+        helperText="I was chosen because I was the bravest and the most worthy.
       The honor was mine until another came to challenge me to single combat. I
       pass it to you who vanquished me."
-    />
-  </Box>
-);
-
-FieldRadioStory.storyName = 'FieldRadio';
+        disabled={props.disabled}
+        readOnly={props.readOnly}
+      />
+    </Box>
+  );
+}
