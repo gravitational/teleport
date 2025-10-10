@@ -77,20 +77,6 @@ func TestScopedTokenService(t *testing.T) {
 	fetched, err := service.GetScopedToken(ctx, token.Metadata.Name)
 	require.NoError(t, err)
 	assert.Empty(t, gocmp.Diff(updated, fetched, cmpOpts...))
-
-	token2 := proto.CloneOf(token)
-	token2.Metadata.Name = "testtoken2"
-	token2.Scope = "/test2"
-	token2.Spec.AssignedScope = "/test2/one"
-
-	upserted, err := service.UpsertScopedToken(ctx, token2)
-	require.NoError(t, err)
-	assert.Empty(t, gocmp.Diff(token2, upserted, cmpOpts...))
-
-	upserted.Spec.AssignedScope = "/test2/two"
-	upserted2, err := service.UpsertScopedToken(ctx, token2)
-	require.NoError(t, err)
-	assert.Empty(t, gocmp.Diff(upserted, upserted2, cmpOpts...))
 }
 
 func TestScopedTokenList(t *testing.T) {

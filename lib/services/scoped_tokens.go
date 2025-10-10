@@ -44,9 +44,6 @@ type ScopedTokenService interface {
 	// UpdateScopedToken updates a scoped join token.
 	UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error)
 
-	// UpsertScopedToken upserts a scoped join token
-	UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error)
-
 	// GetScopedToken fetches a scoped join token by unique name
 	GetScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error)
 

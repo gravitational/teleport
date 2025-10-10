@@ -72,12 +72,6 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, token *joini
 	return updated, trace.Wrap(err)
 }
 
-// UpsertScopedToken upserts a scoped token to the auth server.
-func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
-	upserted, err := s.svc.UpsertResource(ctx, token)
-	return upserted, trace.Wrap(err)
-}
-
 // GetScopedToken finds and returns a scoped token by name.
 func (s *ScopedTokenService) GetScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
 	token, err := s.svc.GetResource(ctx, name)
