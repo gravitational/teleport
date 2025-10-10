@@ -52,6 +52,7 @@ const (
 	TerminalService_PromoteAccessRequest_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
 	TerminalService_GetSuggestedAccessLists_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
 	TerminalService_ListKubernetesResources_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
+	TerminalService_ListKubernetesServers_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesServers"
 	TerminalService_AddCluster_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
 	TerminalService_RemoveCluster_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
 	TerminalService_ListGateways_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
@@ -132,6 +133,8 @@ type TerminalServiceClient interface {
 	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 	ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error)
+	// Lists Kubernetes servers.
+	ListKubernetesServers(ctx context.Context, in *ListKubernetesServersRequest, opts ...grpc.CallOption) (*ListKubernetesServersResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -389,6 +392,16 @@ func (c *terminalServiceClient) ListKubernetesResources(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListKubernetesResourcesResponse)
 	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesResources_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ListKubernetesServers(ctx context.Context, in *ListKubernetesServersRequest, opts ...grpc.CallOption) (*ListKubernetesServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListKubernetesServersResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesServers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -731,6 +744,8 @@ type TerminalServiceServer interface {
 	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 	ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error)
+	// Lists Kubernetes servers.
+	ListKubernetesServers(context.Context, *ListKubernetesServersRequest) (*ListKubernetesServersResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(context.Context, *AddClusterRequest) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -881,6 +896,9 @@ func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Contex
 }
 func (UnimplementedTerminalServiceServer) ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesResources not implemented")
+}
+func (UnimplementedTerminalServiceServer) ListKubernetesServers(context.Context, *ListKubernetesServersRequest) (*ListKubernetesServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesServers not implemented")
 }
 func (UnimplementedTerminalServiceServer) AddCluster(context.Context, *AddClusterRequest) (*Cluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCluster not implemented")
@@ -1268,6 +1286,24 @@ func _TerminalService_ListKubernetesResources_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListKubernetesResources(ctx, req.(*ListKubernetesResourcesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ListKubernetesServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListKubernetesServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListKubernetesServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListKubernetesServers(ctx, req.(*ListKubernetesServersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1799,6 +1835,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListKubernetesResources",
 			Handler:    _TerminalService_ListKubernetesResources_Handler,
+		},
+		{
+			MethodName: "ListKubernetesServers",
+			Handler:    _TerminalService_ListKubernetesServers_Handler,
 		},
 		{
 			MethodName: "AddCluster",
