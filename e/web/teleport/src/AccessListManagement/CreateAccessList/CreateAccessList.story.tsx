@@ -10,6 +10,7 @@ import { ContextProvider } from 'teleport';
 import { getAcl } from 'teleport/mocks/contexts';
 
 import { CreateAccessList } from './CreateAccessList';
+import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
 const defaultAccessListEntitlement = cfg.oss.entitlements.AccessLists;
@@ -42,7 +43,7 @@ export const Failed: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([]);
         }),
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },
@@ -94,7 +95,7 @@ export const LoadedWithoutLimit: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([]);
         }),
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json({ accessLists: [] });
         }),
       ],
@@ -121,7 +122,7 @@ export const LoadedReachedLimit: StoryObj = {
         http.get(cfg.oss.api.usersPath, () => {
           return HttpResponse.json([]);
         }),
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json({
             accessLists: [
               {
@@ -160,7 +161,9 @@ const Provider = props => {
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <AccessListManagementContextProvider>
-          {props.children}
+          <CreateAccessListContextProvider>
+            {props.children}
+          </CreateAccessListContextProvider>
         </AccessListManagementContextProvider>
       </ContextProvider>
     </MemoryRouter>

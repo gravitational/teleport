@@ -1,40 +1,19 @@
 import { Box, Flex, H2, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import { Option } from 'shared/components/Select';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { AllUserTraits } from 'teleport/services/user';
-
-import { MemberSelection, UserOption } from '../Shared/Shared';
 import {
   convertTraitLabelsToAllUserTraits,
   TraitLabel,
   TraitsCreator,
 } from '../Traits';
 import { EnrollNewMembersFields } from '../ViewEditAccessList/Members/EnrollNewMembers';
+import { useCreateAccessList } from './CreateAccessListContextProvider';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
-type Props = {
-  attempt: Attempt;
-  isDisabled: boolean;
-  setOwners(m: Owners): void;
-  owners: Owners;
-};
-
-export type Owners = {
-  selectedRolesRequired: Option[];
-  eligibleOwners: UserOption[];
-  selectedOwners: Option<MemberSelection>[];
-  traitLabels: TraitLabel[];
-  traitLookup: AllUserTraits;
-};
-
-export const OwnersSection = ({
-  attempt,
-  isDisabled,
-  owners,
-  setOwners,
-}: Props) => {
+export const OwnersSection = () => {
+  const { owners, setOwners, createAttempt } = useCreateAccessList();
+  const isDisabled = createAttempt.status === 'processing';
   return (
     <>
       <Flex alignItems="center" mb={2}>
@@ -81,7 +60,7 @@ export const OwnersSection = ({
         setSelectedMembers={vals =>
           setOwners({ ...owners, selectedOwners: vals ?? [] })
         }
-        attempt={attempt}
+        attempt={createAttempt}
       />
     </>
   );

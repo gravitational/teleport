@@ -1,36 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, H1 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import { Option } from 'shared/components/Select';
-import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import Validation from 'shared/components/Validation';
 
-import {
-  AccessListManagementContextProvider,
-  useAccessListManagementContext,
-} from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
-import {
-  AccessListMemberKind,
-  AccessListType,
-  accessManagementService,
-  convertReviewFrequencyIntoBackendParsableValue,
-  ReviewDayOfMonth,
-  ReviewFrequency,
-} from 'e-teleport/services/accessmanagement';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { AllUserTraits } from 'teleport/services/user';
-import useTeleport from 'teleport/useTeleport';
 
 import { NoAccessState } from '../NoAccessState';
-import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import {
   FeatureLimitReached,
   featureLimitReachedBlurCss,
@@ -41,61 +25,24 @@ import {
   matchTraits,
   UserOption,
 } from '../Shared/Shared';
-import { convertTraitLabelsToAllUserTraits } from '../Traits';
-import { Grant, GrantSection } from './GrantSection';
-import { Members, MembersSection } from './MemberSection';
-import { Owners, OwnersSection } from './OwnerSection';
-import { Spec, SpecSection } from './SpecSection';
+import {
+  CreateAccessListContextProvider,
+  useCreateAccessList,
+} from './CreateAccessListContextProvider';
+import { GrantSection } from './GrantSection';
+import { MembersSection } from './MemberSection';
+import { OwnersSection } from './OwnerSection';
+import { SpecSection } from './SpecSection';
 
 export const CreateAccessListWithProvider = () => (
   <AccessListManagementContextProvider>
-    <CreateAccessList />
+    <CreateAccessListContextProvider>
+      <CreateAccessList />
+    </CreateAccessListContextProvider>
   </AccessListManagementContextProvider>
 );
 
 export function CreateAccessList() {
-  const [featureLimitReached, setFeatureLimitReached] = useState(false);
-
-  const { attempt: createAttempt, setAttempt: setCreateAttempt } =
-    useAttempt('');
-
-  const [owners, setOwners] = useState<Owners>({
-    selectedRolesRequired: [],
-    eligibleOwners: [],
-    selectedOwners: [],
-    traitLabels: [],
-    traitLookup: {},
-  });
-  const [members, setMembers] = useState<Members>({
-    selectedRolesRequired: [],
-    eligibleMembers: [],
-    selectedMembers: [],
-    traitLabels: [],
-    traitLookup: {},
-  });
-
-  useEffect(() => {
-    if (
-      cfg.oss.entitlements.AccessLists.enabled &&
-      !cfg.oss.entitlements.AccessLists.limit
-    ) {
-      return;
-    }
-    const limit = cfg.oss.entitlements.AccessLists.limit;
-
-    function checkLimit() {
-      accessManagementService
-        .fetchAccessListsV2({ limit: limit + 5 })
-        .then(resp => {
-          if (resp.agents.length >= limit) {
-            setFeatureLimitReached(true);
-          }
-        });
-    }
-
-    checkLimit();
-  }, []);
-
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
@@ -113,173 +60,32 @@ export function CreateAccessList() {
         </FeatureHeaderTitle>
       </FeatureHeader>
 
-      <MainContent
-        createAttempt={createAttempt}
-        setCreateAttempt={setCreateAttempt}
-        featureLimitReached={featureLimitReached}
-        owners={owners}
-        setOwners={setOwners}
-        members={members}
-        setMembers={setMembers}
-      />
+      <MainContent />
     </FeatureBox>
   );
 }
 
-const MainContent = ({
-  createAttempt,
-  setCreateAttempt,
-  featureLimitReached,
-  owners,
-  setOwners,
-  members,
-  setMembers,
-}: {
-  createAttempt: ReturnType<typeof useAttempt>['attempt'];
-  setCreateAttempt: ReturnType<typeof useAttempt>['setAttempt'];
-  featureLimitReached: boolean;
-  owners: Owners;
-  setOwners: React.Dispatch<React.SetStateAction<Owners>>;
-  members: Members;
-  setMembers: React.Dispatch<React.SetStateAction<Members>>;
-}) => {
-  const ctx = useTeleport();
-  const { updateAccessListCache } = useAccessListManagementContext();
-  const history = useHistory();
-  const perms = ctx.storeUser.getAccessListAccess();
-  const canCreate = perms.create && perms.list && perms.read;
-  const accessListCreator = ctx.storeUser.getUsername();
+const MainContent = () => {
+  const {
+    onCreate,
+    memberGrant,
+    setMemberGrant,
+    ownerGrant,
+    setOwnerGrant,
+    createAttempt,
+    featureLimitReached,
+    canCreateAccessList,
+  } = useCreateAccessList();
 
-  const [spec, setSpec] = useState<Spec>(() => ({
-    title: '',
-    description: '',
-    // Default first day of month.
-    reviewDayOfMonth: reviewDayOfMonthOpts.find(o => {
-      return o.value === ReviewDayOfMonth.FirstDayOfMonth;
-    }),
-    // Default to 6 months.
-    reviewFrequency: reviewFrequencyOpts.find(
-      o => o.value === ReviewFrequency.SixMonths
-    ),
-    auditStartDate: null,
-  }));
-  const [grant, setGrant] = useState<Grant>({
-    rolesToGrant: [],
-    traitsToGrant: [],
-  });
-  const [ownerGrant, setOwnerGrant] = useState<Grant>({
-    rolesToGrant: [],
-    traitsToGrant: [],
-  });
-
-  if (!canCreate) {
+  if (!canCreateAccessList) {
     return <NoAccessState action="create" />;
   }
-
-  const handleOnCreate = (validator: Validator) => {
-    if (!validator.validate()) {
-      return;
-    }
-
-    // We don't need to setAttempt to "success"
-    // since we are unmounting right after updating.
-    setCreateAttempt({ status: 'processing' });
-
-    const getNameAndMembershipKind = (o: HybridUserOption) => {
-      if (typeof o.value !== 'object') {
-        return { name: o.value, membership_kind: AccessListMemberKind.User };
-      }
-
-      return {
-        name: o.value.name,
-        membership_kind:
-          'membershipKind' in o.value
-            ? o.value.membershipKind
-            : AccessListMemberKind.User,
-      };
-    };
-
-    const listToCreate = {
-      // specs
-      type: AccessListType.Default,
-      title: spec.title,
-      description: spec.description,
-      grants: {
-        roles: grant.rolesToGrant.map(r => r.value),
-        traits: convertTraitLabelsToAllUserTraits(grant.traitsToGrant),
-      },
-      owner_grants: {
-        roles: ownerGrant.rolesToGrant.map(r => r.value),
-        traits: convertTraitLabelsToAllUserTraits(ownerGrant.traitsToGrant),
-      },
-      audit: {
-        recurrence: {
-          frequency: convertReviewFrequencyIntoBackendParsableValue(
-            spec.reviewFrequency.value
-          ),
-          day_of_month: spec.reviewDayOfMonth.value,
-        },
-        next_audit_date: spec.auditStartDate,
-      },
-      // owners
-      ownership_requires: {
-        roles: owners.selectedRolesRequired.map(r => r.value),
-        traits: convertTraitLabelsToAllUserTraits(owners.traitLabels),
-      },
-      owners: owners.selectedOwners.map(o => getNameAndMembershipKind(o)),
-      // members
-      membership_requires: {
-        roles: members.selectedRolesRequired.map(r => r.value),
-        traits: convertTraitLabelsToAllUserTraits(members.traitLabels),
-      },
-      members: members.selectedMembers.map(m => {
-        const { name, membership_kind } = getNameAndMembershipKind(m);
-        return {
-          name,
-          joined: new Date(),
-          added_by: accessListCreator,
-          membership_kind,
-        };
-      }),
-    };
-
-    accessManagementService
-      .createAccessList(listToCreate)
-      // After creating, go back to access list listing.
-      // Because of backend caching, we send the created list
-      // as router state to be used to update the listing.
-      .then(createdList => {
-        // Add member counts to the created list in case they don't exist.
-        if (!createdList.membersCount || !createdList.memberListCount) {
-          const [membersCount, memberListCount] = listToCreate.members.reduce(
-            (acc, m) => [
-              acc[0] +
-                (m.membership_kind === AccessListMemberKind.List ? 0 : 1),
-              acc[1] +
-                (m.membership_kind === AccessListMemberKind.List ? 1 : 0),
-            ],
-            [0, 0]
-          );
-          createdList.membersCount = membersCount;
-          createdList.memberListCount = memberListCount;
-        }
-
-        updateAccessListCache({
-          mutationType: 'created',
-          accessList: createdList,
-        });
-        history.replace(cfg.getAccessListManagementRoute());
-      })
-      .catch((e: Error) =>
-        setCreateAttempt({ status: 'failed', statusText: e.message })
-      );
-  };
 
   return (
     <>
       {featureLimitReached && <FeatureLimitReached />}
       {createAttempt.status === 'failed' && (
-        <Alert children={createAttempt.statusText} />
+        <Alert>{createAttempt.statusText}</Alert>
       )}
       <Validation>
         {({ validator }) => (
@@ -288,19 +94,12 @@ const MainContent = ({
             style={featureLimitReached ? featureLimitReachedBlurCss : null}
           >
             <Box mb={8}>
-              <SpecSection
-                spec={spec}
-                setSpec={setSpec}
-                isDisabled={
-                  createAttempt.status === 'processing' || featureLimitReached
-                }
-              />
+              <SpecSection />
             </Box>
             <Box mb={5}>
               <GrantSection
-                grant={grant}
-                setGrant={setGrant}
-                isDisabled={createAttempt.status === 'processing'}
+                grant={memberGrant}
+                setGrant={setMemberGrant}
                 title="Permissions Granted to List Members"
                 isOptional={true}
               />
@@ -309,30 +108,19 @@ const MainContent = ({
               <GrantSection
                 grant={ownerGrant}
                 setGrant={setOwnerGrant}
-                isDisabled={createAttempt.status === 'processing'}
                 title="Permissions Granted to List Owners"
                 isOptional={true}
               />
             </Box>
             <Box mb={8}>
-              <OwnersSection
-                attempt={createAttempt}
-                owners={owners}
-                setOwners={setOwners}
-                isDisabled={createAttempt.status === 'processing'}
-              />
+              <OwnersSection />
             </Box>
             <Box>
-              <MembersSection
-                attempt={createAttempt}
-                members={members}
-                setMembers={setMembers}
-                isDisabled={createAttempt.status === 'processing'}
-              />
+              <MembersSection />
             </Box>
             <Box mt={5} mb={8}>
               <ButtonPrimary
-                onClick={() => handleOnCreate(validator)}
+                onClick={() => onCreate(validator)}
                 mr={3}
                 disabled={createAttempt.status === 'processing'}
               >

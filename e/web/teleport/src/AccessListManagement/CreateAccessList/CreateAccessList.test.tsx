@@ -22,6 +22,7 @@ import {
   getEligibleUsers,
   getEligibleUsersAmongSelectedUsers,
 } from './CreateAccessList';
+import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListentitlement = cfg.entitlements.AccessLists;
@@ -109,7 +110,9 @@ function renderComponent(ctx: TeleportEContext) {
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <AccessListManagementContextProvider>
-          <CreateAccessList />
+          <CreateAccessListContextProvider>
+            <CreateAccessList />
+          </CreateAccessListContextProvider>
         </AccessListManagementContextProvider>
       </ContextProvider>
     </MemoryRouter>

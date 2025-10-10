@@ -8,22 +8,12 @@ import {
   ReviewFrequencyOption,
   ReviewRecurrence,
 } from '../Shared/Audit';
+import { useCreateAccessList } from './CreateAccessListContextProvider';
 
-type Props = {
-  spec: Spec;
-  setSpec(s: Spec): void;
-  isDisabled: boolean;
-};
+export const SpecSection = () => {
+  const { spec, setSpec, createAttempt } = useCreateAccessList();
+  const isDisabled = createAttempt.status === 'processing';
 
-export type Spec = {
-  title: string;
-  description: string;
-  reviewDayOfMonth: ReviewDayOfMonthOption;
-  reviewFrequency: ReviewFrequencyOption;
-  auditStartDate: Date;
-};
-
-export const SpecSection = ({ spec, setSpec, isDisabled }: Props) => {
   return (
     <>
       <FieldInput

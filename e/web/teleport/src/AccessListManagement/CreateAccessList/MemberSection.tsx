@@ -1,40 +1,20 @@
 import { Box, Flex, H2, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import { Option } from 'shared/components/Select';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { AllUserTraits } from 'teleport/services/user';
-
-import { HybridUserOption, MemberSelection } from '../Shared/Shared';
 import {
   convertTraitLabelsToAllUserTraits,
   TraitLabel,
   TraitsCreator,
 } from '../Traits';
 import { EnrollNewMembersFields } from '../ViewEditAccessList/Members/EnrollNewMembers';
+import { useCreateAccessList } from './CreateAccessListContextProvider';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
-type Props = {
-  attempt: Attempt;
-  isDisabled: boolean;
-  setMembers(m: Members): void;
-  members: Members;
-};
+export const MembersSection = () => {
+  const { members, setMembers, createAttempt } = useCreateAccessList();
+  const isDisabled = createAttempt.status === 'processing';
 
-export type Members = {
-  selectedRolesRequired: Option[];
-  eligibleMembers: HybridUserOption[];
-  selectedMembers: Option<MemberSelection>[];
-  traitLabels: TraitLabel[];
-  traitLookup: AllUserTraits;
-};
-
-export const MembersSection = ({
-  attempt,
-  isDisabled,
-  setMembers,
-  members,
-}: Props) => {
   return (
     <>
       <Flex alignItems="center" mb={2}>
@@ -82,7 +62,7 @@ export const MembersSection = ({
         setSelectedMembers={vals =>
           setMembers({ ...members, selectedMembers: vals ?? [] })
         }
-        attempt={attempt}
+        attempt={createAttempt}
       />
     </>
   );

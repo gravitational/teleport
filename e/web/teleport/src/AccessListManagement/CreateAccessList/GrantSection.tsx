@@ -11,28 +11,24 @@ import {
 import type { Role } from 'teleport/services/resources';
 
 import { TraitLabel, TraitsCreator } from '../Traits';
+import { useCreateAccessList } from './CreateAccessListContextProvider';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
-
-type Props = {
-  grant: Grant;
-  setGrant(g: Grant): void;
-  isDisabled: boolean;
-  title: string;
-  isOptional?: boolean;
-};
-
-export type Grant = {
-  rolesToGrant: Option[];
-  traitsToGrant: TraitLabel[];
-};
+import { Grant } from './types';
 
 export const GrantSection = ({
   grant,
   setGrant,
-  isDisabled,
   title,
   isOptional = false,
-}: Props) => {
+}: {
+  grant: Grant;
+  setGrant(g: Grant): void;
+  title: string;
+  isOptional?: boolean;
+}) => {
+  const { createAttempt } = useCreateAccessList();
+  const isDisabled = createAttempt.status === 'processing';
+
   const processedRolesFetchAttempt = useAttempt('');
   const [processedRoles, setProcessedRoles] = useState<Role[]>([]);
 
