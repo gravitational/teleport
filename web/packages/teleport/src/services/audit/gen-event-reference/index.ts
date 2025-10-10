@@ -29,6 +29,10 @@ import {
 
 const introParagraph = `{/*cSpell:disable*/}
 
+{/* Formatted event examples sometimes include different capitalization than
+what we standardize on in the docs*/}
+{/* vale messaging.capitalization = NO */}
+
 Teleport components emit audit events to record activity within the cluster. 
 
 Audit event payloads have an \`event\` field that describes the event, which is
