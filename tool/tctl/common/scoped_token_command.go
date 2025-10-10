@@ -26,7 +26,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -50,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join/token"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -199,12 +197,6 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 	}
 
 	tokenName := c.value
-	if c.value == "" {
-		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
-		if err != nil {
-			return trace.Wrap(err, "generating token value")
-		}
-	}
 
 	expires := time.Now().UTC().Add(c.ttl)
 	tok := &joiningv1.ScopedToken{
@@ -227,10 +219,6 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		tok.Metadata.Labels = labels
-	}
-
-	if err := services.ValidateScopedToken(tok); err != nil {
-		return trace.Wrap(err)
 	}
 
 	tok, err = client.CreateScopedToken(ctx, tok)
@@ -415,7 +403,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 // Del is called to execute "scoped tokens del ..." command.
 func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client) error {
 	if c.value == "" {
-		return trace.Errorf("Need an argument: token")
+		return trace.BadParameter("Need an argument: token")
 	}
 	if err := client.DeleteScopedToken(ctx, c.value); err != nil {
 		return trace.Wrap(err)
@@ -486,6 +474,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			Cursor:        pageKey,
 			ResourceScope: resourceScopeFilter,
 			AssignedScope: assignedScopeFilter,
+			Labels:        labels,
 		})
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -496,16 +485,6 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 	if err != nil {
 		return trace.Wrap(err, "listing scoped tokens")
 	}
-
-	tokens = slices.DeleteFunc(tokens, func(token *joiningv1.ScopedToken) bool {
-		tokenLabels := token.GetMetadata().Labels
-		for k, v := range labels {
-			if tokenLabels[k] != v {
-				return true
-			}
-		}
-		return false
-	})
 
 	if len(tokens) == 0 && c.format == teleport.Text {
 		fmt.Fprintln(c.Stdout, "No active tokens found.")
