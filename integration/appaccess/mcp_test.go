@@ -19,53 +19,53 @@
 package appaccess
 
 import (
-	"context"
-	"crypto/tls"
-	"fmt"
 	"net/http"
 	"testing"
 
+	"github.com/gravitational/trace"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	libmcp "github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
 func testMCP(pack *Pack, t *testing.T) {
-	t.Run("DialMCPServer stdio no server found", func(t *testing.T) {
+	// SaveProfile before using the TeleportClient.
+	require.NoError(t, pack.tc.SaveProfile(false))
+
+	t.Run("stdio no server found", func(t *testing.T) {
 		testMCPDialStdioNoServerFound(t, pack)
 	})
 
-	t.Run("DialMCPServer stdio success", func(t *testing.T) {
+	t.Run("stdio success", func(t *testing.T) {
 		testMCPDialStdio(t, pack)
 	})
 
-	t.Run("DialMCPServer stdio to sse success", func(t *testing.T) {
+	t.Run("stdio to sse success", func(t *testing.T) {
 		testMCPDialStdioToSSE(t, pack, "test-sse")
 	})
 
-	t.Run("proxy streamable HTTP requests with TLS cert", func(t *testing.T) {
+	t.Run("proxy streamable HTTP success", func(t *testing.T) {
 		testMCPProxyStreamableHTTP(t, pack, "test-http")
 	})
 }
 
 func testMCPDialStdioNoServerFound(t *testing.T, pack *Pack) {
-	require.NoError(t, pack.tc.SaveProfile(false))
-
-	_, err := pack.tc.DialMCPServer(context.Background(), "not-found")
+	// Single connection dial for stdio.
+	dialer := client.NewMCPServerDialer(pack.tc, "not-found")
+	_, err := dialer.DialALPN(t.Context())
 	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 func testMCPDialStdio(t *testing.T, pack *Pack) {
-	require.NoError(t, pack.tc.SaveProfile(false))
-
-	serverConn, err := pack.tc.DialMCPServer(context.Background(), libmcp.DemoServerName)
+	// Single connection dial for stdio.
+	dialer := client.NewMCPServerDialer(pack.tc, libmcp.DemoServerName)
+	serverConn, err := dialer.DialALPN(t.Context())
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -80,9 +80,9 @@ func testMCPDialStdio(t *testing.T, pack *Pack) {
 }
 
 func testMCPDialStdioToSSE(t *testing.T, pack *Pack, appName string) {
-	require.NoError(t, pack.tc.SaveProfile(false))
-
-	serverConn, err := pack.tc.DialMCPServer(context.Background(), appName)
+	// Single connection dial for stdio.
+	dialer := client.NewMCPServerDialer(pack.tc, appName)
+	serverConn, err := dialer.DialALPN(t.Context())
 	require.NoError(t, err)
 
 	stdioClient := mcptest.NewStdioClientFromConn(t, serverConn)
@@ -91,38 +91,14 @@ func testMCPDialStdioToSSE(t *testing.T, pack *Pack, appName string) {
 }
 
 func testMCPProxyStreamableHTTP(t *testing.T, pack *Pack, appName string) {
-	require.NoError(t, pack.tc.SaveProfile(false))
-
-	// Find the MCP server.
-	filter := pack.tc.ResourceFilter(types.KindAppServer)
-	filter.PredicateExpression = fmt.Sprintf(`name == "%s"`, appName)
-	apps, err := pack.tc.ListApps(t.Context(), filter)
-	require.NoError(t, err)
-	require.Len(t, apps, 1)
-
-	// Issue a TLS cert with app route.
-	keyRing, err := pack.tc.IssueUserCertsWithMFA(t.Context(), client.ReissueParams{
-		RouteToCluster: pack.rootCluster.Secrets.SiteName,
-		RouteToApp: proto.RouteToApp{
-			ClusterName: pack.rootCluster.Secrets.SiteName,
-			Name:        apps[0].GetName(),
-			PublicAddr:  apps[0].GetPublicAddr(),
-		},
-	})
-	require.NoError(t, err)
-	appCert, err := keyRing.AppTLSCert(appName)
-	require.NoError(t, err)
-
-	// Create an MCP client with app cert.
+	// Use special dialer for HTTP client.
 	ctx := t.Context()
+	dialer := client.NewMCPServerDialer(pack.tc, appName)
 	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
 		"https://"+pack.rootCluster.Web,
 		mcpclienttransport.WithHTTPBasicClient(&http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					Certificates:       []tls.Certificate{appCert},
-					InsecureSkipVerify: true,
-				},
+				DialTLSContext: dialer.DialContext,
 			},
 		}),
 	)
