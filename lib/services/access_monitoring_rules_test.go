@@ -338,7 +338,7 @@ func TestValidateSchedules(t *testing.T) {
 				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorContains(t, err, "timezone is invalid")
+				require.ErrorContains(t, err, "invalid timezone")
 			},
 		},
 		{
