@@ -72,7 +72,9 @@ func setupSummarizerTest(
 		Clock:   clock,
 	})
 	require.NoError(t, err)
-	service, err := NewSummarizerService(backend.NewSanitizer(mem))
+	service, err := NewSummarizerService(SummarizerServiceConfig{
+		Backend: backend.NewSanitizer(mem),
+	})
 	require.NoError(t, err)
 	return ctx, service
 }
@@ -106,6 +108,19 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, trace.BadParameter("spec.openai.openai_model_id is required"))
 	})
+	t.Run("no Bedrock unless enabled", func(t *testing.T) {
+		m := summarizer.NewInferenceModel("bedrock-model", &summarizerv1.InferenceModelSpec{
+			Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1.BedrockProvider{
+					Region:         "us-east-1",
+					BedrockModelId: "amazon.nova-pro-v1:0",
+				},
+			},
+		})
+		_, err := service.CreateInferenceModel(ctx, m)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, trace.BadParameter("Amazon Bedrock models are unavailable in Teleport Cloud"))
+	})
 	t.Run("no upsert", func(t *testing.T) {
 		res := newInferenceModel("no-upsert")
 		_, err := service.CreateInferenceModel(
@@ -122,6 +137,46 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, trace.IsAlreadyExists(err))
 	})
+}
+
+func TestSummarizerService_CreateInferenceModel_BedrockAllowed(t *testing.T) {
+	// Perform a similar setup procedure, but enable Bedrock.
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service, err := NewSummarizerService(SummarizerServiceConfig{
+		Backend:       backend.NewSanitizer(mem),
+		EnableBedrock: true,
+	})
+	require.NoError(t, err)
+
+	want := summarizer.NewInferenceModel("bedrock-model", &summarizerv1.InferenceModelSpec{
+		Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+			Bedrock: &summarizerv1.BedrockProvider{
+				Region:         "us-east-1",
+				BedrockModelId: "amazon.nova-pro-v1:0",
+			},
+		},
+	})
+
+	got, err := service.CreateInferenceModel(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(want).(*summarizerv1.InferenceModel),
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.Empty(t, cmp.Diff(
+		want,
+		got,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+	))
 }
 
 func TestSummarizerService_UpsertInferenceModel(t *testing.T) {

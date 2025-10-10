@@ -56,6 +56,8 @@ import (
 	_ "github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	_ "github.com/aws/aws-sdk-go-v2/service/athena"
 	_ "github.com/aws/aws-sdk-go-v2/service/athena/types"
+	_ "github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	_ "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	_ "github.com/aws/aws-sdk-go-v2/service/glue"
 	_ "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	_ "github.com/aws/aws-sdk-go-v2/service/identitystore"

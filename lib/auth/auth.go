@@ -488,7 +488,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.WorkloadIdentity = workloadIdentity
 	}
 	if cfg.Summarizer == nil {
-		summarizer, err := local.NewSummarizerService(cfg.Backend)
+		summarizer, err := local.NewSummarizerService(local.SummarizerServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(bl-nero): Relax this condition once we implement spend controls.
+			EnableBedrock: !modules.GetModules().Features().Cloud,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
 		}
