@@ -20,6 +20,8 @@ import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
 import {
+  BotInstanceKind,
+  BotInstanceServiceHealthStatus,
   GetBotInstanceResponse,
   ListBotInstancesResponse,
 } from 'teleport/services/bot/types';
@@ -46,9 +48,9 @@ export const listBotInstancesError = (
     return HttpResponse.json({ error: { message: error } }, { status });
   });
 
-export const getBotInstanceSuccess = (mock: GetBotInstanceResponse) =>
+export const getBotInstanceSuccess = (mock?: GetBotInstanceResponse) =>
   http.get(cfg.api.botInstance.read, () => {
-    return HttpResponse.json(mock);
+    return HttpResponse.json(mock ?? mockGetBotInstanceResponse);
   });
 
 export const getBotInstanceError = (
@@ -67,3 +69,88 @@ export const getBotInstanceForever = () =>
         /* never resolved */
       })
   );
+
+export const mockGetBotInstanceResponse = {
+  bot_instance: {
+    spec: {
+      instance_id: 'a55259e8-9b17-466f-9d37-ab390ca4024e',
+      bot_name: 'test-bot-name',
+    },
+    status: {
+      latest_heartbeats: [
+        {
+          uptime: {
+            seconds: 43200 + 60,
+          },
+          version: '18.4.0',
+          hostname: 'test-hostname',
+          os: 'linux',
+          kind: BotInstanceKind.BOT_KIND_TBOT_BINARY,
+        },
+      ],
+      latest_authentications: [
+        {
+          metadata: {
+            join_method: 'github',
+            join_token_name: 'test-token-name',
+          },
+          join_attrs: {
+            github: {
+              sub: 'test-github-sub',
+              repository: 'gravitational/teleport',
+            },
+          },
+        },
+      ],
+      service_health: [
+        {
+          service: {
+            name: 'application-tunnel-1',
+            type: 'application-tunnel',
+          },
+          status:
+            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+          updated_at: {
+            seconds: new Date('2025-10-10T10:45:00Z').getTime() / 1_000,
+          },
+        },
+        {
+          service: {
+            name: 'db-eu-lon-1',
+            type: 'database-tunnel',
+          },
+          status:
+            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+          updated_at: {
+            seconds: new Date('2025-10-10T10:46:00Z').getTime() / 1_000,
+          },
+          reason:
+            'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+        },
+        {
+          service: {
+            name: 'workload-identity-aws-roles-anywhere-1',
+            type: 'workload-identity-aws-roles-anywhere',
+          },
+          status:
+            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
+          updated_at: {
+            seconds: new Date('2025-10-10T10:47:00Z').getTime() / 1_000,
+          },
+        },
+        {
+          service: {
+            name: 'application-tunnel-2',
+            type: 'application-tunnel',
+          },
+          status:
+            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
+          updated_at: {
+            seconds: new Date('2025-10-10T10:48:00Z').getTime() / 1_000,
+          },
+        },
+      ],
+    },
+  },
+  yaml: 'kind: bot_instance\nversion: v1\n',
+};

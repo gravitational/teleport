@@ -18,6 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { CardTile } from 'design/CardTile';
 
@@ -47,16 +48,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [
-        getBotInstanceSuccess({
-          bot_instance: {
-            spec: {
-              instance_id: 'a55259e8-9b17-466f-9d37-ab390ca4024e',
-            },
-          },
-          yaml: 'kind: bot_instance\nversion: v1\n',
-        }),
-      ],
+      handlers: [getBotInstanceSuccess()],
     },
   },
 };
@@ -100,6 +92,8 @@ const queryClient = new QueryClient({
 function Wrapper(props?: { hasBotInstanceReadPermission?: boolean }) {
   const { hasBotInstanceReadPermission = true } = props ?? {};
 
+  const [activeTab, setActiveTab] = useState('info');
+
   const customAcl = makeAcl({
     botInstances: {
       ...defaultAccess,
@@ -114,11 +108,13 @@ function Wrapper(props?: { hasBotInstanceReadPermission?: boolean }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TeleportProviderBasic teleportCtx={ctx}>
-        <CardTile height={820} overflow={'auto'} p={0}>
+        <CardTile height={600} overflow={'auto'} p={0}>
           <BotInstanceDetails
             botName="ansible-worker"
             instanceId="a55259e8-9b17-466f-9d37-ab390ca4024e"
             onClose={() => {}}
+            activeTab={activeTab}
+            onTabSelected={tab => setActiveTab(tab)}
           />
         </CardTile>
       </TeleportProviderBasic>
