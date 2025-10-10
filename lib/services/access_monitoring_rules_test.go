@@ -131,7 +131,6 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				amr.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
 					"default": {
 						Time: &accessmonitoringrulesv1.TimeSchedule{
-							Timezone: time.UTC.String(),
 							Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 								{
 									Weekday: time.Monday.String(),
@@ -190,7 +189,6 @@ func TestValidateSchedules(t *testing.T) {
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Monday.String(),
@@ -208,7 +206,6 @@ func TestValidateSchedules(t *testing.T) {
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"on-call-1": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Saturday.String(),
@@ -220,7 +217,6 @@ func TestValidateSchedules(t *testing.T) {
 				},
 				"on-call-2": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Sunday.String(),
@@ -246,14 +242,84 @@ func TestValidateSchedules(t *testing.T) {
 			description: "does not contain any shifts",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
-					},
+					Time: &accessmonitoringrulesv1.TimeSchedule{},
 				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "at least one shift is require")
 			},
+		},
+		{
+			description: "valid timezone (UTC)",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "UTC",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "valid timezone (America/Los_Angeles)",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "America/Los_Angeles",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "valid timezone (Europe/Lisbon)",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "Europe/Lisbon",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			description: "valid timezone (Asia/Singapore)",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "Asia/Singapore",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
 		},
 		{
 			description: "invalid timezone",
@@ -280,7 +346,6 @@ func TestValidateSchedules(t *testing.T) {
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Monday.String(),
