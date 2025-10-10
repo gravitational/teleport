@@ -366,7 +366,7 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(ctx, sess, ch)
+	scx.setSession(ctx, sess)
 	s.addSession(sess)
 	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sess.id)
 
@@ -400,7 +400,7 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 		return trace.BadParameter("Unrecognized session participant mode: %q", mode)
 	}
 
-	scx.setSession(ctx, session, ch)
+	scx.setSession(ctx, session)
 
 	// Update the in-memory data structure that a party member has joined.
 	if err := session.join(ch, scx, mode); err != nil {
@@ -440,7 +440,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(ctx, sess, channel)
+	scx.setSession(ctx, sess)
 
 	err = sess.startExec(ctx, channel, scx)
 	if err != nil {
@@ -828,7 +828,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
-		ID:   rsession.NewID(),
+		ID:   scx.GetNewSessionID(),
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
@@ -2381,12 +2381,12 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Invited:        s.scx.GetSessionParams().Invited,
 	}
 
+	// Don't propagate the session tracker if:
+	// - This is a proxy forwarding server for a Teleport Node (tracking is handled by the target node server)
+	// - this is a non-interactive session
+	// - the session was initiated by a bot
 	svc := s.registry.SessionTrackerService
-	// Only propagate the session tracker when the recording mode and component are in sync
-	// AND the sesssion is interactive
-	// AND the session was not initiated by a bot
-	if (s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) ||
-		(s.registry.Srv.Component() == teleport.ComponentProxy && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) ||
+	if (s.registry.Srv.Component() == teleport.ComponentForwardingNode && !s.registry.Srv.GetInfo().IsOpenSSHNode() && !s.scx.proxyShouldCreateSessionTracker) ||
 		sessType == sessionTypeNonInteractive ||
 		s.scx.Identity.BotName != "" {
 		svc = nil
@@ -2440,6 +2440,11 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 
 // emitAuditEvent emits audit events.
 func (s *session) emitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	// Nodes discard audit events in cases when proxies are already emitting them.
+	if s.scx.srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+		return nil
+	}
+
 	return s.emitter.EmitAuditEvent(ctx, event)
 }
 
