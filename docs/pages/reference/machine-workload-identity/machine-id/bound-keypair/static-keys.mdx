@@ -78,18 +78,20 @@ Download and install the appropriate Teleport package for your platform:
 
 ## Step 3/7. Create a keypair and a join token
 
-**This step is completed on your local machine.**
+Next, we'll need to generate a keypair, consisting of:
+* A private key that will need to be available on your bot host at runtime
+* A public key that will need to be configured in the Teleport join token
 
-Next, we'll use a helper in the `tbot` client to generate a static keypair. This
+We'll use a helper in the `tbot` client to generate a static keypair. This
 step can be run anywhere and does not require any configuration, but you will
 need to decide how the bot will access the key, which may vary depending on your
 environment or secret store:
 1. Via an environment variable, useful for providers or environments that inject
    secrets as environment variables
-2. Via a standard file
+2. Via a standard file which you transfer to the bot host
 
-If you intend to make the key available to `tbot` via an environment variable,
-run the following:
+With that in mind, if you intend to make the key available to `tbot` via an
+environment variable, run the following:
 
 ```code
 $ tbot keypair create --proxy-server <Var name="example.teleport.sh"/>:443 --static
@@ -100,7 +102,9 @@ Otherwise, if using a file, run the following:
 $ tbot keypair create --proxy-server <Var name="example.teleport.sh"/>:443 --static --static-key-path ./path/to/key
 ```
 
-Adjust the `--static-key-path` value as desired.
+Adjust the `--static-key-path` value as desired. If you didn't run this command
+on the bot host directly, you'll need to transfer it to the bot machine via your
+preferred means, like `scp`, Ansible, etc.
 
 In either case, the command will generate a keypair and print some instructions.
 For example, this is shown when using an environment variable key:
