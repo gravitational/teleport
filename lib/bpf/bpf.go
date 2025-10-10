@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"net"
 	"slices"
 	"strconv"
@@ -33,6 +34,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gravitational/trace"
 
 	ossteleport "github.com/gravitational/teleport"
@@ -170,25 +172,22 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	logger.DebugContext(closeContext, "Starting enhanced session recording")
 
 	// Compile and start BPF programs if they are enabled (buffer size given).
-	s.exec, err = startExec(*config.CommandBufferSize)
+	s.exec, err = startExec()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "start exec: %v", err)
 	}
-	s.open, err = startOpen(*config.DiskBufferSize)
+	s.open, err = startOpen()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "start open: %v", err)
 	}
 
 	// Load network BPF modules only when required.
-	s.conn, err = startConn(*config.NetworkBufferSize)
+	s.conn, err = startConn()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "start conn: %v", err)
 	}
 
 	logger.DebugContext(closeContext, "Started enhanced session recording",
-		"command_buffer_size", *s.CommandBufferSize,
-		"disk_buffer_size", *s.DiskBufferSize,
-		"network_buffer_size", *s.NetworkBufferSize,
 		"cgroup_mount_path", s.CgroupPath,
 		"elapsed", time.Since(start),
 	)
@@ -392,7 +391,6 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return nil, trace.NotFound("args missing")
 		})
-
 		if err != nil {
 			logger.DebugContext(s.closeContext, "Got event with missing args, skipping")
 			lostCommandEvents.Add(float64(1))
@@ -629,6 +627,25 @@ func unmarshalEvent(data []byte, v interface{}) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
+	defer eventBuf.Close()
+
+	for {
+		rec, err := eventBuf.Read()
+		logger.DebugContext(context.Background(), "Got event")
+		if err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) {
+				logger.DebugContext(context.Background(), "Received signal, exiting")
+				return
+			}
+			logger.ErrorContext(context.Background(), "Error reading from ring buffer", "error", err)
+			return
+		}
+
+		bpfEvents <- rec.RawSample[:]
+	}
 }
 
 // ConvertString converts a C string to a Go string.

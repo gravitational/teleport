@@ -38,13 +38,11 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostDiskEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostDiskEvents,
-			Help: "Number of lost disk events.",
-		},
-	)
+var lostDiskEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostDiskEvents,
+		Help: "Number of lost disk events.",
+	},
 )
 
 type cgroupRegister interface {
@@ -64,10 +62,10 @@ type open struct {
 
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startOpen(bufferSize int) (*open, error) {
+func startOpen() (*open, error) {
 	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "registering prometheus collectors: %v", err)
 	}
 
 	// Remove resource limits for kernels <5.11.
@@ -78,7 +76,7 @@ func startOpen(bufferSize int) (*open, error) {
 
 	var objs diskObjects
 	if err := loadDiskObjects(&objs, nil); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "loading disk objects: %v", err)
 	}
 
 	trs := []struct {
@@ -111,7 +109,7 @@ func startOpen(bufferSize int) (*open, error) {
 		},
 	}
 
-	if runtime.GOARCH != "arm64" {
+	if runtime.GOARCH == "arm64" {
 		// openat is not implemented on arm64.
 		trs = append(trs, []struct {
 			name string
@@ -132,7 +130,7 @@ func startOpen(bufferSize int) (*open, error) {
 	for _, tr := range trs {
 		tp, err := link.Tracepoint("syscalls", tr.name, tr.prog, nil)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "linking %q tracepoint: %v", tr.name, err)
 		}
 
 		toClose = append(toClose, tp)
@@ -140,7 +138,7 @@ func startOpen(bufferSize int) (*open, error) {
 
 	eventBuf, err := ringbuf.NewReader(objs.OpenEvents)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
 	bpfEvents := make(chan []byte, 100)
@@ -204,6 +202,8 @@ func (o *open) close() {
 	if err := o.objs.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
+
+	logger.DebugContext(context.Background(), "Closed open BPF module")
 }
 
 // events contains raw events off the perf buffer.

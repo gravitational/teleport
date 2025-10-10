@@ -36,13 +36,11 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostNetworkEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostNetworkEvents,
-			Help: "Number of lost network events.",
-		},
-	)
+var lostNetworkEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostNetworkEvents,
+		Help: "Number of lost network events.",
+	},
 )
 
 type conn struct {
@@ -56,7 +54,7 @@ type conn struct {
 	mtx    sync.Mutex
 }
 
-func startConn(bufferSize int) (*conn, error) {
+func startConn() (*conn, error) {
 	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -168,7 +166,7 @@ func (c *conn) endSession(cgroupID uint64) error {
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (c *conn) close() {
-	//c.lost.Close()
+	// c.lost.Close()
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -187,6 +185,8 @@ func (c *conn) close() {
 	if err := c.objs.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
+
+	logger.DebugContext(context.Background(), "Closed conn BPF module")
 }
 
 // v4Events contains raw events off the perf buffer.
