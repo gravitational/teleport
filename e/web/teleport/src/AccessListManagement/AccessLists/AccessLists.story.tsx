@@ -44,7 +44,7 @@ export const ListUnlimited: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return new Response(
             JSON.stringify({
               accessLists: mockAccessLists(),
@@ -69,7 +69,7 @@ export const ListLimitedAccessCta: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return new Response(
             JSON.stringify({ accessLists: mockAccessLists() })
           );
@@ -94,7 +94,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },
@@ -118,7 +118,7 @@ export const NoAccess: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return new HttpResponse(null, { status: 403 });
         }),
       ],
@@ -137,7 +137,7 @@ export const EmptyUnlimitedAccess: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return new HttpResponse(
             JSON.stringify({
               accessLists: [],
@@ -165,7 +165,7 @@ export const EmptyLimitedAccessCta: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.getAccessManagementListUrl(), () => {
+        http.get(cfg.getAccessManagementListUrlV2({}), () => {
           return new HttpResponse(JSON.stringify({ accessLists: [] }));
         }),
       ],

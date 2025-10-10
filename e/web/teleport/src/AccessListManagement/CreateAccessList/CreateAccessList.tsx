@@ -2,15 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 
-import {
-  Alert,
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  H1,
-  Indicator,
-} from 'design';
+import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, H1 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -64,9 +56,6 @@ export const CreateAccessListWithProvider = () => (
 export function CreateAccessList() {
   const [featureLimitReached, setFeatureLimitReached] = useState(false);
 
-  const { usersAndRolesAttempt, fetchUsersAndRoles } =
-    useAccessListManagementContext();
-
   const { attempt: createAttempt, setAttempt: setCreateAttempt } =
     useAttempt('');
 
@@ -84,14 +73,6 @@ export function CreateAccessList() {
     traitLabels: [],
     traitLookup: {},
   });
-
-  // Fetch users and roles if not already fetched.
-  useEffect(() => {
-    if (usersAndRolesAttempt.status !== 'success') {
-      fetchUsersAndRoles();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (
@@ -133,7 +114,6 @@ export function CreateAccessList() {
       </FeatureHeader>
 
       <MainContent
-        attempt={usersAndRolesAttempt}
         createAttempt={createAttempt}
         setCreateAttempt={setCreateAttempt}
         featureLimitReached={featureLimitReached}
@@ -147,7 +127,6 @@ export function CreateAccessList() {
 }
 
 const MainContent = ({
-  attempt,
   createAttempt,
   setCreateAttempt,
   featureLimitReached,
@@ -156,9 +135,6 @@ const MainContent = ({
   members,
   setMembers,
 }: {
-  attempt: ReturnType<
-    typeof useAccessListManagementContext
-  >['usersAndRolesAttempt'];
   createAttempt: ReturnType<typeof useAttempt>['attempt'];
   setCreateAttempt: ReturnType<typeof useAttempt>['setAttempt'];
   featureLimitReached: boolean;
@@ -168,8 +144,7 @@ const MainContent = ({
   setMembers: React.Dispatch<React.SetStateAction<Members>>;
 }) => {
   const ctx = useTeleport();
-  const { fetchRoleOptions, updateAccessListCache } =
-    useAccessListManagementContext();
+  const { updateAccessListCache } = useAccessListManagementContext();
   const history = useHistory();
   const perms = ctx.storeUser.getAccessListAccess();
   const canCreate = perms.create && perms.list && perms.read;
@@ -199,22 +174,6 @@ const MainContent = ({
 
   if (!canCreate) {
     return <NoAccessState action="create" />;
-  }
-
-  // Handle potential error states first.
-  switch (attempt.status) {
-    case 'processing':
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    case 'failed':
-      return <Alert>{attempt.statusText}</Alert>;
-    case 'success':
-      break;
-    default:
-      return null;
   }
 
   const handleOnCreate = (validator: Validator) => {
@@ -341,7 +300,6 @@ const MainContent = ({
               <GrantSection
                 grant={grant}
                 setGrant={setGrant}
-                fetchRoleOptions={fetchRoleOptions}
                 isDisabled={createAttempt.status === 'processing'}
                 title="Permissions Granted to List Members"
                 isOptional={true}
@@ -351,7 +309,6 @@ const MainContent = ({
               <GrantSection
                 grant={ownerGrant}
                 setGrant={setOwnerGrant}
-                fetchRoleOptions={fetchRoleOptions}
                 isDisabled={createAttempt.status === 'processing'}
                 title="Permissions Granted to List Owners"
                 isOptional={true}
@@ -362,7 +319,6 @@ const MainContent = ({
                 attempt={createAttempt}
                 owners={owners}
                 setOwners={setOwners}
-                fetchRoleOptions={fetchRoleOptions}
                 isDisabled={createAttempt.status === 'processing'}
               />
             </Box>
@@ -371,7 +327,6 @@ const MainContent = ({
                 attempt={createAttempt}
                 members={members}
                 setMembers={setMembers}
-                fetchRoleOptions={fetchRoleOptions}
                 isDisabled={createAttempt.status === 'processing'}
               />
             </Box>

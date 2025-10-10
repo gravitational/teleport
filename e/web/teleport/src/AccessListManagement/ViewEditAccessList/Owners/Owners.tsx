@@ -4,7 +4,6 @@ import { Box, ButtonText, Flex } from 'design';
 import Table from 'design/DataTable';
 import { Add } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
-import type { Option } from 'shared/components/Select';
 
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { AccessList } from 'e-teleport/services/accessmanagement';
@@ -27,12 +26,11 @@ interface OwnersProps {
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
   isReadOnlyOktaList?: boolean;
-  fetchRoleOptions: (input: string) => Promise<Option[]>;
   perms: Perms;
 }
 
 export function Owners(props: OwnersProps) {
-  const { accessList, updateAccessList, fetchRoleOptions } = props;
+  const { accessList, updateAccessList } = props;
   const { owners, ownershipRequires, ownerGrants } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteOwner, setDeleteOwner] =
@@ -221,7 +219,6 @@ export function Owners(props: OwnersProps) {
         <EditEligibilityOrGrantRoles
           onClose={() => setEditPermKind(null)}
           editKind={editPermKind}
-          fetchRoleOptions={fetchRoleOptions}
           updateAccessList={updateAccessList}
           accessList={accessList}
         />

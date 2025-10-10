@@ -16,7 +16,6 @@ import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 type Props = {
   attempt: Attempt;
-  fetchRoleOptions: (input: string) => Promise<Option[]>;
   isDisabled: boolean;
   setMembers(m: Members): void;
   members: Members;
@@ -32,7 +31,6 @@ export type Members = {
 
 export const MembersSection = ({
   attempt,
-  fetchRoleOptions,
   isDisabled,
   setMembers,
   members,
@@ -41,15 +39,11 @@ export const MembersSection = ({
     <>
       <Flex alignItems="center" mb={2}>
         <H2 mr={2}>Members (Optional)</H2>
-        <IconTooltip
-          children={
-            <>
-              List members will receive long-term access to roles and traits
-              granted by this access list, and their membership will be reviewed
-              by list owners in periodic reviews.
-            </>
-          }
-        />
+        <IconTooltip>
+          List members will receive long-term access to roles and traits granted
+          by this access list, and their membership will be reviewed by list
+          owners in periodic reviews.
+        </IconTooltip>
       </Flex>
       <Text mb={5}>
         If a member does not have all required roles and traits defined here,
@@ -59,7 +53,6 @@ export const MembersSection = ({
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Member"
         optional={true}
-        loadOptions={fetchRoleOptions}
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>
           setMembers({

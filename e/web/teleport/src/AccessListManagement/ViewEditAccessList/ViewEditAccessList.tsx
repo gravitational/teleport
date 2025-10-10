@@ -19,7 +19,6 @@ import {
   useSlidingBottomBorderTabs,
 } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
-import type { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -60,13 +59,8 @@ enum Tab {
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
-  const {
-    fetchRoleOptions,
-    fetchUsersAndRoles,
-    usersAndRolesAttempt,
-    updateAccessListCache,
-    isOktaPluginReadOnly,
-  } = useAccessListManagementContext();
+  const { updateAccessListCache, isOktaPluginReadOnly } =
+    useAccessListManagementContext();
   const location = useLocation();
   const history = useHistory();
   const { accessListId } = useParams<{ accessListId: string }>();
@@ -139,16 +133,6 @@ export function ViewEditAccessList() {
       );
   }
 
-  // On initial run, this effect will fetch an access list
-  // and the list of users and roles.
-  // Users and roles are used as dropdown options.
-  useEffect(() => {
-    if (usersAndRolesAttempt.status !== 'success') {
-      fetchUsersAndRoles();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // The accessListId can change if a user clicks on a different
   // access list in the notification dropdown.
   useEffect(() => {
@@ -176,7 +160,6 @@ export function ViewEditAccessList() {
       <ReviewAccessList
         reviewer={ctx.storeUser.getUsername()}
         accessList={accessList}
-        fetchRoleOptions={fetchRoleOptions}
         isReadOnlyOktaList={isReadOnlyOktaList}
         cancelReview={() => {
           if (!location.key || location.key === 'default') {
@@ -266,7 +249,6 @@ export function ViewEditAccessList() {
         <MainContent
           perms={perms}
           accessList={accessList}
-          fetchRoleOptions={fetchRoleOptions}
           isReadOnlyOktaList={isReadOnlyOktaList}
           updateAccessList={updateAccessList}
         />
@@ -346,13 +328,11 @@ const FeatureTitle = ({
 const MainContent = ({
   perms,
   accessList,
-  fetchRoleOptions,
   isReadOnlyOktaList,
   updateAccessList,
 }: {
   perms: Perms;
   accessList: AccessListModified;
-  fetchRoleOptions: (input: string) => Promise<Option[]>;
   isReadOnlyOktaList: boolean;
   updateAccessList: (
     newAccessList: AccessList,
@@ -407,7 +387,6 @@ const MainContent = ({
           updateAccessList={updateAccessList}
           isReadOnlyOktaList={isReadOnlyOktaList}
           perms={perms}
-          fetchRoleOptions={fetchRoleOptions}
         />
       )}
 
@@ -417,7 +396,6 @@ const MainContent = ({
           updateAccessList={updateAccessList}
           isReadOnlyOktaList={isReadOnlyOktaList}
           perms={perms}
-          fetchRoleOptions={fetchRoleOptions}
         />
       )}
 

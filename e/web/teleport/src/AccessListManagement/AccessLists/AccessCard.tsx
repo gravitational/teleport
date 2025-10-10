@@ -166,7 +166,9 @@ export const renderRolesAndTraits = ({
     const otherLabels = $labels.slice(2);
     return (
       <Flex flexWrap="wrap" alignItems="baseline" gap={1}>
-        <Flex gap={1}>{truncatedLabels}</Flex>
+        <Flex gap={1} maxWidth="200px">
+          {truncatedLabels}
+        </Flex>
         <HoverTooltip
           position="bottom"
           tipContent={
@@ -185,7 +187,11 @@ export const renderRolesAndTraits = ({
     );
   }
 
-  return <Flex flexWrap="wrap">{$labels}</Flex>;
+  return (
+    <Flex flexWrap="wrap" gap={1}>
+      {$labels}
+    </Flex>
+  );
 };
 
 const AccessCardContainer = styled(Flex)<{ $onlyRender?: boolean }>`

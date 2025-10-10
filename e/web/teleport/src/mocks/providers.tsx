@@ -3,6 +3,7 @@ import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import TeleportContextE from 'e-teleport/teleportContextE';
@@ -21,13 +22,15 @@ export const TeleportProviderBasicE: React.FC<
 
   return (
     <MemoryRouter initialEntries={initialEntries}>
-      <InfoGuidePanelProvider>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getEnterpriseFeatures()}>
-            {children}
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </InfoGuidePanelProvider>
+      <ToastNotificationProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <FeaturesContextProvider value={getEnterpriseFeatures()}>
+              {children}
+            </FeaturesContextProvider>
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </ToastNotificationProvider>
     </MemoryRouter>
   );
 };

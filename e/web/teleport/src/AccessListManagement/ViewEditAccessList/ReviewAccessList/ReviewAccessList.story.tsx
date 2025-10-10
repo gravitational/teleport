@@ -1,9 +1,10 @@
 import { addWeeks } from 'date-fns';
+import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
-import { Option } from 'shared/components/Select';
 
+import { TeleportProviderBasicE } from 'e-teleport/mocks/providers';
 import {
   AccessListMemberKind,
   AccessListOrigin,
@@ -11,6 +12,7 @@ import {
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
+import cfg from 'teleport/config';
 
 import { convertToTraitConvenience } from '../../Traits';
 import type { AccessListModified } from '../Shared';
@@ -20,68 +22,105 @@ export default {
   title: 'TeleportE/AccessLists/Review',
 };
 
-async function filterMockRoleOptions(input: string) {
-  return mockRoleOptions.filter(r => r.value.includes(input));
-}
+const getRolesHandler = http.get(
+  cfg.getRoleUrl({ action: 'list' }),
+  async () => {
+    await delay(1000);
+    return HttpResponse.json({
+      items: [
+        { id: 'id1', kind: 'role', name: 'access', content: '' },
+        { id: 'id2', kind: 'role', name: 'admin', content: '' },
+        { id: 'id3', kind: 'role', name: 'editor', content: '' },
+        { id: 'id4', kind: 'role', name: 'foo', content: '' },
+        { id: 'id5', kind: 'role', name: 'apple', content: '' },
+        { id: 'id6', kind: 'role', name: 'banana', content: '' },
+      ],
+    });
+  }
+);
 
 export const WithFullAccessList = () => {
   return (
     <MemoryRouter>
-      <Info>Devs: Click the buttons to see each step</Info>
-      <ReviewAccessList
-        cancelReview={() => null}
-        accessList={mockAccessListFull}
-        fetchRoleOptions={filterMockRoleOptions}
-        reviewer="llama"
-        isOwner={false}
-      />
+      <TeleportProviderBasicE>
+        <Info>Devs: Click the buttons to see each step</Info>
+        <ReviewAccessList
+          cancelReview={() => null}
+          accessList={mockAccessListFull}
+          reviewer="llama"
+          isOwner={false}
+        />
+      </TeleportProviderBasicE>
     </MemoryRouter>
   );
+};
+WithFullAccessList.parameters = {
+  msw: {
+    handlers: [getRolesHandler],
+  },
 };
 
 export const WithSparseAccessList = () => {
   return (
     <MemoryRouter>
-      <Info>Devs: Click the buttons to see each step</Info>
-      <ReviewAccessList
-        cancelReview={() => null}
-        accessList={mockAccessListSparse}
-        fetchRoleOptions={filterMockRoleOptions}
-        reviewer="llama"
-        isOwner={false}
-      />
+      <TeleportProviderBasicE>
+        <Info>Devs: Click the buttons to see each step</Info>
+        <ReviewAccessList
+          cancelReview={() => null}
+          accessList={mockAccessListSparse}
+          reviewer="llama"
+          isOwner={false}
+        />
+      </TeleportProviderBasicE>
     </MemoryRouter>
   );
+};
+WithSparseAccessList.parameters = {
+  msw: {
+    handlers: [getRolesHandler],
+  },
 };
 
 export const WithFullAccessListOwner = () => {
   return (
     <MemoryRouter>
-      <Info>Devs: Click the buttons to see each step</Info>
-      <ReviewAccessList
-        cancelReview={() => null}
-        accessList={mockAccessListFull}
-        fetchRoleOptions={filterMockRoleOptions}
-        reviewer="llama"
-        isOwner={true}
-      />
+      <TeleportProviderBasicE>
+        <Info>Devs: Click the buttons to see each step</Info>
+        <ReviewAccessList
+          cancelReview={() => null}
+          accessList={mockAccessListFull}
+          reviewer="llama"
+          isOwner={true}
+        />
+      </TeleportProviderBasicE>
     </MemoryRouter>
   );
+};
+WithFullAccessListOwner.parameters = {
+  msw: {
+    handlers: [getRolesHandler],
+  },
 };
 
 export const WithSparseAccessListOwner = () => {
   return (
     <MemoryRouter>
-      <Info>Devs: Click the buttons to see each step</Info>
-      <ReviewAccessList
-        cancelReview={() => null}
-        accessList={mockAccessListSparse}
-        fetchRoleOptions={filterMockRoleOptions}
-        reviewer="llama"
-        isOwner={true}
-      />
+      <TeleportProviderBasicE>
+        <Info>Devs: Click the buttons to see each step</Info>
+        <ReviewAccessList
+          cancelReview={() => null}
+          accessList={mockAccessListSparse}
+          reviewer="llama"
+          isOwner={true}
+        />
+      </TeleportProviderBasicE>
     </MemoryRouter>
   );
+};
+WithSparseAccessListOwner.parameters = {
+  msw: {
+    handlers: [getRolesHandler],
+  },
 };
 
 const mockAccessListFull: AccessListModified = {
@@ -184,14 +223,3 @@ const mockAccessListSparse: AccessListModified = {
   requiresReview: true,
   inheritedMemberGrants: { roles: [], traits: {} },
 };
-
-const mockRoleOptions: Option[] = [
-  { value: 'access', label: 'access' },
-  { value: 'admin', label: 'admin' },
-  { value: 'editor', label: 'editor' },
-  { value: 'foo', label: 'foo' },
-  { value: 'bar', label: 'bar' },
-  { value: 'baz', label: 'baz' },
-  { value: 'apple', label: 'apple' },
-  { value: 'banana', label: 'banana' },
-];

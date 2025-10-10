@@ -126,9 +126,7 @@ export function EnrollNewOwners({
             )}
             {duplicatedOwners.length > 0 && (
               <Alert kind="danger">
-                {`The following usernames are already
-                enrolled, remove them from the list to continue:
-                ${duplicatedOwners.join(', ')}`}
+                {`The following usernames are already enrolled, remove them from the list to continue: ${duplicatedOwners.join(', ')}`}
               </Alert>
             )}
             <EnrollNewMembersFields

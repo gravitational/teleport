@@ -21,11 +21,9 @@ import { parseSortType } from 'design/DataTable/sort';
 import type { SortDir } from 'design/DataTable/types';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
-import { useFetchUserAndRoles } from 'e-teleport/AccessListManagement/useFetchUsersAndRoles';
 import {
   accessManagementService,
   type AccessList,
@@ -70,17 +68,12 @@ type AccessListMutation =
   | { mutationType: 'deleted'; accessListId: string };
 
 interface AccessListManagementContext {
-  usersAndRolesAttempt: ReturnType<typeof useAttempt>['attempt'];
   isOktaPluginReadOnly: boolean;
   search: string;
   processAccessLists: (
     fetchedLists: AccessList[],
     preProcess?: PreProcessFn
   ) => void;
-  fetchRoleOptions: ReturnType<typeof useFetchUserAndRoles>['fetchRoleOptions'];
-  fetchUsersAndRoles: ReturnType<
-    typeof useFetchUserAndRoles
-  >['fetchUsersAndRoles'];
   // backendCacheUnhealthy is true if the backend cache is unable to sort by title, or is disabled.
   // This is set if we receive at 412 status code error when fetching access lists.
   backendCacheUnhealthy: boolean;
@@ -106,19 +99,12 @@ interface AccessListManagementContext {
   previousSearchParams?: string;
 }
 
-const STUB_ATTEMPT: Attempt = {
-  status: '',
-  statusCode: null,
-  statusText: '',
-};
-
 const DEFAULT_SORT = {
   fieldName: 'title',
   dir: 'ASC',
 } satisfies AccessListSort;
 
 const AccessListManagementContext = createContext<AccessListManagementContext>({
-  usersAndRolesAttempt: STUB_ATTEMPT,
   refetch: () => {},
   isOktaPluginReadOnly: false,
   accessLists: [],
@@ -134,10 +120,8 @@ const AccessListManagementContext = createContext<AccessListManagementContext>({
   isError: false,
   setView: () => {},
   processAccessLists: () => {},
-  fetchRoleOptions: () => Promise.resolve([]),
   updateSearchParams: () => {},
   previousSearchParams: '',
-  fetchUsersAndRoles: () => Promise.resolve(),
   filtersExist: false,
   updateAccessListCache: () => {},
 });
@@ -173,8 +157,6 @@ export const AccessListManagementContextProvider = (
   };
 
   const pendingPreProcessRef = useRef<PreProcessFn[]>([]);
-
-  const usersAndRolesAttempt = useAttempt('processing');
 
   const queryParams = new URLSearchParams(location.search);
   const search = queryParams.get('search');
@@ -271,9 +253,6 @@ export const AccessListManagementContextProvider = (
     },
     [history, location.search, location.pathname]
   );
-
-  const { fetchRoleOptions, fetchUsersAndRoles } =
-    useFetchUserAndRoles(usersAndRolesAttempt);
 
   const [oktaPluginAttempt, fetchOktaPlugin] = useAsync<
     [],
@@ -379,7 +358,6 @@ export const AccessListManagementContextProvider = (
         fetchNextPage,
         error,
         accessLists,
-        usersAndRolesAttempt: usersAndRolesAttempt.attempt,
         // Okta Integration is read-only if bidirectionalSync is 'false' or omitted.
         isOktaPluginReadOnly:
           oktaPluginAttempt?.data &&
@@ -393,9 +371,7 @@ export const AccessListManagementContextProvider = (
         setView,
         filtersExist,
         processAccessLists,
-        fetchRoleOptions,
         sort,
-        fetchUsersAndRoles,
         updateAccessListCache,
         previousSearchParams,
       }}

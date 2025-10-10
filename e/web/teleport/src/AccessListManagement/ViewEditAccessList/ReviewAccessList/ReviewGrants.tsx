@@ -10,21 +10,15 @@ export type Grant = Omit<TraitConvenience, 'traitList'> &
   Omit<AccessListGrant, 'traits'>;
 
 type Props = {
-  fetchRoleOptions(input: string): Promise<Option[]>;
   editedGrants: Grant;
   setEditedGrants(g: Grant): void;
 };
 
-export function ReviewGrants({
-  fetchRoleOptions,
-  editedGrants,
-  setEditedGrants,
-}: Props) {
+export function ReviewGrants({ editedGrants, setEditedGrants }: Props) {
   return (
     <>
       <H2 mb={3}>Permissions Granted to List Members</H2>
       <EligibilityOrGrantRolesFieldSelectAndCreate
-        loadOptions={fetchRoleOptions}
         isDisabled={false}
         onChange={(vals: Option[]) =>
           setEditedGrants({

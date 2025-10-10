@@ -11,6 +11,7 @@ import {
   AccessListMemberKind,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
+import ResourceService from 'teleport/services/resources';
 
 import {
   ReactSelectAccessListMultiValue,
@@ -39,8 +40,10 @@ export function convertAccessListsToUserOptions(
     );
 }
 
+// EligibilityOrGrantRolesFieldSelectAndCreate is used to define
+// eligibility (what roles are required to be eligible members/owners)
+// or access grants (what additional roles are granted to members/owners).
 export function EligibilityOrGrantRolesFieldSelectAndCreate({
-  loadOptions,
   isDisabled,
   onChange,
   selected,
@@ -48,7 +51,6 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   editKind,
   optional = false,
 }: {
-  loadOptions(input: string): Promise<Option[]>;
   isDisabled: boolean;
   onChange(opts: Option[]): void;
   selected: Option[];
@@ -64,6 +66,12 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
     label = `Required Roles (Optional)`;
   }
 
+  async function fetchRoleOptions(search: string): Promise<Option[]> {
+    const resourceSvc = new ResourceService();
+    const roles = await resourceSvc.fetchRoles({ search, limit: 50 });
+    return roles.items.map(r => ({ value: r.name, label: r.name }));
+  }
+
   return (
     <FieldSelectCreatableAsync
       label={label}
@@ -75,7 +83,7 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
       placeholder="Start typing a role name and press enter"
       isMulti={true}
       isClearable={true}
-      loadOptions={loadOptions}
+      loadOptions={fetchRoleOptions}
       defaultOptions={true}
       isDisabled={isDisabled}
       onChange={onChange}

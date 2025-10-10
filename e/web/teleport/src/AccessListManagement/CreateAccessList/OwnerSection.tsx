@@ -16,7 +16,6 @@ import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 type Props = {
   attempt: Attempt;
-  fetchRoleOptions: (input: string) => Promise<Option[]>;
   isDisabled: boolean;
   setOwners(m: Owners): void;
   owners: Owners;
@@ -31,7 +30,6 @@ export type Owners = {
 };
 
 export const OwnersSection = ({
-  fetchRoleOptions,
   attempt,
   isDisabled,
   owners,
@@ -41,15 +39,11 @@ export const OwnersSection = ({
     <>
       <Flex alignItems="center" mb={2}>
         <H2 mr={2}>List Owners</H2>
-        <IconTooltip
-          children={
-            <>
-              List Owners are responsible for managing members and membership
-              requirements for this access list, and must conduct periodic
-              access reviews.
-            </>
-          }
-        />
+        <IconTooltip>
+          List Owners are responsible for managing members and membership
+          requirements for this access list, and must conduct periodic access
+          reviews.
+        </IconTooltip>
       </Flex>
       <Text mb={5}>
         If a Teleport user is assigned as an owner but does not have all
@@ -58,7 +52,6 @@ export const OwnersSection = ({
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         editKind="Owner"
-        loadOptions={fetchRoleOptions}
         isDisabled={isDisabled}
         onChange={(option: Option[]) =>
           setOwners({

@@ -10,7 +10,6 @@ import { getPagerPosition } from 'design/DataTable/Table';
 import type { PagedTableProps } from 'design/DataTable/types';
 import { Add, ArrowRight } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
-import type { Option } from 'shared/components/Select';
 
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
@@ -39,17 +38,10 @@ interface MembersProps {
   accessList: AccessListModified;
   isReadOnlyOktaList?: boolean;
   perms: Perms;
-  fetchRoleOptions: (input: string) => Promise<Option[]>;
 }
 
 export function Members(props: MembersProps) {
-  const {
-    accessList,
-    updateAccessList,
-    isReadOnlyOktaList,
-    perms,
-    fetchRoleOptions,
-  } = props;
+  const { accessList, updateAccessList, isReadOnlyOktaList, perms } = props;
   const { members, membershipRequires, inheritedMemberGrants, grants } =
     accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
@@ -182,7 +174,6 @@ export function Members(props: MembersProps) {
         <EditEligibilityOrGrantRoles
           onClose={() => setEditPermKind(null)}
           editKind={editPermKind}
-          fetchRoleOptions={fetchRoleOptions}
           updateAccessList={updateAccessList}
           accessList={accessList}
         />

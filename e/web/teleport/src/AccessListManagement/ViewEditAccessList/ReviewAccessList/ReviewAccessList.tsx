@@ -12,7 +12,6 @@ import {
   H2,
 } from 'design';
 import { Cross, ShieldCheck } from 'design/Icon';
-import { Option } from 'shared/components/Select';
 import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -61,14 +60,12 @@ export const views = [
 
 export function ReviewAccessList({
   accessList,
-  fetchRoleOptions,
   reviewer,
   cancelReview,
   isOwner = false,
   isReadOnlyOktaList = false,
 }: {
   accessList: AccessListModified;
-  fetchRoleOptions: (input: string) => Promise<Option[]>;
   reviewer: string;
   cancelReview(): void;
   isOwner?: boolean;
@@ -213,7 +210,6 @@ export function ReviewAccessList({
                 </>
               ) : (
                 <ReviewMembershipRequires
-                  fetchRoleOptions={fetchRoleOptions}
                   editedMembershipRequires={editedMembershipRequires}
                   setEditedMembershipRequires={setEditedMembershipRequires}
                 />

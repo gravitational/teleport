@@ -34,7 +34,6 @@ import type { AccessListModified } from '../Shared';
 type Props = {
   onClose(): void;
   editKind: EditKind;
-  fetchRoleOptions(input: string): Promise<Option[]>;
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
 };
@@ -43,7 +42,6 @@ export function EditEligibilityOrGrantRoles({
   accessList,
   onClose,
   editKind,
-  fetchRoleOptions,
   updateAccessList,
 }: Props) {
   let existingRoles: string[] = accessList.grants.roles;
@@ -168,7 +166,6 @@ export function EditEligibilityOrGrantRoles({
               <Alert kind="warning">{selectedRolesContainDenyRules}</Alert>
             ) : null}
             <EligibilityOrGrantRolesFieldSelectAndCreate
-              loadOptions={fetchRoleOptions}
               isDisabled={attempt.status === 'processing'}
               onChange={(vals: Option[]) => setSelectedRoles(vals || [])}
               selected={selectedRoles}
