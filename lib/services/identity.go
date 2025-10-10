@@ -293,7 +293,7 @@ type Identity interface {
 	HeadlessAuthenticationService
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	WebToken
 
 	// AppSession defines application session features.
 	AppSession

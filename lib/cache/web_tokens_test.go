@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -36,9 +37,22 @@ func TestWebTokens(t *testing.T) {
 				User:  "llama",
 			})
 		},
-		create:    p.webTokenS.Upsert,
-		list:      getAllAdapter(p.webTokenS.List),
+		create: p.webTokenS.UpsertWebToken,
+		update: p.webTokenS.UpsertWebToken,
+		cacheGet: func(ctx context.Context, token string) (types.WebToken, error) {
+			return p.cache.GetWebToken(ctx, types.GetWebTokenRequest{
+				Token: token,
+				User:  "llama",
+			})
+		},
+		list:      getAllAdapter(p.webTokenS.GetWebTokens),
 		cacheList: getAllAdapter(p.cache.GetWebTokens),
-		deleteAll: p.webTokenS.DeleteAll,
+		deleteAll: p.webTokenS.DeleteAllWebTokens,
+		delete: func(ctx context.Context, token string) error {
+			return p.webTokenS.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
+				Token: token,
+				User:  "llama",
+			})
+		},
 	}, withSkipPaginationTest())
 }

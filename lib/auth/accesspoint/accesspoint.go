@@ -102,7 +102,7 @@ type Config struct {
 	UserLoginStates         services.UserLoginStates
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
-	WebToken                types.WebTokenInterface
+	WebToken                services.WebToken
 	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops

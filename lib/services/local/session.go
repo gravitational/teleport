@@ -329,17 +329,12 @@ type webSessions struct {
 	backend backend.Backend
 }
 
-// WebTokens returns the web token manager.
-func (s *IdentityService) WebTokens() types.WebTokenInterface {
-	return &webTokens{backend: s.Backend}
-}
-
-// Get returns the web token described with req.
-func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+// GetWebToken returns the web token described with req.
+func (r *IdentityService) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := r.backend.Get(ctx, webTokenKey(req.Token))
+	item, err := r.Get(ctx, webTokenKey(req.Token))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,10 +345,10 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 	return token, nil
 }
 
-// List gets all web tokens.
-func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) {
+// GetWebTokens gets all web tokens.
+func (r *IdentityService) GetWebTokens(ctx context.Context) (out []types.WebToken, err error) {
 	startKey := backend.ExactKey(webPrefix, tokensPrefix)
-	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := r.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -367,8 +362,8 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 	return out, nil
 }
 
-// Upsert updates the existing or inserts a new web token.
-func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
+// UpsertWebToken updates the existing or inserts a new web token.
+func (r *IdentityService) UpsertWebToken(ctx context.Context, token types.WebToken) error {
 	rev := token.GetRevision()
 	bytes, err := services.MarshalWebToken(token, services.WithVersion(types.V3))
 	if err != nil {
@@ -381,32 +376,28 @@ func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 		Expires:  metadata.Expiry(),
 		Revision: rev,
 	}
-	_, err = r.backend.Put(ctx, item)
+	_, err = r.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// Delete deletes the web token specified with req from the storage.
-func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
+// DeleteWebToken deletes the web token specified with req from the storage.
+func (r *IdentityService) DeleteWebToken(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(r.backend.Delete(ctx, webTokenKey(req.Token)))
+	return trace.Wrap(r.Delete(ctx, webTokenKey(req.Token)))
 }
 
-// DeleteAll removes all web tokens.
-func (r *webTokens) DeleteAll(ctx context.Context) error {
+// DeleteAllWebTokens removes all web tokens.
+func (r *IdentityService) DeleteAllWebTokens(ctx context.Context) error {
 	startKey := backend.ExactKey(webPrefix, tokensPrefix)
-	if err := r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+	if err := r.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-type webTokens struct {
-	backend backend.Backend
 }
 
 func webSessionKey(sessionID string) backend.Key {
