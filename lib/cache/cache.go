@@ -538,7 +538,7 @@ type Cache struct {
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	webSessionCache              types.WebSessionInterface
-	webTokenCache                types.WebTokenInterface
+	webTokenCache                services.WebToken
 	windowsDesktopsCache         services.WindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
@@ -713,7 +713,7 @@ type Config struct {
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
-	WebToken types.WebTokenInterface
+	WebToken services.WebToken
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
@@ -1041,7 +1041,7 @@ func New(config Config) (*Cache, error) {
 		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
 		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
+		webTokenCache:                local.NewIdentityService(config.Backend),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
@@ -2752,7 +2752,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.Get(ctx, req)
+	return rg.reader.GetWebToken(ctx, req)
 }
 
 // GetAuthPreference gets the cluster authentication config.

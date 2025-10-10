@@ -1987,19 +1987,19 @@ var _ executor[types.WebSession, webSessionGetter] = webSessionExecutor{}
 type webTokenExecutor struct{}
 
 func (webTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebToken, error) {
-	return cache.WebToken.List(ctx)
+	return cache.WebToken.GetWebTokens(ctx)
 }
 
 func (webTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebToken) error {
-	return cache.webTokenCache.Upsert(ctx, resource)
+	return cache.webTokenCache.UpsertWebToken(ctx, resource)
 }
 
 func (webTokenExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.webTokenCache.DeleteAll(ctx)
+	return cache.webTokenCache.DeleteAllWebTokens(ctx)
 }
 
 func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
+	return cache.webTokenCache.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 		Token: resource.GetName(),
 	})
 }
@@ -2014,7 +2014,7 @@ func (webTokenExecutor) getReader(cache *Cache, cacheOK bool) webTokenGetter {
 }
 
 type webTokenGetter interface {
-	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }
 
 var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
