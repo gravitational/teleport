@@ -271,7 +271,7 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			preTest: func(t *testing.T) {
 				// Enable EICE for this test.
-				t.Setenv(constants.UnstableEnableEICEEnvVar, "yes")
+				t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
 			},
 			errCheck: require.NoError,
 			expected: &AWSMatcher{

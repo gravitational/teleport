@@ -8978,7 +8978,10 @@ message InstallerParams {
   // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
   // 1: uses script mode
   // 2: uses eice mode (deprecated)
-  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+  InstallParamEnrollMode EnrollMode = 8 [
+    (gogoproto.jsontag) = "enroll_mode,omitempty",
+    deprecated = true
+  ];
   // Suffix indicates the installation suffix for the teleport installation.
   // Set this value if you want multiple installations of Teleport.
   // See --install-suffix flag in teleport-update program.

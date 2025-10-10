@@ -868,7 +868,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	// the same EICE Node in the cluster, causing a conflict.
 	//
 	// After removing the EICE feature, this test must be removed as well.
-	t.Setenv(constants.UnstableEnableEICEEnvVar, "yes")
+	t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
 	ctx := context.Background()
 	logger := logtest.NewLogger()
 

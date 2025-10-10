@@ -203,7 +203,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 	}
 
 	if slices.Contains(m.Types, AWSMatcherEC2) && m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
-		if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); eiceEnabled {
+		if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); !eiceEnabled {
 			return trace.BadParameter(constants.EICEDisabledMessage)
 		}
 	}
