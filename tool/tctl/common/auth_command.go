@@ -484,7 +484,7 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 	case teleport.Text:
 		// auth servers don't have labels.
 		verbose := false
-		return sc.writeText(os.Stdout, verbose)
+		return sc.WriteText(os.Stdout, verbose)
 	case teleport.YAML:
 		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:
