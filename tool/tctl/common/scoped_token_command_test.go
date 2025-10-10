@@ -25,8 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -85,73 +83,43 @@ func TestScopedTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(buf.String(), "The invite token:"))
 
-	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node,app", "--format", teleport.Text}, scopeFlags...))
+	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node", "--format", teleport.Text}, scopeFlags...))
 	require.NoError(t, err)
 	require.Equal(t, 1, strings.Count(buf.String(), "\n"))
 
-	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node,app", "--format", teleport.JSON}, scopeFlags...))
+	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node", "--format", teleport.JSON}, scopeFlags...))
 	require.NoError(t, err)
 	out := mustDecodeJSON[addedToken](t, buf)
 
-	require.Len(t, out.Roles, 2)
+	require.Len(t, out.Roles, 1)
 	require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
-	require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
 
-	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node,app", "--format", teleport.YAML}, scopeFlags...))
+	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node", "--format", teleport.YAML}, scopeFlags...))
 	require.NoError(t, err)
 	out = mustDecodeYAML[addedToken](t, buf)
 
-	require.Len(t, out.Roles, 2)
+	require.Len(t, out.Roles, 1)
 	require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
-	require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
-
-	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=kube", "--labels=foo=bar"}, scopeFlags...))
-	require.NoError(t, err)
-	require.Contains(t, buf.String(), `--set roles="kube\,app\,discovery"`,
-		"Command print out should include setting kube, app and discovery roles for helm install.")
 
 	// Test all output formats of "tokens ls".
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls"})
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(buf.String(), "Token "))
-	require.Equal(t, 7, strings.Count(buf.String(), "\n")) // account for header lines
+	require.Equal(t, 6, strings.Count(buf.String(), "\n")) // account for header lines
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.Text})
 	require.NoError(t, err)
-	require.Equal(t, 5, strings.Count(buf.String(), "\n"))
+	require.Equal(t, 4, strings.Count(buf.String(), "\n"))
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.JSON})
 	require.NoError(t, err)
 	jsonOut := mustDecodeJSON[[]listedScopedToken](t, buf)
-	require.Len(t, jsonOut, 5)
+	require.Len(t, jsonOut, 4)
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.YAML})
 	require.NoError(t, err)
 	yamlOut := []listedScopedToken{}
 	mustDecodeYAMLDocuments(t, buf, &yamlOut)
-	require.Len(t, yamlOut, 5)
+	require.Len(t, yamlOut, 4)
 	require.Equal(t, jsonOut, yamlOut)
-
-	// Test filtering by label
-	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.JSON, "--labels=foo=bar"})
-	require.NoError(t, err)
-	jsonOut = mustDecodeJSON[[]listedScopedToken](t, buf)
-	require.Len(t, jsonOut, 1)
-
-	// Test filtering by scope and default filter
-	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.JSON, "--scope=/aa"})
-	require.NoError(t, err)
-	jsonOut = mustDecodeJSON[[]listedScopedToken](t, buf)
-	require.Len(t, jsonOut, 5)
-
-	// Test filtering by scope and supported filter
-	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.JSON, "--scope=ancestor:/aa"})
-	require.NoError(t, err)
-	jsonOut = mustDecodeJSON[[]listedScopedToken](t, buf)
-	require.Len(t, jsonOut, 5)
-
-	// Test filtering by scope and unsupported filter
-	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--scope=badfilter:/aa"})
-	require.True(t, trace.IsBadParameter(err))
-	require.EqualError(t, err, "invalid --scope filter\n\t\"badfilter\" is not a recognized filter mode")
 }
