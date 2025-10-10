@@ -33,7 +33,7 @@ func checkKingpinHelp(help, where string) (issues []KingpinHelpIssue) {
 	}
 
 	// Help should end with `.`, or `.)` in case the sentence is in brackets.
-	if !strings.HasSuffix(help, ".") && !strings.HasSuffix(help, ".)") {
+	if !strings.HasSuffix(help, ".") && !strings.HasSuffix(help, ".)") && !strings.Contains(help, ". ($") {
 		issues = append(issues, KingpinHelpIssue{
 			Where: where,
 			Value: help,
