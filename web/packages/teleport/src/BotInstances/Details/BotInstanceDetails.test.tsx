@@ -28,6 +28,7 @@ import {
   testQueryClient,
   userEvent,
   waitForElementToBeRemoved,
+  within,
 } from 'design/utils/testing';
 
 import 'shared/components/TextEditor/TextEditor.mock';
@@ -95,6 +96,34 @@ describe('BotIntanceDetails', () => {
     await user.click(yamlTab);
     expect(onTabSelected).toHaveBeenCalledTimes(3);
     expect(onTabSelected).toHaveBeenLastCalledWith('yaml');
+  });
+
+  it('Shows instance info', async () => {
+    withSuccessResponse();
+
+    renderComponent({ props: { activeTab: 'info' } });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    const summarySection = screen
+      .getByRole('heading', {
+        name: 'Summary',
+      })
+      .closest('section');
+    expect(
+      within(summarySection!).getByText('test-bot-name')
+    ).toBeInTheDocument();
+  });
+
+  it('Shows instance services', async () => {
+    withSuccessResponse();
+
+    renderComponent({ props: { activeTab: 'health' } });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    const item = screen.getByTestId('application-tunnel-1');
+    expect(within(item!).getByText('application-tunnel-1')).toBeInTheDocument();
   });
 
   it('Shows full yaml', async () => {

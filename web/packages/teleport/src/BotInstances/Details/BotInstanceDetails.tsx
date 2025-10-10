@@ -33,6 +33,8 @@ import TextEditor from 'shared/components/TextEditor/TextEditor';
 import useTeleport from 'teleport/useTeleport';
 
 import { useGetBotInstance } from '../hooks';
+import { HealthTab } from './HealthTab';
+import { InfoTab } from './InfoTab';
 
 export function BotInstanceDetails(props: {
   botName: string;
@@ -96,24 +98,30 @@ export function BotInstanceDetails(props: {
         {isSuccess ? (
           <>
             <Tabs activeTab={tab} onTabSelected={onTabSelected} />
-            <TabContentContainer>
-              {tab === 'info' ? <div style={{ flex: 1 }} /> : undefined}
 
-              {tab === 'health' ? <div style={{ flex: 1 }} /> : undefined}
-
-              {tab === 'yaml' ? (
-                <TextEditor
-                  bg="levels.sunken"
-                  data={[
-                    {
-                      content: data.yaml,
-                      type: 'yaml',
-                    },
-                  ]}
-                  readOnly={true}
+            {tab === 'info' ? (
+              <TabContentContainer>
+                <InfoTab
+                  data={data}
+                  onGoToServicesClick={() => onTabSelected('health')}
                 />
-              ) : undefined}
-            </TabContentContainer>
+              </TabContentContainer>
+            ) : undefined}
+
+            {tab === 'health' ? <HealthTab data={data} /> : undefined}
+
+            {tab === 'yaml' ? (
+              <TextEditor
+                bg="levels.sunken"
+                data={[
+                  {
+                    content: data.yaml,
+                    type: 'yaml',
+                  },
+                ]}
+                readOnly={true}
+              />
+            ) : undefined}
           </>
         ) : undefined}
       </ContentContainer>
@@ -129,12 +137,13 @@ const Container = styled.section`
   border-left-width: 1px;
   border-left-style: solid;
   overflow: hidden;
+  min-width: 300px;
 `;
 
 const TitleContainer = styled(Flex)`
   align-items: center;
   justify-content: space-between;
-  height: ${p => p.theme.space[8]}px;
+  min-height: ${p => p.theme.space[8]}px;
   padding-left: ${p => p.theme.space[3]}px;
   padding-right: ${p => p.theme.space[3]}px;
   gap: ${p => p.theme.space[2]}px;
@@ -159,9 +168,11 @@ const ContentContainer = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 `;
 
 const TabContentContainer = styled(Flex)`
+  overflow: auto;
   flex: 1;
   background-color: ${({ theme }) => theme.colors.levels.surface};
 `;
