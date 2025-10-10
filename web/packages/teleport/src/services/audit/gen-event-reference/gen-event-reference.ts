@@ -34,7 +34,12 @@ export function eventsWithoutExamples(
         codeDesc: formatters[current].desc,
         code: current,
         raw: {
+          code: current,
           event: formatters[current].type,
+          // Use fixed values for time and UID, consistent with what fixtures
+          // use.
+          time: '2020-06-05T16:24:05Z',
+          uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
         },
       });
       return accum;

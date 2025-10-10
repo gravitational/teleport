@@ -61,8 +61,8 @@ describe('eventsWithoutExamples', () => {
           raw: {
             event: 'billing.create_card',
             code: 'ABC456',
-            time: new Date('2025-01-01'),
-            uid: '00000000-0000-0000-0000-000000000000',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
           },
         },
       ],
