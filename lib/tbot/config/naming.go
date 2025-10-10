@@ -22,8 +22,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // reservedServiceNames are the service names reserved for internal use.
