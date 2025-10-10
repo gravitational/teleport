@@ -163,7 +163,7 @@ export function RecordingItem({
             <ArrowRight size="small" color="text.slightlyMuted" />
 
             <ItemSpan>
-              <Server size="small" color="sessionRecording.resource" />
+              <Icon size="small" color="sessionRecording.resource" />
 
               <Text>{recording.hostname}</Text>
             </ItemSpan>
