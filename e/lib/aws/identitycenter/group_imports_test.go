@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
-	_ "github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
