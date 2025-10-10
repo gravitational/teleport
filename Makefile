@@ -1623,6 +1623,15 @@ derive-up-to-date: must-start-clean/host derive
 		exit 1; \
 	fi
 
+
+.PHONY: eventschema-up-to-date
+eventschema-up-to-date: must-start-clean/host
+	$(MAKE) -C build.assets generate-eventschema
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "event schema" "make generate-eventschema"; \
+		exit 1; \
+	fi
+
 # grpc generates gRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
