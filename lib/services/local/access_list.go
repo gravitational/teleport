@@ -1093,6 +1093,10 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 // setMemberEligibility sets the member eligibility status to eligible if possible to avoid
 // unnecessary updates via access list eligibility reconciler.
 func setMemberEligibility(acl *accesslist.AccessList, member *accesslist.AccessListMember) {
+	if isEligibilityStatusKnown(member.Spec.IneligibleStatus) {
+		// If the status was explicit set don't change it.
+		return
+	}
 	if !member.Spec.Expires.IsZero() || !acl.Spec.MembershipRequires.IsEmpty() {
 		// If the member has an expiration date or the Access List Requirements are not empty
 		// we cant assume the eligibility status. That needs to be calculated
@@ -1112,8 +1116,22 @@ func setOwnersEligibility(accessList *accesslist.AccessList) {
 	}
 
 	for i := range accessList.Spec.Owners {
+		if isEligibilityStatusKnown(accessList.Spec.Owners[i].IneligibleStatus) {
+			// If the status was explicit set don't change it.
+			continue
+		}
 		// If the ownership requirements are empty, all owners are eligible.
 		// There is no owner ineligibility expiration date
 		accessList.Spec.Owners[i].IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
+	}
+}
+
+// isEligibilityStatusKnown returns true if the status is known (not empty and not undefined)
+func isEligibilityStatusKnown(status string) bool {
+	switch status {
+	case accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED.String(), "":
+		return false
+	default:
+		return true
 	}
 }
