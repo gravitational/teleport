@@ -22,10 +22,23 @@ import (
 	"context"
 	"iter"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
+
+type listFilterFunc func(accessList *accesslist.AccessList) bool
+
+func allListsFilter(accessList *accesslist.AccessList) bool {
+	return true
+}
+
+func userMeetsRequirementsListFilter(user types.User) listFilterFunc {
+	return func(accessList *accesslist.AccessList) bool {
+		return UserMeetsRequirements(user, accessList.Spec.MembershipRequires)
+	}
+}
 
 // visitor visits all members of an AccessList graph by doing a depth-first traversal.
 // The visitor is cycle-proof.
@@ -34,39 +47,30 @@ type visitor struct {
 	seen   map[string]struct{}
 	stack  []*accesslist.AccessList
 	ctx    context.Context
+	filter listFilterFunc
 }
 
-// newAccessListMemberIterator returns a single-use iterator traversing the accesslist
-// graph membership edges and yielding every vertex.
+// newAccessListUserMemberIterator returns a single-use iterator traversing the
+// nested access lists and returning user members.
 // In case of non-nil error, the caller should stop processing as there's no
 // guarantee anymore that the graph will be completely traversed.
-// If the caller wants to prune a node and its subgraph it can call vertex.discard.
-func newAccessListMemberIterator(ctx context.Context, getter AccessListAndMembersGetter, accessList *accesslist.AccessList) iter.Seq2[vertex, error] {
+// The caller can optionally pass a listFilterFunc to prevent the iterator from
+// visiting specific lists (e.g. restrict the graph traversal to lists a
+// specific user cam be member of).
+func newAccessListUserMemberIterator(ctx context.Context, getter AccessListAndMembersGetter, accessList *accesslist.AccessList, filterFunc listFilterFunc) iter.Seq2[*accesslist.AccessListMember, error] {
+	if filterFunc == nil {
+		filterFunc = allListsFilter
+	}
 	return visitor{
 		getter: getter,
 		seen:   make(map[string]struct{}),
 		stack:  []*accesslist.AccessList{accessList},
+		filter: filterFunc,
 		ctx:    ctx,
-	}.iterate
+	}.iterateOverMembers
 }
 
-// Make sure members can be used as an iter.Seq2
-var _ iter.Seq2[vertex, error] = visitor{}.iterate
-
-// vertex is a node in the acceslist graph. This is stored in the backend as a member.
-// The member can be an accesslist or a user. If the member kind is a list, the
-// vertex list field is populated.
-// The vertex contains a discard function that the caller can use to indicate the
-// iterator should not attempt to traverse arcs from the vertex. This is used to
-// filter out access lists whose requirements are not met. If the vertex is not a
-// list, discard has no effect.
-type vertex struct {
-	member  *accesslist.AccessListMember
-	list    *accesslist.AccessList
-	discard func()
-}
-
-func (t visitor) iterate(yield func(vertex, error) bool) {
+func (t visitor) iterateOverMembers(yield func(*accesslist.AccessListMember, error) bool) {
 	var accessList *accesslist.AccessList
 
 	// Walk the accesslist tree until we no longer have new nested access lists to visit
@@ -85,55 +89,49 @@ func (t visitor) iterate(yield func(vertex, error) bool) {
 		pageToken := ""
 		var page []*accesslist.AccessListMember
 		var err error
-		var discard bool
 		var list *accesslist.AccessList
 
 		for {
 			page, pageToken, err = t.getter.ListAccessListMembers(t.ctx, accessList.GetName(), 0, pageToken)
 			if err != nil {
-				yield(vertex{}, err)
+				yield(nil, err)
 				return
 			}
 
 			for _, member := range page {
-				discard = false
-				v := vertex{
-					member:  member,
-					discard: func() { discard = true },
-				}
 
-				// If the member is a nested list, look it up, mark it as seen and populate vertex.list
+				// If the member is a nested list, we check if we should process its members.
 				if member.Spec.MembershipKind == accesslist.MembershipKindList {
 					name := member.GetName()
 
-					// If we already processed this vertex, we can skip it.
+					// If we already processed this list, we can skip it.
 					if _, seen := t.seen[name]; seen {
 						continue
 					}
+					// First time seeing this list, marking it as seen.
+					t.seen[name] = struct{}{}
 
 					list, err = t.getter.GetAccessList(t.ctx, name)
 					if err != nil {
-						// Gracefully handle the missing access list case, to avoid breaking everything in case of
-						// membership inconsistency.
+						// Gracefully handle the missing access list case,
+						// to avoid breaking everything in case of membership inconsistency.
 						if trace.IsNotFound(err) {
 							t.seen[name] = struct{}{}
 							continue
 						}
-						yield(vertex{}, trace.Wrap(err))
+						yield(nil, trace.Wrap(err))
 					}
 
-					// First time seeing this accesslist, marking it as seen and enqueueing it.
-					t.seen[name] = struct{}{}
-					t.stack = append(t.stack, list)
-					v.list = list
+					// Check if we should consider the list or skip it.
+					if t.filter(list) {
+						t.stack = append(t.stack, list)
+					}
+					continue
 				}
 
-				if ok := yield(v, nil); !ok {
+				// This is not a nested list but an individual member.
+				if ok := yield(member, nil); !ok {
 					return
-				}
-
-				if discard && member.Spec.MembershipKind == accesslist.MembershipKindList {
-					t.stack = t.stack[:len(t.stack)-1]
 				}
 			}
 
