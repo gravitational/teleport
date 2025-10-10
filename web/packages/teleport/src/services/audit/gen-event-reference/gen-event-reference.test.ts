@@ -20,16 +20,17 @@ import {
   createEventSection,
   createReferencePage,
   eventsWithoutExamples,
+  referencePageEventData,
   removeUnknowns,
 } from './gen-event-reference';
-import { Event, Formatters, RawEvent } from './types';
+import { Event, Formatters } from './types';
 
 describe('eventsWithoutExamples', () => {
   interface testCase {
     description: string;
     events: Event[];
     formatters: Formatters;
-    expected: Event[];
+    expected: referencePageEventData[];
   }
 
   const testCases: testCase[] = [
@@ -37,12 +38,16 @@ describe('eventsWithoutExamples', () => {
       description: 'formatters with no fixture',
       events: [
         {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
           codeDesc: 'App created',
           code: 'ABC123',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          message: 'User [root] has created an app',
+          user: 'root',
           raw: {
             event: 'app.create',
             code: 'ABC123',
-            time: new Date('2025-01-01'),
+            time: '2020-06-05T16:24:05Z',
             uid: '00000000-0000-0000-0000-000000000000',
           },
         },
@@ -51,7 +56,7 @@ describe('eventsWithoutExamples', () => {
         ABC456: {
           type: 'billing.create_card',
           desc: 'Card created',
-          format: (json: RawEvent): string => JSON.stringify(json),
+          format: (json): string => JSON.stringify(json),
         },
       },
       expected: [
@@ -61,8 +66,42 @@ describe('eventsWithoutExamples', () => {
           raw: {
             event: 'billing.create_card',
             code: 'ABC456',
-            time: new Date('2025-01-01'),
-            uid: '00000000-0000-0000-0000-000000000000',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+          },
+        },
+      ],
+    },
+    {
+      description: 'formatter desc is a function, no event',
+      formatters: {
+        ABC123: {
+          type: 'port',
+          desc: ({ code }) => {
+            const eventName = 'Port Forwarding';
+
+            switch (code) {
+              case 'ABC123':
+                return `${eventName} Start`;
+              case 'DEF123':
+                return `${eventName} Stop`;
+              case 'GHI123':
+                return `${eventName} Failure`;
+            }
+          },
+          format: (json): string => JSON.stringify(json),
+        },
+      },
+      events: [],
+      expected: [
+        {
+          codeDesc: 'Port Forwarding Start',
+          code: 'ABC123',
+          raw: {
+            event: 'port',
+            code: 'ABC123',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
           },
         },
       ],
@@ -82,10 +121,17 @@ describe('removeUnknowns', () => {
       description: 'event code not present in the formatters array',
       events: [
         {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          user: 'root',
+          message: 'User [root] has deleted a card',
           codeDesc: 'Unknown',
           code: 'ABC123',
           raw: {
             event: 'billing.delete_card',
+            time: '2020-06-05T16:24:05Z',
+            uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+            code: 'ABC123',
           },
         },
       ],
@@ -93,6 +139,9 @@ describe('removeUnknowns', () => {
         ABC456: {
           type: 'billing.create_card',
           desc: 'Card created',
+          format: () => {
+            return 'Card created';
+          },
         },
       },
       expected: [],
@@ -142,61 +191,6 @@ Example:
   "time": "2021-03-18T16:28:51.219Z",
   "uid": "056517e0-f7e1-4286-b437-c75f3a865af4",
   "user": "root"
-}
-\`\`\`
-`,
-    },
-    {
-      description: 'Event with only the raw.event field',
-      event: {
-        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
-        codeDesc: 'Credit Card Deleted',
-        code: 'TBL01I',
-        raw: {
-          event: 'billing.delete_card',
-        },
-      },
-      expected: `## billing.delete_card
-
-Credit Card Deleted
-
-Code: \`TBL01I\`
-
-Event: \`billing.delete_card\`
-`,
-    },
-    {
-      description: 'description is a function',
-      event: {
-        codeDesc: ({ code, event }) => {
-          const eventName = 'Port forwarding';
-
-          switch (code) {
-            case 'ABC123':
-              return `${eventName} Start`;
-            case 'DEF123':
-              return `${eventName} Stop`;
-            case 'GHI123':
-              return `${eventName} Failure`;
-          }
-        },
-        id: '056517e0-f7e1-4286-b437-c75f3a865af4',
-        code: 'ABC123',
-        raw: {
-          event: 'port',
-          user: 'myuser',
-        },
-      },
-      expected: `## port
-
-Port forwarding Start
-
-Example:
-
-\`\`\`json
-{
-  "event": "port",
-  "user": "myuser"
 }
 \`\`\`
 `,
@@ -475,6 +469,7 @@ Example:
     const events = [
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',
@@ -482,6 +477,7 @@ Example:
       },
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',

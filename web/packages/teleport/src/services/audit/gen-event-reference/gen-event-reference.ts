@@ -23,33 +23,33 @@ import { Event, Formatters } from './types';
 export function eventsWithoutExamples(
   fixtures: Event[],
   formatters: Formatters
-): Event[] {
+): referencePageEventData[] {
   const fixtureCodes = new Set(fixtures.map(fixture => fixture.code));
   return (Object.keys(formatters) as Array<keyof Formatters>).reduce(
     (accum, current) => {
       if (fixtureCodes.has(current)) {
         return accum;
       }
-      accum.push({
-        codeDesc: formatters[current].desc,
+      const raw = {
         code: current,
-        raw: {
-          event: formatters[current].type,
-        },
+        event: formatters[current].type,
+        // Use fixed values for time and UID, consistent with what fixtures
+        // use.
+        time: '2020-06-05T16:24:05Z',
+        uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+      };
+      accum.push({
+        codeDesc:
+          typeof formatters[current].desc == 'string'
+            ? formatters[current].desc
+            : formatters[current].desc(raw),
+        code: current,
+        raw: raw,
       });
       return accum;
     },
-    [] as Event[]
+    [] as referencePageEventData[]
   );
-}
-
-// codeDesc returns the description of the given event, depending on whether the
-// description is a function or a string.
-function codeDesc(event: Event): string {
-  if (typeof event.codeDesc == 'function') {
-    return event.codeDesc({ code: event.code, event: event.raw.event });
-  }
-  return event.codeDesc;
 }
 
 // removeUnknowns removes any event fixtures in the fixtures array that do not
@@ -57,7 +57,7 @@ function codeDesc(event: Event): string {
 export function removeUnknowns(
   fixtures: Event[],
   formatters: Formatters
-): Event[] {
+): referencePageEventData[] {
   return fixtures.filter(r => r.code in formatters);
 }
 
@@ -87,7 +87,7 @@ Event: \`${event.raw.event}\``;
 export function createEventSection(event: Event): string {
   return `## ${event.raw.event}
 
-${codeDesc(event) + '\n'}
+${event.codeDesc + '\n'}
 ${exampleOrAttributes(event)}
 `;
 }
@@ -107,7 +107,7 @@ export function createMultipleEventsSection(events: Event[]): string {
         '\n' +
         `### ${event.code}
 
-${codeDesc(event) + '\n'}
+${event.codeDesc + '\n'}
 ${exampleOrAttributes(event)}
 `
       );
@@ -117,6 +117,15 @@ ${exampleOrAttributes(event)}
 There are multiple events with the \`${events[0].raw.event}\` type.
 `
   );
+}
+
+export interface referencePageEventData {
+  code: string;
+  [propName: string]: any;
+  raw: {
+    [propName: string]: any;
+    event: string;
+  };
 }
 
 // createReferencePage takes an array of JSON documents that define an audit
@@ -129,7 +138,7 @@ There are multiple events with the \`${events[0].raw.event}\` type.
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
 export function createReferencePage(
-  jsonEvents: Event[],
+  jsonEvents: referencePageEventData[],
   introParagraph: string
 ): string {
   const codeSet = new Set();
