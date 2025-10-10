@@ -234,7 +234,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 
 	var clientIPRestrictions ResourceAccess
 	if features.Cloud {
-		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestrictions)
+		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
 	}
 
 	return UserACL{

@@ -56,7 +56,7 @@ func TestNewUserACL(t *testing.T) {
 			Verbs:     RW(),
 		},
 		{
-			Resources: []string{types.KindClientIPRestrictions},
+			Resources: []string{types.KindClientIPRestriction},
 			Verbs:     RW(),
 		},
 	})
