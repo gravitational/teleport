@@ -64,7 +64,7 @@ export function Instance(props: {
     <Container
       $isSelectable={!!isSelectable}
       $isSelected={!!isSelected}
-      onClick={onSelected ? () => onSelected() : undefined}
+      onClick={onSelected}
       onKeyUp={
         onSelected
           ? event => {
