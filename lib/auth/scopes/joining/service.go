@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package provisioning
+package joining
 
 import (
 	"context"
@@ -23,15 +23,21 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config contains the parameters for [New].
 type Config struct {
 	Authorizer authz.Authorizer
 	Logger     *slog.Logger
+	Backend    services.ScopedTokenService
 }
 
 // Server is the [scopedjoiningv1.ScopedJoiningServiceServer] returned by [New].
@@ -40,6 +46,7 @@ type Server struct {
 
 	authorizer authz.Authorizer
 	logger     *slog.Logger
+	backend    services.ScopedTokenService
 }
 
 // New returns the auth server implementation for the scoped provisioning
@@ -48,6 +55,11 @@ func New(c Config) (*Server, error) {
 	if c.Authorizer == nil {
 		return nil, trace.BadParameter("missing Authorizer")
 	}
+
+	if c.Backend == nil {
+		return nil, trace.BadParameter("missing Backend")
+	}
+
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "scopes")
 	}
@@ -55,6 +67,7 @@ func New(c Config) (*Server, error) {
 	return &Server{
 		authorizer: c.Authorizer,
 		logger:     c.Logger,
+		backend:    c.Backend,
 	}, nil
 }
 
@@ -70,7 +83,32 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 		return nil, trace.AccessDenied("user %q does not have permission to create scoped tokens", authzContext.User.GetName())
 	}
 
-	return (scopedjoiningv1.UnimplementedScopedJoiningServiceServer{}).CreateScopedToken(ctx, req)
+	token := req.GetToken()
+	if token.GetMetadata().GetName() == "" {
+		if token.Metadata == nil {
+			token.Metadata = &headerv1.Metadata{
+				Namespace: apidefaults.Namespace,
+			}
+		}
+		name, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating token value")
+		}
+		token.Metadata.Name = name
+	}
+
+	if err := services.ValidateScopedToken(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err = s.backend.CreateScopedToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedjoiningv1.CreateScopedTokenResponse{
+		Token: token,
+	}, nil
 }
 
 // DeleteScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -85,7 +123,11 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 		return nil, trace.AccessDenied("user %q does not have permission to delete scoped tokens", authzContext.User.GetName())
 	}
 
-	return (scopedjoiningv1.UnimplementedScopedJoiningServiceServer{}).DeleteScopedToken(ctx, req)
+	if err := s.backend.DeleteScopedToken(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedjoiningv1.DeleteScopedTokenResponse{}, nil
 }
 
 // GetScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -100,7 +142,43 @@ func (s *Server) GetScopedToken(ctx context.Context, req *scopedjoiningv1.GetSco
 		return nil, trace.AccessDenied("user %q does not have permission to get scoped tokens", authzContext.User.GetName())
 	}
 
-	return (scopedjoiningv1.UnimplementedScopedJoiningServiceServer{}).GetScopedToken(ctx, req)
+	token, err := s.backend.GetScopedToken(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedjoiningv1.GetScopedTokenResponse{
+		Token: token,
+	}, nil
+}
+
+func getScopedTokenFiltersFromReq(req *scopedjoiningv1.ListScopedTokensRequest) (*services.ScopedTokenFilters, error) {
+	roles, err := types.NewTeleportRoles(req.Roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	filters := &services.ScopedTokenFilters{
+		AssignedScope: req.AssignedScope,
+		ResourceScope: req.ResourceScope,
+		Roles:         roles,
+		Labels:        req.Labels,
+	}
+
+	// we only want to return filters if at least one of the filters
+	// has been defined, otherwise we should return nil so that the
+	// backend can choose to perform a simple list operation instead
+	// of a list with filter
+	switch {
+	case filters.AssignedScope != nil:
+	case filters.ResourceScope != nil:
+	case len(filters.Roles) > 0:
+	case len(filters.Labels) > 0:
+	default:
+		filters = nil
+	}
+
+	return filters, nil
 }
 
 // ListScopedTokens implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -115,7 +193,20 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 		return nil, trace.AccessDenied("user %q does not have permission to list scoped tokens", authzContext.User.GetName())
 	}
 
-	return (scopedjoiningv1.UnimplementedScopedJoiningServiceServer{}).ListScopedTokens(ctx, req)
+	filters, err := getScopedTokenFiltersFromReq(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, cursor, err := s.backend.ListScopedTokens(ctx, int(req.Limit), req.Cursor, filters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedjoiningv1.ListScopedTokensResponse{
+		Tokens: tokens,
+		Cursor: cursor,
+	}, nil
 }
 
 // UpdateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -130,5 +221,5 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 		return nil, trace.AccessDenied("user %q does not have permission to update scoped tokens", authzContext.User.GetName())
 	}
 
-	return (scopedjoiningv1.UnimplementedScopedJoiningServiceServer{}).UpdateScopedToken(ctx, req)
+	return nil, trace.NotImplemented("scoped tokens can not be updated")
 }

@@ -5731,6 +5731,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
 		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer,
+		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
