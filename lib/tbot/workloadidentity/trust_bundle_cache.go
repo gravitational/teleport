@@ -384,7 +384,7 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		// end users. This can happen if the auth cache fails to init. So
 		// instead, we give up after a reasonable amount of time and try again
 		// after a backoff.
-		return trace.Errorf("timeout waiting for watcher init")
+		return trace.LimitExceeded("timeout waiting for watcher init")
 	case <-watcher.Done():
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}
