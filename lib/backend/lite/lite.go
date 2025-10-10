@@ -32,7 +32,6 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -280,9 +279,6 @@ type Backend struct {
 	buf    *backend.CircularBuffer
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	// closedFlag is set to indicate that the database is closed
-	closedFlag int32
 }
 
 func (l *Backend) GetName() string {
@@ -1000,16 +996,7 @@ func (l *Backend) CloseWatchers() {
 	l.buf.Clear()
 }
 
-func (l *Backend) isClosed() bool {
-	return atomic.LoadInt32(&l.closedFlag) == 1
-}
-
-func (l *Backend) setClosed() {
-	atomic.StoreInt32(&l.closedFlag, 1)
-}
-
 func (l *Backend) closeDatabase() error {
-	l.setClosed()
 	l.buf.Close()
 	return l.db.Close()
 }
@@ -1022,54 +1009,56 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 			l.logger.WarnContext(ctx, "SLOW TRANSACTION", "duration", diff, "stack", string(debug.Stack()))
 		}
 	}()
+
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
 		return trace.Wrap(convertError(err))
 	}
-	commit := func() error {
-		return tx.Commit()
-	}
-	rollback := func() error {
-		return tx.Rollback()
-	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			l.logger.ErrorContext(ctx, "Unexpected panic in inTransaction, trying to rollback.", "error", r)
 			err = trace.BadParameter("panic: %v", r)
-			if e2 := rollback(); e2 != nil {
-				l.logger.ErrorContext(ctx, "Failed to rollback", "error", e2)
-			}
-			return
-		}
-		if err != nil && !trace.IsNotFound(err) {
+		} else if err != nil {
 			if isConstraintError(trace.Unwrap(err)) {
 				err = trace.AlreadyExists("%s", err)
 			}
-			// transaction aborted by interrupt, no action needed
-			if isInterrupt(trace.Unwrap(err)) {
-				return
-			}
+
 			if isLockedError(trace.Unwrap(err)) {
 				err = trace.ConnectionProblem(err, "database is locked")
 			}
+
 			if isReadonlyError(trace.Unwrap(err)) {
 				err = trace.ConnectionProblem(err, "database is in readonly mode")
 			}
-			if !l.isClosed() {
-				if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) {
-					l.logger.WarnContext(ctx, "Unexpected error in inTransaction, rolling back.", "error", err)
-				}
-				if e2 := rollback(); e2 != nil {
-					l.logger.ErrorContext(ctx, "Failed to rollback too", "error", e2)
-				}
+
+			switch {
+			case trace.IsCompareFailed(err),
+				trace.IsAlreadyExists(err),
+				trace.IsConnectionProblem(err),
+				trace.IsNotFound(err):
+			default:
+				l.logger.WarnContext(ctx, "Unexpected error in inTransaction, rolling back.", "error", err)
 			}
-			return
 		}
-		if err2 := commit(); err2 != nil {
-			err = trace.Wrap(err2)
+
+		if e2 := tx.Rollback(); e2 != nil {
+			// If a previously successful commit occurred, rollback is a no-op and returns [sql.ErrTxDone]
+			if !isAlreadyDoneError(e2) {
+				l.logger.ErrorContext(ctx, "Failed to rollback too", "error", e2)
+			}
 		}
 	}()
+
 	err = f(tx)
+	if err != nil {
+		return
+	}
+
+	if err2 := tx.Commit(); err2 != nil {
+		err = trace.Wrap(err2)
+	}
+
 	return
 }
 
@@ -1108,18 +1097,14 @@ func isLockedError(err error) bool {
 	return e.Code == sqlite3.ErrBusy
 }
 
-func isInterrupt(err error) bool {
-	var e sqlite3.Error
-	if ok := errors.As(err, &e); !ok {
-		return false
-	}
-	return e.Code == sqlite3.ErrInterrupt
-}
-
 func isReadonlyError(err error) bool {
 	var e sqlite3.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
 	return e.Code == sqlite3.ErrReadonly
+}
+
+func isAlreadyDoneError(err error) bool {
+	return errors.Is(err, sql.ErrTxDone)
 }
