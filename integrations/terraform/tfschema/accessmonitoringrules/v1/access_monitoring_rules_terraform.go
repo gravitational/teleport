@@ -161,11 +161,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
 								}),
-								Description: "Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC.",
+								Description: "Shifts contains a set of shifts that make up the schedule.",
 								Optional:    true,
 							},
 							"timezone": {
-								Description: "Timezone specifies the schedule timezone.",
+								Description: "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
