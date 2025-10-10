@@ -20,6 +20,7 @@ import {
   createEventSection,
   createReferencePage,
   eventsWithoutExamples,
+  referencePageEventData,
   removeUnknowns,
 } from './gen-event-reference';
 import { Event, Formatters } from './types';
@@ -29,7 +30,7 @@ describe('eventsWithoutExamples', () => {
     description: string;
     events: Event[];
     formatters: Formatters;
-    expected: Event[];
+    expected: referencePageEventData[];
   }
 
   const testCases: testCase[] = [
@@ -37,8 +38,12 @@ describe('eventsWithoutExamples', () => {
       description: 'formatters with no fixture',
       events: [
         {
+          id: '056517e0-f7e1-4286-b437-c75f3a865af4',
           codeDesc: 'App created',
           code: 'ABC123',
+          time: new Date('2021-03-18T16:28:51.219Z'),
+          message: 'User [root] has created an app',
+          user: 'root',
           raw: {
             event: 'app.create',
             code: 'ABC123',

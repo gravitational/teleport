@@ -23,7 +23,7 @@ import { Event, Formatters } from './types';
 export function eventsWithoutExamples(
   fixtures: Event[],
   formatters: Formatters
-): Event[] {
+): referencePageEventData[] {
   const fixtureCodes = new Set(fixtures.map(fixture => fixture.code));
   return (Object.keys(formatters) as Array<keyof Formatters>).reduce(
     (accum, current) => {
@@ -44,7 +44,7 @@ export function eventsWithoutExamples(
       });
       return accum;
     },
-    [] as Event[]
+    [] as referencePageEventData[]
   );
 }
 
@@ -52,7 +52,10 @@ export function eventsWithoutExamples(
 // description is a function or a string.
 function codeDesc(event: Event): string {
   if (typeof event.codeDesc == 'function') {
-    return (event.codeDesc as Function)({ code: event.code, event: event.raw.event });
+    return (event.codeDesc as Function)({
+      code: event.code,
+      event: event.raw.event,
+    });
   }
   return event.codeDesc;
 }
@@ -62,7 +65,7 @@ function codeDesc(event: Event): string {
 export function removeUnknowns(
   fixtures: Event[],
   formatters: Formatters
-): Event[] {
+): referencePageEventData[] {
   return fixtures.filter(r => r.code in formatters);
 }
 
@@ -124,7 +127,7 @@ There are multiple events with the \`${events[0].raw.event}\` type.
   );
 }
 
-interface referencePageEventData {
+export interface referencePageEventData {
   code: string;
   [propName: string]: any;
   raw: {
