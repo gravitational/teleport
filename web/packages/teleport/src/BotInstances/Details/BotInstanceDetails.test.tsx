@@ -195,16 +195,7 @@ function makeWrapper(options?: { hasBotInstanceReadPermission?: boolean }) {
 }
 
 const withSuccessResponse = () => {
-  server.use(
-    getBotInstanceSuccess({
-      bot_instance: {
-        spec: {
-          instance_id: '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-        },
-      },
-      yaml: 'kind: bot_instance\nversion: v1\n',
-    })
-  );
+  server.use(getBotInstanceSuccess());
 };
 
 const withErrorResponse = () => {

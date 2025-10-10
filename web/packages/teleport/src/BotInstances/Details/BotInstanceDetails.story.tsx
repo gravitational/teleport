@@ -48,16 +48,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [
-        getBotInstanceSuccess({
-          bot_instance: {
-            spec: {
-              instance_id: 'a55259e8-9b17-466f-9d37-ab390ca4024e',
-            },
-          },
-          yaml: 'kind: bot_instance\nversion: v1\n',
-        }),
-      ],
+      handlers: [getBotInstanceSuccess()],
     },
   },
 };
@@ -117,7 +108,7 @@ function Wrapper(props?: { hasBotInstanceReadPermission?: boolean }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TeleportProviderBasic teleportCtx={ctx}>
-        <CardTile height={820} overflow={'auto'} p={0}>
+        <CardTile height={600} overflow={'auto'} p={0}>
           <BotInstanceDetails
             botName="ansible-worker"
             instanceId="a55259e8-9b17-466f-9d37-ab390ca4024e"

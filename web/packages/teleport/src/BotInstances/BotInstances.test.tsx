@@ -213,16 +213,7 @@ describe('BotInstances', () => {
       })
     );
 
-    server.use(
-      getBotInstanceSuccess({
-        bot_instance: {
-          spec: {
-            instance_id: '3c3aae3e-de25-4824-a8e9-5a531862f19a',
-          },
-        },
-        yaml: 'kind: bot_instance\nversion: v1\n',
-      })
-    );
+    server.use(getBotInstanceSuccess());
 
     const { user } = renderComponent();
 
