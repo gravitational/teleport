@@ -21,7 +21,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"errors"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -582,7 +581,7 @@ func getServerWithResolver(ctx context.Context, host, port string, cluster clust
 			return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, host)
 		}
 
-		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		return nil, trace.ConnectionProblem(nil, "target host %s is offline or does not exist", host)
 	}
 }
 
