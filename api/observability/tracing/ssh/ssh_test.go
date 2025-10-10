@@ -21,10 +21,14 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -418,4 +422,70 @@ func TestWrapPayload(t *testing.T) {
 			tt.payloadAssertion(t, testPayload, payload)
 		})
 	}
+}
+
+func TestNewClientConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	// This test ensure that NewClientConnWithTimeout respects the context
+	// timeout and does not hang indefinitely.
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	t.Cleanup(func() { listener.Close() })
+
+	wg.Go(func() {
+		defer listener.Close()
+
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.ErrorIs(t, err, net.ErrClosed)
+				return
+			}
+			require.NoError(t, err)
+			wg.Go(func() {
+				defer conn.Close()
+				// Simulate a server that does not respond so the ssh.NewClientConn
+				// call on the client side hangs indefinitely.
+				_, _ = io.Copy(io.Discard, conn)
+			})
+		}
+	})
+
+	t.Run("context timeout is respected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
+		t.Cleanup(cancel)
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		_, _, _, err = NewClientConnWithTimeout(ctx, conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         -1,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
+	})
+
+	t.Run("config timeout is respected", func(t *testing.T) {
+		t.Parallel()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		_, _, _, err = NewClientConnWithTimeout(t.Context(), conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         5 * time.Millisecond,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
+	})
+
 }
