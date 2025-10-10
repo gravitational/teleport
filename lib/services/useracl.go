@@ -125,7 +125,7 @@ type UserACL struct {
 	// WorkloadIdentity defines access to Workload Identity
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 	// ClientIPRestriction defines access to Cloud IP Restrictions
-	ClientIPRestriction ResourceAccess `json:"clientIPRestriction"`
+	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
