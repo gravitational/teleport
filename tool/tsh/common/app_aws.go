@@ -29,15 +29,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -312,4 +315,68 @@ func pickAWSApp(cf *CLIConf) (*awsApp, error) {
 	}
 
 	return newAWSApp(tc, cf, appInfo)
+}
+
+// onAppRoles implements "tsh app roles" command for listing AWS roles.
+func onAppRoles(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var (
+		app    types.Application
+		logins []string
+	)
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		// Fetch the app with logins information.
+		app, logins, err = getApp(cf.Context, clusterClient.AuthClient, cf.AppName)
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Verify this is an AWS Console application.
+	if !app.IsAWSConsole() {
+		return trace.BadParameter("app %q is not an AWS Console application", cf.AppName)
+	}
+
+	// Filter AWS roles by AWS account ID.
+	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
+
+	if len(roles) == 0 {
+		fmt.Fprintln(cf.Stdout(), "No AWS roles available for this application.")
+		return nil
+	}
+
+	// Output based on format.
+	switch cf.Format {
+	case teleport.Text, "":
+		// Use existing printAWSRoles function for table output.
+		printAWSRoles(cf.Stdout(), roles)
+	case teleport.JSON:
+		// Output JSON array of role objects.
+		out, err := utils.FastMarshalIndent(roles, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(cf.Stdout(), string(out))
+	case teleport.YAML:
+		// Output YAML format.
+		out, err := yaml.Marshal(roles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprint(cf.Stdout(), string(out))
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	return nil
 }
