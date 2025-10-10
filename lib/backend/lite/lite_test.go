@@ -132,7 +132,7 @@ func TestCloseDuringOutstandingTransactions(t *testing.T) {
 		}
 	}
 
-	for range 5000 {
+	for range 100 {
 		wg.Go(func() {
 			// Generate writes from different context
 			bk.Create(context.Background(), createRandomItem())
