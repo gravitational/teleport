@@ -9394,6 +9394,10 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+
+	// wait for the watcher to init before continuing
+	require.NoError(t, watcher.WaitInitialization())
 
 	healthCheckManager, err := healthcheck.NewManager(
 		ctx,
