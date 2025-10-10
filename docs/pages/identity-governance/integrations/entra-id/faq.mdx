@@ -1,7 +1,7 @@
 ---
 title: Entra ID Integration FAQ
 description: Frequently asked questions on the Teleport Entra ID integration.
-sidebar_position: 5
+sidebar_position: 6
 tags:
  - identity-governance
  - azure
@@ -12,11 +12,14 @@ This page provides answers to frequently asked questions about Teleport Entra ID
 
 ## What resources are imported to Teleport?
 
-Teleport imports all the users, user groups and its members from the Entra ID directory.
-There is no filter available to control custom import rules.
+Teleport imports users, user groups and its members from the Microsoft Entra ID 
+directory.
 
 If Teleport Identity Security integration is enabled, Teleport will import 
 applications and policies as well. 
+
+You can control which groups from Microsoft Entra ID gets imported to Teleport 
+by configuring [group filters](advanced-options.mdx#group-filters). 
 
 ## How does it work with nested Access Lists?
 

@@ -1,0 +1,84 @@
+---
+title: Advanced Entra ID Integration Options
+description: Advanced Teleport Entra ID integration configuration options.
+sidebar_position: 5
+tags:
+ - identity-governance
+ - azure
+ - privileged-access
+---
+
+This page lists advanced configuration options related to the
+Teleport Entra ID integration. 
+
+## Group filters
+
+By default, all the groups that exists in the Microsoft Entra ID directory gets 
+imported to Teleport. 
+
+This import behavior can be controlled by using the group filters, which can 
+include or exclude certain groups based on their matching group object ID or group 
+display name. 
+
+Group filter can only be configured using `tctl` and the ability to configure it 
+using Teleport Web UI is in the works.
+
+
+### Group filter precedence
+
+- If no filters are configured, all the groups are imported (default behavior).
+- If an include filter is defined, only the matching group is imported. 
+- If a group is matched in both the include filter and exclude filter, exclude 
+filter gets precedence. 
+
+
+### Configure group filters during installation
+
+Example to configure group filters during installation:
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=admin \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
+    --group-name "admin*" \
+    --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
+    --exclude-group-name "fin*" 
+```
+- `--group-id`: Include group matching the specified group ID. 
+  Multiple flags allowed.
+- `--group-name`: Include groups matching the specified group name regex. 
+  Multiple flags allowed.
+- `--exclude-group-id`. Exclude group matching the specified group ID. 
+  Multiple flags allowed.
+- `--exclude-group-name`. Exclude groups matching the specified group name regex. 
+  Multiple flags allowed.
+
+### Updating group filters
+Group filters can be updated using `group_filters` flag, which is available in 
+the `sync_settings` of the Teleport Entra ID plugin resource spec. 
+
+Reference configuration spec:
+```yaml
+kind: plugin
+metadata:
+  name: entra-id
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        ... # other settings omitted for brevity
+        group_filters:
+        - id: 080b50c3-1c98-4d8e-a54e-20143dbd4f99
+        - id: 45f9c527-2314-414c-a75d-ef7efabcc99b
+        - id: 35f9c527-2314-414c-a75d-ef7efabcc99b
+        - nameRegex: 'admin*'
+        - excludeId: 080b50c52-1c98-4d8e-a54e-20143dbd4f99
+        - excludeNameRegex: 'finance*'
+version: v1
+```
+
+The plugin spec can be edited using the `tctl edit plugins/entra-id` command.
