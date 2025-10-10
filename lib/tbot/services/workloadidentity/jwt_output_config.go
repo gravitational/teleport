@@ -53,6 +53,11 @@ func (o JWTOutputConfig) GetName() string {
 	return o.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *JWTOutputConfig) SetName(name string) {
+	o.Name = name
+}
+
 // Init initializes the destination.
 func (o *JWTOutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))

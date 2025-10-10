@@ -101,6 +101,11 @@ func (o *OutputConfig) GetName() string {
 	return o.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *OutputConfig) SetName(name string) {
+	o.Name = name
+}
+
 func (o *OutputConfig) Init(ctx context.Context) error {
 	return trace.Wrap(o.Destination.Init(ctx, []string{}))
 }
