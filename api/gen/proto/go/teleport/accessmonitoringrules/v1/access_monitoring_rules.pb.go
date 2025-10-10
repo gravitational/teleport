@@ -394,9 +394,13 @@ func (x *Schedule) GetTime() *TimeSchedule {
 type TimeSchedule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Shifts contains a set of shifts that make up the schedule.
-	// Shifts are configured in UTC.
 	Shifts []*TimeSchedule_Shift `protobuf:"bytes,1,rep,name=shifts,proto3" json:"shifts,omitempty"`
-	// Timezone specifies the schedule timezone.
+	// Timezone specifies the schedule timezone. This field is optional and defaults
+	// to "UTC". Accepted values use timezone locations as defined in the IANA
+	// Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or
+	// "Asia/Singapore".
+	//
+	// See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.
 	Timezone      string `protobuf:"bytes,2,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
