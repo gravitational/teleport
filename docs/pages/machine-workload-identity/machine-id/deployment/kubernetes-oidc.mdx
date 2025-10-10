@@ -80,7 +80,7 @@ The examples in this guide will install a `tbot` deployment in the `default`
 Namespace of the Kubernetes cluster. Adjust references to `default` to the
 Namespace you wish to use.
 
-## Step 1/6. Verify support for Service Account Issuer Discovery
+## Step 1/5. Verify support for Service Account Issuer Discovery
 
 Before continuing, verify that your Kubernetes cluster can issue tokens that
 Teleport will be able to verify. To do so, we'll want to perform the following
@@ -158,11 +158,11 @@ JWKS joining](./kubernetes.mdx) or an [alternative Teleport join
 method](../../../reference/deployment/join-methods.mdx) better suited to your cloud provider.
 </Admonition>
 
-## Step 3/6. Create a Bot
+## Step 2/5. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 4/6. Create a join token
+## Step 3/5. Create a join token
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster, and will require the issuer URL determined in Step 1.
@@ -201,7 +201,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 5/6. Create a `tbot` deployment
+## Step 4/5. Create a `tbot` deployment
 
 Now, you'll deploy `tbot` to your Kubernetes cluster using the Teleport `tbot`
 Helm chart. This will be configured using values provided to the Helm CLI tool.
@@ -252,13 +252,13 @@ $ kubectl logs deployment/tbot
 
 With this complete, `tbot` is now successfully deployed to your cluster.
 
-## Step 6/6. Configure outputs
+## Step 5/5. Configure outputs
 
 By default, the `tbot` Helm chart is configured to write an identity file to a
 Kubernetes Secret called `tbot-out` in the namespace where `tbot` has been
 deployed.
 
-This identity file can be mounted into other pods and used with `tsh` or `tctl
+This identity file can be mounted into other pods and used with `tsh` or `tctl`
 to access and configure your Teleport cluster. For example:
 
 ```yaml
