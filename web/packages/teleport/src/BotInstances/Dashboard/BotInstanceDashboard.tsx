@@ -42,8 +42,16 @@ export function BotInstancesDashboard(props: {
   const { data, error, isLoading, isPending, refetch } = useQuery({
     queryKey: ['bot_instance', 'metrics'],
     queryFn: ({ signal }) => getBotInstanceMetrics(null, signal),
+    // The metrics endpoint (used by this query) returns a
+    // `refresh_after_seconds` value to indicate how frequently the client
+    // should poll for updated metrics, which may take jitter into account. This
+    // allows the polling rate to most closely match the backend data refresh,
+    // and allows the rate to be controlled server-side.
+    //
+    // The `refetchInterval` is set to this value from the lasty successful
+    // response, otherwise 1 min as a fallback.
     refetchInterval: ({ state }) =>
-      (state.data?.refresh_after_seconds ?? 60) * 1_000, // Poll frequency provided by the api, or 1 min by default.
+      (state.data?.refresh_after_seconds ?? 60) * 1_000,
   });
 
   return (
