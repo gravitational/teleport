@@ -81,7 +81,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	}
 
 	for _, handle := range services {
-		handle.statusReporter.reporter = registry.AddService(handle.name)
+		// If the service builder called ServiceDependencies.GetStatusReporter,
+		// we take that as a promise that the service's Run method will report
+		// statuses. Otherwise we will not include the service in heartbeats or
+		// the `/readyz` endpoint.
+		if handle.statusReporter.used {
+			handle.statusReporter.reporter = registry.AddService(handle.name)
+		}
 	}
 
 	b.cfg.Logger.InfoContext(ctx, "Initialization complete. Starting services")
@@ -258,7 +264,10 @@ func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*
 			BotIdentityReadyCh: identityService.Ready(),
 			ReloadCh:           reloadCh,
 			StatusRegistry:     registry,
-			StatusReporter:     handle.statusReporter,
+			GetStatusReporter: func() readyz.Reporter {
+				handle.statusReporter.used = true
+				return handle.statusReporter
+			},
 			Logger: b.cfg.Logger.With(
 				teleport.ComponentKey,
 				teleport.Component(teleport.ComponentTBot, "svc", handle.name),
@@ -468,7 +477,10 @@ type serviceHandle struct {
 //
 // This wrapper allows us to defer the actual registration until we know whether
 // the service implements OneShotService.
-type statusReporter struct{ reporter readyz.Reporter }
+type statusReporter struct {
+	used     bool
+	reporter readyz.Reporter
+}
 
 func (r *statusReporter) Report(status readyz.Status) {
 	if r.reporter != nil {

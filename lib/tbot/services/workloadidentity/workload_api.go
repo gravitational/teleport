@@ -77,7 +77,7 @@ func WorkloadAPIServiceBuilder(
 			crlCache:                  crlCache,
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
-			statusReporter:            deps.StatusReporter,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		return bot.NewServicePair(svc, sidecar), nil
 	}
