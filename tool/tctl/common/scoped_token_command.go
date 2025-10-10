@@ -26,7 +26,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -39,18 +38,15 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join/token"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -73,26 +69,6 @@ type ScopedTokensCommand struct {
 	// specific value.
 	value string
 
-	// appName is the name of the application to add.
-	appName string
-
-	// appURI is the URI (target address) of the application to add.
-	appURI string
-
-	// dbName is the database name to add.
-	dbName string
-	// dbProtocol is the database protocol.
-	dbProtocol string
-	// dbURI is the address the database is reachable at.
-	dbURI string
-
-	tokenName string
-	// botName is the name of the bot the token allow joining as.
-	botName string
-	// updateGroup is the name of the update group for version detection and the generated values.yaml
-	updateGroup string
-	force       bool
-
 	// assignedScope allows for filtering tokens by the scope they assign
 	assignedScope string
 
@@ -101,9 +77,6 @@ type ScopedTokensCommand struct {
 
 	// ttl is how long the token will live for.
 	ttl time.Duration
-
-	// labels is optional token labels
-	labels string
 
 	// tokenAdd is used to add a token.
 	tokenAdd *kingpin.CmdClause
@@ -130,16 +103,10 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenAdd = tokens.Command("add", "Create a scoped invitation token.")
 	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db,proxy,etc").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
-	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
 		int(defaults.ProvisioningTokenTTL/time.Minute))).
 		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
-	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
-	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
-	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
-	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
-	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
 	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
@@ -152,9 +119,6 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
-	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
-	c.tokenList.Flag("assign-scope", "Filter tokens by the scope they assign. A filter mode can specified using a prefix separated with a colon (e.g. --assign-scope=ancestor:<scope>). Allowed modes are (default: \"descendant\", \"ancestor\")").StringVar(&c.assignedScope)
-	c.tokenList.Flag("scope", "Filter tokens by the scope they belong to. A filter mode can specified using a prefix separated with a colon (e.g. --scope=ancestor:<scope>). Allowed modes are (default: \"descendant\", \"ancestor\")").StringVar(&c.tokenScope)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
@@ -199,12 +163,6 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 	}
 
 	tokenName := c.value
-	if c.value == "" {
-		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
-		if err != nil {
-			return trace.Wrap(err, "generating token value")
-		}
-	}
 
 	expires := time.Now().UTC().Add(c.ttl)
 	tok := &joiningv1.ScopedToken{
@@ -219,18 +177,6 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 			Roles:         roles.StringSlice(),
 			AssignedScope: c.assignedScope,
 		},
-	}
-
-	if c.labels != "" {
-		labels, err := libclient.ParseLabelSpec(c.labels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		tok.Metadata.Labels = labels
-	}
-
-	if err := services.ValidateScopedToken(tok); err != nil {
-		return trace.Wrap(err)
 	}
 
 	tok, err = client.CreateScopedToken(ctx, tok)
@@ -297,125 +243,39 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 	}
 
 	// Print signup message.
-	switch {
-	case roles.Include(types.RoleKube):
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(proxies) == 0 {
-			return trace.NotFound("cluster has no proxies")
-		}
-		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
-		return kubeMessageTemplate.Execute(c.Stdout,
-			map[string]any{
-				"auth_server":  proxies[0].GetPublicAddr(),
-				"token":        tokenName,
-				"scope":        tok.GetScope(),
-				"assign_scope": tok.GetSpec().GetAssignedScope(),
-				"minutes":      c.ttl.Minutes(),
-				"set_roles":    setRoles,
-				"version":      proxies[0].GetTeleportVersion(),
-			})
-	case roles.Include(types.RoleApp):
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(proxies) == 0 {
-			return trace.BadParameter("cluster has no proxies")
-		}
-		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
+	authServer := authServers[0].GetAddr()
 
-		return appMessageTemplate.Execute(c.Stdout,
-			map[string]any{
-				"token":           tokenName,
-				"scope":           tok.GetScope(),
-				"assign_scope":    tok.GetSpec().GetAssignedScope(),
-				"minutes":         c.ttl.Minutes(),
-				"ca_pins":         caPins,
-				"auth_server":     proxies[0].GetPublicAddr(),
-				"app_name":        c.appName,
-				"app_uri":         c.appURI,
-				"app_public_addr": appPublicAddr,
-			})
-	case roles.Include(types.RoleDatabase):
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(proxies) == 0 {
-			return trace.NotFound("cluster has no proxies")
-		}
-		return dbMessageTemplate.Execute(c.Stdout,
-			map[string]any{
-				"token":        tokenName,
-				"scope":        tok.GetScope(),
-				"assign_scope": tok.GetSpec().GetAssignedScope(),
-				"minutes":      c.ttl.Minutes(),
-				"ca_pins":      caPins,
-				"auth_server":  proxies[0].GetPublicAddr(),
-				"db_name":      c.dbName,
-				"db_protocol":  c.dbProtocol,
-				"db_uri":       c.dbURI,
-			})
-	case roles.Include(types.RoleTrustedCluster):
-		fmt.Fprintf(c.Stdout, trustedClusterMessage,
-			tokenName,
-			int(c.ttl.Minutes()))
-	case roles.Include(types.RoleWindowsDesktop):
-		return desktopMessageTemplate.Execute(c.Stdout,
-			map[string]any{
-				"token":        tokenName,
-				"scope":        tok.GetScope(),
-				"assign_scope": tok.GetSpec().GetAssignedScope(),
-				"minutes":      c.ttl.Minutes(),
-			})
-	case roles.Include(types.RoleMDM):
-		return mdmTokenAddTemplate.Execute(c.Stdout, map[string]any{
-			"token":        tokenName,
-			"scope":        tok.GetScope(),
-			"assign_scope": tok.GetSpec().GetAssignedScope(),
-			"minutes":      c.ttl.Minutes(),
-			"ca_pins":      caPins,
-		})
-	default:
-		authServer := authServers[0].GetAddr()
-
-		pingResponse, err := client.Ping(ctx)
-		if err != nil {
-			slog.DebugContext(ctx, "unable to ping auth client", "error", err)
-		}
-
-		if err == nil && pingResponse.GetServerFeatures().Cloud {
-			proxies, err := client.GetProxies()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if len(proxies) != 0 {
-				authServer = proxies[0].GetPublicAddr()
-			}
-		}
-
-		return nodeMessageTemplate.Execute(c.Stdout, map[string]any{
-			"token":        tokenName,
-			"scope":        tok.GetScope(),
-			"assign_scope": tok.GetSpec().GetAssignedScope(),
-			"roles":        strings.ToLower(roles.String()),
-			"minutes":      int(c.ttl.Minutes()),
-			"ca_pins":      caPins,
-			"auth_server":  authServer,
-		})
+	pingResponse, err := client.Ping(ctx)
+	if err != nil {
+		slog.DebugContext(ctx, "unable to ping auth client", "error", err)
 	}
 
-	return nil
+	if err == nil && pingResponse.GetServerFeatures().Cloud {
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(proxies) != 0 {
+			authServer = proxies[0].GetPublicAddr()
+		}
+	}
+
+	return nodeMessageTemplate.Execute(c.Stdout, map[string]any{
+		"token":        tokenName,
+		"scope":        tok.GetScope(),
+		"assign_scope": tok.GetSpec().GetAssignedScope(),
+		"roles":        strings.ToLower(roles.String()),
+		"minutes":      int(c.ttl.Minutes()),
+		"ca_pins":      caPins,
+		"auth_server":  authServer,
+	})
 }
 
 // Del is called to execute "scoped tokens del ..." command.
 func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client) error {
 	if c.value == "" {
-		return trace.Errorf("Need an argument: token")
+		return trace.BadParameter("Need an argument: token")
 	}
 	if err := client.DeleteScopedToken(ctx, c.value); err != nil {
 		return trace.Wrap(err)
@@ -424,68 +284,18 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 	return nil
 }
 
-func (c *ScopedTokensCommand) getFilter(filter string) (*scopesv1.Filter, error) {
-	modeOrScope, scope, found := strings.Cut(filter, ":")
-
-	if !found {
-		return &scopesv1.Filter{
-			Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
-			Scope: modeOrScope,
-		}, nil
-	}
-	var mode scopesv1.Mode
-	switch strings.ToLower(modeOrScope) {
-	case "ancestor":
-		mode = scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE
-	case "descendant":
-		mode = scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE
-	default:
-		return nil, trace.BadParameter("%q is not a recognized filter mode", modeOrScope)
-	}
-
-	return &scopesv1.Filter{
-		Scope: scope,
-		Mode:  mode,
-	}, nil
-}
-
 // List is called to execute "tokens ls" command.
 func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Because getAllTokens do up to 3 calls, we want to perform the MFA ceremony
-	// once and put it in the context. Else the users will get 3 MFA prompts.
 	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
 		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
 	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
 		return trace.Wrap(err)
 	}
 
-	var assignedScopeFilter *scopesv1.Filter
-	var resourceScopeFilter *scopesv1.Filter
-	if c.assignedScope != "" {
-		assignedScopeFilter, err = c.getFilter(c.assignedScope)
-		if err != nil {
-			return trace.Wrap(err, "invalid --assign-scope filter")
-		}
-	}
-
-	if c.tokenScope != "" {
-		resourceScopeFilter, err = c.getFilter(c.tokenScope)
-		if err != nil {
-			return trace.Wrap(err, "invalid --scope filter")
-		}
-	}
-
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
 		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
-			Limit:         uint32(pageSize),
-			Cursor:        pageKey,
-			ResourceScope: resourceScopeFilter,
-			AssignedScope: assignedScopeFilter,
+			Limit:  uint32(pageSize),
+			Cursor: pageKey,
 		})
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -496,16 +306,6 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 	if err != nil {
 		return trace.Wrap(err, "listing scoped tokens")
 	}
-
-	tokens = slices.DeleteFunc(tokens, func(token *joiningv1.ScopedToken) bool {
-		tokenLabels := token.GetMetadata().Labels
-		for k, v := range labels {
-			if tokenLabels[k] != v {
-				return true
-			}
-		}
-		return false
-	})
 
 	if len(tokens) == 0 && c.format == teleport.Text {
 		fmt.Fprintln(c.Stdout, "No active tokens found.")
