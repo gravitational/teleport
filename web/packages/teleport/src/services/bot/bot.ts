@@ -25,6 +25,7 @@ import {
   canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceMetricsResponse,
   validateGetBotInstanceResponse,
   validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
@@ -260,6 +261,21 @@ export async function getBotInstance(
 
   if (!validateGetBotInstanceResponse(data)) {
     throw new Error('failed to validate get bot instance response');
+  }
+
+  return data;
+}
+
+export async function getBotInstanceMetrics(
+  variables: null,
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl({ action: 'metrics' });
+
+  const data = await api.get(path, signal);
+
+  if (!validateGetBotInstanceMetricsResponse(data)) {
+    throw new Error('failed to validate get bot instance metrics response');
   }
 
   return data;

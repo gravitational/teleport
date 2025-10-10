@@ -20,18 +20,27 @@ import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
 import {
+  GetBotInstanceMetricsResponse,
   GetBotInstanceResponse,
   ListBotInstancesResponse,
 } from 'teleport/services/bot/types';
 
-export const listBotInstancesSuccess = (mock: ListBotInstancesResponse) =>
-  http.get(cfg.api.botInstance.list, () => {
-    return HttpResponse.json(mock);
-  });
-
-export const listBotInstancesForever = () =>
+export const listBotInstancesSuccess = (
+  mock: ListBotInstancesResponse,
+  version: ListBotInstancesApiVersion = 'v2'
+) =>
   http.get(
-    cfg.api.botInstance.list,
+    version == 'v1' ? cfg.api.botInstance.list : cfg.api.botInstance.listV2,
+    () => {
+      return HttpResponse.json(mock);
+    }
+  );
+
+export const listBotInstancesForever = (
+  version: ListBotInstancesApiVersion = 'v1'
+) =>
+  http.get(
+    version == 'v1' ? cfg.api.botInstance.list : cfg.api.botInstance.listV2,
     () =>
       new Promise(() => {
         /* never resolved */
@@ -40,11 +49,15 @@ export const listBotInstancesForever = () =>
 
 export const listBotInstancesError = (
   status: number,
-  error: string | null = null
+  error: string | null = null,
+  version: ListBotInstancesApiVersion = 'v1'
 ) =>
-  http.get(cfg.api.botInstance.list, () => {
-    return HttpResponse.json({ error: { message: error } }, { status });
-  });
+  http.get(
+    version == 'v1' ? cfg.api.botInstance.list : cfg.api.botInstance.listV2,
+    () => {
+      return HttpResponse.json({ error: { message: error } }, { status });
+    }
+  );
 
 export const getBotInstanceSuccess = (mock: GetBotInstanceResponse) =>
   http.get(cfg.api.botInstance.read, () => {
@@ -67,3 +80,56 @@ export const getBotInstanceForever = () =>
         /* never resolved */
       })
   );
+
+export const getBotInstanceMetricsSuccess = (
+  mock?: GetBotInstanceMetricsResponse
+) =>
+  http.get(cfg.api.botInstance.metrics, () => {
+    return HttpResponse.json(
+      mock ?? {
+        upgrade_statuses: {
+          updated_at: new Date().toISOString(),
+          up_to_date: {
+            count: randBetween(0, 2000),
+            filter: 'up to date filter goes here',
+          },
+          patch_available: {
+            count: randBetween(0, 2000),
+            filter: 'patch filter goes here',
+          },
+          requires_upgrade: {
+            count: randBetween(0, 2000),
+            filter: 'upgrade filter goes here',
+          },
+          unsupported: {
+            count: randBetween(0, 2000),
+            filter: 'unsupported filter goes here',
+          },
+        },
+      }
+    );
+  });
+
+export const getBotInstanceMetricsForever = () =>
+  http.get(
+    cfg.api.botInstance.metrics,
+    () =>
+      new Promise(() => {
+        /* never resolved */
+      })
+  );
+
+export const getBotInstanceMetricsError = (
+  status: number,
+  error: string | null = null
+) =>
+  http.get(cfg.api.botInstance.metrics, () => {
+    return HttpResponse.json({ error: { message: error } }, { status });
+  });
+
+function randBetween(low: number, high: number) {
+  if (low > high) [low, high] = [high, low];
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+}
+
+export type ListBotInstancesApiVersion = 'v1' | 'v2';

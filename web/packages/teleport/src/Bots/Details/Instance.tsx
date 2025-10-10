@@ -242,8 +242,7 @@ function Version(props: { version: string | undefined }) {
         break;
       case 'too-new':
         Wrapper = DangerOutlined;
-        tooltip =
-          'Version is one or more major versions ahead, and is not compatible.';
+        tooltip = 'Version is ahead, and is not compatible.';
         break;
     }
   }
