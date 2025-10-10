@@ -463,8 +463,8 @@ tctl-app:
 bpf-bytecode:
 ifneq ("$(wildcard /usr/include/linux/bpf.h)","")
 ifneq ("$(wildcard /usr/include/bpf/bpf_helpers.h)","")
-ifneq ("$(shell which clang --version 2>/dev/null)","")
-	go generate ./lib/bpf/bpf.go
+ifneq ("$(shell clang --version 2>/dev/null)","")
+	go generate -tags bpf ./lib/bpf/
 else
 $(error "clang is required to build BPF bytecode")
 endif # clang installed
@@ -942,7 +942,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
+test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -1025,7 +1025,7 @@ test-go-chaos:
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR) ensure-gotestsum
+test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)

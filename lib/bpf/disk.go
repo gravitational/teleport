@@ -38,19 +38,12 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostDiskEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostDiskEvents,
-			Help: "Number of lost disk events.",
-		},
-	)
+var lostDiskEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostDiskEvents,
+		Help: "Number of lost disk events.",
+	},
 )
-
-type cgroupRegister interface {
-	startSession(cgroupID uint64) error
-	endSession(cgroupID uint64) error
-}
 
 type open struct {
 	objs diskObjects
@@ -64,10 +57,10 @@ type open struct {
 
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startOpen(bufferSize int) (*open, error) {
+func startOpen() (*open, error) {
 	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "registering prometheus collectors: %v", err)
 	}
 
 	// Remove resource limits for kernels <5.11.
@@ -78,7 +71,7 @@ func startOpen(bufferSize int) (*open, error) {
 
 	var objs diskObjects
 	if err := loadDiskObjects(&objs, nil); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "loading disk objects: %v", err)
 	}
 
 	trs := []struct {
@@ -86,24 +79,16 @@ func startOpen(bufferSize int) (*open, error) {
 		prog *ebpf.Program
 	}{
 		{
-			name: "sys_enter_creat",
-			prog: objs.TracepointSyscallsSysEnterCreat,
-		},
-		{
 			name: "sys_enter_openat",
 			prog: objs.TracepointSyscallsSysEnterOpenat,
 		},
 		{
+			name: "sys_exit_openat",
+			prog: objs.TracepointSyscallsSysExitOpenat,
+		},
+		{
 			name: "sys_enter_openat2",
 			prog: objs.TracepointSyscallsSysEnterOpenat2,
-		},
-		{
-			name: "sys_exit_creat",
-			prog: objs.TracepointSyscallsSysExitCreat,
-		},
-		{
-			name: "sys_exit_open",
-			prog: objs.TracepointSyscallsSysExitOpen,
 		},
 		{
 			name: "sys_exit_openat2",
@@ -112,18 +97,26 @@ func startOpen(bufferSize int) (*open, error) {
 	}
 
 	if runtime.GOARCH != "arm64" {
-		// openat is not implemented on arm64.
+		// creat and open are not implemented on arm64.
 		trs = append(trs, []struct {
 			name string
 			prog *ebpf.Program
 		}{
 			{
-				name: "sys_enter_openat",
-				prog: objs.TracepointSyscallsSysEnterOpenat,
+				name: "sys_enter_creat",
+				prog: objs.TracepointSyscallsSysEnterCreat,
 			},
 			{
-				name: "sys_exit_openat",
-				prog: objs.TracepointSyscallsSysExitOpenat,
+				name: "sys_exit_creat",
+				prog: objs.TracepointSyscallsSysExitCreat,
+			},
+			{
+				name: "sys_enter_open",
+				prog: objs.TracepointSyscallsSysEnterOpen,
+			},
+			{
+				name: "sys_exit_open",
+				prog: objs.TracepointSyscallsSysExitOpen,
 			},
 		}...)
 	}
@@ -132,7 +125,7 @@ func startOpen(bufferSize int) (*open, error) {
 	for _, tr := range trs {
 		tp, err := link.Tracepoint("syscalls", tr.name, tr.prog, nil)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "linking %q tracepoint: %v", tr.name, err)
 		}
 
 		toClose = append(toClose, tp)
@@ -140,7 +133,7 @@ func startOpen(bufferSize int) (*open, error) {
 
 	eventBuf, err := ringbuf.NewReader(objs.OpenEvents)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
 	bpfEvents := make(chan []byte, 100)
@@ -204,6 +197,8 @@ func (o *open) close() {
 	if err := o.objs.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
+
+	logger.DebugContext(context.Background(), "Closed open BPF module")
 }
 
 // events contains raw events off the perf buffer.

@@ -26,13 +26,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"net"
 	"slices"
 	"strconv"
-	"sync"
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gravitational/trace"
 
 	ossteleport "github.com/gravitational/teleport"
@@ -56,38 +57,13 @@ import (
 // events.
 const ArgsCacheSize = 1024
 
-// SessionWatch is a map of cgroup IDs that the BPF service is watching and
-// emitting events for.
-type SessionWatch struct {
-	watch map[uint64]*SessionContext
-	mu    sync.Mutex
+type sessionEnder interface {
+	endSession(cgroupID uint64) error
 }
 
-func NewSessionWatch() SessionWatch {
-	return SessionWatch{
-		watch: make(map[uint64]*SessionContext),
-	}
-}
-
-func (w *SessionWatch) Get(cgroupID uint64) (ctx *SessionContext, ok bool) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	ctx, ok = w.watch[cgroupID]
-	return
-}
-
-func (w *SessionWatch) Add(cgroupID uint64, ctx *SessionContext) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	w.watch[cgroupID] = ctx
-}
-
-func (w *SessionWatch) Remove(cgroupID uint64) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	delete(w.watch, cgroupID)
+type cgroupRegister interface {
+	startSession(cgroupID uint64) error
+	endSession(cgroupID uint64) error
 }
 
 // Service manages BPF and control groups orchestration.
@@ -96,7 +72,7 @@ type Service struct {
 
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
-	watch SessionWatch
+	watch utils.SyncMap[uint64, *SessionContext]
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
@@ -138,7 +114,6 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 
 	s := &Service{
 		BPFConfig:    config,
-		watch:        NewSessionWatch(),
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
 	}
@@ -169,26 +144,21 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	start := time.Now()
 	logger.DebugContext(closeContext, "Starting enhanced session recording")
 
-	// Compile and start BPF programs if they are enabled (buffer size given).
-	s.exec, err = startExec(*config.CommandBufferSize)
+	// Compile and start BPF programs if they are enabled.
+	s.exec, err = startExec()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load command execution hooks")
 	}
-	s.open, err = startOpen(*config.DiskBufferSize)
+	s.open, err = startOpen()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load file I/O hooks")
 	}
-
-	// Load network BPF modules only when required.
-	s.conn, err = startConn(*config.NetworkBufferSize)
+	s.conn, err = startConn()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load network hooks")
 	}
 
 	logger.DebugContext(closeContext, "Started enhanced session recording",
-		"command_buffer_size", *s.CommandBufferSize,
-		"disk_buffer_size", *s.DiskBufferSize,
-		"network_buffer_size", *s.NetworkBufferSize,
 		"cgroup_mount_path", s.CgroupPath,
 		"elapsed", time.Since(start),
 	)
@@ -212,9 +182,7 @@ func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
-	if s.conn != nil {
-		s.conn.close()
-	}
+	s.conn.close()
 
 	// Close cgroup service. We should not unmount the cgroup filesystem if
 	// we're restarting.
@@ -243,7 +211,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 	}
 
 	// initializedModClosures holds all already opened modules closures.
-	initializedModClosures := make([]interface{ endSession(uint64) error }, 0)
+	initializedModClosures := make([]sessionEnder, 0)
 	for _, module := range []cgroupRegister{
 		s.open,
 		s.exec,
@@ -263,7 +231,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 	}
 
 	// Start watching for any events that come from this cgroup.
-	s.watch.Add(cgroupID, ctx)
+	s.watch.Store(cgroupID, ctx)
 
 	// Place requested PID into cgroup.
 	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
@@ -283,7 +251,7 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	}
 
 	// Stop watching for events from this PID.
-	s.watch.Remove(cgroupID)
+	s.watch.Delete(cgroupID)
 
 	var errs []error
 	// Move all PIDs to the root cgroup and remove the cgroup created for this
@@ -292,7 +260,7 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	for _, module := range []interface{ endSession(cgroupID uint64) error }{
+	for _, module := range []sessionEnder{
 		s.open,
 		s.exec,
 		s.conn,
@@ -308,6 +276,24 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 
 func (s *Service) Enabled() bool {
 	return true
+}
+
+func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
+	defer eventBuf.Close()
+
+	for {
+		rec, err := eventBuf.Read()
+		if err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) {
+				logger.DebugContext(context.Background(), "Received signal, exiting")
+				return
+			}
+			logger.ErrorContext(context.Background(), "Error reading from ring buffer", "error", err)
+			return
+		}
+
+		bpfEvents <- rec.RawSample[:]
+	}
 }
 
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
@@ -355,7 +341,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.Cgroup)
+	ctx, ok := s.watch.Load(event.Cgroup)
 	if !ok {
 		return
 	}
@@ -392,7 +378,6 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return nil, trace.NotFound("args missing")
 		})
-
 		if err != nil {
 			logger.DebugContext(s.closeContext, "Got event with missing args, skipping")
 			lostCommandEvents.Add(float64(1))
@@ -451,12 +436,12 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.Cgroup)
+	ctx, ok := s.watch.Load(event.Cgroup)
 	if !ok {
 		return
 	}
 
-	// If the network event is not being monitored, don't process it.
+	// If the disk event is not being monitored, don't process it.
 	_, ok = ctx.Events[constants.EnhancedRecordingDisk]
 	if !ok {
 		return
@@ -507,7 +492,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.Cgroup)
+	ctx, ok := s.watch.Load(event.Cgroup)
 	if !ok {
 		return
 	}
@@ -567,7 +552,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	}
 
 	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.Cgroup)
+	ctx, ok := s.watch.Load(event.Cgroup)
 	if !ok {
 		return
 	}

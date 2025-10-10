@@ -67,6 +67,7 @@ type diskSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type diskProgramSpecs struct {
 	TracepointSyscallsSysEnterCreat   *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_creat"`
+	TracepointSyscallsSysEnterOpen    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_open"`
 	TracepointSyscallsSysEnterOpenat  *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat"`
 	TracepointSyscallsSysEnterOpenat2 *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_enter_openat2"`
 	TracepointSyscallsSysExitCreat    *ebpf.ProgramSpec `ebpf:"tracepoint__syscalls__sys_exit_creat"`
@@ -142,6 +143,7 @@ type diskVariables struct {
 // It can be passed to loadDiskObjects or ebpf.CollectionSpec.LoadAndAssign.
 type diskPrograms struct {
 	TracepointSyscallsSysEnterCreat   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_creat"`
+	TracepointSyscallsSysEnterOpen    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_open"`
 	TracepointSyscallsSysEnterOpenat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
 	TracepointSyscallsSysEnterOpenat2 *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat2"`
 	TracepointSyscallsSysExitCreat    *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_creat"`
@@ -153,6 +155,7 @@ type diskPrograms struct {
 func (p *diskPrograms) Close() error {
 	return _DiskClose(
 		p.TracepointSyscallsSysEnterCreat,
+		p.TracepointSyscallsSysEnterOpen,
 		p.TracepointSyscallsSysEnterOpenat,
 		p.TracepointSyscallsSysEnterOpenat2,
 		p.TracepointSyscallsSysExitCreat,
