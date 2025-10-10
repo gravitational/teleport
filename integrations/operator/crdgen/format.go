@@ -49,6 +49,7 @@ title: {{.Title}}
 description: {{.Description}}
 tocDepth: 3
 tags:
+ - infrastructure-as-code
  - reference
  - platform-wide
 ---
