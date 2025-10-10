@@ -1190,6 +1190,10 @@ const (
 	// number to aid future migrations. Label value is expected to be a number.
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
 
+	// TeleportAccessListPreset marks an access list resource (with a label)
+	// that it was created using a preset.
+	TeleportAccessListPreset = TeleportInternalLabelPrefix + "access-list-preset"
+
 	// SystemResource are resources that will be automatically created and overwritten on startup. Users
 	// should not change these resources.
 	SystemResource = "system"
