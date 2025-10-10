@@ -172,7 +172,7 @@ export function FilterPanel({
           onChange={onHealthStatusChange}
           label="Health Status"
           tooltip={
-            'Health status filter is only available for database resources. Support for more resource types will be added in the future.'
+            'Health status filter is only available for database and Kubernetes resources. Support for more resource types will be added in the future.'
           }
           disabled={!isResourceStatusFilterSupported}
           buffered
@@ -362,5 +362,10 @@ const AccessRequestsToggleItem = styled.div`
 `;
 
 function resourceStatusFilterSupported(kinds: string[]) {
-  return !kinds || kinds.length === 0 || kinds.includes('db');
+  return (
+    !kinds ||
+    kinds.length === 0 ||
+    kinds.includes('db') ||
+    kinds.includes('kube_cluster')
+  );
 }

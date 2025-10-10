@@ -1518,6 +1518,134 @@ func (x *ListKubernetesResourcesResponse) GetResources() []*KubeResource {
 	return nil
 }
 
+// Lists Kubernetes servers request.
+type ListKubernetesServersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Maximum number of servers to return per page.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Pagination token from a previous response.
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Target Kubernetes cluster URI.
+	ClusterUri string `protobuf:"bytes,3,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	// Additional filters and sorting options.
+	Params        *ListResourcesParams `protobuf:"bytes,4,opt,name=params,proto3" json:"params,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListKubernetesServersRequest) Reset() {
+	*x = ListKubernetesServersRequest{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListKubernetesServersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListKubernetesServersRequest) ProtoMessage() {}
+
+func (x *ListKubernetesServersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListKubernetesServersRequest.ProtoReflect.Descriptor instead.
+func (*ListKubernetesServersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ListKubernetesServersRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListKubernetesServersRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListKubernetesServersRequest) GetClusterUri() string {
+	if x != nil {
+		return x.ClusterUri
+	}
+	return ""
+}
+
+func (x *ListKubernetesServersRequest) GetParams() *ListResourcesParams {
+	if x != nil {
+		return x.Params
+	}
+	return nil
+}
+
+// Lists Kubernetes servers response.
+type ListKubernetesServersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Resources in this page of results.
+	Resources []*KubeServer `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
+	// Pagination token for the next page.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListKubernetesServersResponse) Reset() {
+	*x = ListKubernetesServersResponse{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListKubernetesServersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListKubernetesServersResponse) ProtoMessage() {}
+
+func (x *ListKubernetesServersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListKubernetesServersResponse.ProtoReflect.Descriptor instead.
+func (*ListKubernetesServersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ListKubernetesServersResponse) GetResources() []*KubeServer {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *ListKubernetesServersResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
 // CredentialInfo holds fields related to a user's WebAuthn credential.
 type CredentialInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1528,7 +1656,7 @@ type CredentialInfo struct {
 
 func (x *CredentialInfo) Reset() {
 	*x = CredentialInfo{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1540,7 +1668,7 @@ func (x *CredentialInfo) String() string {
 func (*CredentialInfo) ProtoMessage() {}
 
 func (x *CredentialInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1553,7 +1681,7 @@ func (x *CredentialInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialInfo.ProtoReflect.Descriptor instead.
 func (*CredentialInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{24}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CredentialInfo) GetUsername() string {
@@ -1575,7 +1703,7 @@ type LoginPasswordlessResponse struct {
 
 func (x *LoginPasswordlessResponse) Reset() {
 	*x = LoginPasswordlessResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1715,7 @@ func (x *LoginPasswordlessResponse) String() string {
 func (*LoginPasswordlessResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1728,7 @@ func (x *LoginPasswordlessResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginPasswordlessResponse.ProtoReflect.Descriptor instead.
 func (*LoginPasswordlessResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{25}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *LoginPasswordlessResponse) GetPrompt() PasswordlessPrompt {
@@ -1632,7 +1760,7 @@ type LoginPasswordlessRequest struct {
 
 func (x *LoginPasswordlessRequest) Reset() {
 	*x = LoginPasswordlessRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1644,7 +1772,7 @@ func (x *LoginPasswordlessRequest) String() string {
 func (*LoginPasswordlessRequest) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1657,7 +1785,7 @@ func (x *LoginPasswordlessRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginPasswordlessRequest.ProtoReflect.Descriptor instead.
 func (*LoginPasswordlessRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *LoginPasswordlessRequest) GetRequest() isLoginPasswordlessRequest_Request {
@@ -1733,7 +1861,7 @@ type FileTransferRequest struct {
 
 func (x *FileTransferRequest) Reset() {
 	*x = FileTransferRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1745,7 +1873,7 @@ func (x *FileTransferRequest) String() string {
 func (*FileTransferRequest) ProtoMessage() {}
 
 func (x *FileTransferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1758,7 +1886,7 @@ func (x *FileTransferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileTransferRequest.ProtoReflect.Descriptor instead.
 func (*FileTransferRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{27}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *FileTransferRequest) GetLogin() string {
@@ -1805,7 +1933,7 @@ type FileTransferProgress struct {
 
 func (x *FileTransferProgress) Reset() {
 	*x = FileTransferProgress{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1817,7 +1945,7 @@ func (x *FileTransferProgress) String() string {
 func (*FileTransferProgress) ProtoMessage() {}
 
 func (x *FileTransferProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1830,7 +1958,7 @@ func (x *FileTransferProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileTransferProgress.ProtoReflect.Descriptor instead.
 func (*FileTransferProgress) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{28}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *FileTransferProgress) GetPercentage() uint32 {
@@ -1856,7 +1984,7 @@ type LoginRequest struct {
 
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1868,7 +1996,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1881,7 +2009,7 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
 func (*LoginRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *LoginRequest) GetClusterUri() string {
@@ -1943,7 +2071,7 @@ type AddClusterRequest struct {
 
 func (x *AddClusterRequest) Reset() {
 	*x = AddClusterRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1955,7 +2083,7 @@ func (x *AddClusterRequest) String() string {
 func (*AddClusterRequest) ProtoMessage() {}
 
 func (x *AddClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1968,7 +2096,7 @@ func (x *AddClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddClusterRequest.ProtoReflect.Descriptor instead.
 func (*AddClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{30}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *AddClusterRequest) GetName() string {
@@ -1986,7 +2114,7 @@ type ListClustersRequest struct {
 
 func (x *ListClustersRequest) Reset() {
 	*x = ListClustersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1998,7 +2126,7 @@ func (x *ListClustersRequest) String() string {
 func (*ListClustersRequest) ProtoMessage() {}
 
 func (x *ListClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2011,7 +2139,7 @@ func (x *ListClustersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListClustersRequest.ProtoReflect.Descriptor instead.
 func (*ListClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{31}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{33}
 }
 
 type ListClustersResponse struct {
@@ -2023,7 +2151,7 @@ type ListClustersResponse struct {
 
 func (x *ListClustersResponse) Reset() {
 	*x = ListClustersResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2035,7 +2163,7 @@ func (x *ListClustersResponse) String() string {
 func (*ListClustersResponse) ProtoMessage() {}
 
 func (x *ListClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2048,7 +2176,7 @@ func (x *ListClustersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListClustersResponse.ProtoReflect.Descriptor instead.
 func (*ListClustersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{32}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListClustersResponse) GetClusters() []*Cluster {
@@ -2067,7 +2195,7 @@ type ListLeafClustersRequest struct {
 
 func (x *ListLeafClustersRequest) Reset() {
 	*x = ListLeafClustersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2079,7 +2207,7 @@ func (x *ListLeafClustersRequest) String() string {
 func (*ListLeafClustersRequest) ProtoMessage() {}
 
 func (x *ListLeafClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2092,7 +2220,7 @@ func (x *ListLeafClustersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLeafClustersRequest.ProtoReflect.Descriptor instead.
 func (*ListLeafClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{33}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListLeafClustersRequest) GetClusterUri() string {
@@ -2111,7 +2239,7 @@ type ListDatabaseUsersRequest struct {
 
 func (x *ListDatabaseUsersRequest) Reset() {
 	*x = ListDatabaseUsersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2123,7 +2251,7 @@ func (x *ListDatabaseUsersRequest) String() string {
 func (*ListDatabaseUsersRequest) ProtoMessage() {}
 
 func (x *ListDatabaseUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2136,7 +2264,7 @@ func (x *ListDatabaseUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDatabaseUsersRequest.ProtoReflect.Descriptor instead.
 func (*ListDatabaseUsersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{34}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ListDatabaseUsersRequest) GetDbUri() string {
@@ -2155,7 +2283,7 @@ type ListDatabaseUsersResponse struct {
 
 func (x *ListDatabaseUsersResponse) Reset() {
 	*x = ListDatabaseUsersResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2167,7 +2295,7 @@ func (x *ListDatabaseUsersResponse) String() string {
 func (*ListDatabaseUsersResponse) ProtoMessage() {}
 
 func (x *ListDatabaseUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2180,7 +2308,7 @@ func (x *ListDatabaseUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDatabaseUsersResponse.ProtoReflect.Descriptor instead.
 func (*ListDatabaseUsersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{35}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ListDatabaseUsersResponse) GetUsers() []string {
@@ -2207,7 +2335,7 @@ type ListResourcesParams struct {
 
 func (x *ListResourcesParams) Reset() {
 	*x = ListResourcesParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2219,7 +2347,7 @@ func (x *ListResourcesParams) String() string {
 func (*ListResourcesParams) ProtoMessage() {}
 
 func (x *ListResourcesParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2232,7 +2360,7 @@ func (x *ListResourcesParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResourcesParams.ProtoReflect.Descriptor instead.
 func (*ListResourcesParams) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{36}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListResourcesParams) GetStartKey() string {
@@ -2273,7 +2401,7 @@ type ListDatabaseServersRequest struct {
 
 func (x *ListDatabaseServersRequest) Reset() {
 	*x = ListDatabaseServersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2285,7 +2413,7 @@ func (x *ListDatabaseServersRequest) String() string {
 func (*ListDatabaseServersRequest) ProtoMessage() {}
 
 func (x *ListDatabaseServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2298,7 +2426,7 @@ func (x *ListDatabaseServersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDatabaseServersRequest.ProtoReflect.Descriptor instead.
 func (*ListDatabaseServersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{37}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListDatabaseServersRequest) GetClusterUri() string {
@@ -2325,7 +2453,7 @@ type ListDatabaseServersResponse struct {
 
 func (x *ListDatabaseServersResponse) Reset() {
 	*x = ListDatabaseServersResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2337,7 +2465,7 @@ func (x *ListDatabaseServersResponse) String() string {
 func (*ListDatabaseServersResponse) ProtoMessage() {}
 
 func (x *ListDatabaseServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2350,7 +2478,7 @@ func (x *ListDatabaseServersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDatabaseServersResponse.ProtoReflect.Descriptor instead.
 func (*ListDatabaseServersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{38}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ListDatabaseServersResponse) GetResources() []*DatabaseServer {
@@ -2379,7 +2507,7 @@ type CreateGatewayRequest struct {
 
 func (x *CreateGatewayRequest) Reset() {
 	*x = CreateGatewayRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2391,7 +2519,7 @@ func (x *CreateGatewayRequest) String() string {
 func (*CreateGatewayRequest) ProtoMessage() {}
 
 func (x *CreateGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2404,7 +2532,7 @@ func (x *CreateGatewayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateGatewayRequest.ProtoReflect.Descriptor instead.
 func (*CreateGatewayRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{39}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CreateGatewayRequest) GetTargetUri() string {
@@ -2443,7 +2571,7 @@ type ListGatewaysRequest struct {
 
 func (x *ListGatewaysRequest) Reset() {
 	*x = ListGatewaysRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2455,7 +2583,7 @@ func (x *ListGatewaysRequest) String() string {
 func (*ListGatewaysRequest) ProtoMessage() {}
 
 func (x *ListGatewaysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2468,7 +2596,7 @@ func (x *ListGatewaysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGatewaysRequest.ProtoReflect.Descriptor instead.
 func (*ListGatewaysRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{40}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{42}
 }
 
 type ListGatewaysResponse struct {
@@ -2480,7 +2608,7 @@ type ListGatewaysResponse struct {
 
 func (x *ListGatewaysResponse) Reset() {
 	*x = ListGatewaysResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2492,7 +2620,7 @@ func (x *ListGatewaysResponse) String() string {
 func (*ListGatewaysResponse) ProtoMessage() {}
 
 func (x *ListGatewaysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2505,7 +2633,7 @@ func (x *ListGatewaysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGatewaysResponse.ProtoReflect.Descriptor instead.
 func (*ListGatewaysResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{41}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListGatewaysResponse) GetGateways() []*Gateway {
@@ -2524,7 +2652,7 @@ type RemoveGatewayRequest struct {
 
 func (x *RemoveGatewayRequest) Reset() {
 	*x = RemoveGatewayRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2536,7 +2664,7 @@ func (x *RemoveGatewayRequest) String() string {
 func (*RemoveGatewayRequest) ProtoMessage() {}
 
 func (x *RemoveGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2549,7 +2677,7 @@ func (x *RemoveGatewayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveGatewayRequest.ProtoReflect.Descriptor instead.
 func (*RemoveGatewayRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{42}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *RemoveGatewayRequest) GetGatewayUri() string {
@@ -2569,7 +2697,7 @@ type SetGatewayTargetSubresourceNameRequest struct {
 
 func (x *SetGatewayTargetSubresourceNameRequest) Reset() {
 	*x = SetGatewayTargetSubresourceNameRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2581,7 +2709,7 @@ func (x *SetGatewayTargetSubresourceNameRequest) String() string {
 func (*SetGatewayTargetSubresourceNameRequest) ProtoMessage() {}
 
 func (x *SetGatewayTargetSubresourceNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2594,7 +2722,7 @@ func (x *SetGatewayTargetSubresourceNameRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use SetGatewayTargetSubresourceNameRequest.ProtoReflect.Descriptor instead.
 func (*SetGatewayTargetSubresourceNameRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{43}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *SetGatewayTargetSubresourceNameRequest) GetGatewayUri() string {
@@ -2621,7 +2749,7 @@ type SetGatewayLocalPortRequest struct {
 
 func (x *SetGatewayLocalPortRequest) Reset() {
 	*x = SetGatewayLocalPortRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2633,7 +2761,7 @@ func (x *SetGatewayLocalPortRequest) String() string {
 func (*SetGatewayLocalPortRequest) ProtoMessage() {}
 
 func (x *SetGatewayLocalPortRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2646,7 +2774,7 @@ func (x *SetGatewayLocalPortRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGatewayLocalPortRequest.ProtoReflect.Descriptor instead.
 func (*SetGatewayLocalPortRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{44}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *SetGatewayLocalPortRequest) GetGatewayUri() string {
@@ -2672,7 +2800,7 @@ type GetAuthSettingsRequest struct {
 
 func (x *GetAuthSettingsRequest) Reset() {
 	*x = GetAuthSettingsRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2684,7 +2812,7 @@ func (x *GetAuthSettingsRequest) String() string {
 func (*GetAuthSettingsRequest) ProtoMessage() {}
 
 func (x *GetAuthSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2697,7 +2825,7 @@ func (x *GetAuthSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAuthSettingsRequest.ProtoReflect.Descriptor instead.
 func (*GetAuthSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{45}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GetAuthSettingsRequest) GetClusterUri() string {
@@ -2716,7 +2844,7 @@ type UpdateTshdEventsServerAddressRequest struct {
 
 func (x *UpdateTshdEventsServerAddressRequest) Reset() {
 	*x = UpdateTshdEventsServerAddressRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2728,7 +2856,7 @@ func (x *UpdateTshdEventsServerAddressRequest) String() string {
 func (*UpdateTshdEventsServerAddressRequest) ProtoMessage() {}
 
 func (x *UpdateTshdEventsServerAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2741,7 +2869,7 @@ func (x *UpdateTshdEventsServerAddressRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use UpdateTshdEventsServerAddressRequest.ProtoReflect.Descriptor instead.
 func (*UpdateTshdEventsServerAddressRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{46}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *UpdateTshdEventsServerAddressRequest) GetAddress() string {
@@ -2759,7 +2887,7 @@ type UpdateTshdEventsServerAddressResponse struct {
 
 func (x *UpdateTshdEventsServerAddressResponse) Reset() {
 	*x = UpdateTshdEventsServerAddressResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2771,7 +2899,7 @@ func (x *UpdateTshdEventsServerAddressResponse) String() string {
 func (*UpdateTshdEventsServerAddressResponse) ProtoMessage() {}
 
 func (x *UpdateTshdEventsServerAddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2784,7 +2912,7 @@ func (x *UpdateTshdEventsServerAddressResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use UpdateTshdEventsServerAddressResponse.ProtoReflect.Descriptor instead.
 func (*UpdateTshdEventsServerAddressResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{47}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{49}
 }
 
 type UpdateHeadlessAuthenticationStateRequest struct {
@@ -2798,7 +2926,7 @@ type UpdateHeadlessAuthenticationStateRequest struct {
 
 func (x *UpdateHeadlessAuthenticationStateRequest) Reset() {
 	*x = UpdateHeadlessAuthenticationStateRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2810,7 +2938,7 @@ func (x *UpdateHeadlessAuthenticationStateRequest) String() string {
 func (*UpdateHeadlessAuthenticationStateRequest) ProtoMessage() {}
 
 func (x *UpdateHeadlessAuthenticationStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2823,7 +2951,7 @@ func (x *UpdateHeadlessAuthenticationStateRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use UpdateHeadlessAuthenticationStateRequest.ProtoReflect.Descriptor instead.
 func (*UpdateHeadlessAuthenticationStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{48}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *UpdateHeadlessAuthenticationStateRequest) GetRootClusterUri() string {
@@ -2855,7 +2983,7 @@ type UpdateHeadlessAuthenticationStateResponse struct {
 
 func (x *UpdateHeadlessAuthenticationStateResponse) Reset() {
 	*x = UpdateHeadlessAuthenticationStateResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +2995,7 @@ func (x *UpdateHeadlessAuthenticationStateResponse) String() string {
 func (*UpdateHeadlessAuthenticationStateResponse) ProtoMessage() {}
 
 func (x *UpdateHeadlessAuthenticationStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2880,7 +3008,7 @@ func (x *UpdateHeadlessAuthenticationStateResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use UpdateHeadlessAuthenticationStateResponse.ProtoReflect.Descriptor instead.
 func (*UpdateHeadlessAuthenticationStateResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{49}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{51}
 }
 
 type CreateConnectMyComputerRoleRequest struct {
@@ -2892,7 +3020,7 @@ type CreateConnectMyComputerRoleRequest struct {
 
 func (x *CreateConnectMyComputerRoleRequest) Reset() {
 	*x = CreateConnectMyComputerRoleRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2904,7 +3032,7 @@ func (x *CreateConnectMyComputerRoleRequest) String() string {
 func (*CreateConnectMyComputerRoleRequest) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2917,7 +3045,7 @@ func (x *CreateConnectMyComputerRoleRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use CreateConnectMyComputerRoleRequest.ProtoReflect.Descriptor instead.
 func (*CreateConnectMyComputerRoleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{50}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *CreateConnectMyComputerRoleRequest) GetRootClusterUri() string {
@@ -2938,7 +3066,7 @@ type CreateConnectMyComputerRoleResponse struct {
 
 func (x *CreateConnectMyComputerRoleResponse) Reset() {
 	*x = CreateConnectMyComputerRoleResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2950,7 +3078,7 @@ func (x *CreateConnectMyComputerRoleResponse) String() string {
 func (*CreateConnectMyComputerRoleResponse) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2963,7 +3091,7 @@ func (x *CreateConnectMyComputerRoleResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use CreateConnectMyComputerRoleResponse.ProtoReflect.Descriptor instead.
 func (*CreateConnectMyComputerRoleResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{51}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CreateConnectMyComputerRoleResponse) GetCertsReloaded() bool {
@@ -2982,7 +3110,7 @@ type CreateConnectMyComputerNodeTokenRequest struct {
 
 func (x *CreateConnectMyComputerNodeTokenRequest) Reset() {
 	*x = CreateConnectMyComputerNodeTokenRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2994,7 +3122,7 @@ func (x *CreateConnectMyComputerNodeTokenRequest) String() string {
 func (*CreateConnectMyComputerNodeTokenRequest) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerNodeTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3007,7 +3135,7 @@ func (x *CreateConnectMyComputerNodeTokenRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use CreateConnectMyComputerNodeTokenRequest.ProtoReflect.Descriptor instead.
 func (*CreateConnectMyComputerNodeTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{52}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CreateConnectMyComputerNodeTokenRequest) GetRootClusterUri() string {
@@ -3026,7 +3154,7 @@ type CreateConnectMyComputerNodeTokenResponse struct {
 
 func (x *CreateConnectMyComputerNodeTokenResponse) Reset() {
 	*x = CreateConnectMyComputerNodeTokenResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3038,7 +3166,7 @@ func (x *CreateConnectMyComputerNodeTokenResponse) String() string {
 func (*CreateConnectMyComputerNodeTokenResponse) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerNodeTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3051,7 +3179,7 @@ func (x *CreateConnectMyComputerNodeTokenResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use CreateConnectMyComputerNodeTokenResponse.ProtoReflect.Descriptor instead.
 func (*CreateConnectMyComputerNodeTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{53}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *CreateConnectMyComputerNodeTokenResponse) GetToken() string {
@@ -3070,7 +3198,7 @@ type WaitForConnectMyComputerNodeJoinRequest struct {
 
 func (x *WaitForConnectMyComputerNodeJoinRequest) Reset() {
 	*x = WaitForConnectMyComputerNodeJoinRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3082,7 +3210,7 @@ func (x *WaitForConnectMyComputerNodeJoinRequest) String() string {
 func (*WaitForConnectMyComputerNodeJoinRequest) ProtoMessage() {}
 
 func (x *WaitForConnectMyComputerNodeJoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3095,7 +3223,7 @@ func (x *WaitForConnectMyComputerNodeJoinRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use WaitForConnectMyComputerNodeJoinRequest.ProtoReflect.Descriptor instead.
 func (*WaitForConnectMyComputerNodeJoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{54}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *WaitForConnectMyComputerNodeJoinRequest) GetRootClusterUri() string {
@@ -3114,7 +3242,7 @@ type WaitForConnectMyComputerNodeJoinResponse struct {
 
 func (x *WaitForConnectMyComputerNodeJoinResponse) Reset() {
 	*x = WaitForConnectMyComputerNodeJoinResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3126,7 +3254,7 @@ func (x *WaitForConnectMyComputerNodeJoinResponse) String() string {
 func (*WaitForConnectMyComputerNodeJoinResponse) ProtoMessage() {}
 
 func (x *WaitForConnectMyComputerNodeJoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3139,7 +3267,7 @@ func (x *WaitForConnectMyComputerNodeJoinResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use WaitForConnectMyComputerNodeJoinResponse.ProtoReflect.Descriptor instead.
 func (*WaitForConnectMyComputerNodeJoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{55}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *WaitForConnectMyComputerNodeJoinResponse) GetServer() *Server {
@@ -3158,7 +3286,7 @@ type DeleteConnectMyComputerNodeRequest struct {
 
 func (x *DeleteConnectMyComputerNodeRequest) Reset() {
 	*x = DeleteConnectMyComputerNodeRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3170,7 +3298,7 @@ func (x *DeleteConnectMyComputerNodeRequest) String() string {
 func (*DeleteConnectMyComputerNodeRequest) ProtoMessage() {}
 
 func (x *DeleteConnectMyComputerNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3183,7 +3311,7 @@ func (x *DeleteConnectMyComputerNodeRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DeleteConnectMyComputerNodeRequest.ProtoReflect.Descriptor instead.
 func (*DeleteConnectMyComputerNodeRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{56}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *DeleteConnectMyComputerNodeRequest) GetRootClusterUri() string {
@@ -3201,7 +3329,7 @@ type DeleteConnectMyComputerNodeResponse struct {
 
 func (x *DeleteConnectMyComputerNodeResponse) Reset() {
 	*x = DeleteConnectMyComputerNodeResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3213,7 +3341,7 @@ func (x *DeleteConnectMyComputerNodeResponse) String() string {
 func (*DeleteConnectMyComputerNodeResponse) ProtoMessage() {}
 
 func (x *DeleteConnectMyComputerNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3226,7 +3354,7 @@ func (x *DeleteConnectMyComputerNodeResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use DeleteConnectMyComputerNodeResponse.ProtoReflect.Descriptor instead.
 func (*DeleteConnectMyComputerNodeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{57}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{59}
 }
 
 type GetConnectMyComputerNodeNameRequest struct {
@@ -3238,7 +3366,7 @@ type GetConnectMyComputerNodeNameRequest struct {
 
 func (x *GetConnectMyComputerNodeNameRequest) Reset() {
 	*x = GetConnectMyComputerNodeNameRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3250,7 +3378,7 @@ func (x *GetConnectMyComputerNodeNameRequest) String() string {
 func (*GetConnectMyComputerNodeNameRequest) ProtoMessage() {}
 
 func (x *GetConnectMyComputerNodeNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3263,7 +3391,7 @@ func (x *GetConnectMyComputerNodeNameRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use GetConnectMyComputerNodeNameRequest.ProtoReflect.Descriptor instead.
 func (*GetConnectMyComputerNodeNameRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{58}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *GetConnectMyComputerNodeNameRequest) GetRootClusterUri() string {
@@ -3282,7 +3410,7 @@ type GetConnectMyComputerNodeNameResponse struct {
 
 func (x *GetConnectMyComputerNodeNameResponse) Reset() {
 	*x = GetConnectMyComputerNodeNameResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3294,7 +3422,7 @@ func (x *GetConnectMyComputerNodeNameResponse) String() string {
 func (*GetConnectMyComputerNodeNameResponse) ProtoMessage() {}
 
 func (x *GetConnectMyComputerNodeNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3307,7 +3435,7 @@ func (x *GetConnectMyComputerNodeNameResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use GetConnectMyComputerNodeNameResponse.ProtoReflect.Descriptor instead.
 func (*GetConnectMyComputerNodeNameResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{59}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetConnectMyComputerNodeNameResponse) GetName() string {
@@ -3347,7 +3475,7 @@ type ListUnifiedResourcesRequest struct {
 
 func (x *ListUnifiedResourcesRequest) Reset() {
 	*x = ListUnifiedResourcesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3359,7 +3487,7 @@ func (x *ListUnifiedResourcesRequest) String() string {
 func (*ListUnifiedResourcesRequest) ProtoMessage() {}
 
 func (x *ListUnifiedResourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3372,7 +3500,7 @@ func (x *ListUnifiedResourcesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUnifiedResourcesRequest.ProtoReflect.Descriptor instead.
 func (*ListUnifiedResourcesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{60}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *ListUnifiedResourcesRequest) GetClusterUri() string {
@@ -3457,7 +3585,7 @@ type SortBy struct {
 
 func (x *SortBy) Reset() {
 	*x = SortBy{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3469,7 +3597,7 @@ func (x *SortBy) String() string {
 func (*SortBy) ProtoMessage() {}
 
 func (x *SortBy) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3482,7 +3610,7 @@ func (x *SortBy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SortBy.ProtoReflect.Descriptor instead.
 func (*SortBy) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{61}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *SortBy) GetIsDesc() bool {
@@ -3511,7 +3639,7 @@ type ListUnifiedResourcesResponse struct {
 
 func (x *ListUnifiedResourcesResponse) Reset() {
 	*x = ListUnifiedResourcesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3523,7 +3651,7 @@ func (x *ListUnifiedResourcesResponse) String() string {
 func (*ListUnifiedResourcesResponse) ProtoMessage() {}
 
 func (x *ListUnifiedResourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3536,7 +3664,7 @@ func (x *ListUnifiedResourcesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUnifiedResourcesResponse.ProtoReflect.Descriptor instead.
 func (*ListUnifiedResourcesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{62}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *ListUnifiedResourcesResponse) GetResources() []*PaginatedResource {
@@ -3570,7 +3698,7 @@ type PaginatedResource struct {
 
 func (x *PaginatedResource) Reset() {
 	*x = PaginatedResource{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3582,7 +3710,7 @@ func (x *PaginatedResource) String() string {
 func (*PaginatedResource) ProtoMessage() {}
 
 func (x *PaginatedResource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3595,7 +3723,7 @@ func (x *PaginatedResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaginatedResource.ProtoReflect.Descriptor instead.
 func (*PaginatedResource) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{63}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *PaginatedResource) GetResource() isPaginatedResource_Resource {
@@ -3700,7 +3828,7 @@ type GetUserPreferencesRequest struct {
 
 func (x *GetUserPreferencesRequest) Reset() {
 	*x = GetUserPreferencesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3712,7 +3840,7 @@ func (x *GetUserPreferencesRequest) String() string {
 func (*GetUserPreferencesRequest) ProtoMessage() {}
 
 func (x *GetUserPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3725,7 +3853,7 @@ func (x *GetUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*GetUserPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{64}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *GetUserPreferencesRequest) GetClusterUri() string {
@@ -3744,7 +3872,7 @@ type GetUserPreferencesResponse struct {
 
 func (x *GetUserPreferencesResponse) Reset() {
 	*x = GetUserPreferencesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3756,7 +3884,7 @@ func (x *GetUserPreferencesResponse) String() string {
 func (*GetUserPreferencesResponse) ProtoMessage() {}
 
 func (x *GetUserPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3769,7 +3897,7 @@ func (x *GetUserPreferencesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*GetUserPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{65}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetUserPreferencesResponse) GetUserPreferences() *UserPreferences {
@@ -3789,7 +3917,7 @@ type UpdateUserPreferencesRequest struct {
 
 func (x *UpdateUserPreferencesRequest) Reset() {
 	*x = UpdateUserPreferencesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3801,7 +3929,7 @@ func (x *UpdateUserPreferencesRequest) String() string {
 func (*UpdateUserPreferencesRequest) ProtoMessage() {}
 
 func (x *UpdateUserPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3814,7 +3942,7 @@ func (x *UpdateUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserPreferencesRequest.ProtoReflect.Descriptor instead.
 func (*UpdateUserPreferencesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{66}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *UpdateUserPreferencesRequest) GetClusterUri() string {
@@ -3840,7 +3968,7 @@ type UpdateUserPreferencesResponse struct {
 
 func (x *UpdateUserPreferencesResponse) Reset() {
 	*x = UpdateUserPreferencesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3852,7 +3980,7 @@ func (x *UpdateUserPreferencesResponse) String() string {
 func (*UpdateUserPreferencesResponse) ProtoMessage() {}
 
 func (x *UpdateUserPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3865,7 +3993,7 @@ func (x *UpdateUserPreferencesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserPreferencesResponse.ProtoReflect.Descriptor instead.
 func (*UpdateUserPreferencesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{67}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *UpdateUserPreferencesResponse) GetUserPreferences() *UserPreferences {
@@ -3887,7 +4015,7 @@ type UserPreferences struct {
 
 func (x *UserPreferences) Reset() {
 	*x = UserPreferences{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3899,7 +4027,7 @@ func (x *UserPreferences) String() string {
 func (*UserPreferences) ProtoMessage() {}
 
 func (x *UserPreferences) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3912,7 +4040,7 @@ func (x *UserPreferences) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserPreferences.ProtoReflect.Descriptor instead.
 func (*UserPreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{68}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *UserPreferences) GetClusterPreferences() *v11.ClusterUserPreferences {
@@ -3942,7 +4070,7 @@ type AuthenticateWebDeviceRequest struct {
 
 func (x *AuthenticateWebDeviceRequest) Reset() {
 	*x = AuthenticateWebDeviceRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3954,7 +4082,7 @@ func (x *AuthenticateWebDeviceRequest) String() string {
 func (*AuthenticateWebDeviceRequest) ProtoMessage() {}
 
 func (x *AuthenticateWebDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3967,7 +4095,7 @@ func (x *AuthenticateWebDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateWebDeviceRequest.ProtoReflect.Descriptor instead.
 func (*AuthenticateWebDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{69}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *AuthenticateWebDeviceRequest) GetDeviceWebToken() *v12.DeviceWebToken {
@@ -3996,7 +4124,7 @@ type AuthenticateWebDeviceResponse struct {
 
 func (x *AuthenticateWebDeviceResponse) Reset() {
 	*x = AuthenticateWebDeviceResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4008,7 +4136,7 @@ func (x *AuthenticateWebDeviceResponse) String() string {
 func (*AuthenticateWebDeviceResponse) ProtoMessage() {}
 
 func (x *AuthenticateWebDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4021,7 +4149,7 @@ func (x *AuthenticateWebDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthenticateWebDeviceResponse.ProtoReflect.Descriptor instead.
 func (*AuthenticateWebDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{70}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *AuthenticateWebDeviceResponse) GetConfirmationToken() *v12.DeviceConfirmationToken {
@@ -4040,7 +4168,7 @@ type GetAppRequest struct {
 
 func (x *GetAppRequest) Reset() {
 	*x = GetAppRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4052,7 +4180,7 @@ func (x *GetAppRequest) String() string {
 func (*GetAppRequest) ProtoMessage() {}
 
 func (x *GetAppRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4065,7 +4193,7 @@ func (x *GetAppRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAppRequest.ProtoReflect.Descriptor instead.
 func (*GetAppRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{71}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetAppRequest) GetAppUri() string {
@@ -4084,7 +4212,7 @@ type GetAppResponse struct {
 
 func (x *GetAppResponse) Reset() {
 	*x = GetAppResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4096,7 +4224,7 @@ func (x *GetAppResponse) String() string {
 func (*GetAppResponse) ProtoMessage() {}
 
 func (x *GetAppResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4109,7 +4237,7 @@ func (x *GetAppResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAppResponse.ProtoReflect.Descriptor instead.
 func (*GetAppResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{72}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *GetAppResponse) GetApp() *App {
@@ -4132,7 +4260,7 @@ type TargetDesktop struct {
 
 func (x *TargetDesktop) Reset() {
 	*x = TargetDesktop{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4144,7 +4272,7 @@ func (x *TargetDesktop) String() string {
 func (*TargetDesktop) ProtoMessage() {}
 
 func (x *TargetDesktop) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4157,7 +4285,7 @@ func (x *TargetDesktop) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TargetDesktop.ProtoReflect.Descriptor instead.
 func (*TargetDesktop) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{73}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *TargetDesktop) GetDesktopUri() string {
@@ -4188,7 +4316,7 @@ type ConnectToDesktopRequest struct {
 
 func (x *ConnectToDesktopRequest) Reset() {
 	*x = ConnectToDesktopRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4200,7 +4328,7 @@ func (x *ConnectToDesktopRequest) String() string {
 func (*ConnectToDesktopRequest) ProtoMessage() {}
 
 func (x *ConnectToDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4213,7 +4341,7 @@ func (x *ConnectToDesktopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectToDesktopRequest.ProtoReflect.Descriptor instead.
 func (*ConnectToDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{74}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *ConnectToDesktopRequest) GetData() []byte {
@@ -4241,7 +4369,7 @@ type ConnectToDesktopResponse struct {
 
 func (x *ConnectToDesktopResponse) Reset() {
 	*x = ConnectToDesktopResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4253,7 +4381,7 @@ func (x *ConnectToDesktopResponse) String() string {
 func (*ConnectToDesktopResponse) ProtoMessage() {}
 
 func (x *ConnectToDesktopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4266,7 +4394,7 @@ func (x *ConnectToDesktopResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectToDesktopResponse.ProtoReflect.Descriptor instead.
 func (*ConnectToDesktopResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{75}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ConnectToDesktopResponse) GetData() []byte {
@@ -4291,7 +4419,7 @@ type SetSharedDirectoryForDesktopSessionRequest struct {
 
 func (x *SetSharedDirectoryForDesktopSessionRequest) Reset() {
 	*x = SetSharedDirectoryForDesktopSessionRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4303,7 +4431,7 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) String() string {
 func (*SetSharedDirectoryForDesktopSessionRequest) ProtoMessage() {}
 
 func (x *SetSharedDirectoryForDesktopSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4316,7 +4444,7 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) ProtoReflect() protoreflect
 
 // Deprecated: Use SetSharedDirectoryForDesktopSessionRequest.ProtoReflect.Descriptor instead.
 func (*SetSharedDirectoryForDesktopSessionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{76}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *SetSharedDirectoryForDesktopSessionRequest) GetDesktopUri() string {
@@ -4349,7 +4477,7 @@ type SetSharedDirectoryForDesktopSessionResponse struct {
 
 func (x *SetSharedDirectoryForDesktopSessionResponse) Reset() {
 	*x = SetSharedDirectoryForDesktopSessionResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4361,7 +4489,7 @@ func (x *SetSharedDirectoryForDesktopSessionResponse) String() string {
 func (*SetSharedDirectoryForDesktopSessionResponse) ProtoMessage() {}
 
 func (x *SetSharedDirectoryForDesktopSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4374,7 +4502,7 @@ func (x *SetSharedDirectoryForDesktopSessionResponse) ProtoReflect() protoreflec
 
 // Deprecated: Use SetSharedDirectoryForDesktopSessionResponse.ProtoReflect.Descriptor instead.
 func (*SetSharedDirectoryForDesktopSessionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{77}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{79}
 }
 
 // LoginPasswordlessRequestInit contains fields needed to init the stream request.
@@ -4388,7 +4516,7 @@ type LoginPasswordlessRequest_LoginPasswordlessRequestInit struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessRequestInit{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4400,7 +4528,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) String() string 
 func (*LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4413,7 +4541,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoReflect() p
 
 // Deprecated: Use LoginPasswordlessRequest_LoginPasswordlessRequestInit.ProtoReflect.Descriptor instead.
 func (*LoginPasswordlessRequest_LoginPasswordlessRequestInit) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26, 0}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{28, 0}
 }
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) GetClusterUri() string {
@@ -4434,7 +4562,7 @@ type LoginPasswordlessRequest_LoginPasswordlessPINResponse struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessPINResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4446,7 +4574,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) String() string 
 func (*LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4459,7 +4587,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoReflect() p
 
 // Deprecated: Use LoginPasswordlessRequest_LoginPasswordlessPINResponse.ProtoReflect.Descriptor instead.
 func (*LoginPasswordlessRequest_LoginPasswordlessPINResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26, 1}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{28, 1}
 }
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) GetPin() string {
@@ -4482,7 +4610,7 @@ type LoginPasswordlessRequest_LoginPasswordlessCredentialResponse struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4494,7 +4622,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) String() 
 func (*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4507,7 +4635,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoRefl
 
 // Deprecated: Use LoginPasswordlessRequest_LoginPasswordlessCredentialResponse.ProtoReflect.Descriptor instead.
 func (*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26, 2}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{28, 2}
 }
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) GetIndex() int64 {
@@ -4532,7 +4660,7 @@ type LoginRequest_LocalParams struct {
 
 func (x *LoginRequest_LocalParams) Reset() {
 	*x = LoginRequest_LocalParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4544,7 +4672,7 @@ func (x *LoginRequest_LocalParams) String() string {
 func (*LoginRequest_LocalParams) ProtoMessage() {}
 
 func (x *LoginRequest_LocalParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4557,7 +4685,7 @@ func (x *LoginRequest_LocalParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest_LocalParams.ProtoReflect.Descriptor instead.
 func (*LoginRequest_LocalParams) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29, 0}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{31, 0}
 }
 
 func (x *LoginRequest_LocalParams) GetUser() string {
@@ -4594,7 +4722,7 @@ type LoginRequest_SsoParams struct {
 
 func (x *LoginRequest_SsoParams) Reset() {
 	*x = LoginRequest_SsoParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4606,7 +4734,7 @@ func (x *LoginRequest_SsoParams) String() string {
 func (*LoginRequest_SsoParams) ProtoMessage() {}
 
 func (x *LoginRequest_SsoParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4619,7 +4747,7 @@ func (x *LoginRequest_SsoParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest_SsoParams.ProtoReflect.Descriptor instead.
 func (*LoginRequest_SsoParams) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29, 1}
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{31, 1}
 }
 
 func (x *LoginRequest_SsoParams) GetProviderType() string {
@@ -4725,7 +4853,17 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x12kubernetes_cluster\x18\b \x01(\tR\x11kubernetesCluster\x121\n" +
 	"\x14kubernetes_namespace\x18\t \x01(\tR\x13kubernetesNamespace\"w\n" +
 	"\x1fListKubernetesResourcesResponse\x12D\n" +
-	"\tresources\x18\x01 \x03(\v2&.teleport.lib.teleterm.v1.KubeResourceR\tresourcesJ\x04\b\x02\x10\x03R\bnext_key\",\n" +
+	"\tresources\x18\x01 \x03(\v2&.teleport.lib.teleterm.v1.KubeResourceR\tresourcesJ\x04\b\x02\x10\x03R\bnext_key\"\xc2\x01\n" +
+	"\x1cListKubernetesServersRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1f\n" +
+	"\vcluster_uri\x18\x03 \x01(\tR\n" +
+	"clusterUri\x12E\n" +
+	"\x06params\x18\x04 \x01(\v2-.teleport.lib.teleterm.v1.ListResourcesParamsR\x06params\"\x8b\x01\n" +
+	"\x1dListKubernetesServersResponse\x12B\n" +
+	"\tresources\x18\x01 \x03(\v2$.teleport.lib.teleterm.v1.KubeServerR\tresources\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\",\n" +
 	"\x0eCredentialInfo\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\"\xad\x01\n" +
 	"\x19LoginPasswordlessResponse\x12D\n" +
@@ -4926,7 +5064,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	")HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED\x10\x00\x12)\n" +
 	"%HEADLESS_AUTHENTICATION_STATE_PENDING\x10\x01\x12(\n" +
 	"$HEADLESS_AUTHENTICATION_STATE_DENIED\x10\x02\x12*\n" +
-	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\xa9+\n" +
+	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\xb4,\n" +
 	"\x0fTerminalService\x12\xa0\x01\n" +
 	"\x1dUpdateTshdEventsServerAddress\x12>.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest\x1a?.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse\x12q\n" +
 	"\x10ListRootClusters\x12-.teleport.lib.teleterm.v1.ListClustersRequest\x1a..teleport.lib.teleterm.v1.ListClustersResponse\x12u\n" +
@@ -4944,7 +5082,8 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"AssumeRole\x12+.teleport.lib.teleterm.v1.AssumeRoleRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\x85\x01\n" +
 	"\x14PromoteAccessRequest\x125.teleport.lib.teleterm.v1.PromoteAccessRequestRequest\x1a6.teleport.lib.teleterm.v1.PromoteAccessRequestResponse\x12\x8e\x01\n" +
 	"\x17GetSuggestedAccessLists\x128.teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest\x1a9.teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse\x12\x8e\x01\n" +
-	"\x17ListKubernetesResources\x128.teleport.lib.teleterm.v1.ListKubernetesResourcesRequest\x1a9.teleport.lib.teleterm.v1.ListKubernetesResourcesResponse\x12\\\n" +
+	"\x17ListKubernetesResources\x128.teleport.lib.teleterm.v1.ListKubernetesResourcesRequest\x1a9.teleport.lib.teleterm.v1.ListKubernetesResourcesResponse\x12\x88\x01\n" +
+	"\x15ListKubernetesServers\x126.teleport.lib.teleterm.v1.ListKubernetesServersRequest\x1a7.teleport.lib.teleterm.v1.ListKubernetesServersResponse\x12\\\n" +
 	"\n" +
 	"AddCluster\x12+.teleport.lib.teleterm.v1.AddClusterRequest\x1a!.teleport.lib.teleterm.v1.Cluster\x12h\n" +
 	"\rRemoveCluster\x12..teleport.lib.teleterm.v1.RemoveClusterRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12m\n" +
@@ -4988,7 +5127,7 @@ func file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_lib_teleterm_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_lib_teleterm_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 83)
+var file_teleport_lib_teleterm_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
 var file_teleport_lib_teleterm_v1_service_proto_goTypes = []any{
 	(PasswordlessPrompt)(0),                                              // 0: teleport.lib.teleterm.v1.PasswordlessPrompt
 	(FileTransferDirection)(0),                                           // 1: teleport.lib.teleterm.v1.FileTransferDirection
@@ -5017,220 +5156,227 @@ var file_teleport_lib_teleterm_v1_service_proto_goTypes = []any{
 	(*GetSuggestedAccessListsResponse)(nil),                              // 24: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
 	(*ListKubernetesResourcesRequest)(nil),                               // 25: teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
 	(*ListKubernetesResourcesResponse)(nil),                              // 26: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
-	(*CredentialInfo)(nil),                                               // 27: teleport.lib.teleterm.v1.CredentialInfo
-	(*LoginPasswordlessResponse)(nil),                                    // 28: teleport.lib.teleterm.v1.LoginPasswordlessResponse
-	(*LoginPasswordlessRequest)(nil),                                     // 29: teleport.lib.teleterm.v1.LoginPasswordlessRequest
-	(*FileTransferRequest)(nil),                                          // 30: teleport.lib.teleterm.v1.FileTransferRequest
-	(*FileTransferProgress)(nil),                                         // 31: teleport.lib.teleterm.v1.FileTransferProgress
-	(*LoginRequest)(nil),                                                 // 32: teleport.lib.teleterm.v1.LoginRequest
-	(*AddClusterRequest)(nil),                                            // 33: teleport.lib.teleterm.v1.AddClusterRequest
-	(*ListClustersRequest)(nil),                                          // 34: teleport.lib.teleterm.v1.ListClustersRequest
-	(*ListClustersResponse)(nil),                                         // 35: teleport.lib.teleterm.v1.ListClustersResponse
-	(*ListLeafClustersRequest)(nil),                                      // 36: teleport.lib.teleterm.v1.ListLeafClustersRequest
-	(*ListDatabaseUsersRequest)(nil),                                     // 37: teleport.lib.teleterm.v1.ListDatabaseUsersRequest
-	(*ListDatabaseUsersResponse)(nil),                                    // 38: teleport.lib.teleterm.v1.ListDatabaseUsersResponse
-	(*ListResourcesParams)(nil),                                          // 39: teleport.lib.teleterm.v1.ListResourcesParams
-	(*ListDatabaseServersRequest)(nil),                                   // 40: teleport.lib.teleterm.v1.ListDatabaseServersRequest
-	(*ListDatabaseServersResponse)(nil),                                  // 41: teleport.lib.teleterm.v1.ListDatabaseServersResponse
-	(*CreateGatewayRequest)(nil),                                         // 42: teleport.lib.teleterm.v1.CreateGatewayRequest
-	(*ListGatewaysRequest)(nil),                                          // 43: teleport.lib.teleterm.v1.ListGatewaysRequest
-	(*ListGatewaysResponse)(nil),                                         // 44: teleport.lib.teleterm.v1.ListGatewaysResponse
-	(*RemoveGatewayRequest)(nil),                                         // 45: teleport.lib.teleterm.v1.RemoveGatewayRequest
-	(*SetGatewayTargetSubresourceNameRequest)(nil),                       // 46: teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
-	(*SetGatewayLocalPortRequest)(nil),                                   // 47: teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
-	(*GetAuthSettingsRequest)(nil),                                       // 48: teleport.lib.teleterm.v1.GetAuthSettingsRequest
-	(*UpdateTshdEventsServerAddressRequest)(nil),                         // 49: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
-	(*UpdateTshdEventsServerAddressResponse)(nil),                        // 50: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
-	(*UpdateHeadlessAuthenticationStateRequest)(nil),                     // 51: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
-	(*UpdateHeadlessAuthenticationStateResponse)(nil),                    // 52: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
-	(*CreateConnectMyComputerRoleRequest)(nil),                           // 53: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
-	(*CreateConnectMyComputerRoleResponse)(nil),                          // 54: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
-	(*CreateConnectMyComputerNodeTokenRequest)(nil),                      // 55: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
-	(*CreateConnectMyComputerNodeTokenResponse)(nil),                     // 56: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
-	(*WaitForConnectMyComputerNodeJoinRequest)(nil),                      // 57: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
-	(*WaitForConnectMyComputerNodeJoinResponse)(nil),                     // 58: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
-	(*DeleteConnectMyComputerNodeRequest)(nil),                           // 59: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
-	(*DeleteConnectMyComputerNodeResponse)(nil),                          // 60: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
-	(*GetConnectMyComputerNodeNameRequest)(nil),                          // 61: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
-	(*GetConnectMyComputerNodeNameResponse)(nil),                         // 62: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
-	(*ListUnifiedResourcesRequest)(nil),                                  // 63: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
-	(*SortBy)(nil),                                                       // 64: teleport.lib.teleterm.v1.SortBy
-	(*ListUnifiedResourcesResponse)(nil),                                 // 65: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
-	(*PaginatedResource)(nil),                                            // 66: teleport.lib.teleterm.v1.PaginatedResource
-	(*GetUserPreferencesRequest)(nil),                                    // 67: teleport.lib.teleterm.v1.GetUserPreferencesRequest
-	(*GetUserPreferencesResponse)(nil),                                   // 68: teleport.lib.teleterm.v1.GetUserPreferencesResponse
-	(*UpdateUserPreferencesRequest)(nil),                                 // 69: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
-	(*UpdateUserPreferencesResponse)(nil),                                // 70: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
-	(*UserPreferences)(nil),                                              // 71: teleport.lib.teleterm.v1.UserPreferences
-	(*AuthenticateWebDeviceRequest)(nil),                                 // 72: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
-	(*AuthenticateWebDeviceResponse)(nil),                                // 73: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
-	(*GetAppRequest)(nil),                                                // 74: teleport.lib.teleterm.v1.GetAppRequest
-	(*GetAppResponse)(nil),                                               // 75: teleport.lib.teleterm.v1.GetAppResponse
-	(*TargetDesktop)(nil),                                                // 76: teleport.lib.teleterm.v1.TargetDesktop
-	(*ConnectToDesktopRequest)(nil),                                      // 77: teleport.lib.teleterm.v1.ConnectToDesktopRequest
-	(*ConnectToDesktopResponse)(nil),                                     // 78: teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	(*SetSharedDirectoryForDesktopSessionRequest)(nil),                   // 79: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
-	(*SetSharedDirectoryForDesktopSessionResponse)(nil),                  // 80: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
-	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 81: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
-	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 82: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
-	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 83: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
-	(*LoginRequest_LocalParams)(nil),                                     // 84: teleport.lib.teleterm.v1.LoginRequest.LocalParams
-	(*LoginRequest_SsoParams)(nil),                                       // 85: teleport.lib.teleterm.v1.LoginRequest.SsoParams
-	(*AccessRequest)(nil),                                                // 86: teleport.lib.teleterm.v1.AccessRequest
-	(*ResourceID)(nil),                                                   // 87: teleport.lib.teleterm.v1.ResourceID
-	(*timestamppb.Timestamp)(nil),                                        // 88: google.protobuf.Timestamp
-	(*v1.AccessList)(nil),                                                // 89: teleport.accesslist.v1.AccessList
-	(*KubeResource)(nil),                                                 // 90: teleport.lib.teleterm.v1.KubeResource
-	(*Cluster)(nil),                                                      // 91: teleport.lib.teleterm.v1.Cluster
-	(*DatabaseServer)(nil),                                               // 92: teleport.lib.teleterm.v1.DatabaseServer
-	(*Gateway)(nil),                                                      // 93: teleport.lib.teleterm.v1.Gateway
-	(*Server)(nil),                                                       // 94: teleport.lib.teleterm.v1.Server
-	(*Database)(nil),                                                     // 95: teleport.lib.teleterm.v1.Database
-	(*Kube)(nil),                                                         // 96: teleport.lib.teleterm.v1.Kube
-	(*App)(nil),                                                          // 97: teleport.lib.teleterm.v1.App
-	(*WindowsDesktop)(nil),                                               // 98: teleport.lib.teleterm.v1.WindowsDesktop
-	(*v11.ClusterUserPreferences)(nil),                                   // 99: teleport.userpreferences.v1.ClusterUserPreferences
-	(*v11.UnifiedResourcePreferences)(nil),                               // 100: teleport.userpreferences.v1.UnifiedResourcePreferences
-	(*v12.DeviceWebToken)(nil),                                           // 101: teleport.devicetrust.v1.DeviceWebToken
-	(*v12.DeviceConfirmationToken)(nil),                                  // 102: teleport.devicetrust.v1.DeviceConfirmationToken
-	(*ReportUsageEventRequest)(nil),                                      // 103: teleport.lib.teleterm.v1.ReportUsageEventRequest
-	(*AuthSettings)(nil),                                                 // 104: teleport.lib.teleterm.v1.AuthSettings
+	(*ListKubernetesServersRequest)(nil),                                 // 27: teleport.lib.teleterm.v1.ListKubernetesServersRequest
+	(*ListKubernetesServersResponse)(nil),                                // 28: teleport.lib.teleterm.v1.ListKubernetesServersResponse
+	(*CredentialInfo)(nil),                                               // 29: teleport.lib.teleterm.v1.CredentialInfo
+	(*LoginPasswordlessResponse)(nil),                                    // 30: teleport.lib.teleterm.v1.LoginPasswordlessResponse
+	(*LoginPasswordlessRequest)(nil),                                     // 31: teleport.lib.teleterm.v1.LoginPasswordlessRequest
+	(*FileTransferRequest)(nil),                                          // 32: teleport.lib.teleterm.v1.FileTransferRequest
+	(*FileTransferProgress)(nil),                                         // 33: teleport.lib.teleterm.v1.FileTransferProgress
+	(*LoginRequest)(nil),                                                 // 34: teleport.lib.teleterm.v1.LoginRequest
+	(*AddClusterRequest)(nil),                                            // 35: teleport.lib.teleterm.v1.AddClusterRequest
+	(*ListClustersRequest)(nil),                                          // 36: teleport.lib.teleterm.v1.ListClustersRequest
+	(*ListClustersResponse)(nil),                                         // 37: teleport.lib.teleterm.v1.ListClustersResponse
+	(*ListLeafClustersRequest)(nil),                                      // 38: teleport.lib.teleterm.v1.ListLeafClustersRequest
+	(*ListDatabaseUsersRequest)(nil),                                     // 39: teleport.lib.teleterm.v1.ListDatabaseUsersRequest
+	(*ListDatabaseUsersResponse)(nil),                                    // 40: teleport.lib.teleterm.v1.ListDatabaseUsersResponse
+	(*ListResourcesParams)(nil),                                          // 41: teleport.lib.teleterm.v1.ListResourcesParams
+	(*ListDatabaseServersRequest)(nil),                                   // 42: teleport.lib.teleterm.v1.ListDatabaseServersRequest
+	(*ListDatabaseServersResponse)(nil),                                  // 43: teleport.lib.teleterm.v1.ListDatabaseServersResponse
+	(*CreateGatewayRequest)(nil),                                         // 44: teleport.lib.teleterm.v1.CreateGatewayRequest
+	(*ListGatewaysRequest)(nil),                                          // 45: teleport.lib.teleterm.v1.ListGatewaysRequest
+	(*ListGatewaysResponse)(nil),                                         // 46: teleport.lib.teleterm.v1.ListGatewaysResponse
+	(*RemoveGatewayRequest)(nil),                                         // 47: teleport.lib.teleterm.v1.RemoveGatewayRequest
+	(*SetGatewayTargetSubresourceNameRequest)(nil),                       // 48: teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
+	(*SetGatewayLocalPortRequest)(nil),                                   // 49: teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
+	(*GetAuthSettingsRequest)(nil),                                       // 50: teleport.lib.teleterm.v1.GetAuthSettingsRequest
+	(*UpdateTshdEventsServerAddressRequest)(nil),                         // 51: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
+	(*UpdateTshdEventsServerAddressResponse)(nil),                        // 52: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
+	(*UpdateHeadlessAuthenticationStateRequest)(nil),                     // 53: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
+	(*UpdateHeadlessAuthenticationStateResponse)(nil),                    // 54: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
+	(*CreateConnectMyComputerRoleRequest)(nil),                           // 55: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
+	(*CreateConnectMyComputerRoleResponse)(nil),                          // 56: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
+	(*CreateConnectMyComputerNodeTokenRequest)(nil),                      // 57: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
+	(*CreateConnectMyComputerNodeTokenResponse)(nil),                     // 58: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
+	(*WaitForConnectMyComputerNodeJoinRequest)(nil),                      // 59: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
+	(*WaitForConnectMyComputerNodeJoinResponse)(nil),                     // 60: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
+	(*DeleteConnectMyComputerNodeRequest)(nil),                           // 61: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
+	(*DeleteConnectMyComputerNodeResponse)(nil),                          // 62: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
+	(*GetConnectMyComputerNodeNameRequest)(nil),                          // 63: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
+	(*GetConnectMyComputerNodeNameResponse)(nil),                         // 64: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
+	(*ListUnifiedResourcesRequest)(nil),                                  // 65: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
+	(*SortBy)(nil),                                                       // 66: teleport.lib.teleterm.v1.SortBy
+	(*ListUnifiedResourcesResponse)(nil),                                 // 67: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
+	(*PaginatedResource)(nil),                                            // 68: teleport.lib.teleterm.v1.PaginatedResource
+	(*GetUserPreferencesRequest)(nil),                                    // 69: teleport.lib.teleterm.v1.GetUserPreferencesRequest
+	(*GetUserPreferencesResponse)(nil),                                   // 70: teleport.lib.teleterm.v1.GetUserPreferencesResponse
+	(*UpdateUserPreferencesRequest)(nil),                                 // 71: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
+	(*UpdateUserPreferencesResponse)(nil),                                // 72: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
+	(*UserPreferences)(nil),                                              // 73: teleport.lib.teleterm.v1.UserPreferences
+	(*AuthenticateWebDeviceRequest)(nil),                                 // 74: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+	(*AuthenticateWebDeviceResponse)(nil),                                // 75: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+	(*GetAppRequest)(nil),                                                // 76: teleport.lib.teleterm.v1.GetAppRequest
+	(*GetAppResponse)(nil),                                               // 77: teleport.lib.teleterm.v1.GetAppResponse
+	(*TargetDesktop)(nil),                                                // 78: teleport.lib.teleterm.v1.TargetDesktop
+	(*ConnectToDesktopRequest)(nil),                                      // 79: teleport.lib.teleterm.v1.ConnectToDesktopRequest
+	(*ConnectToDesktopResponse)(nil),                                     // 80: teleport.lib.teleterm.v1.ConnectToDesktopResponse
+	(*SetSharedDirectoryForDesktopSessionRequest)(nil),                   // 81: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+	(*SetSharedDirectoryForDesktopSessionResponse)(nil),                  // 82: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 83: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
+	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 84: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
+	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 85: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
+	(*LoginRequest_LocalParams)(nil),                                     // 86: teleport.lib.teleterm.v1.LoginRequest.LocalParams
+	(*LoginRequest_SsoParams)(nil),                                       // 87: teleport.lib.teleterm.v1.LoginRequest.SsoParams
+	(*AccessRequest)(nil),                                                // 88: teleport.lib.teleterm.v1.AccessRequest
+	(*ResourceID)(nil),                                                   // 89: teleport.lib.teleterm.v1.ResourceID
+	(*timestamppb.Timestamp)(nil),                                        // 90: google.protobuf.Timestamp
+	(*v1.AccessList)(nil),                                                // 91: teleport.accesslist.v1.AccessList
+	(*KubeResource)(nil),                                                 // 92: teleport.lib.teleterm.v1.KubeResource
+	(*KubeServer)(nil),                                                   // 93: teleport.lib.teleterm.v1.KubeServer
+	(*Cluster)(nil),                                                      // 94: teleport.lib.teleterm.v1.Cluster
+	(*DatabaseServer)(nil),                                               // 95: teleport.lib.teleterm.v1.DatabaseServer
+	(*Gateway)(nil),                                                      // 96: teleport.lib.teleterm.v1.Gateway
+	(*Server)(nil),                                                       // 97: teleport.lib.teleterm.v1.Server
+	(*Database)(nil),                                                     // 98: teleport.lib.teleterm.v1.Database
+	(*Kube)(nil),                                                         // 99: teleport.lib.teleterm.v1.Kube
+	(*App)(nil),                                                          // 100: teleport.lib.teleterm.v1.App
+	(*WindowsDesktop)(nil),                                               // 101: teleport.lib.teleterm.v1.WindowsDesktop
+	(*v11.ClusterUserPreferences)(nil),                                   // 102: teleport.userpreferences.v1.ClusterUserPreferences
+	(*v11.UnifiedResourcePreferences)(nil),                               // 103: teleport.userpreferences.v1.UnifiedResourcePreferences
+	(*v12.DeviceWebToken)(nil),                                           // 104: teleport.devicetrust.v1.DeviceWebToken
+	(*v12.DeviceConfirmationToken)(nil),                                  // 105: teleport.devicetrust.v1.DeviceConfirmationToken
+	(*ReportUsageEventRequest)(nil),                                      // 106: teleport.lib.teleterm.v1.ReportUsageEventRequest
+	(*AuthSettings)(nil),                                                 // 107: teleport.lib.teleterm.v1.AuthSettings
 }
 var file_teleport_lib_teleterm_v1_service_proto_depIdxs = []int32{
-	86,  // 0: teleport.lib.teleterm.v1.GetAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	86,  // 1: teleport.lib.teleterm.v1.GetAccessRequestsResponse.requests:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	87,  // 2: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	88,  // 3: teleport.lib.teleterm.v1.CreateAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	88,  // 4: teleport.lib.teleterm.v1.CreateAccessRequestRequest.max_duration:type_name -> google.protobuf.Timestamp
-	88,  // 5: teleport.lib.teleterm.v1.CreateAccessRequestRequest.request_ttl:type_name -> google.protobuf.Timestamp
-	86,  // 6: teleport.lib.teleterm.v1.CreateAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	87,  // 7: teleport.lib.teleterm.v1.GetRequestableRolesRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	88,  // 8: teleport.lib.teleterm.v1.ReviewAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	86,  // 9: teleport.lib.teleterm.v1.ReviewAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	86,  // 10: teleport.lib.teleterm.v1.PromoteAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	89,  // 11: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	90,  // 12: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeResource
-	0,   // 13: teleport.lib.teleterm.v1.LoginPasswordlessResponse.prompt:type_name -> teleport.lib.teleterm.v1.PasswordlessPrompt
-	27,  // 14: teleport.lib.teleterm.v1.LoginPasswordlessResponse.credentials:type_name -> teleport.lib.teleterm.v1.CredentialInfo
-	81,  // 15: teleport.lib.teleterm.v1.LoginPasswordlessRequest.init:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
-	82,  // 16: teleport.lib.teleterm.v1.LoginPasswordlessRequest.pin:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
-	83,  // 17: teleport.lib.teleterm.v1.LoginPasswordlessRequest.credential:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
-	1,   // 18: teleport.lib.teleterm.v1.FileTransferRequest.direction:type_name -> teleport.lib.teleterm.v1.FileTransferDirection
-	84,  // 19: teleport.lib.teleterm.v1.LoginRequest.local:type_name -> teleport.lib.teleterm.v1.LoginRequest.LocalParams
-	85,  // 20: teleport.lib.teleterm.v1.LoginRequest.sso:type_name -> teleport.lib.teleterm.v1.LoginRequest.SsoParams
-	91,  // 21: teleport.lib.teleterm.v1.ListClustersResponse.clusters:type_name -> teleport.lib.teleterm.v1.Cluster
-	39,  // 22: teleport.lib.teleterm.v1.ListDatabaseServersRequest.params:type_name -> teleport.lib.teleterm.v1.ListResourcesParams
-	92,  // 23: teleport.lib.teleterm.v1.ListDatabaseServersResponse.resources:type_name -> teleport.lib.teleterm.v1.DatabaseServer
-	93,  // 24: teleport.lib.teleterm.v1.ListGatewaysResponse.gateways:type_name -> teleport.lib.teleterm.v1.Gateway
-	2,   // 25: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.state:type_name -> teleport.lib.teleterm.v1.HeadlessAuthenticationState
-	94,  // 26: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.server:type_name -> teleport.lib.teleterm.v1.Server
-	64,  // 27: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.sort_by:type_name -> teleport.lib.teleterm.v1.SortBy
-	66,  // 28: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.PaginatedResource
-	95,  // 29: teleport.lib.teleterm.v1.PaginatedResource.database:type_name -> teleport.lib.teleterm.v1.Database
-	94,  // 30: teleport.lib.teleterm.v1.PaginatedResource.server:type_name -> teleport.lib.teleterm.v1.Server
-	96,  // 31: teleport.lib.teleterm.v1.PaginatedResource.kube:type_name -> teleport.lib.teleterm.v1.Kube
-	97,  // 32: teleport.lib.teleterm.v1.PaginatedResource.app:type_name -> teleport.lib.teleterm.v1.App
-	98,  // 33: teleport.lib.teleterm.v1.PaginatedResource.windows_desktop:type_name -> teleport.lib.teleterm.v1.WindowsDesktop
-	71,  // 34: teleport.lib.teleterm.v1.GetUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	71,  // 35: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	71,  // 36: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	99,  // 37: teleport.lib.teleterm.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
-	100, // 38: teleport.lib.teleterm.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
-	101, // 39: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
-	102, // 40: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
-	97,  // 41: teleport.lib.teleterm.v1.GetAppResponse.app:type_name -> teleport.lib.teleterm.v1.App
-	76,  // 42: teleport.lib.teleterm.v1.ConnectToDesktopRequest.target_desktop:type_name -> teleport.lib.teleterm.v1.TargetDesktop
-	49,  // 43: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:input_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
-	34,  // 44: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:input_type -> teleport.lib.teleterm.v1.ListClustersRequest
-	36,  // 45: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:input_type -> teleport.lib.teleterm.v1.ListLeafClustersRequest
-	7,   // 46: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:input_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
-	37,  // 47: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:input_type -> teleport.lib.teleterm.v1.ListDatabaseUsersRequest
-	40,  // 48: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:input_type -> teleport.lib.teleterm.v1.ListDatabaseServersRequest
-	10,  // 49: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:input_type -> teleport.lib.teleterm.v1.GetAccessRequestsRequest
-	9,   // 50: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:input_type -> teleport.lib.teleterm.v1.GetAccessRequestRequest
-	13,  // 51: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:input_type -> teleport.lib.teleterm.v1.DeleteAccessRequestRequest
-	14,  // 52: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:input_type -> teleport.lib.teleterm.v1.CreateAccessRequestRequest
-	19,  // 53: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:input_type -> teleport.lib.teleterm.v1.ReviewAccessRequestRequest
-	17,  // 54: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:input_type -> teleport.lib.teleterm.v1.GetRequestableRolesRequest
-	16,  // 55: teleport.lib.teleterm.v1.TerminalService.AssumeRole:input_type -> teleport.lib.teleterm.v1.AssumeRoleRequest
-	21,  // 56: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:input_type -> teleport.lib.teleterm.v1.PromoteAccessRequestRequest
-	23,  // 57: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:input_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
-	25,  // 58: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:input_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
-	33,  // 59: teleport.lib.teleterm.v1.TerminalService.AddCluster:input_type -> teleport.lib.teleterm.v1.AddClusterRequest
-	4,   // 60: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:input_type -> teleport.lib.teleterm.v1.RemoveClusterRequest
-	43,  // 61: teleport.lib.teleterm.v1.TerminalService.ListGateways:input_type -> teleport.lib.teleterm.v1.ListGatewaysRequest
-	42,  // 62: teleport.lib.teleterm.v1.TerminalService.CreateGateway:input_type -> teleport.lib.teleterm.v1.CreateGatewayRequest
-	45,  // 63: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:input_type -> teleport.lib.teleterm.v1.RemoveGatewayRequest
-	46,  // 64: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:input_type -> teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
-	47,  // 65: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:input_type -> teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
-	48,  // 66: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:input_type -> teleport.lib.teleterm.v1.GetAuthSettingsRequest
-	5,   // 67: teleport.lib.teleterm.v1.TerminalService.GetCluster:input_type -> teleport.lib.teleterm.v1.GetClusterRequest
-	32,  // 68: teleport.lib.teleterm.v1.TerminalService.Login:input_type -> teleport.lib.teleterm.v1.LoginRequest
-	29,  // 69: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:input_type -> teleport.lib.teleterm.v1.LoginPasswordlessRequest
-	6,   // 70: teleport.lib.teleterm.v1.TerminalService.Logout:input_type -> teleport.lib.teleterm.v1.LogoutRequest
-	30,  // 71: teleport.lib.teleterm.v1.TerminalService.TransferFile:input_type -> teleport.lib.teleterm.v1.FileTransferRequest
-	103, // 72: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:input_type -> teleport.lib.teleterm.v1.ReportUsageEventRequest
-	51,  // 73: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:input_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
-	53,  // 74: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
-	55,  // 75: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
-	57,  // 76: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:input_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
-	59,  // 77: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:input_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
-	61,  // 78: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:input_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
-	63,  // 79: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:input_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
-	67,  // 80: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:input_type -> teleport.lib.teleterm.v1.GetUserPreferencesRequest
-	69,  // 81: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:input_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
-	72,  // 82: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
-	74,  // 83: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
-	77,  // 84: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
-	79,  // 85: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
-	50,  // 86: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
-	35,  // 87: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
-	35,  // 88: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
-	8,   // 89: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:output_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
-	38,  // 90: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:output_type -> teleport.lib.teleterm.v1.ListDatabaseUsersResponse
-	41,  // 91: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:output_type -> teleport.lib.teleterm.v1.ListDatabaseServersResponse
-	12,  // 92: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:output_type -> teleport.lib.teleterm.v1.GetAccessRequestsResponse
-	11,  // 93: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:output_type -> teleport.lib.teleterm.v1.GetAccessRequestResponse
-	3,   // 94: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	15,  // 95: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:output_type -> teleport.lib.teleterm.v1.CreateAccessRequestResponse
-	20,  // 96: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:output_type -> teleport.lib.teleterm.v1.ReviewAccessRequestResponse
-	18,  // 97: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:output_type -> teleport.lib.teleterm.v1.GetRequestableRolesResponse
-	3,   // 98: teleport.lib.teleterm.v1.TerminalService.AssumeRole:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	22,  // 99: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:output_type -> teleport.lib.teleterm.v1.PromoteAccessRequestResponse
-	24,  // 100: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:output_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
-	26,  // 101: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:output_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
-	91,  // 102: teleport.lib.teleterm.v1.TerminalService.AddCluster:output_type -> teleport.lib.teleterm.v1.Cluster
-	3,   // 103: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	44,  // 104: teleport.lib.teleterm.v1.TerminalService.ListGateways:output_type -> teleport.lib.teleterm.v1.ListGatewaysResponse
-	93,  // 105: teleport.lib.teleterm.v1.TerminalService.CreateGateway:output_type -> teleport.lib.teleterm.v1.Gateway
-	3,   // 106: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	93,  // 107: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:output_type -> teleport.lib.teleterm.v1.Gateway
-	93,  // 108: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:output_type -> teleport.lib.teleterm.v1.Gateway
-	104, // 109: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:output_type -> teleport.lib.teleterm.v1.AuthSettings
-	91,  // 110: teleport.lib.teleterm.v1.TerminalService.GetCluster:output_type -> teleport.lib.teleterm.v1.Cluster
-	3,   // 111: teleport.lib.teleterm.v1.TerminalService.Login:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	28,  // 112: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:output_type -> teleport.lib.teleterm.v1.LoginPasswordlessResponse
-	3,   // 113: teleport.lib.teleterm.v1.TerminalService.Logout:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	31,  // 114: teleport.lib.teleterm.v1.TerminalService.TransferFile:output_type -> teleport.lib.teleterm.v1.FileTransferProgress
-	3,   // 115: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	52,  // 116: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:output_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
-	54,  // 117: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
-	56,  // 118: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
-	58,  // 119: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:output_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
-	60,  // 120: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:output_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
-	62,  // 121: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:output_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
-	65,  // 122: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:output_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
-	68,  // 123: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:output_type -> teleport.lib.teleterm.v1.GetUserPreferencesResponse
-	70,  // 124: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:output_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
-	73,  // 125: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
-	75,  // 126: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
-	78,  // 127: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	80,  // 128: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
-	86,  // [86:129] is the sub-list for method output_type
-	43,  // [43:86] is the sub-list for method input_type
-	43,  // [43:43] is the sub-list for extension type_name
-	43,  // [43:43] is the sub-list for extension extendee
-	0,   // [0:43] is the sub-list for field type_name
+	88,  // 0: teleport.lib.teleterm.v1.GetAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	88,  // 1: teleport.lib.teleterm.v1.GetAccessRequestsResponse.requests:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	89,  // 2: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	90,  // 3: teleport.lib.teleterm.v1.CreateAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	90,  // 4: teleport.lib.teleterm.v1.CreateAccessRequestRequest.max_duration:type_name -> google.protobuf.Timestamp
+	90,  // 5: teleport.lib.teleterm.v1.CreateAccessRequestRequest.request_ttl:type_name -> google.protobuf.Timestamp
+	88,  // 6: teleport.lib.teleterm.v1.CreateAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	89,  // 7: teleport.lib.teleterm.v1.GetRequestableRolesRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	90,  // 8: teleport.lib.teleterm.v1.ReviewAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	88,  // 9: teleport.lib.teleterm.v1.ReviewAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	88,  // 10: teleport.lib.teleterm.v1.PromoteAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	91,  // 11: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	92,  // 12: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeResource
+	41,  // 13: teleport.lib.teleterm.v1.ListKubernetesServersRequest.params:type_name -> teleport.lib.teleterm.v1.ListResourcesParams
+	93,  // 14: teleport.lib.teleterm.v1.ListKubernetesServersResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeServer
+	0,   // 15: teleport.lib.teleterm.v1.LoginPasswordlessResponse.prompt:type_name -> teleport.lib.teleterm.v1.PasswordlessPrompt
+	29,  // 16: teleport.lib.teleterm.v1.LoginPasswordlessResponse.credentials:type_name -> teleport.lib.teleterm.v1.CredentialInfo
+	83,  // 17: teleport.lib.teleterm.v1.LoginPasswordlessRequest.init:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
+	84,  // 18: teleport.lib.teleterm.v1.LoginPasswordlessRequest.pin:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
+	85,  // 19: teleport.lib.teleterm.v1.LoginPasswordlessRequest.credential:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
+	1,   // 20: teleport.lib.teleterm.v1.FileTransferRequest.direction:type_name -> teleport.lib.teleterm.v1.FileTransferDirection
+	86,  // 21: teleport.lib.teleterm.v1.LoginRequest.local:type_name -> teleport.lib.teleterm.v1.LoginRequest.LocalParams
+	87,  // 22: teleport.lib.teleterm.v1.LoginRequest.sso:type_name -> teleport.lib.teleterm.v1.LoginRequest.SsoParams
+	94,  // 23: teleport.lib.teleterm.v1.ListClustersResponse.clusters:type_name -> teleport.lib.teleterm.v1.Cluster
+	41,  // 24: teleport.lib.teleterm.v1.ListDatabaseServersRequest.params:type_name -> teleport.lib.teleterm.v1.ListResourcesParams
+	95,  // 25: teleport.lib.teleterm.v1.ListDatabaseServersResponse.resources:type_name -> teleport.lib.teleterm.v1.DatabaseServer
+	96,  // 26: teleport.lib.teleterm.v1.ListGatewaysResponse.gateways:type_name -> teleport.lib.teleterm.v1.Gateway
+	2,   // 27: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.state:type_name -> teleport.lib.teleterm.v1.HeadlessAuthenticationState
+	97,  // 28: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.server:type_name -> teleport.lib.teleterm.v1.Server
+	66,  // 29: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.sort_by:type_name -> teleport.lib.teleterm.v1.SortBy
+	68,  // 30: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.PaginatedResource
+	98,  // 31: teleport.lib.teleterm.v1.PaginatedResource.database:type_name -> teleport.lib.teleterm.v1.Database
+	97,  // 32: teleport.lib.teleterm.v1.PaginatedResource.server:type_name -> teleport.lib.teleterm.v1.Server
+	99,  // 33: teleport.lib.teleterm.v1.PaginatedResource.kube:type_name -> teleport.lib.teleterm.v1.Kube
+	100, // 34: teleport.lib.teleterm.v1.PaginatedResource.app:type_name -> teleport.lib.teleterm.v1.App
+	101, // 35: teleport.lib.teleterm.v1.PaginatedResource.windows_desktop:type_name -> teleport.lib.teleterm.v1.WindowsDesktop
+	73,  // 36: teleport.lib.teleterm.v1.GetUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
+	73,  // 37: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
+	73,  // 38: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
+	102, // 39: teleport.lib.teleterm.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
+	103, // 40: teleport.lib.teleterm.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
+	104, // 41: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
+	105, // 42: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
+	100, // 43: teleport.lib.teleterm.v1.GetAppResponse.app:type_name -> teleport.lib.teleterm.v1.App
+	78,  // 44: teleport.lib.teleterm.v1.ConnectToDesktopRequest.target_desktop:type_name -> teleport.lib.teleterm.v1.TargetDesktop
+	51,  // 45: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:input_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
+	36,  // 46: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:input_type -> teleport.lib.teleterm.v1.ListClustersRequest
+	38,  // 47: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:input_type -> teleport.lib.teleterm.v1.ListLeafClustersRequest
+	7,   // 48: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:input_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+	39,  // 49: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:input_type -> teleport.lib.teleterm.v1.ListDatabaseUsersRequest
+	42,  // 50: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:input_type -> teleport.lib.teleterm.v1.ListDatabaseServersRequest
+	10,  // 51: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:input_type -> teleport.lib.teleterm.v1.GetAccessRequestsRequest
+	9,   // 52: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:input_type -> teleport.lib.teleterm.v1.GetAccessRequestRequest
+	13,  // 53: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:input_type -> teleport.lib.teleterm.v1.DeleteAccessRequestRequest
+	14,  // 54: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:input_type -> teleport.lib.teleterm.v1.CreateAccessRequestRequest
+	19,  // 55: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:input_type -> teleport.lib.teleterm.v1.ReviewAccessRequestRequest
+	17,  // 56: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:input_type -> teleport.lib.teleterm.v1.GetRequestableRolesRequest
+	16,  // 57: teleport.lib.teleterm.v1.TerminalService.AssumeRole:input_type -> teleport.lib.teleterm.v1.AssumeRoleRequest
+	21,  // 58: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:input_type -> teleport.lib.teleterm.v1.PromoteAccessRequestRequest
+	23,  // 59: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:input_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
+	25,  // 60: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:input_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+	27,  // 61: teleport.lib.teleterm.v1.TerminalService.ListKubernetesServers:input_type -> teleport.lib.teleterm.v1.ListKubernetesServersRequest
+	35,  // 62: teleport.lib.teleterm.v1.TerminalService.AddCluster:input_type -> teleport.lib.teleterm.v1.AddClusterRequest
+	4,   // 63: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:input_type -> teleport.lib.teleterm.v1.RemoveClusterRequest
+	45,  // 64: teleport.lib.teleterm.v1.TerminalService.ListGateways:input_type -> teleport.lib.teleterm.v1.ListGatewaysRequest
+	44,  // 65: teleport.lib.teleterm.v1.TerminalService.CreateGateway:input_type -> teleport.lib.teleterm.v1.CreateGatewayRequest
+	47,  // 66: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:input_type -> teleport.lib.teleterm.v1.RemoveGatewayRequest
+	48,  // 67: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:input_type -> teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
+	49,  // 68: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:input_type -> teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
+	50,  // 69: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:input_type -> teleport.lib.teleterm.v1.GetAuthSettingsRequest
+	5,   // 70: teleport.lib.teleterm.v1.TerminalService.GetCluster:input_type -> teleport.lib.teleterm.v1.GetClusterRequest
+	34,  // 71: teleport.lib.teleterm.v1.TerminalService.Login:input_type -> teleport.lib.teleterm.v1.LoginRequest
+	31,  // 72: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:input_type -> teleport.lib.teleterm.v1.LoginPasswordlessRequest
+	6,   // 73: teleport.lib.teleterm.v1.TerminalService.Logout:input_type -> teleport.lib.teleterm.v1.LogoutRequest
+	32,  // 74: teleport.lib.teleterm.v1.TerminalService.TransferFile:input_type -> teleport.lib.teleterm.v1.FileTransferRequest
+	106, // 75: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:input_type -> teleport.lib.teleterm.v1.ReportUsageEventRequest
+	53,  // 76: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:input_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
+	55,  // 77: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
+	57,  // 78: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
+	59,  // 79: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:input_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
+	61,  // 80: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:input_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
+	63,  // 81: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:input_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
+	65,  // 82: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:input_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
+	69,  // 83: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:input_type -> teleport.lib.teleterm.v1.GetUserPreferencesRequest
+	71,  // 84: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:input_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
+	74,  // 85: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+	76,  // 86: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
+	79,  // 87: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
+	81,  // 88: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+	52,  // 89: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
+	37,  // 90: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
+	37,  // 91: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
+	8,   // 92: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:output_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+	40,  // 93: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:output_type -> teleport.lib.teleterm.v1.ListDatabaseUsersResponse
+	43,  // 94: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:output_type -> teleport.lib.teleterm.v1.ListDatabaseServersResponse
+	12,  // 95: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:output_type -> teleport.lib.teleterm.v1.GetAccessRequestsResponse
+	11,  // 96: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:output_type -> teleport.lib.teleterm.v1.GetAccessRequestResponse
+	3,   // 97: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	15,  // 98: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:output_type -> teleport.lib.teleterm.v1.CreateAccessRequestResponse
+	20,  // 99: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:output_type -> teleport.lib.teleterm.v1.ReviewAccessRequestResponse
+	18,  // 100: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:output_type -> teleport.lib.teleterm.v1.GetRequestableRolesResponse
+	3,   // 101: teleport.lib.teleterm.v1.TerminalService.AssumeRole:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	22,  // 102: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:output_type -> teleport.lib.teleterm.v1.PromoteAccessRequestResponse
+	24,  // 103: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:output_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
+	26,  // 104: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:output_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+	28,  // 105: teleport.lib.teleterm.v1.TerminalService.ListKubernetesServers:output_type -> teleport.lib.teleterm.v1.ListKubernetesServersResponse
+	94,  // 106: teleport.lib.teleterm.v1.TerminalService.AddCluster:output_type -> teleport.lib.teleterm.v1.Cluster
+	3,   // 107: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	46,  // 108: teleport.lib.teleterm.v1.TerminalService.ListGateways:output_type -> teleport.lib.teleterm.v1.ListGatewaysResponse
+	96,  // 109: teleport.lib.teleterm.v1.TerminalService.CreateGateway:output_type -> teleport.lib.teleterm.v1.Gateway
+	3,   // 110: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	96,  // 111: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:output_type -> teleport.lib.teleterm.v1.Gateway
+	96,  // 112: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:output_type -> teleport.lib.teleterm.v1.Gateway
+	107, // 113: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:output_type -> teleport.lib.teleterm.v1.AuthSettings
+	94,  // 114: teleport.lib.teleterm.v1.TerminalService.GetCluster:output_type -> teleport.lib.teleterm.v1.Cluster
+	3,   // 115: teleport.lib.teleterm.v1.TerminalService.Login:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	30,  // 116: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:output_type -> teleport.lib.teleterm.v1.LoginPasswordlessResponse
+	3,   // 117: teleport.lib.teleterm.v1.TerminalService.Logout:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	33,  // 118: teleport.lib.teleterm.v1.TerminalService.TransferFile:output_type -> teleport.lib.teleterm.v1.FileTransferProgress
+	3,   // 119: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	54,  // 120: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:output_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
+	56,  // 121: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
+	58,  // 122: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
+	60,  // 123: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:output_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
+	62,  // 124: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:output_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
+	64,  // 125: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:output_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
+	67,  // 126: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:output_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
+	70,  // 127: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:output_type -> teleport.lib.teleterm.v1.GetUserPreferencesResponse
+	72,  // 128: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:output_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
+	75,  // 129: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+	77,  // 130: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
+	80,  // 131: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
+	82,  // 132: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+	89,  // [89:133] is the sub-list for method output_type
+	45,  // [45:89] is the sub-list for method input_type
+	45,  // [45:45] is the sub-list for extension type_name
+	45,  // [45:45] is the sub-list for extension extendee
+	0,   // [0:45] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_service_proto_init() }
@@ -5248,16 +5394,16 @@ func file_teleport_lib_teleterm_v1_service_proto_init() {
 	file_teleport_lib_teleterm_v1_server_proto_init()
 	file_teleport_lib_teleterm_v1_usage_events_proto_init()
 	file_teleport_lib_teleterm_v1_windows_desktop_proto_init()
-	file_teleport_lib_teleterm_v1_service_proto_msgTypes[26].OneofWrappers = []any{
+	file_teleport_lib_teleterm_v1_service_proto_msgTypes[28].OneofWrappers = []any{
 		(*LoginPasswordlessRequest_Init)(nil),
 		(*LoginPasswordlessRequest_Pin)(nil),
 		(*LoginPasswordlessRequest_Credential)(nil),
 	}
-	file_teleport_lib_teleterm_v1_service_proto_msgTypes[29].OneofWrappers = []any{
+	file_teleport_lib_teleterm_v1_service_proto_msgTypes[31].OneofWrappers = []any{
 		(*LoginRequest_Local)(nil),
 		(*LoginRequest_Sso)(nil),
 	}
-	file_teleport_lib_teleterm_v1_service_proto_msgTypes[63].OneofWrappers = []any{
+	file_teleport_lib_teleterm_v1_service_proto_msgTypes[65].OneofWrappers = []any{
 		(*PaginatedResource_Database)(nil),
 		(*PaginatedResource_Server)(nil),
 		(*PaginatedResource_Kube)(nil),
@@ -5270,7 +5416,7 @@ func file_teleport_lib_teleterm_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   83,
+			NumMessages:   85,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

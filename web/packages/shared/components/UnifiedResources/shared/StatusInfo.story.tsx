@@ -25,6 +25,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   DatabaseServer,
+  KubeServer,
   SharedResourceServer,
   UnifiedResourceDefinition,
 } from '../types';
@@ -35,14 +36,13 @@ import {
 
 type StoryProps = {
   attemptState: 'success' | 'processing' | 'failed' | '';
-  resourceKind: 'db';
+  resourceKind: 'db' | 'kube_cluster';
   healthStatus: 'unhealthy' | 'unknown' | 'mixed';
   serverLength: 'few' | 'none' | 'many' | 'single';
 };
 
 const meta: Meta<StoryProps> = {
   title: 'Shared/UnifiedResources/UnhealthyStatusInfo',
-  component: UnhealthyStatusInfo,
   argTypes: {
     attemptState: {
       control: { type: 'select' },
@@ -50,7 +50,7 @@ const meta: Meta<StoryProps> = {
     },
     resourceKind: {
       control: { type: 'select' },
-      options: ['db'],
+      options: ['db', 'kube_cluster'],
     },
     healthStatus: {
       control: { type: 'select' },
@@ -80,31 +80,57 @@ export function UnhealthyStatusInfo(props: StoryProps) {
 
   let resource: UnifiedResourceDefinition;
   let servers: SharedResourceServer[] = [];
-  if (props.resourceKind === 'db') {
-    resource = {
-      kind: 'db',
-      type: 'postgres',
-      description: 'some database description',
-      name: 'testing-database-resource-long-title-name',
-      protocol: 'postgres',
-      labels: [],
-      targetHealth: {
-        status: 'unhealthy',
-      },
-    };
 
-    if (props.healthStatus === 'unhealthy') {
-      servers = getDbServers(props, unhealthyDbServers);
-    }
-    if (props.healthStatus === 'unknown') {
-      servers = getDbServers(props, unknownDbServers);
-    }
-    if (props.healthStatus === 'mixed') {
-      servers = getDbServers(props, [
-        ...unknownDbServers,
-        ...unhealthyDbServers,
-      ]);
-    }
+  switch (props.resourceKind) {
+    case 'db':
+      resource = {
+        kind: 'db',
+        type: 'postgres',
+        description: 'some database description',
+        name: 'testing-database-resource-long-title-name',
+        protocol: 'postgres',
+        labels: [],
+        targetHealth: {
+          status: 'unhealthy',
+        },
+      };
+
+      if (props.healthStatus === 'unhealthy') {
+        servers = getDbServers(props, unhealthyDbServers);
+      }
+      if (props.healthStatus === 'unknown') {
+        servers = getDbServers(props, unknownDbServers);
+      }
+      if (props.healthStatus === 'mixed') {
+        servers = getDbServers(props, [
+          ...unknownDbServers,
+          ...unhealthyDbServers,
+        ]);
+      }
+      break;
+    case 'kube_cluster':
+      resource = {
+        kind: 'kube_cluster',
+        name: 'testing-kube-resource-long-title-name',
+        labels: [],
+        targetHealth: {
+          status: 'unhealthy',
+        },
+      };
+
+      if (props.healthStatus === 'unhealthy') {
+        servers = getKubeServers(props, unhealthyKubeServers);
+      }
+      if (props.healthStatus === 'unknown') {
+        servers = getKubeServers(props, unknownKubeServers);
+      }
+      if (props.healthStatus === 'mixed') {
+        servers = getKubeServers(props, [
+          ...unknownKubeServers,
+          ...unhealthyKubeServers,
+        ]);
+      }
+      break;
   }
 
   return (
@@ -183,6 +209,65 @@ const unknownDbServers: DatabaseServer[] = [
 function getDbServers(
   props: Pick<StoryProps, 'serverLength'>,
   servers: DatabaseServer[]
+) {
+  if (props.serverLength === 'many') {
+    return [...servers, ...servers, ...servers, ...servers];
+  }
+  if (props.serverLength === 'few') {
+    return servers;
+  }
+  if (props.serverLength === 'single') {
+    return [servers[0]];
+  }
+}
+
+const unhealthyKubeServers: KubeServer[] = [
+  {
+    kind: 'kube_server',
+    hostId: 'host-id-1',
+    hostname: 'hostname-1',
+    targetHealth: {
+      status: 'unhealthy',
+      error: 'unhealthy error reason 1',
+      message: 'some unhealthy message 1',
+    },
+  },
+  {
+    kind: 'kube_server',
+    hostId:
+      'host-id-long-abraham-lincoln-sunflower-meadow-grape-strawberry-mango-vanilla-woof',
+    hostname:
+      'hostname-long-super-long-extremely-long-longest-blueberry-cake-thanksgiving',
+    targetHealth: { status: 'unhealthy', error: loremTxt },
+  },
+];
+
+const unknownKubeServers: KubeServer[] = [
+  {
+    kind: 'kube_server',
+    hostId: 'host-id-1',
+    hostname: 'hostname-1',
+    targetHealth: {
+      status: 'unknown',
+      error: 'unknown error reason 1',
+      message: 'some unknown message 1',
+    },
+  },
+  {
+    kind: 'kube_server',
+    hostId: 'host-id-2',
+    hostname: 'hostname-2',
+    targetHealth: {
+      status: 'unknown',
+      error: 'unknown error reason 2',
+      message: 'some unknown message 2',
+    },
+  },
+];
+
+function getKubeServers(
+  props: Pick<StoryProps, 'serverLength'>,
+  servers: KubeServer[]
 ) {
   if (props.serverLength === 'many') {
     return [...servers, ...servers, ...servers, ...servers];

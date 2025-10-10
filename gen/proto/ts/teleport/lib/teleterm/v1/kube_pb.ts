@@ -109,6 +109,31 @@ export interface KubeResource {
      */
     namespace: string;
 }
+/**
+ * KubeServer (kube_server) describes a Kube heartbeat signal
+ * reported from an agent (kubernetes_service) that is proxying
+ * the Kubernetes cluster.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.KubeServer
+ */
+export interface KubeServer {
+    /**
+     * @generated from protobuf field: string uri = 1;
+     */
+    uri: string;
+    /**
+     * @generated from protobuf field: string hostname = 2;
+     */
+    hostname: string;
+    /**
+     * @generated from protobuf field: string host_id = 3;
+     */
+    hostId: string;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.TargetHealth target_health = 4;
+     */
+    targetHealth?: TargetHealth;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class Kube$Type extends MessageType<Kube> {
     constructor() {
@@ -266,3 +291,73 @@ class KubeResource$Type extends MessageType<KubeResource> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.KubeResource
  */
 export const KubeResource = new KubeResource$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class KubeServer$Type extends MessageType<KubeServer> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.KubeServer", [
+            { no: 1, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "host_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "target_health", kind: "message", T: () => TargetHealth }
+        ]);
+    }
+    create(value?: PartialMessage<KubeServer>): KubeServer {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.uri = "";
+        message.hostname = "";
+        message.hostId = "";
+        if (value !== undefined)
+            reflectionMergePartial<KubeServer>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: KubeServer): KubeServer {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string uri */ 1:
+                    message.uri = reader.string();
+                    break;
+                case /* string hostname */ 2:
+                    message.hostname = reader.string();
+                    break;
+                case /* string host_id */ 3:
+                    message.hostId = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.v1.TargetHealth target_health */ 4:
+                    message.targetHealth = TargetHealth.internalBinaryRead(reader, reader.uint32(), options, message.targetHealth);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: KubeServer, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string uri = 1; */
+        if (message.uri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.uri);
+        /* string hostname = 2; */
+        if (message.hostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.hostname);
+        /* string host_id = 3; */
+        if (message.hostId !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.hostId);
+        /* teleport.lib.teleterm.v1.TargetHealth target_health = 4; */
+        if (message.targetHealth)
+            TargetHealth.internalBinaryWrite(message.targetHealth, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.KubeServer
+ */
+export const KubeServer = new KubeServer$Type();
