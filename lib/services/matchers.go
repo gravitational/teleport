@@ -299,7 +299,10 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 		if kubeCluster == nil {
 			return false, nil
 		}
-		match, err := matchResourceByFilters(kubeCluster, filter)
+		match, err := matchResourceByFilters(&resourceWithTargetHealth{
+			ResourceWithLabels: kubeCluster,
+			health:             server.GetTargetHealthStatus(),
+		}, filter)
 		return match, trace.Wrap(err)
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)

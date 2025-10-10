@@ -55,3 +55,13 @@ message KubeResource {
   // refer to field "name" for the name of namespace
   string namespace = 6;
 }
+
+// KubeServer (kube_server) describes a Kube heartbeat signal
+// reported from an agent (kubernetes_service) that is proxying
+// the Kubernetes cluster.
+message KubeServer {
+  string uri = 1;
+  string hostname = 2;
+  string host_id = 3;
+  TargetHealth target_health = 4;
+}
