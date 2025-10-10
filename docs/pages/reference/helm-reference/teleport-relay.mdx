@@ -17,6 +17,14 @@ GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_
 
 This reference details available values for the `teleport-relay` chart.
 
+<Admonition type="warning">
+
+The Teleport Relay service provides alternate network paths for accessing resources through Teleport in specific scenarios where clients and agents are in the same network segment and there is a need for connectivity that does not go through the Teleport control plane. It is not a required or recommended cluster component in most Teleport deployments.
+
+If you want to provide access to resources like Databases, Applications or Kubernetes clusters, you should use the [`teleport-kube-agent` Helm chart](teleport-kube-agent.mdx) instead.
+
+</Admonition>
+
 (!docs/pages/includes/backup-warning.mdx!)
 
 ## What the chart deploys
