@@ -20,6 +20,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"golang.org/x/sync/errgroup"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Service is a long-running sub-component of tbot.
@@ -114,8 +116,14 @@ func NewServiceBuilder(
 	serviceType, name string,
 	buildFn func(ServiceDependencies) (Service, error),
 ) ServiceBuilder {
+	if name == "" {
+		suffix, _ := utils.CryptoRandomHex(4)
+		name = fmt.Sprintf("%s-%s", serviceType, suffix)
+	}
 	return &serviceBuilder{
-		buildFn: buildFn,
+		serviceType: serviceType,
+		name:        name,
+		buildFn:     buildFn,
 	}
 }
 

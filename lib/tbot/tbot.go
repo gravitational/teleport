@@ -172,18 +172,20 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// This faux service allows us to get the bot's internal identity and client
 	// for tests, without exposing them on the core bot.Bot struct.
-	services = append(services,
-		bot.NewServiceBuilder("internal/client-fetcher", "client-fetcher",
-			func(deps bot.ServiceDependencies) (bot.Service, error) {
-				b.mu.Lock()
-				defer b.mu.Unlock()
+	if b.cfg.Testing {
+		services = append(services,
+			bot.NewServiceBuilder("internal/client-fetcher", "client-fetcher",
+				func(deps bot.ServiceDependencies) (bot.Service, error) {
+					b.mu.Lock()
+					defer b.mu.Unlock()
 
-				b.identity = deps.BotIdentity
-				b.client = deps.Client
+					b.identity = deps.BotIdentity
+					b.client = deps.Client
 
-				return bot.NewNopService("client-fetcher"), nil
-			}),
-	)
+					return bot.NewNopService("client-fetcher"), nil
+				}),
+		)
+	}
 
 	// We only want to create this service if it's needed by a dependent
 	// service.

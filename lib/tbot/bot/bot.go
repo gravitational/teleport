@@ -72,26 +72,32 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	services, closer, err := b.buildServices(ctx)
+	registry := readyz.NewRegistry()
+
+	services, closer, err := b.buildServices(ctx, registry)
 	defer closer()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	for _, handle := range services {
+		handle.statusReporter.reporter = registry.AddService(handle.name)
+	}
+
 	b.cfg.Logger.InfoContext(ctx, "Initialization complete. Starting services")
 
 	group, groupCtx := errgroup.WithContext(ctx)
-	for _, svc := range services {
-		svc := svc
-		log := b.cfg.Logger.With("service", svc.String())
+	for _, handle := range services {
+		handle := handle
+		log := b.cfg.Logger.With("service", handle.name)
 
 		group.Go(func() error {
 			log.InfoContext(groupCtx, "Starting service")
 
-			err := svc.Run(groupCtx)
+			err := handle.service.Run(groupCtx)
 			if err != nil {
 				log.ErrorContext(ctx, "Service exited with error", "error", err)
-				return trace.Wrap(err, "service(%s)", svc.String())
+				return trace.Wrap(err, "service(%s)", handle.name)
 			}
 
 			log.InfoContext(groupCtx, "Service exited")
@@ -113,32 +119,48 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	services, closer, err := b.buildServices(ctx)
+	registry := readyz.NewRegistry()
+
+	services, closer, err := b.buildServices(ctx, registry)
 	defer closer()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	group, groupCtx := errgroup.WithContext(ctx)
-	for _, service := range services {
-		log := b.cfg.Logger.With("service", service.String())
-
-		svc, ok := service.(OneShotService)
-		if !ok {
-			log.InfoContext(ctx, "Service does not support oneshot mode, will not run")
+	// Filter out the services that don't support oneshot mode.
+	oneShotServices := make([]*serviceHandle, 0, len(services))
+	for _, handle := range services {
+		handle := handle
+		if _, ok := handle.service.(OneShotService); !ok {
+			b.cfg.Logger.InfoContext(ctx,
+				"Service does not support oneshot mode, will not run",
+				"service", handle.name,
+			)
 			continue
 		}
+
+		// Add oneshot services to the registry.
+		handle.statusReporter.reporter = registry.AddService(handle.name)
+		oneShotServices = append(oneShotServices, handle)
+	}
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	for _, handle := range oneShotServices {
+		handle := handle
+		log := b.cfg.Logger.With("service", handle.name)
 
 		group.Go(func() error {
 			log.DebugContext(groupCtx, "Running service in oneshot mode")
 
-			err := svc.OneShot(groupCtx)
+			err := handle.service.(OneShotService).OneShot(groupCtx)
 			if err != nil {
 				log.ErrorContext(ctx, "Service exited with error", "error", err)
-				return trace.Wrap(err, "service(%s)", svc.String())
+				handle.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
+				return trace.Wrap(err, "service(%s)", handle.name)
 			}
 
 			log.InfoContext(groupCtx, "Service finished")
+			handle.statusReporter.Report(readyz.Healthy)
 			return nil
 		})
 	}
@@ -152,19 +174,19 @@ func (b *Bot) checkStarted() error {
 	return trace.BadParameter("bot has already been started")
 }
 
-func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
+func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*serviceHandle, func(), error) {
 	startedAt := time.Now().UTC()
-	services := make([]Service, 0, len(b.cfg.Services))
 
-	var closers []func()
+	handles := make([]*serviceHandle, 0, len(b.cfg.Services))
 	closeFn := func() {
-		for _, fn := range closers {
-			fn()
+		for _, h := range handles {
+			if h.closeFn != nil {
+				h.closeFn()
+			}
 		}
 	}
 
 	// Build internal services and dependencies.
-	statusRegistry := readyz.NewRegistry()
 	reloadBroadcaster := b.buildReloadBroadcaster(ctx)
 
 	resolver, err := b.buildResolver(ctx)
@@ -177,37 +199,33 @@ func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
 		return nil, closeFn, trace.Wrap(err, "building client builder")
 	}
 
-	identityService, closeIdentityService, err := b.buildIdentityService(
+	identityService, identityServiceHandle, err := b.buildIdentityService(
 		ctx,
 		reloadBroadcaster,
 		clientBuilder,
-		statusRegistry,
 	)
 	if err != nil {
 		return nil, closeFn, trace.Wrap(err, "building identity service")
 	}
-	services = append(services, identityService)
-	closers = append(closers, closeIdentityService)
+	handles = append(handles, identityServiceHandle)
 
 	heartbeatService, err := b.buildHeartbeatService(
 		identityService,
 		startedAt,
-		statusRegistry,
 	)
 	if err != nil {
 		return nil, closeFn, trace.Wrap(err, "building heartbeat service")
 	}
-	services = append(services, heartbeatService)
+	handles = append(handles, heartbeatService)
 
 	caRotationService, err := b.buildCARotationService(
 		reloadBroadcaster,
 		identityService,
-		statusRegistry,
 	)
 	if err != nil {
 		return nil, closeFn, trace.Wrap(err, "building CA rotation service")
 	}
-	services = append(services, caRotationService)
+	handles = append(handles, caRotationService)
 
 	proxyPinger, err := b.buildProxyPinger(identityService)
 	if err != nil {
@@ -222,15 +240,15 @@ func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
 	// Build user services.
 	for idx, builder := range b.cfg.Services {
 		reloadCh, unsubscribe := reloadBroadcaster.Subscribe()
-		closers = append(closers, unsubscribe)
 
-		_, name := builder.GetTypeAndName()
+		handle := &serviceHandle{
+			closeFn:        unsubscribe,
+			statusReporter: &statusReporter{},
+		}
+		handle.serviceType, handle.name = builder.GetTypeAndName()
 
-		// TODO: Defer the actual registration until we filter out services
-		// that don't run in oneshot mode.
-		reporter := statusRegistry.AddService(name)
-
-		service, err := builder.Build(ServiceDependencies{
+		var err error
+		handle.service, err = builder.Build(ServiceDependencies{
 			Client:             identityService.GetClient(),
 			Resolver:           resolver,
 			ClientBuilder:      clientBuilder,
@@ -239,19 +257,20 @@ func (b *Bot) buildServices(ctx context.Context) ([]Service, func(), error) {
 			BotIdentity:        identityService.GetIdentity,
 			BotIdentityReadyCh: identityService.Ready(),
 			ReloadCh:           reloadCh,
-			StatusRegistry:     statusRegistry,
-			StatusReporter:     reporter,
+			StatusRegistry:     registry,
+			StatusReporter:     handle.statusReporter,
 			Logger: b.cfg.Logger.With(
 				teleport.ComponentKey,
-				teleport.Component(teleport.ComponentTBot, "svc", name),
+				teleport.Component(teleport.ComponentTBot, "svc", handle.name),
 			),
 		})
 		if err != nil {
 			return nil, closeFn, trace.Wrap(err, "building service [%d]", idx)
 		}
-		services = append(services, service)
+
+		handles = append(handles, handle)
 	}
-	return services, closeFn, nil
+	return handles, closeFn, nil
 }
 
 func (b *Bot) buildReloadBroadcaster(ctx context.Context) *internal.ChannelBroadcaster {
@@ -312,10 +331,14 @@ func (b *Bot) buildIdentityService(
 	ctx context.Context,
 	reloadBroadcaster *internal.ChannelBroadcaster,
 	clientBuilder *client.Builder,
-	statusRegistry *readyz.Registry,
-) (*identity.Service, func(), error) {
-	reloadCh, unsubscribe := reloadBroadcaster.Subscribe()
+) (*identity.Service, *serviceHandle, error) {
+	handle := &serviceHandle{
+		serviceType:    "internal/identity",
+		name:           "identity",
+		statusReporter: &statusReporter{},
+	}
 
+	reloadCh, unsubscribe := reloadBroadcaster.Subscribe()
 	identityService, err := identity.NewService(identity.Config{
 		Connection:      b.cfg.Connection,
 		Onboarding:      b.cfg.Onboarding,
@@ -325,18 +348,19 @@ func (b *Bot) buildIdentityService(
 		FIPS:            b.cfg.FIPS,
 		Logger: b.cfg.Logger.With(
 			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "identity"),
+			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
 		ClientBuilder:  clientBuilder,
 		ReloadCh:       reloadCh,
-		StatusReporter: statusRegistry.AddService("identity"),
+		StatusReporter: handle.statusReporter,
 	})
 	if err != nil {
 		unsubscribe()
 		return nil, nil, trace.Wrap(err, "building identity service")
 	}
 
-	close := func() {
+	handle.service = identityService
+	handle.closeFn = func() {
 		if err := identityService.Close(); err != nil {
 			b.cfg.Logger.ErrorContext(
 				ctx,
@@ -348,20 +372,24 @@ func (b *Bot) buildIdentityService(
 	}
 
 	if err := identityService.Initialize(ctx); err != nil {
-		close()
+		handle.closeFn()
 		return nil, nil, trace.Wrap(err, "initializing identity service")
 	}
-
-	return identityService, close, nil
+	return identityService, handle, nil
 }
 
 func (b *Bot) buildHeartbeatService(
 	identityService *identity.Service,
 	startedAt time.Time,
-	statusRegistry *readyz.Registry,
-) (*heartbeat.Service, error) {
-	return heartbeat.NewService(heartbeat.Config{
-		BotKind:            machineidv1.BotKind(b.cfg.Kind),
+) (*serviceHandle, error) {
+	handle := &serviceHandle{
+		serviceType:    "internal/heartbeat",
+		name:           "heartbeat",
+		statusReporter: &statusReporter{},
+	}
+
+	var err error
+	handle.service, err = heartbeat.NewService(heartbeat.Config{
 		Interval:           30 * time.Minute,
 		RetryLimit:         5,
 		Client:             machineidv1.NewBotInstanceServiceClient(identityService.GetClient().GetConnection()),
@@ -369,10 +397,15 @@ func (b *Bot) buildHeartbeatService(
 		StartedAt:          startedAt,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Logger: b.cfg.Logger.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentTBot, "heartbeat"),
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
-		StatusReporter: statusRegistry.AddService("heartbeat"),
+		StatusReporter: handle.statusReporter,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return handle, nil
 }
 
 func (b *Bot) buildProxyPinger(identityService *identity.Service) (connection.ProxyPinger, error) {
@@ -389,17 +422,62 @@ func (b *Bot) buildProxyPinger(identityService *identity.Service) (connection.Pr
 func (b *Bot) buildCARotationService(
 	reloadBroadcaster *internal.ChannelBroadcaster,
 	identityService *identity.Service,
-	statusRegistry *readyz.Registry,
-) (*carotation.Service, error) {
-	return carotation.NewService(carotation.Config{
+) (*serviceHandle, error) {
+	handle := &serviceHandle{
+		serviceType:    "internal/ca-rotation",
+		name:           "ca-rotation",
+		statusReporter: &statusReporter{},
+	}
+
+	var err error
+	handle.service, err = carotation.NewService(carotation.Config{
 		BroadcastFn:        reloadBroadcaster.Broadcast,
 		Client:             identityService.GetClient(),
 		GetBotIdentityFn:   identityService.GetIdentity,
 		BotIdentityReadyCh: identityService.Ready(),
 		Logger: b.cfg.Logger.With(
 			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentTBot, "ca-rotation"),
+			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
-		StatusReporter: statusRegistry.AddService("ca-rotation"),
+		StatusReporter: handle.statusReporter,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return handle, nil
+}
+
+// serviceHandle contains a built service, its type/name, close function, and a
+// pointer to its status reporter - so we can automatically report statuses for
+// oneshot services.
+type serviceHandle struct {
+	serviceType, name string
+	service           Service
+	statusReporter    *statusReporter
+	closeFn           func()
+}
+
+// statusReporter wraps readyz.Reporter to break a circular dependency where:
+//
+//   - We need a status reporter to build a service
+//   - We must register the service in order to get the status reporter
+//   - We may not want to register the service in one-shot mode if it does not
+//     implement OneShotService
+//   - We can only know whether the service implements OneShotService after
+//     we've built it
+//
+// This wrapper allows us to defer the actual registration until we know whether
+// the service implements OneShotService.
+type statusReporter struct{ reporter readyz.Reporter }
+
+func (r *statusReporter) Report(status readyz.Status) {
+	if r.reporter != nil {
+		r.reporter.Report(status)
+	}
+}
+
+func (r *statusReporter) ReportReason(status readyz.Status, reason string) {
+	if r.reporter != nil {
+		r.reporter.ReportReason(status, reason)
+	}
 }
