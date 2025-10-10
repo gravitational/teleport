@@ -151,8 +151,6 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
-	c.tokenList.Flag("assign-scope", "Filter tokens by the scope they assign. A filter mode can specified using a prefix separated with a colon (e.g. --assign-scope=ancestor:<scope>). Allowed modes are (default: \"descendant\", \"ancestor\")").StringVar(&c.assignedScope)
-	c.tokenList.Flag("scope", "Filter tokens by the scope they belong to. A filter mode can specified using a prefix separated with a colon (e.g. --scope=ancestor:<scope>). Allowed modes are (default: \"descendant\", \"ancestor\")").StringVar(&c.tokenScope)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
