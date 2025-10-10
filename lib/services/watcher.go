@@ -36,6 +36,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -528,7 +529,7 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return cfg.KubernetesClusterGetter.GetKubernetesClusters(ctx)
+			return iterstream.Collect(cfg.KubernetesClusterGetter.RangeKubernetesClusters(ctx, "", ""))
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,
