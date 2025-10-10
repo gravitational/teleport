@@ -23,7 +23,6 @@ package bpf
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -37,17 +36,15 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostCommandEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostCommandEvents,
-			Help: "Number of lost command events.",
-		},
-	)
+var lostCommandEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostCommandEvents,
+		Help: "Number of lost command events.",
+	},
 )
 
 type exec struct {
-	//session
+	// session
 	objs commandObjects
 
 	eventBuf *ringbuf.Reader
@@ -92,7 +89,7 @@ func (e *exec) endSession(cgroupID uint64) error {
 
 // startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
-func startExec(bufferSize int) (*exec, error) {
+func startExec() (*exec, error) {
 	err := metrics.RegisterPrometheusCollectors(lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -163,24 +160,6 @@ func startExec(bufferSize int) (*exec, error) {
 	}, nil
 }
 
-func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
-	defer eventBuf.Close()
-
-	for {
-		rec, err := eventBuf.Read()
-		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) {
-				logger.DebugContext(context.Background(), "Received signal, exiting")
-				return
-			}
-			logger.ErrorContext(context.Background(), "Error reading from ring buffer", err)
-			return
-		}
-
-		bpfEvents <- rec.RawSample[:]
-	}
-}
-
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (e *exec) close() {
@@ -202,6 +181,8 @@ func (e *exec) close() {
 	if err := e.objs.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
+
+	logger.DebugContext(context.Background(), "Closed exec BPF module")
 }
 
 // events contains raw events off the perf buffer.
