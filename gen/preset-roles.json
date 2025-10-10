@@ -1167,6 +1167,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "client_ip_restriction"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },
