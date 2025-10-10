@@ -185,8 +185,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// We've migrated Outputs to Services, so copy all Outputs to Services.
+	// We've migrated Outputs to Services, so move all Outputs to Services.
 	conf.Services = append(conf.Services, conf.Outputs...)
+	conf.Outputs = nil
+
 	namer := newServiceNamer()
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
