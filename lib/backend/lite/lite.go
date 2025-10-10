@@ -282,7 +282,8 @@ type Backend struct {
 	cancel context.CancelFunc
 
 	// mu guards the wait group and closed flag
-	mu        sync.Mutex
+	mu sync.Mutex
+	// wg tracks outstanding transactions
 	wg        sync.WaitGroup
 	closed    bool
 	closeOnce sync.Once
