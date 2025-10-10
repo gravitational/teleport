@@ -117,6 +117,13 @@ func NewServiceBuilder(
 	buildFn func(ServiceDependencies) (Service, error),
 ) ServiceBuilder {
 	if name == "" {
+		// The tbot binary will set default service names, so name could only
+		// realistically be empty if the bot were embedded somewhere else (e.g.
+		// the Terraform provider) in which case a randomly generated name is
+		// better than nothing.
+		//
+		// We do not handle the error from CryptoRandHex because the underlying
+		// call to rand.Read will never fail.
 		suffix, _ := utils.CryptoRandomHex(4)
 		name = fmt.Sprintf("%s-%s", serviceType, suffix)
 	}
