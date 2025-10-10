@@ -52,7 +52,6 @@ func TestAddCredentialProcessToSection(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		sectionName      string
-		sectionComment   string
 		existingContents *string
 		errCheck         require.ErrorAssertionFunc
 		expected         string
@@ -60,10 +59,9 @@ func TestAddCredentialProcessToSection(t *testing.T) {
 		{
 			name:             "adds section",
 			sectionName:      "profile my-aws-iam-ra-profile",
-			sectionComment:   "This section is managed by Teleport. Do not edit.",
 			existingContents: nil, // no config file
 			errCheck:         require.NoError,
-			expected: `; This section is managed by Teleport. Do not edit.
+			expected: `; Do not edit. Section managed by Teleport.
 [profile my-aws-iam-ra-profile]
 credential_process = credential_process
 `,
@@ -71,10 +69,9 @@ credential_process = credential_process
 		{
 			name:             "no config file",
 			sectionName:      "default",
-			sectionComment:   "This section is managed by Teleport. Do not edit.",
 			existingContents: nil, // no config file
 			errCheck:         require.NoError,
-			expected: `; This section is managed by Teleport. Do not edit.
+			expected: `; Do not edit. Section managed by Teleport.
 [default]
 credential_process = credential_process
 `,
@@ -82,10 +79,9 @@ credential_process = credential_process
 		{
 			name:             "empty config file",
 			sectionName:      "default",
-			sectionComment:   "This section is managed by Teleport. Do not edit.",
 			existingContents: strPtr(""),
 			errCheck:         require.NoError,
-			expected: `; This section is managed by Teleport. Do not edit.
+			expected: `; Do not edit. Section managed by Teleport.
 [default]
 credential_process = credential_process
 `,
@@ -93,38 +89,37 @@ credential_process = credential_process
 		{
 			name:             "no default profile",
 			sectionName:      "default",
-			sectionComment:   "This section is managed by Teleport. Do not edit.",
 			existingContents: strPtr("[profile foo]"),
 			errCheck:         require.NoError,
 			expected: `[profile foo]
 
-; This section is managed by Teleport. Do not edit.
+; Do not edit. Section managed by Teleport.
 [default]
 credential_process = credential_process
 `,
 		},
 		{
-			name:           "replaces default credential process",
-			sectionName:    "default",
-			sectionComment: "This section is managed by Teleport. Do not edit.",
-			existingContents: strPtr(`[default]
+			name:        "replaces default credential process",
+			sectionName: "default",
+			existingContents: strPtr(`; Do not edit. Section managed by Teleport.
+[default]
 credential_process = another process`),
 			errCheck: require.NoError,
-			expected: `; This section is managed by Teleport. Do not edit.
+			expected: `; Do not edit. Section managed by Teleport.
 [default]
 credential_process = credential_process
 `,
 		},
 		{
-			name:           "comments are kept",
-			sectionName:    "default",
-			sectionComment: "This section is managed by Teleport. Do not edit.",
-			existingContents: strPtr(`[default]
+			name:        "comments are kept",
+			sectionName: "default",
+			existingContents: strPtr(`; Do not edit. Section managed by Teleport.
+[default]
 ; this is a comment
 # yet another comment
 credential_process = another process`),
 			errCheck: require.NoError,
-			expected: `; This section is managed by Teleport. Do not edit.
+			expected: `; Do not edit. Section managed by Teleport.
 [default]
 ; this is a comment
 # yet another comment
@@ -132,9 +127,8 @@ credential_process = credential_process
 `,
 		},
 		{
-			name:           "error when default profile exists and has other fields",
-			sectionName:    "default",
-			sectionComment: "This section is managed by Teleport. Do not edit.",
+			name:        "error when default profile exists and has other fields",
+			sectionName: "default",
 			existingContents: strPtr(`[default]
 credential_process = another process
 another_field = another_value`),
@@ -147,14 +141,83 @@ another_field = another_value`),
 			errCheck:         require.Error,
 		},
 		{
-			name:           "error when profile does not have the expected comment",
-			sectionName:    "default",
-			sectionComment: "This section is managed by Teleport. Do not edit.",
+			name:        "error when profile does not have the expected comment",
+			sectionName: "default",
 			existingContents: strPtr(`; Another Comment
 [default]
 credential_process = another process
 another_field = another_value`),
 			errCheck: require.Error,
+		},
+		{
+			name:        "re-apply the login, should not add another section",
+			sectionName: "profile Upper-and-lower-CASE",
+			existingContents: strPtr(`[sectionA]
+some_setting = value
+
+; Do not edit. Section managed by Teleport.
+[profile Upper-and-lower-CASE]
+credential_process=credential_process
+`),
+			errCheck: require.NoError,
+			expected: `[sectionA]
+some_setting = value
+
+; Do not edit. Section managed by Teleport.
+[profile Upper-and-lower-CASE]
+credential_process = credential_process
+`,
+		},
+		{
+			name:        "refuses to change the profile when a profile with the same name already exists but has no comment",
+			sectionName: "profile My-Profile",
+			existingContents: strPtr(`[sectionA]
+some_setting = value
+
+[profile My-Profile]
+credential_process=credential_process
+`),
+			errCheck: require.Error,
+		},
+		{
+			// This is not exactly a test but serves documentation purposes on the limitation of the library we use.
+			// It's not possible to keep the exact formatting of the existing file because it doesn't support it.
+			// Instead, it will reformat the file before saving it.
+			// The library supports turning off pretty printing but that would just reformat the entire file using no spaces, and no alignment,
+			// even if the original file had it.
+			name:        "document reformatting behavior",
+			sectionName: "profile Upper-and-lower-CASE",
+			existingContents: strPtr(`[sectionA]
+with_spaces = value
+without_spaces=value`),
+			errCheck: require.NoError,
+			expected: `[sectionA]
+with_spaces    = value
+without_spaces = value
+
+; Do not edit. Section managed by Teleport.
+[profile Upper-and-lower-CASE]
+credential_process = credential_process
+`,
+		},
+		{
+			name:        "upserting an existing profile which used the previous version of the comment",
+			sectionName: "profile Upper-and-lower-CASE",
+			existingContents: strPtr(`[sectionA]
+some_setting = value
+
+; Do not edit. Section managed by Teleport. Generated for accessing Upper-and-lower-CASE
+[profile Upper-and-lower-CASE]
+credential_process=credential_process
+`),
+			errCheck: require.NoError,
+			expected: `[sectionA]
+some_setting = value
+
+; Do not edit. Section managed by Teleport.
+[profile Upper-and-lower-CASE]
+credential_process = credential_process
+`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -164,7 +227,7 @@ another_field = another_value`),
 				require.NoError(t, err)
 			}
 
-			err := addCredentialProcessToSection(configFilePath, tc.sectionName, tc.sectionComment, "credential_process")
+			err := addCredentialProcessToSection(configFilePath, tc.sectionName, "credential_process")
 			tc.errCheck(t, err)
 
 			if tc.expected != "" {
@@ -178,14 +241,13 @@ another_field = another_value`),
 	t.Run("creates directory if it does not exist", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		configFilePath := filepath.Join(tmpDir, "dir", "config")
-		sectionComment := "This section is managed by Teleport. Do not edit. Profile for app: my-app"
-		err := SetDefaultProfileCredentialProcess(configFilePath, sectionComment, "credential_process")
+		err := SetDefaultProfileCredentialProcess(configFilePath, "credential_process")
 		require.NoError(t, err)
 
 		require.DirExists(t, filepath.Join(tmpDir, "dir"))
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)
-		require.Equal(t, `; This section is managed by Teleport. Do not edit. Profile for app: my-app
+		require.Equal(t, `; Do not edit. Section managed by Teleport.
 [default]
 credential_process = credential_process
 `, string(bs))
@@ -194,69 +256,91 @@ credential_process = credential_process
 	t.Run("sets a named profile", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		configFilePath := filepath.Join(tmpDir, "dir", "config")
-		sectionComment := "This section is managed by Teleport. Do not edit. Profile for app: my-app"
-		err := UpsertProfileCredentialProcess(configFilePath, "my-profile", sectionComment, "credential_process")
+		err := UpsertProfileCredentialProcess(configFilePath, "my-profile", "credential_process")
 		require.NoError(t, err)
 
 		require.DirExists(t, filepath.Join(tmpDir, "dir"))
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)
-		require.Equal(t, `; This section is managed by Teleport. Do not edit. Profile for app: my-app
+		require.Equal(t, `; Do not edit. Section managed by Teleport.
 [profile my-profile]
 credential_process = credential_process
 `, string(bs))
 	})
 }
 
-func TestRemoveCredentialProcessByComment(t *testing.T) {
+func TestRemoveTeleportManagedProfile(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
-		commentSection   string
 		existingContents *string
+		profile          string
 		errCheck         require.ErrorAssertionFunc
 		expected         string
 	}{
 		{
 			name:             "no config file",
-			commentSection:   "a comment",
 			existingContents: nil, // no config file
 			errCheck:         require.NoError,
 			expected:         "",
 		},
 		{
 			name:             "empty config file",
-			commentSection:   "a comment",
 			existingContents: strPtr(""),
 			errCheck:         require.NoError,
 			expected:         "",
 		},
 		{
 			name:             "no section with expected comment",
-			commentSection:   "a comment",
 			existingContents: strPtr("; another comment\n[profile foo]\ncredential_process = process"),
 			errCheck:         require.NoError,
 			expected:         "; another comment\n[profile foo]\ncredential_process = process",
 		},
 		{
 			name:             "matching comment but no profile using credential_process",
-			commentSection:   "; a comment",
 			existingContents: strPtr("; a comment\n[profile foo]\nanother_key = value"),
 			errCheck:         require.NoError,
 			expected:         "; a comment\n[profile foo]\nanother_key = value",
 		},
 		{
 			name:             "removes the entire profile when the only key is the credential process",
-			commentSection:   "a comment",
 			existingContents: strPtr("; a comment\n[profile foo]\ncredential_process = process"),
 			errCheck:         require.NoError,
 			expected:         "",
 		},
 		{
-			name:             "an error is returned if more keys exist",
-			commentSection:   "a comment",
-			existingContents: strPtr("; a comment\n[profile foo]\ncredential_process = process\nanother_key = value"),
-			errCheck:         require.Error,
-			expected:         "; a comment\n[profile foo]\ncredential_process = process\nanother_key = value",
+			name:    "an error is returned if comment doesn't match",
+			profile: "foo",
+			existingContents: strPtr(`; a comment
+[profile foo]
+credential_process = process
+`),
+			errCheck: require.Error,
+			expected: `; a comment
+[profile foo]
+credential_process = process
+`,
+		},
+		{
+			name:    "no error even if it has more keys",
+			profile: "foo",
+			existingContents: strPtr(`; Do not edit. Section managed by Teleport.
+[profile foo]
+credential_process = process
+another_key = value
+`),
+			errCheck: require.NoError,
+			expected: ``,
+		},
+		{
+			name:    "no error even if it is using the previous comment version",
+			profile: "foo",
+			existingContents: strPtr(`; Do not edit. Section managed by Teleport. Generated for accessing MyApp
+[profile foo]
+credential_process = process
+another_key = value
+`),
+			errCheck: require.NoError,
+			expected: ``,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -265,7 +349,7 @@ func TestRemoveCredentialProcessByComment(t *testing.T) {
 				err := os.WriteFile(configFilePath, []byte(*tc.existingContents), 0600)
 				require.NoError(t, err)
 			}
-			err := RemoveCredentialProcessByComment(configFilePath, tc.commentSection)
+			err := RemoveTeleportManagedProfile(configFilePath, tc.profile)
 			tc.errCheck(t, err)
 
 			if tc.expected != "" {
@@ -277,17 +361,16 @@ func TestRemoveCredentialProcessByComment(t *testing.T) {
 	}
 }
 
-func TestRemoveCredentialProcessByCommentPrefix(t *testing.T) {
+func TestRemoveAllTeleportManagedProfiles(t *testing.T) {
 	for _, tc := range []struct {
-		name                 string
-		commentSectionPrefix string
-		existingContents     *string
-		errCheck             require.ErrorAssertionFunc
-		expected             string
+		name             string
+		profile          string
+		existingContents *string
+		errCheck         require.ErrorAssertionFunc
+		expected         string
 	}{
 		{
-			name:                 "multiple sections are removed",
-			commentSectionPrefix: "Do not remove. Generated by Teleport for app",
+			name: "multiple sections are removed",
 			existingContents: strPtr(`; Do not remove. Generated by ACME Tool
 [profile foo1]
 credential_process = process
@@ -295,11 +378,11 @@ credential_process = process
 [default]
 aws_region = us-east-1
 
-; Do not remove. Generated by Teleport for app XYZ
+; Do not edit. Section managed by Teleport.
 [profile foo2]
 credential_process = process
 
-; Do not remove. Generated by Teleport for app ABC
+; Do not edit. Section managed by Teleport.
 [profile foo3]
 credential_process = process
 `),
@@ -313,8 +396,7 @@ aws_region = us-east-1
 `,
 		},
 		{
-			name:                 "does not remove any section when comments are missing",
-			commentSectionPrefix: "Do not remove. Generated by Teleport for app",
+			name: "does not remove any section when comments are missing",
 			existingContents: strPtr(`[profile foo1]
 credential_process = process
 
@@ -342,7 +424,7 @@ credential_process = process
 				err := os.WriteFile(configFilePath, []byte(*tc.existingContents), 0600)
 				require.NoError(t, err)
 			}
-			err := RemoveCredentialProcessByCommentPrefix(configFilePath, tc.commentSectionPrefix)
+			err := RemoveAllTeleportManagedProfiles(configFilePath)
 			tc.errCheck(t, err)
 
 			if tc.expected != "" {
@@ -360,21 +442,19 @@ func TestUpdateRemoveCycle(t *testing.T) {
 	err := os.WriteFile(configFilePath, []byte(initialContents), 0600)
 	require.NoError(t, err)
 
-	sectionComment := "This section is managed by Teleport. Do not edit."
-
-	err = UpsertProfileCredentialProcess(configFilePath, "my-profile", sectionComment, "my-process")
+	err = UpsertProfileCredentialProcess(configFilePath, "my-profile", "my-process")
 	require.NoError(t, err)
 
-	err = UpsertProfileCredentialProcess(configFilePath, "my-profile2", sectionComment+" xyz", "my-process")
+	err = UpsertProfileCredentialProcess(configFilePath, "my-profile2", "my-process")
 	require.NoError(t, err)
 
-	err = UpsertProfileCredentialProcess(configFilePath, "my-profile3", sectionComment+" xyz", "my-process")
+	err = UpsertProfileCredentialProcess(configFilePath, "my-profile3", "my-process")
 	require.NoError(t, err)
 
-	err = RemoveCredentialProcessByComment(configFilePath, sectionComment)
+	err = RemoveTeleportManagedProfile(configFilePath, "my-profile")
 	require.NoError(t, err)
 
-	err = RemoveCredentialProcessByCommentPrefix(configFilePath, sectionComment)
+	err = RemoveAllTeleportManagedProfiles(configFilePath)
 	require.NoError(t, err)
 
 	bs, err := os.ReadFile(configFilePath)
