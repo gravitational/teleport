@@ -413,8 +413,8 @@ auth_service:
   # unlikely that you'll need to change this.
   # session_control_timeout: 2m
 
-  # Determines the routing strategy used to connect to nodes. Can be
-  # 'unambiguous_match' (default), or 'most_recent'.
+  # Determines the routing strategy used to connect to nodes when connecting via 
+  # node name. Can be 'unambiguous_match' (default), or 'most_recent'.
   routing_strategy: unambiguous_match
 
   # License file to start auth server with. Note that this setting is ignored
