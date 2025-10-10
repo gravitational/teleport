@@ -23,10 +23,12 @@ import (
 	"slices"
 	"testing"
 
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -41,13 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-func assertEqualScopedTokens(t *testing.T, expected *joiningv1.ScopedToken, val *joiningv1.ScopedToken) bool {
-	return assert.Equal(t, expected.GetMetadata().GetName(), val.GetMetadata().GetName()) &&
-		assert.Equal(t, expected.GetScope(), val.GetScope()) &&
-		assert.Equal(t, expected.GetSpec().GetAssignedScope(), val.GetSpec().GetAssignedScope()) &&
-		assert.Equal(t, expected.GetSpec().GetJoinMethod(), val.GetSpec().GetJoinMethod())
-}
 
 func TestScopedJoiningService(t *testing.T) {
 	ctx := withAuthCtx(t.Context(), newAuthCtx(types.RoleAdmin))
@@ -83,7 +78,11 @@ func TestScopedJoiningService(t *testing.T) {
 		Token: token,
 	})
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token, created.GetToken())
+	cmpOpts := []gocmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+	assert.Empty(t, gocmp.Diff(token, created.GetToken(), cmpOpts...))
 
 	tokenWithMismatchedScope := proto.CloneOf(token)
 	tokenWithMismatchedScope.Metadata.Name = "invalid-token"
@@ -107,7 +106,7 @@ func TestScopedJoiningService(t *testing.T) {
 		Name: token.Metadata.Name,
 	})
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token, fetched.GetToken())
+	assert.Empty(t, gocmp.Diff(token, fetched.GetToken(), cmpOpts...))
 
 	// delete token
 	_, err = service.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
@@ -156,7 +155,7 @@ func TestScopedJoiningService(t *testing.T) {
 	slices.SortStableFunc(res.Tokens, sortFn)
 	slices.SortStableFunc(expected, sortFn)
 	for idx, token := range res.Tokens {
-		assertEqualScopedTokens(t, expected[idx], token)
+		assert.Empty(t, gocmp.Diff(expected[idx], token, cmpOpts...))
 	}
 }
 
@@ -253,7 +252,11 @@ func TestScopedJoiningServiceList(t *testing.T) {
 			slices.SortStableFunc(c.expected, sortFn)
 			require.Len(t, tokens, len(c.expected))
 			for idx, tok := range tokens {
-				assertEqualScopedTokens(t, tok, c.expected[idx])
+				cmpOpts := []gocmp.Option{
+					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+					protocmp.Transform(),
+				}
+				assert.Empty(t, gocmp.Diff(tok, c.expected[idx], cmpOpts...))
 			}
 		})
 	}

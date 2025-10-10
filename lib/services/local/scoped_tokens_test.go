@@ -21,9 +21,11 @@ import (
 	"slices"
 	"testing"
 
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -35,13 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
-
-func assertEqualScopedTokens(t *testing.T, expected *joiningv1.ScopedToken, val *joiningv1.ScopedToken) bool {
-	return assert.Equal(t, expected.GetMetadata().GetName(), val.GetMetadata().GetName()) &&
-		assert.Equal(t, expected.GetScope(), val.GetScope()) &&
-		assert.Equal(t, expected.GetSpec().GetAssignedScope(), val.GetSpec().GetAssignedScope()) &&
-		assert.Equal(t, expected.GetSpec().GetJoinMethod(), val.GetSpec().GetJoinMethod())
-}
 
 func TestScopedTokenService(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
@@ -67,17 +62,21 @@ func TestScopedTokenService(t *testing.T) {
 
 	created, err := service.CreateScopedToken(ctx, token)
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token, created)
+	cmpOpts := []gocmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+	assert.Empty(t, gocmp.Diff(token, created, cmpOpts...))
 
 	created.Spec.AssignedScope = "/test/two"
 
 	updated, err := service.UpdateScopedToken(ctx, created)
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, created, updated)
+	assert.Empty(t, gocmp.Diff(created, updated, cmpOpts...))
 
 	fetched, err := service.GetScopedToken(ctx, token.Metadata.Name)
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, updated, fetched)
+	assert.Empty(t, gocmp.Diff(updated, fetched, cmpOpts...))
 
 	token2 := proto.CloneOf(token)
 	token2.Metadata.Name = "testtoken2"
@@ -86,12 +85,12 @@ func TestScopedTokenService(t *testing.T) {
 
 	upserted, err := service.UpsertScopedToken(ctx, token2)
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token2, upserted)
+	assert.Empty(t, gocmp.Diff(token2, upserted, cmpOpts...))
 
 	upserted.Spec.AssignedScope = "/test2/two"
 	upserted2, err := service.UpsertScopedToken(ctx, token2)
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, upserted, upserted2)
+	assert.Empty(t, gocmp.Diff(upserted, upserted2, cmpOpts...))
 }
 
 func TestScopedTokenList(t *testing.T) {
@@ -297,7 +296,11 @@ func TestScopedTokenList(t *testing.T) {
 			slices.SortStableFunc(tokens, sortFn)
 			require.Len(t, tokens, len(c.expected))
 			for i, token := range tokens {
-				assertEqualScopedTokens(t, c.expected[i], token)
+				cmpOpts := []gocmp.Option{
+					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+					protocmp.Transform(),
+				}
+				assert.Empty(t, gocmp.Diff(c.expected[i], token, cmpOpts...))
 			}
 		})
 	}
