@@ -22,7 +22,7 @@ import {
   eventsWithoutExamples,
   removeUnknowns,
 } from './gen-event-reference';
-import { Event, Formatters, RawEvent } from './types';
+import { Event, Formatters } from './types';
 
 describe('eventsWithoutExamples', () => {
   interface testCase {
@@ -42,7 +42,7 @@ describe('eventsWithoutExamples', () => {
           raw: {
             event: 'app.create',
             code: 'ABC123',
-            time: new Date('2025-01-01'),
+            time: '2020-06-05T16:24:05Z',
             uid: '00000000-0000-0000-0000-000000000000',
           },
         },
@@ -51,7 +51,7 @@ describe('eventsWithoutExamples', () => {
         ABC456: {
           type: 'billing.create_card',
           desc: 'Card created',
-          format: (json: RawEvent): string => JSON.stringify(json),
+          format: (json): string => JSON.stringify(json),
         },
       },
       expected: [
@@ -475,6 +475,7 @@ Example:
     const events = [
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',
@@ -482,6 +483,7 @@ Example:
       },
       {
         codeDesc: 'Event A',
+        code: 'ABC123',
         raw: {
           event: 'event.a',
           code: 'ABC123',

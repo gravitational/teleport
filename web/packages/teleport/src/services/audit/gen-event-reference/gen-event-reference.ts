@@ -52,7 +52,7 @@ export function eventsWithoutExamples(
 // description is a function or a string.
 function codeDesc(event: Event): string {
   if (typeof event.codeDesc == 'function') {
-    return event.codeDesc({ code: event.code, event: event.raw.event });
+    return (event.codeDesc as Function)({ code: event.code, event: event.raw.event });
   }
   return event.codeDesc;
 }
@@ -124,6 +124,15 @@ There are multiple events with the \`${events[0].raw.event}\` type.
   );
 }
 
+interface referencePageEventData {
+  code: string;
+  [propName: string]: any;
+  raw: {
+    [propName: string]: any;
+    event: string;
+  };
+}
+
 // createReferencePage takes an array of JSON documents that define an audit
 // event test fixture and returns a string that contains the text of an audit
 // event reference guide.
@@ -134,7 +143,7 @@ There are multiple events with the \`${events[0].raw.event}\` type.
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
 export function createReferencePage(
-  jsonEvents: Event[],
+  jsonEvents: referencePageEventData[],
   introParagraph: string
 ): string {
   const codeSet = new Set();
