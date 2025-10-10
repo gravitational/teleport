@@ -1032,7 +1032,9 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 				err = trace.ConnectionProblem(err, "database is in readonly mode")
 			}
 
+			// Check whether to emit a log entry
 			switch {
+			case isInterrupt(trace.Unwrap(err)):
 			case trace.IsCompareFailed(err),
 				trace.IsAlreadyExists(err),
 				trace.IsConnectionProblem(err),
@@ -1095,6 +1097,14 @@ func isLockedError(err error) bool {
 		return false
 	}
 	return e.Code == sqlite3.ErrBusy
+}
+
+func isInterrupt(err error) bool {
+	var e sqlite3.Error
+	if ok := errors.As(err, &e); !ok {
+		return false
+	}
+	return e.Code == sqlite3.ErrInterrupt
 }
 
 func isReadonlyError(err error) bool {
