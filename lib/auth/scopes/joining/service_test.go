@@ -94,6 +94,14 @@ func TestScopedJoiningService(t *testing.T) {
 	})
 	assert.True(t, trace.IsBadParameter(err))
 
+	tokenWithoutName := proto.CloneOf(token)
+	tokenWithoutName.Metadata.Name = ""
+	createdWithoutName, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: tokenWithoutName,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, createdWithoutName.Token.GetMetadata().GetName())
+
 	// get token
 	fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: token.Metadata.Name,
@@ -139,12 +147,12 @@ func TestScopedJoiningService(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Len(t, res.Tokens, 2)
+	assert.Len(t, res.Tokens, 3)
 	sortFn := func(left *joiningv1.ScopedToken, right *joiningv1.ScopedToken) int {
 		return cmp.Compare(left.Metadata.Name, right.Metadata.Name)
 	}
 
-	expected := []*joiningv1.ScopedToken{token, token2}
+	expected := []*joiningv1.ScopedToken{token, tokenWithoutName, token2}
 	slices.SortStableFunc(res.Tokens, sortFn)
 	slices.SortStableFunc(expected, sortFn)
 	for idx, token := range res.Tokens {

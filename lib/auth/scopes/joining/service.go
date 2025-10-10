@@ -23,10 +23,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config contains the parameters for [New].
@@ -80,6 +84,19 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 	}
 
 	token := req.GetToken()
+	if token.GetMetadata().GetName() == "" {
+		if token.Metadata == nil {
+			token.Metadata = &headerv1.Metadata{
+				Namespace: apidefaults.Namespace,
+			}
+		}
+		name, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating token value")
+		}
+		token.Metadata.Name = name
+	}
+
 	if err := services.ValidateScopedToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
