@@ -1031,6 +1031,7 @@ var (
 		[]string{
 			teleport.TagUpgrader,
 			teleport.TagVersion,
+			teleport.TagUpgraderStatus,
 		},
 	)
 
@@ -2170,8 +2171,9 @@ func (a *Server) updateAgentMetrics() {
 	upgraderCountsMetric.Reset()
 	for metadata, count := range imp.UpgraderCounts() {
 		upgraderCountsMetric.With(prometheus.Labels{
-			teleport.TagUpgrader: metadata.upgraderType,
-			teleport.TagVersion:  metadata.version,
+			teleport.TagUpgrader:       metadata.upgraderType,
+			teleport.TagVersion:        metadata.version,
+			teleport.TagUpgraderStatus: metadata.status,
 		}).Set(float64(count))
 	}
 }
