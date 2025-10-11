@@ -348,6 +348,12 @@ grpc: grpcbox
 protos-up-to-date: grpcbox
 	$(GRPCBOX_RUN) make protos-up-to-date/host
 
+# eventschema-up-to-date checks if event schema is up to date from inside the buildbox
+.PHONY: eventschema-up-to-date
+eventschema-up-to-date: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) eventschema-up-to-date"
+
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
 fix-imports: buildbox
