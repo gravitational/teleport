@@ -76,6 +76,7 @@ integration and continuous deployment platform
 |--------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------|
 | [Azure DevOps](azure-devops.mdx)                                                                       | TAR archive                                                   | Azure DevOps-signed identity document    |
 | [Bitbucket Pipelines](bitbucket.mdx)                                                                   | TAR archive                                                   | Bitbucket-signed identity document       |
+| [Bound Keypair static key][bound-keypair-static]                                                       | Package manager or TAR archive                                | Bound Keypair static key                 |
 | [CircleCI](circleci.mdx)                                                                               | TAR archive                                                   | CircleCI-signed identity document        |
 | [GitLab](gitlab.mdx)                                                                                   | TAR archive                                                   | GitLab-signed identity document          |
 | [GitHub Actions](github-actions.mdx)                                                                   | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.         |
@@ -83,5 +84,10 @@ integration and continuous deployment platform
 | [Spacelift](../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document       |
 | [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
 
+<Admonition type="tip" title="Unsupported Provider?">
+If your CI/CD provider does not have a dedicated join method listed above,
+consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+</Admonition>
 
 [bound-keypair]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/getting-started.mdx
+[bound-keypair-static]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/static-keys.mdx
