@@ -71,6 +71,23 @@ func TestDynamicKnownType(t *testing.T) {
 	require.Equal(t, SessionPrintEvent, printEvent.GetType())
 }
 
+func TestDynamicFailedUnmarshal(t *testing.T) {
+	fields := EventFields{
+		EventType: SCPEvent,
+		EventCode: SCPDisallowedCode,
+		SCPAction: 1, // scp event expects a string here
+	}
+
+	event, err := FromEventFields(fields)
+	require.NoError(t, err)
+
+	require.Equal(t, UnknownEvent, event.GetType())
+	require.Equal(t, UnknownCode, event.GetCode())
+	unknownEvent := event.(*events.Unknown)
+	require.Equal(t, SCPEvent, unknownEvent.UnknownType)
+	require.Equal(t, SCPDisallowedCode, unknownEvent.UnknownCode)
+}
+
 func TestGetTeleportUser(t *testing.T) {
 	tests := []struct {
 		name  string
