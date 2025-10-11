@@ -141,7 +141,7 @@ func TestBadIdentity(t *testing.T) {
 
 	// bad cert type
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorIs(t, trace.BadParameter("failed to parse server certificate: not an SSH certificate"), err)
 
 	// missing authority domain
 	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -158,7 +158,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorIs(t, trace.BadParameter("missing cert extension x-teleport-authority"), err)
 
 	// missing host uuid
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -175,7 +175,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorIs(t, trace.BadParameter("missing cert extension x-teleport-authority"), err)
 
 	// unrecognized role
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -192,7 +192,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorIs(t, trace.BadParameter("invalid role \"bad role\""), err)
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
@@ -969,14 +969,14 @@ func TestPresets(t *testing.T) {
 		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
+		err = auth.CreatePresetHealthCheckConfigs(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
 		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
+		err = auth.CreatePresetHealthCheckConfigs(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -985,7 +985,7 @@ func TestPresets(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
+		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigDBName)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 	})
@@ -1021,18 +1021,65 @@ func TestPresets(t *testing.T) {
 		as.SetClock(clock)
 
 		// an existing health check config should not be modified by init
-		cfg := services.NewPresetHealthCheckConfig()
+		cfg := services.NewPresetHealthCheckConfigDB()
 		cfg.Spec.Interval = durationpb.New(42 * time.Second)
 		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
+		err = auth.CreatePresetHealthCheckConfigs(ctx, as)
 		require.NoError(t, err)
 
 		// Preset was created. Ensure it didn't overwrite the existing config
 		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
 		require.NoError(t, err)
 		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
+	})
+
+	t.Run("AddAllHealthCheckConfigs", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// Create all health check presets.
+		err := auth.CreatePresetHealthCheckConfigs(ctx, as)
+		require.NoError(t, err)
+
+		// Check that all presets were created.
+		db, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigDBName)
+		require.NoError(t, err)
+		require.NotNil(t, db)
+		require.Equal(t,
+			teleport.PresetDefaultHealthCheckConfigDBName,
+			db.GetMetadata().GetName())
+		kube, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigKubeName)
+		require.NoError(t, err)
+		require.NotNil(t, kube)
+		require.Equal(t,
+			teleport.PresetDefaultHealthCheckConfigKubeName,
+			kube.GetMetadata().GetName())
+	})
+
+	t.Run("AddKubeHealthCheckConfig", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// Simulate an existing cluster with db health checks.
+		db, err := as.CreateHealthCheckConfig(ctx, services.NewPresetHealthCheckConfigDB())
+		require.NoError(t, err)
+		require.NotNil(t, db)
+
+		// Attempt to create all health check presets.
+		err = auth.CreatePresetHealthCheckConfigs(ctx, as)
+		require.NoError(t, err)
+
+		// Check that the kube preset was created.
+		kube, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigKubeName)
+		require.NoError(t, err)
+		require.NotNil(t, kube)
+		require.Equal(t,
+			teleport.PresetDefaultHealthCheckConfigKubeName,
+			kube.GetMetadata().GetName())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.

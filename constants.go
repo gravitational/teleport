@@ -775,9 +775,16 @@ const (
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
-	// PresetDefaultHealthCheckConfigName is the name of a preset
-	// default health_check_config that enables health checks for all resources.
-	PresetDefaultHealthCheckConfigName = "default"
+	// PresetDefaultHealthCheckConfigDBName is the name of a preset
+	// health_check_config that enables health checks for all
+	// database resources. For historical reasons, this preset is named
+	// "default" even though it applies only to databases.
+	PresetDefaultHealthCheckConfigDBName = "default"
+
+	// PresetDefaultHealthCheckConfigKubeName is the name of a preset
+	// health_check_config that enables health checks for all
+	// Kubernetes resources.
+	PresetDefaultHealthCheckConfigKubeName = "default_kube"
 )
 
 const (
