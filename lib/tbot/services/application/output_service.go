@@ -38,7 +38,7 @@ import (
 )
 
 func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -51,11 +51,12 @@ func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.Crede
 			reloadCh:                  deps.ReloadCh,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(OutputServiceType, cfg.Name, buildFn)
 }
 
 // OutputService generates the artifacts necessary to connect to a
