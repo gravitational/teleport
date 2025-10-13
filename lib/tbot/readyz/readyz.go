@@ -24,6 +24,7 @@ import "sync"
 func NewRegistry() *Registry {
 	return &Registry{
 		services: make(map[string]*ServiceStatus),
+		notifyCh: make(chan struct{}),
 	}
 }
 
@@ -31,6 +32,8 @@ func NewRegistry() *Registry {
 type Registry struct {
 	mu       sync.Mutex
 	services map[string]*ServiceStatus
+	reported int
+	notifyCh chan struct{}
 }
 
 // AddService adds a service to the registry so that its health will be reported
@@ -45,9 +48,11 @@ func (r *Registry) AddService(name string) Reporter {
 		status = &ServiceStatus{}
 		r.services[name] = status
 	}
+
 	return &reporter{
 		mu:     &r.mu,
 		status: status,
+		notify: sync.OnceFunc(r.maybeNotifyLocked),
 	}
 }
 
@@ -84,6 +89,31 @@ func (r *Registry) OverallStatus() *OverallStatus {
 	return &OverallStatus{
 		Status:   status,
 		Services: services,
+	}
+}
+
+// AllServicesReported returns a channel you can receive from to be notified
+// when all registered services have reported their initial status. It provides
+// a way for us to hold the initial heartbeat until after the initial flurry of
+// activity.
+func (r *Registry) AllServicesReported() <-chan struct{} { return r.notifyCh }
+
+// maybeNotifyLocked unblocks the AllServicesReported channel if all services
+// have reported their initial status. It's called by each of the Reporters the
+// first time you report a status.
+//
+// Caller must be holding r.mu.
+func (r *Registry) maybeNotifyLocked() {
+	r.reported++
+
+	if r.reported != len(r.services) {
+		return
+	}
+
+	select {
+	case <-r.notifyCh:
+	default:
+		close(r.notifyCh)
 	}
 }
 
