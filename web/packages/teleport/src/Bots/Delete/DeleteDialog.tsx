@@ -92,15 +92,19 @@ export function DeleteDialog(props: {
       <DialogHeader>
         <DialogTitle>Delete {botName}?</DialogTitle>
       </DialogHeader>
-      <DialogContent>
+      <DialogContent maxWidth={540}>
         <div>
           <P>
-            Deleting a bot is permanent and cannot be undone. All bot instances
-            will terminate immediately.
+            Deleting a bot is permanent and cannot be undone. Bot instances
+            remain active until their issued credentials expire.
+            {showLockAlternative
+              ? ''
+              : ' To terminate active instances immediately, lock the bot before deleting it.'}
           </P>
           {showLockAlternative ? (
             <P>
-              Alternatively, you can lock a bot to stop all of its activity.
+              Alternatively, you can lock a bot to stop all of its activity
+              immediately.
             </P>
           ) : undefined}
         </div>
