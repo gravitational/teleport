@@ -7106,7 +7106,11 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	}
 	require.NotNil(t, rolesWithoutAccessToKubeCluster)
 
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1,
+		withWebPackProxyOptions(
+			withKubeProxy(),
+		),
+	)
 
 	rt := http.NewServeMux()
 	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -8425,6 +8429,7 @@ func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
 type proxyConfig struct {
 	minimalHandler        bool
 	devicesClientOverride devicepb.DeviceTrustServiceClient
+	kubeProxy             bool
 }
 
 type proxyOption func(cfg *proxyConfig)
@@ -8432,6 +8437,12 @@ type proxyOption func(cfg *proxyConfig)
 func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption {
 	return func(cfg *proxyConfig) {
 		cfg.devicesClientOverride = c
+	}
+}
+
+func withKubeProxy() proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.kubeProxy = true
 	}
 }
 
@@ -8724,16 +8735,18 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	handler.handler.sshPort = sshPort
 
-	kubeProxyAddr := startKube(
-		ctx,
-		t,
-		startKubeOptions{
-			serviceType: kubeproxy.ProxyService,
-			authServer:  authServer,
-			revTunnel:   revTunServer,
-		},
-	)
-	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	if cfg.kubeProxy {
+		kubeProxyAddr := startKube(
+			ctx,
+			t,
+			startKubeOptions{
+				serviceType: kubeproxy.ProxyService,
+				authServer:  authServer,
+				revTunnel:   revTunServer,
+			},
+		)
+		handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	}
 	handler.handler.cfg.PublicProxyAddr = webServer.Listener.Addr().String()
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
