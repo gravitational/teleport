@@ -56,7 +56,7 @@ describe('DeleteDialog', () => {
     expect(screen.getByText('Delete test-bot-name?')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Alternatively, you can lock a bot to stop all of its activity.'
+        'Alternatively, you can lock a bot to stop all of its activity immediately.'
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Delete Bot')).toBeEnabled();
@@ -99,7 +99,7 @@ describe('DeleteDialog', () => {
     });
     expect(
       screen.queryByText(
-        'Alternatively, you can lock a bot to stop all of its activity.'
+        'Alternatively, you can lock a bot to stop all of its activity immediately.'
       )
     ).not.toBeInTheDocument();
     expect(screen.queryByText('Lock Bot')).not.toBeInTheDocument();
