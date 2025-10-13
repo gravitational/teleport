@@ -225,7 +225,14 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		r.logger.DebugContext(ctx, "Not the leader, ignoring trigger to generate report")
 		return nil
 	}
+	if err := r.generateReport(ctx); err != nil {
+		r.logger.ErrorContext(ctx, "Failed to generate bot instance report", "error", err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
+func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 	r.logger.DebugContext(ctx, "Generating report")
 
 	groups := make(map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup)
