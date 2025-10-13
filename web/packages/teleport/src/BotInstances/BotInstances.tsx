@@ -182,9 +182,9 @@ export function BotInstances() {
   }
 
   return (
-    <FeatureBox>
-      <FeatureHeader justifyContent="space-between">
-        <FeatureHeaderTitle>Bot instances</FeatureHeaderTitle>
+    <FeatureBox hideBottomSpacing>
+      <FeatureHeader justifyContent="space-between" mb={0}>
+        <FeatureHeaderTitle>Bot Instances</FeatureHeaderTitle>
         <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
@@ -196,6 +196,7 @@ export function BotInstances() {
           }}
           updateSearch={query => handleQueryChange(query, false)}
           updateQuery={query => handleQueryChange(query, true)}
+          mb={2}
         />
         <ContentContainer>
           <ListAndDetailsContainer $listOnlyMode={!selectedItemId}>
@@ -236,7 +237,7 @@ const Container = styled(Flex)`
   flex-direction: column;
   flex: 1;
   overflow: auto;
-  gap: ${props => props.theme.space[2]}px;
+  padding-bottom: ${props => props.theme.space[3]}px;
 `;
 
 const ContentContainer = styled(Flex)`

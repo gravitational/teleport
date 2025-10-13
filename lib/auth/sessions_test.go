@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +30,80 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/defaults"
 )
+
+func TestCreateWebSession(t *testing.T) {
+	t.Parallel()
+
+	const userLlama = "llama"
+	tenHours := time.Hour * 10
+	eightHours := time.Hour * 8
+
+	testCases := []struct {
+		name                   string
+		webIdleTimeout         *time.Duration
+		sessionTTL             time.Duration
+		expectedBearerTokenTTL time.Duration
+	}{
+		{
+			name:                   "bearerTokenExpiry equal webidletimeout",
+			webIdleTimeout:         &tenHours,
+			expectedBearerTokenTTL: tenHours,
+			sessionTTL:             time.Hour * 12,
+		},
+		{
+			name:                   "bearerTokenExpiry is sessionTTL when shorter than webidletimeout",
+			webIdleTimeout:         &tenHours,
+			sessionTTL:             eightHours,
+			expectedBearerTokenTTL: eightHours,
+		},
+		{
+			name:                   "bearerTokenExpiry defaults to 10 minutes when webidletimeout not configured",
+			webIdleTimeout:         nil,
+			sessionTTL:             time.Hour * 12,
+			expectedBearerTokenTTL: defaults.BearerTokenTTL,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clusterNetworkConfig := types.DefaultClusterNetworkingConfig()
+			if tc.webIdleTimeout != nil {
+				clusterNetworkConfig.SetWebIdleTimeout(*tc.webIdleTimeout)
+			}
+
+			fakeclock := clockwork.NewFakeClock()
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+				Clock:                   fakeclock,
+				Dir:                     t.TempDir(),
+				ClusterNetworkingConfig: clusterNetworkConfig,
+			})
+			require.NoError(t, err, "NewAuthServer failed")
+			t.Cleanup(func() {
+				assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
+			})
+
+			authServer := testAuthServer.AuthServer
+			ctx := context.Background()
+
+			_, _, err = authtest.CreateUserAndRole(authServer, userLlama, []string{userLlama} /* logins */, nil /* allowRules */)
+			require.NoError(t, err, "CreateUserAndRole failed")
+
+			session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
+				User:       userLlama,
+				SessionTTL: tc.sessionTTL,
+			})
+			require.NoError(t, err, "CreateWebSessionFromReq failed")
+
+			bearerTokenExpiry := session.GetBearerTokenExpiryTime()
+			actualTTL := fakeclock.Until(bearerTokenExpiry)
+			require.Equal(t, tc.expectedBearerTokenTTL, actualTTL)
+		})
+	}
+}
 
 func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	t.Parallel()

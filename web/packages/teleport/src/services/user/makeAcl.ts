@@ -88,6 +88,8 @@ export function makeAcl(json): Acl {
 
   const workloadIdentity = json.workloadIdentity || defaultAccess;
 
+  const clientIpRestriction = json.clientIpRestriction || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -131,6 +133,7 @@ export function makeAcl(json): Acl {
     accessGraphSettings,
     botInstances,
     workloadIdentity,
+    clientIpRestriction,
   };
 }
 

@@ -226,3 +226,22 @@ func ReadOneResponse(ctx context.Context, reader TransportReader) (*JSONRPCRespo
 
 	return unmarshalResponse(rawMessage)
 }
+
+// NewForwardMessageReader creates a MessageReader that simply forwards every
+// message read from the provided reader to the provided writer.
+func NewForwardMessageReader(logger *slog.Logger, reader TransportReader, writer MessageWriter) (*MessageReader, error) {
+	return NewMessageReader(MessageReaderConfig{
+		Logger:    logger,
+		Transport: reader,
+		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
+			return trace.Wrap(writer.WriteMessage(ctx, notification))
+		},
+		OnRequest: func(ctx context.Context, request *JSONRPCRequest) error {
+			return trace.Wrap(writer.WriteMessage(ctx, request))
+		},
+		OnResponse: func(ctx context.Context, response *JSONRPCResponse) error {
+			return trace.Wrap(writer.WriteMessage(ctx, response))
+		},
+		OnParseError: LogAndIgnoreParseError(logger),
+	})
+}

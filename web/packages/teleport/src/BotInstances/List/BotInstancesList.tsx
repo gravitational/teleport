@@ -135,7 +135,7 @@ function InternalBotInstancesList(
       {hasData ? (
         <>
           {data && data.length > 0 ? (
-            <ContentContainer ref={contentRef}>
+            <ContentContainer ref={contentRef} data-scrollbar="default">
               {data.map((instance, i) => (
                 <React.Fragment key={`${instance.instance_id}`}>
                   {i === 0 ? undefined : <Divider />}
