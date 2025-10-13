@@ -30,7 +30,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { logoutWithCleanup } from '../appContext';
+import { logoutWithCleanup } from './logoutWithCleanup';
 
 export function ClusterLogout({
   clusterUri,
