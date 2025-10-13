@@ -44,7 +44,7 @@ export function BotInstancesDashboard(props: {
    */
   onFilterSelected: (filter: string) => void;
 }) {
-  const { onFilterSelected: onStatusSelected } = props;
+  const { onFilterSelected } = props;
 
   const { data, error, isLoading, isPending, refetch } = useQuery({
     queryKey: ['bot_instance', 'metrics'],
@@ -93,7 +93,7 @@ export function BotInstancesDashboard(props: {
         <InnerContainer>
           <UpgradeStatusChart
             data={data?.upgrade_statuses}
-            onFilterSelected={onStatusSelected}
+            onFilterSelected={onFilterSelected}
           />
         </InnerContainer>
       )}
@@ -139,7 +139,7 @@ function UpgradeStatusChart(props: {
   data: GetBotInstanceMetricsResponse['upgrade_statuses'];
   onFilterSelected: (status: string) => void;
 }) {
-  const { data, onFilterSelected: onStatusSelected } = props;
+  const { data, onFilterSelected } = props;
 
   const theme = useTheme();
 
@@ -171,7 +171,7 @@ function UpgradeStatusChart(props: {
           color: theme.colors.interactive.solid.success.default,
           onClick: () =>
             data.up_to_date?.filter
-              ? onStatusSelected(data.up_to_date?.filter)
+              ? onFilterSelected(data.up_to_date?.filter)
               : undefined,
           tooltip:
             'Up-to-date instances are running the same version as the Teleport control plane.',
@@ -186,7 +186,7 @@ function UpgradeStatusChart(props: {
           color: theme.colors.interactive.solid.accent.default,
           onClick: () =>
             data.patch_available?.filter
-              ? onStatusSelected(data.patch_available?.filter)
+              ? onFilterSelected(data.patch_available?.filter)
               : undefined,
           tooltip:
             'Instances with a patch available are running the same major version as the Teleport control plane.',
@@ -201,7 +201,7 @@ function UpgradeStatusChart(props: {
           color: theme.colors.interactive.solid.alert.default,
           onClick: () =>
             data.requires_upgrade?.filter
-              ? onStatusSelected(data.requires_upgrade?.filter)
+              ? onFilterSelected(data.requires_upgrade?.filter)
               : undefined,
           tooltip:
             'Instances requiring an upgrade are running the one major version behind the Teleport control plane.',
@@ -216,7 +216,7 @@ function UpgradeStatusChart(props: {
           color: theme.colors.interactive.solid.danger.default,
           onClick: () =>
             data.unsupported?.filter
-              ? onStatusSelected(data.unsupported?.filter)
+              ? onFilterSelected(data.unsupported?.filter)
               : undefined,
           tooltip:
             'Unsupported instances are running two or more major versions behind the Teleport control plane, or are running a newer version.',
