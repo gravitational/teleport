@@ -436,7 +436,9 @@ func TestNewClientConnTimeout(t *testing.T) {
 	t.Cleanup(wg.Wait)
 	t.Cleanup(func() { listener.Close() })
 
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		defer listener.Close()
 
 		for {
@@ -446,19 +448,21 @@ func TestNewClientConnTimeout(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				defer conn.Close()
 				// Simulate a server that does not respond so the ssh.NewClientConn
 				// call on the client side hangs indefinitely.
 				_, _ = io.Copy(io.Discard, conn)
-			})
+			}()
 		}
-	})
+	}()
 
 	t.Run("context timeout is respected", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 		t.Cleanup(cancel)
 
 		conn, err := net.Dial("tcp", listener.Addr().String())
@@ -479,7 +483,7 @@ func TestNewClientConnTimeout(t *testing.T) {
 		conn, err := net.Dial("tcp", listener.Addr().String())
 		require.NoError(t, err)
 
-		_, _, _, err = NewClientConnWithTimeout(t.Context(), conn, listener.Addr().String(), &ssh.ClientConfig{
+		_, _, _, err = NewClientConnWithTimeout(context.Background(), conn, listener.Addr().String(), &ssh.ClientConfig{
 			Timeout:         5 * time.Millisecond,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
