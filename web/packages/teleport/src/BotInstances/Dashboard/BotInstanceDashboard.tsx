@@ -18,6 +18,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNowStrict, parseISO } from 'date-fns';
+import { useEffect, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -60,6 +61,9 @@ export function BotInstancesDashboard(props: {
     refetchInterval: ({ state }) =>
       (state.data?.refresh_after_seconds ?? 60) * 1_000,
   });
+
+  // Used to keep "Last updated x minutes ago" label current
+  useTick(30_000);
 
   return (
     <Container>
@@ -360,4 +364,22 @@ const BarLabel = styled.div<{ $percent: number }>`
 
 function formatPercent(percent: number) {
   return `${(percent * 100).toFixed(0)}%`;
+}
+
+/**
+ * A hook which ticks at the given interval and will cause a re-render of
+ * components which use it. Useful for updating messaging such as "updated 10
+ * seconds ago".
+ * @param interval how often to tick (in milliseconds)
+ * @returns A date instance representing the last tick
+ */
+function useTick(interval: number) {
+  const [tick, setTick] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(new Date()), interval);
+    return () => clearInterval(id);
+  });
+
+  return tick;
 }
