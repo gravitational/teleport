@@ -212,6 +212,7 @@ export function BotInstances() {
               onLoadNextPage={fetchNextPage}
               selectedItem={selectedItemId}
               onItemSelected={handleItemSelected}
+              isFiltering={!!query}
             />
             {selectedItemId ? (
               <BotInstanceDetails
