@@ -218,7 +218,7 @@ function UpgradeStatusChart(props: {
 
   return (
     <UpgradeStatusContainer>
-      <ChartTitleText>Upgrade Status</ChartTitleText>
+      <ChartTitleText>Version Compatibility</ChartTitleText>
       <BarsContainer>
         {series ? (
           series.map(s => (
