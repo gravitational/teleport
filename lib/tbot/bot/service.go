@@ -93,14 +93,16 @@ type ServiceDependencies struct {
 	// it's time to reload their certificates (e.g. following a CA rotation).
 	ReloadCh <-chan struct{}
 
-	// GetStatusReporter return the reporter to which the service should report
+	// GetStatusReporter returns the reporter to which the service should report
 	// its health.
 	//
 	// If a ServiceBuilder calls GetStatusReporter the service's Run method *MUST*
-	// call Report or ReportReason, otherwise it will delay the initial heartbeat
-	// and the `/readyz` endpoint will return 503. You do not have to do this in
-	// your service's OneShot method as we will automatically report status based
-	// on its return value.
+	// call Report or ReportReason (or if using internal.RunOnInterval pass it the
+	// reporter) otherwise it will delay the initial heartbeat and the `/readyz`
+	// endpoint will return 503.
+	//
+	// You do not have to do this in your service's OneShot method as the bot
+	// will automatically report oneshot service status based on its return value.
 	GetStatusReporter func() readyz.Reporter
 
 	// StatusRegistry can be used to read the health of the bot's services.
