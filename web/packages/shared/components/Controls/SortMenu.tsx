@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
-import { ArrowDown, ArrowUp, SortAscending, SortDescending } from 'design/Icon';
+import { ArrowDown, ArrowUp } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
 export type SortMenuSort<T extends object> = {
@@ -31,12 +31,10 @@ export const SortMenu = <T extends object>({
   current,
   fields,
   onChange,
-  alternateIcons = false,
 }: {
   current: SortMenuSort<T>;
   fields: { value: SortMenuSort<T>['fieldName']; label: string }[];
   onChange: (value: SortMenuSort<T>) => void;
-  alternateIcons?: boolean;
 }) => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
 
@@ -112,21 +110,9 @@ export const SortMenu = <T extends object>({
           size="small"
         >
           {current.dir === 'ASC' ? (
-            <>
-              {alternateIcons ? (
-                <SortAscending size={'medium'} />
-              ) : (
-                <ArrowUp size={12} />
-              )}
-            </>
+            <ArrowUp size={12} />
           ) : (
-            <>
-              {alternateIcons ? (
-                <SortDescending size={'medium'} />
-              ) : (
-                <ArrowDown size={12} />
-              )}
-            </>
+            <ArrowDown size={12} />
           )}
         </ButtonBorder>
       </HoverTooltip>
