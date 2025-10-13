@@ -86,7 +86,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// statuses. Otherwise we will not include the service in heartbeats or
 		// the `/readyz` endpoint.
 		if handle.statusReporter.used {
-			handle.statusReporter.reporter = registry.AddService(handle.name)
+			handle.statusReporter.reporter = registry.AddService(handle.serviceType, handle.name)
 		}
 	}
 
@@ -146,7 +146,7 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 		}
 
 		// Add oneshot services to the registry.
-		handle.statusReporter.reporter = registry.AddService(handle.name)
+		handle.statusReporter.reporter = registry.AddService(handle.serviceType, handle.name)
 		oneShotServices = append(oneShotServices, handle)
 	}
 
