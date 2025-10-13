@@ -80,15 +80,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return cluster;
   }
 
-  /**
-   * Logs out of the cluster and removes the profile.
-   * Does not remove the cluster from the state, but sets the cluster and its leafs as disconnected.
-   * It needs to be done, because some code can operate on the cluster the intermediate period between logout
-   * and actually removing it from the state.
-   * A code that operates on that intermediate state is in `useClusterLogout.tsx`.
-   * After invoking `logout()`, it looks for the next workspace to switch to. If we hadn't marked the cluster as disconnected,
-   * the method might have returned us the same cluster we wanted to log out of.
-   */
+  /** Logs out of the cluster. */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout({ clusterUri });
@@ -97,7 +89,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     this.setState(draft => {
       draft.clusters.forEach(cluster => {
         if (routing.belongsToProfile(clusterUri, cluster.uri)) {
-          cluster.connected = false;
+          draft.clusters.delete(cluster.uri);
         }
       });
     });
@@ -192,6 +184,13 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     ]);
   }
 
+  /**
+   * Synchronizes root clusters.
+   *
+   * This should only be called before creating workspaces.
+   * If called afterward, a cluster might be removed without first removing
+   * its associated workspace, resulting in an invalid state.
+   */
   async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 
@@ -315,22 +314,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return response;
   }
 
-  /** Removes cluster, its leafs and other resources. */
-  async removeClusterAndResources(clusterUri: uri.RootClusterUri) {
-    this.setState(draft => {
-      draft.clusters.forEach(cluster => {
-        if (routing.belongsToProfile(clusterUri, cluster.uri)) {
-          draft.clusters.delete(cluster.uri);
-        }
-      });
-    });
-    await this.removeClusterKubeConfigs(clusterUri);
-    await this.removeClusterGateways(clusterUri);
-  }
-
   // TODO(ravicious): Create a single RPC for this rather than sending a separate request for each
   // gateway.
-  private async removeClusterGateways(clusterUri: uri.RootClusterUri) {
+  async removeClusterGateways(clusterUri: uri.RootClusterUri) {
     for (const [, gateway] of this.state.gateways) {
       if (routing.belongsToProfile(clusterUri, gateway.targetUri)) {
         try {
@@ -510,16 +496,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   getRootClusters() {
     return this.getClusters().filter(c => !c.leaf);
-  }
-
-  async removeClusterKubeConfigs(clusterUri: string): Promise<void> {
-    const {
-      params: { rootClusterId },
-    } = routing.parseClusterUri(clusterUri);
-    return this.mainProcessClient.removeKubeConfig({
-      relativePath: rootClusterId,
-      isDirectory: true,
-    });
   }
 
   useState() {
