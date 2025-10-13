@@ -27,7 +27,7 @@ import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex';
 import { Refresh } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
-import Text from 'design/Text';
+import Text, { H2, H3 } from 'design/Text';
 import { IconTooltip } from 'design/Tooltip';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
@@ -64,7 +64,7 @@ export function BotInstancesDashboard(props: {
   return (
     <Container>
       <TitleContainer>
-        <TitleText>Dashboard</TitleText>
+        <H2>Dashboard</H2>
         <HoverTooltip placement="top" tipContent={'Refresh metrics'}>
           <ButtonIcon
             onClick={() => refetch()}
@@ -285,10 +285,7 @@ const UpgradeStatusContainer = styled(Flex)`
   background-color: ${({ theme }) => theme.colors.levels.elevated};
 `;
 
-const ChartTitleText = styled(Text).attrs({
-  as: 'h3',
-  typography: 'h3',
-})`
+const ChartTitleText = styled(H3)`
   text-align: center;
 `;
 
