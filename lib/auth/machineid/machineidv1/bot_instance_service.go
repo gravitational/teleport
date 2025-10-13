@@ -21,6 +21,8 @@ package machineidv1
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -254,8 +256,11 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		}
 		// Append the new heartbeat to the end.
 		instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
-		// Overwrite the service health.
-		instance.Status.ServiceHealth = req.ServiceHealth
+
+		if storeHeartbeatExtras() {
+			// Overwrite the service health.
+			instance.Status.ServiceHealth = req.ServiceHealth
+		}
 
 		return instance, nil
 	})
@@ -264,4 +269,16 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	return &pb.SubmitHeartbeatResponse{}, nil
+}
+
+// storeHeartbeatExtras returns whether we should store "extra" data submitted
+// with tbot heartbeats, such as the service health. Defaults to true unless the
+// TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS environment variable is set to true on
+// the auth server.
+func storeHeartbeatExtras() bool {
+	disabled, err := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS"))
+	if err != nil {
+		return true
+	}
+	return !disabled
 }
