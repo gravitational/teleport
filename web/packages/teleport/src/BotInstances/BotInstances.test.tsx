@@ -502,7 +502,7 @@ describe('BotInstances', () => {
     );
   });
 
-  it('Allows a upgrade status filter to be applied', async () => {
+  it('Allows a filter to be applied from the dashboard', async () => {
     server.use(getBotInstanceMetricsSuccess());
 
     jest.mocked(listBotInstances).mockImplementation(

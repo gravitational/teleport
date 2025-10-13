@@ -62,7 +62,7 @@ describe('BotInstanceDashboard', () => {
     await waitForLoading();
 
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Upgrade Status')).toBeInTheDocument();
+    expect(screen.getByText('Version Compatibility')).toBeInTheDocument();
 
     const upToDate = screen.getByLabelText('Up to date');
     expect(within(upToDate).getByText('100 (57%)')).toBeInTheDocument();
