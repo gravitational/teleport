@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -79,9 +78,6 @@ type Config struct {
 	// StatusRegistry is used to fetch the current service statuses when
 	// submitting a heartbeat.
 	StatusRegistry *readyz.Registry
-
-	// Clock that will be used to determine the current time.
-	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks the service configuration and sets any default values.
@@ -98,11 +94,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	case cfg.StatusRegistry == nil:
 		return trace.BadParameter("StatusRegistry is required")
 	}
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
-	}
 	if cfg.StartedAt.IsZero() {
-		cfg.StartedAt = cfg.Clock.Now()
+		cfg.StartedAt = time.Now()
 	}
 	return nil
 }
@@ -195,7 +188,7 @@ func (s *Service) waitForServiceHealth(ctx context.Context) (shuttingDown bool) 
 	case <-s.cfg.StatusRegistry.AllServicesReported():
 		// All services have reported their status, we're ready!
 		return false
-	case <-s.cfg.Clock.After(30 * time.Second):
+	case <-time.After(30 * time.Second):
 		// It's taking too long, give up and start sending heartbeats.
 		return false
 	case <-ctx.Done():
@@ -212,7 +205,7 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		s.cfg.Logger.WarnContext(ctx, "Failed to determine hostname for heartbeat", "error", err)
 	}
 
-	now := s.cfg.Clock.Now()
+	now := time.Now()
 	hb := &machineidv1pb.BotInstanceStatusHeartbeat{
 		RecordedAt:   timestamppb.New(now),
 		Hostname:     hostName,
