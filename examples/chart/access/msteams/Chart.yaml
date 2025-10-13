@@ -1,4 +1,4 @@
-.version: &version "18.2.4"
+.version: &version "18.0.1-dev.relay.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
