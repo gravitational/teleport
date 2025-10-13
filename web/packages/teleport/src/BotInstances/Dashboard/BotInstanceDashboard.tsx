@@ -165,9 +165,7 @@ function UpgradeStatusChart(props: {
           name: 'Up to date',
           percent: (data.up_to_date?.count ?? 0) / max,
           count: data.up_to_date?.count ?? 0,
-          // Using non-breaking space
-          // eslint-disable-next-line no-irregular-whitespace
-          label: `${data.up_to_date?.count ?? 0} (${formatPercent((data.up_to_date?.count ?? 0) / total)})`,
+          label: `${data.up_to_date?.count ?? 0}\xa0(${formatPercent((data.up_to_date?.count ?? 0) / total)})`,
           color: theme.colors.interactive.solid.success.default,
           onClick: () =>
             data.up_to_date?.filter
@@ -180,9 +178,7 @@ function UpgradeStatusChart(props: {
           name: 'Patch available',
           percent: (data.patch_available?.count ?? 0) / max,
           count: data.patch_available?.count ?? 0,
-          // Using non-breaking space
-          // eslint-disable-next-line no-irregular-whitespace
-          label: `${data.patch_available?.count ?? 0} (${formatPercent((data.patch_available?.count ?? 0) / total)})`,
+          label: `${data.patch_available?.count ?? 0}\xa0(${formatPercent((data.patch_available?.count ?? 0) / total)})`,
           color: theme.colors.interactive.solid.accent.default,
           onClick: () =>
             data.patch_available?.filter
@@ -195,9 +191,7 @@ function UpgradeStatusChart(props: {
           name: 'Upgrade required',
           percent: (data.requires_upgrade?.count ?? 0) / max,
           count: data.requires_upgrade?.count ?? 0,
-          // Using non-breaking space
-          // eslint-disable-next-line no-irregular-whitespace
-          label: `${data.requires_upgrade?.count ?? 0} (${formatPercent((data.requires_upgrade?.count ?? 0) / total)})`,
+          label: `${data.requires_upgrade?.count ?? 0}\xa0(${formatPercent((data.requires_upgrade?.count ?? 0) / total)})`,
           color: theme.colors.interactive.solid.alert.default,
           onClick: () =>
             data.requires_upgrade?.filter
@@ -210,9 +204,7 @@ function UpgradeStatusChart(props: {
           name: 'Unsupported',
           percent: (data.unsupported?.count ?? 0) / max,
           count: data.unsupported?.count ?? 0,
-          // Using non-breaking space
-          // eslint-disable-next-line no-irregular-whitespace
-          label: `${data.unsupported?.count ?? 0} (${formatPercent((data.unsupported?.count ?? 0) / total)})`,
+          label: `${data.unsupported?.count ?? 0}\xa0(${formatPercent((data.unsupported?.count ?? 0) / total)})`,
           color: theme.colors.interactive.solid.danger.default,
           onClick: () =>
             data.unsupported?.filter
