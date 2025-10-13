@@ -172,7 +172,7 @@ function UpgradeStatusChart(props: {
               ? onFilterSelected(data.up_to_date?.filter)
               : undefined,
           tooltip:
-            'Up-to-date instances are running the same version as the Teleport control plane.',
+            'Up-to-date instances are running the same version as the Teleport cluster.',
         },
         {
           name: 'Patch available',
@@ -185,7 +185,7 @@ function UpgradeStatusChart(props: {
               ? onFilterSelected(data.patch_available?.filter)
               : undefined,
           tooltip:
-            'Instances with a patch available are running the same major version as the Teleport control plane.',
+            'Instances with a patch available are running the same major version as the Teleport cluster.',
         },
         {
           name: 'Upgrade required',
@@ -198,7 +198,7 @@ function UpgradeStatusChart(props: {
               ? onFilterSelected(data.requires_upgrade?.filter)
               : undefined,
           tooltip:
-            'Instances requiring an upgrade are running the one major version behind the Teleport control plane.',
+            'Instances requiring an upgrade are running the one major version behind the Teleport cluster.',
         },
         {
           name: 'Unsupported',
@@ -211,7 +211,7 @@ function UpgradeStatusChart(props: {
               ? onFilterSelected(data.unsupported?.filter)
               : undefined,
           tooltip:
-            'Unsupported instances are running two or more major versions behind the Teleport control plane, or are running a newer version.',
+            'Unsupported instances are running two or more major versions behind the Teleport cluster, or are running a newer version.',
         },
       ]
     : null;
