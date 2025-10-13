@@ -272,11 +272,16 @@ export async function getBotInstanceMetrics(
 ) {
   const path = cfg.getBotInstanceUrl({ action: 'metrics' });
 
-  const data = await api.get(path, signal);
+  try {
+    const data = await api.get(path, signal);
 
-  if (!validateGetBotInstanceMetricsResponse(data)) {
-    throw new Error('failed to validate get bot instance metrics response');
+    if (!validateGetBotInstanceMetricsResponse(data)) {
+      throw new Error('failed to validate get bot instance metrics response');
+    }
+
+    return data;
+  } catch (err: unknown) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
   }
-
-  return data;
 }
