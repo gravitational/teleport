@@ -54,13 +54,14 @@ func NewMemoryUploader(eventsC ...chan events.UploadEvent) *MemoryUploader {
 
 // MemoryUploader uploads all bytes to memory, used in tests
 type MemoryUploader struct {
-	mtx        *sync.RWMutex
-	uploads    map[string]*MemoryUpload
-	sessions   map[session.ID][]byte
-	summaries  map[session.ID][]byte
-	metadata   map[session.ID][]byte
-	thumbnails map[session.ID][]byte
-	eventsC    chan events.UploadEvent
+	mtx              *sync.RWMutex
+	uploads          map[string]*MemoryUpload
+	sessions         map[session.ID][]byte
+	summaries        map[session.ID][]byte
+	pendingSummaries map[session.ID][]byte
+	metadata         map[session.ID][]byte
+	thumbnails       map[session.ID][]byte
+	eventsC          chan events.UploadEvent
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
 	// with uploads and parts.
@@ -274,8 +275,23 @@ func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readC
 	return string(sessionID), nil
 }
 
-// UploadSummary uploads session summary and returns URL with uploaded file in
-// case of success.
+// UploadPendingSummary uploads a pending session summary. This function can be
+// called multiple times for a given sessionID to update the state.
+func (m *MemoryUploader) UploadPendingSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	// Pending summary can be overridden, so skip checking for existing one.
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.pendingSummaries[sessionID] = data
+	return string(sessionID), nil
+}
+
+// UploadSummary uploads final version of session summary and returns URL with
+// uploaded file in case of success. This function can be called only once for
+// a given sessionID; subsequent calls will return an error.
 func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -346,6 +362,9 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 	defer m.mtx.RUnlock()
 
 	data, ok := m.summaries[sessionID]
+	if !ok {
+		data, ok = m.pendingSummaries[sessionID]
+	}
 	if !ok {
 		return trace.NotFound("summary %q is not found", sessionID)
 	}

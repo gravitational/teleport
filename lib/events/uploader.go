@@ -33,8 +33,13 @@ type UploadHandler interface {
 	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// Download downloads a session recording and writes it to a writer.
 	Download(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
-	// UploadSummary uploads a session summary and returns a URL with uploaded
-	// file in case of success.
+	// UploadPendingSummary uploads a pending session summary and returns a URL
+	// with uploaded file in case of success. This function can be called
+	// multiple times for a given sessionID to update the state.
+	UploadPendingSummary(ctx context.Context, sesisonID session.ID, readCloser io.Reader) (string, error)
+	// UploadSummary uploads a final session summary and returns a URL with
+	// uploaded file in case of success. This function can be called only once
+	// for a given sessionID; subsequent calls will return an error.
 	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// DownloadSummary downloads a session summary and writes it to a writer.
 	DownloadSummary(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error

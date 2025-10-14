@@ -322,35 +322,51 @@ func (h *Handler) Close() error {
 // Upload reads the content of a session recording from a reader and uploads it
 // to an S3 bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.recordingPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
-// UploadSummary reads the content of a session summary from a reader and
-// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
-// object.
+// UploadPendingSummary reads the content of a pending session summary from a
+// reader and uploads it to an S3 bucket. This function can be called multiple
+// times for a given sessionID to update the state.
+func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, true /* overwrite */)
+	return path, trace.Wrap(err)
+}
+
+// UploadSummary reads the content of a final version of session summary from a
+// reader and uploads it to an S3 bucket. If successful, it returns URL of the
+// uploaded object. This function can be called only once for a given
+// sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
 // UploadMetadata reads the content of a session's metadata from a reader and
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.metadataPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
 // UploadThumbnail reads the content of a session's thumbnail from a reader and
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
 func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, overwrite bool) (string, error) {
 	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
+	}
+	if !overwrite {
+		uploadInput.IfNoneMatch = aws.String("*")
 	}
 	if !h.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = awstypes.ServerSideEncryptionAwsKms
@@ -372,31 +388,35 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader)
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.recordingPath(sessionID), writer)
+	return trace.Wrap(h.downloadOriginalFile(ctx, h.recordingPath(sessionID), writer))
 }
 
 // DownloadSummary downloads a session summary from an S3 bucket and writes the
 // results into a writer. Returns trace.NotFound error if the summary is not
 // found.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer, nil /* versionID */)
+	if trace.IsNotFound(err) {
+		return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer, nil /* versionID */))
+	}
+	return trace.Wrap(err)
 }
 
 // DownloadMetadata downloads a session's metadata from an S3 bucket and writes the
 // results into a writer. Returns trace.NotFound error if the metadata is not
 // found.
 func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.metadataPath(sessionID), writer)
+	return trace.Wrap(h.downloadOriginalFile(ctx, h.metadataPath(sessionID), writer))
 }
 
 // DownloadThumbnail downloads a session's thumbnail from an S3 bucket and writes the
 // results into a writer. Returns trace.NotFound error if the thumbnail is not
 // found.
 func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.thumbnailPath(sessionID), writer)
+	return trace.Wrap(h.downloadOriginalFile(ctx, h.thumbnailPath(sessionID), writer))
 }
 
-func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
+func (h *Handler) downloadOriginalFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
@@ -407,10 +427,20 @@ func (h *Handler) downloadFile(ctx context.Context, path string, writer events.R
 
 	h.logger.DebugContext(ctx, "Downloading file from S3", "bucket", h.Bucket, "path", path, "version_id", versionID)
 
-	_, err = h.downloader.Download(ctx, writer, &s3.GetObjectInput{
+	err = h.downloadFile(ctx, path, writer, aws.String(versionID))
+	if err != nil {
+		return awsutils.ConvertS3Error(err)
+	}
+	return nil
+}
+
+func (h *Handler) downloadFile(
+	ctx context.Context, path string, writer events.RandomAccessWriter, versionID *string,
+) error {
+	_, err := h.downloader.Download(ctx, writer, &s3.GetObjectInput{
 		Bucket:    aws.String(h.Bucket),
 		Key:       aws.String(path),
-		VersionId: aws.String(versionID),
+		VersionId: versionID,
 	})
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
@@ -502,6 +532,16 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 		return string(sessionID) + ".summary.json"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
+}
+
+func (h *Handler) pendingSummaryPath(sessionID session.ID) string {
+	const pendingPrefix = "pending"
+	if h.Path == "" {
+		return path.Join(pendingPrefix, string(sessionID)+".summary.json")
+	}
+	return strings.TrimPrefix(
+		path.Join(h.Path, pendingPrefix, string(sessionID)+".summary.json"), "/",
+	)
 }
 
 func (h *Handler) metadataPath(sessionID session.ID) string {

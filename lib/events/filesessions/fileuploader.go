@@ -112,22 +112,26 @@ func (l *Handler) Close() error {
 
 // Download reads a session recording from a local directory.
 func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return downloadFile(l.recordingPath(sessionID), writer)
+	return trace.Wrap(downloadFile(l.recordingPath(sessionID), writer))
 }
 
 // DownloadSummary reads a session summary from a local directory.
 func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return downloadFile(l.summaryPath(sessionID), writer)
+	err := downloadFile(l.summaryPath(sessionID), writer)
+	if trace.IsNotFound(err) {
+		return trace.Wrap(downloadFile(l.pendingSummaryPath(sessionID), writer))
+	}
+	return trace.Wrap(err)
 }
 
 // DownloadMetadata reads session metadata from a local directory.
 func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return downloadFile(l.metadataPath(sessionID), writer)
+	return trace.Wrap(downloadFile(l.metadataPath(sessionID), writer))
 }
 
 // DownloadThumbnail reads a session thumbnail from a local directory.
 func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return downloadFile(l.thumbnailPath(sessionID), writer)
+	return trace.Wrap(downloadFile(l.thumbnailPath(sessionID), writer))
 }
 
 func downloadFile(path string, writer events.RandomAccessWriter) error {
@@ -145,26 +149,45 @@ func downloadFile(path string, writer events.RandomAccessWriter) error {
 
 // Upload writes a session recording to a local directory.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.recordingPath(sessionID), reader)
+	s, err := uploadFile(l.recordingPath(sessionID), reader, false /* overwrite */)
+	return s, trace.Wrap(err)
 }
 
-// UploadSummary writes a session summary to a local directory.
+// UploadPendingSummary writes a pending session summary to a local directory.
+// This function can be called multiple times for a given sessionID to update
+// the state.
+func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	err := os.MkdirAll(l.pendingSummariesPath(), teleport.PrivateDirMode)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	return uploadFile(l.pendingSummaryPath(sessionID), reader, true /* overwrite */)
+}
+
+// UploadSummary writes a final version of session summary. This function can
+// be called only once for a given sessionID; subsequent calls will return an
+// error.
 func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.summaryPath(sessionID), reader)
+	name, err := uploadFile(l.summaryPath(sessionID), reader, false /* overwrite */)
+	return name, trace.Wrap(err)
 }
 
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.metadataPath(sessionID), reader)
+	return uploadFile(l.metadataPath(sessionID), reader, false /* overwrite */)
 }
 
 // UploadThumbnail writes a session thumbnail to a local directory.
 func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.thumbnailPath(sessionID), reader)
+	return uploadFile(l.thumbnailPath(sessionID), reader, false /* overwrite */)
 }
 
-func uploadFile(path string, reader io.Reader) (string, error) {
-	f, err := os.Create(path)
+func uploadFile(path string, reader io.Reader, overwrite bool) (string, error) {
+	flags := os.O_RDWR | os.O_CREATE | os.O_TRUNC
+	if !overwrite {
+		flags |= os.O_EXCL
+	}
+	f, err := os.OpenFile(path, flags, 0666)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
@@ -177,6 +200,14 @@ func uploadFile(path string, reader io.Reader) (string, error) {
 
 func (l *Handler) recordingPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+tarExt)
+}
+
+func (l *Handler) pendingSummariesPath() string {
+	return filepath.Join(l.Directory, "pending")
+}
+
+func (l *Handler) pendingSummaryPath(sessionID session.ID) string {
+	return filepath.Join(l.pendingSummariesPath(), string(sessionID)+summaryExt)
 }
 
 func (l *Handler) summaryPath(sessionID session.ID) string {
