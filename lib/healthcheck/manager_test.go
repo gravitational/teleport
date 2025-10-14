@@ -237,7 +237,7 @@ func TestManager(t *testing.T) {
 	t.Run("duplicate target is an error", func(t *testing.T) {
 		err = mgr.AddTarget(devTarget)
 		require.Error(t, err)
-		require.IsType(t, trace.AlreadyExists(""), err)
+		require.ErrorIs(t, trace.AlreadyExists("target health checker \"name=devDB, kind=db\" already exists"), err)
 	})
 	t.Run("unsupported target resource is an error", func(t *testing.T) {
 		err = mgr.AddTarget(Target{
@@ -253,7 +253,7 @@ func TestManager(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorIs(t, trace.BadParameter("health check target resource kind \"node\" is not supported"), err)
 	})
 
 	requireTargetHealth := func(t *testing.T, r types.ResourceWithLabels, status types.TargetHealthStatus, reason types.TargetHealthTransitionReason) {
@@ -397,11 +397,11 @@ func TestManager(t *testing.T) {
 	// shouldn't be any target health after the target is removed
 	_, err = mgr.GetTargetHealth(devDB)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorIs(t, trace.NotFound("health checker \"name=devDB, kind=db\" not found"), err)
 
 	err = mgr.RemoveTarget(devDB)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorIs(t, trace.NotFound("health checker \"name=devDB, kind=db\" not found"), err)
 
 	// prodDB should still be disabled
 	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
