@@ -144,6 +144,8 @@ type Identity struct {
 	// GitHubUsername indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
+	// AgentScope is the scope this identity belongs to.
+	AgentScope string
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -185,6 +187,10 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 
 	if i.ClusterName != "" {
 		cert.Permissions.Extensions[utils.CertExtensionAuthority] = i.ClusterName
+	}
+
+	if i.AgentScope != "" {
+		cert.Permissions.Extensions[utils.CertExtensionAgentScope] = i.AgentScope
 	}
 
 	// --- user extensions ---

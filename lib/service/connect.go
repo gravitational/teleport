@@ -610,9 +610,20 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	// without going through the join process.
 	process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity already includes required system role, requesting role-specific certificates", "role", role)
 	id := state.IdentityID{
+<<<<<<< HEAD
 		Role:     role,
 		HostUUID: instanceIdentity.ID.HostUUID,
 		NodeName: process.Config.Hostname,
+||||||| parent of bf3f481c64 (adding agent scope to host certificates)
+		Role:     role,
+		HostUUID: instanceIdentity.ID.HostUUID,
+		NodeName: instanceIdentity.ID.NodeName,
+=======
+		Role:       role,
+		HostUUID:   instanceIdentity.ID.HostUUID,
+		NodeName:   instanceIdentity.ID.NodeName,
+		AgentScope: instanceIdentity.ID.AgentScope,
+>>>>>>> bf3f481c64 (adding agent scope to host certificates)
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, id.HostID())
 	if err != nil {
@@ -720,7 +731,44 @@ func (process *TeleportProcess) makeJoinParams(
 			ClientID: process.Config.JoinParams.Azure.ClientID,
 		}
 	}
+<<<<<<< HEAD
 	return joinParams, nil
+||||||| parent of bf3f481c64 (adding agent scope to host certificates)
+
+	result, err := join.Register(process.ExitContext(), registerParams)
+	if err != nil {
+		if utils.IsUntrustedCertErr(err) {
+			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+	return identity, trace.Wrap(err)
+=======
+
+	// result, err := join.Register(process.ExitContext(), registerParams)
+	result, err := joinclient.Join(process.ExitContext(), registerParams)
+	if err != nil {
+		if utils.IsUntrustedCertErr(err) {
+			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+	return identity, trace.Wrap(err)
+>>>>>>> bf3f481c64 (adding agent scope to host certificates)
 }
 
 func (process *TeleportProcess) initOpenSSH() {
