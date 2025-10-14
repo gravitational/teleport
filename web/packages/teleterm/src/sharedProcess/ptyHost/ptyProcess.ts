@@ -42,6 +42,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   private _logger: Logger;
   private _status: Status = 'not_initialized';
   private _disposed = false;
+  private _lastInput = '';
 
   constructor(private options: PtyProcessOptions & { ptyId: string }) {
     super();
@@ -115,6 +116,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       return;
     }
 
+    this._lastInput = data;
     this._process.write(data);
   }
 
@@ -184,7 +186,9 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     return this.addListenerAndReturnRemovalFunction(TermEventEnum.Open, cb);
   }
 
-  onExit(cb: (ev: { exitCode: number; signal?: number }) => void) {
+  onExit(
+    cb: (ev: { exitCode: number; signal?: number; lastInput: string }) => void
+  ) {
     return this.addListenerAndReturnRemovalFunction(TermEventEnum.Exit, cb);
   }
 
@@ -229,7 +233,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private _handleExit(e: { exitCode: number; signal?: number }) {
-    this.emit(TermEventEnum.Exit, e);
+    this.emit(TermEventEnum.Exit, { ...e, lastInput: this._lastInput });
     this._logger.info(`pty has been terminated with exit code: ${e.exitCode}`);
     this._setStatus('terminated');
   }

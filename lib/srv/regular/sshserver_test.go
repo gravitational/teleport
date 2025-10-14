@@ -1739,7 +1739,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via TCP
-	conn, chans, reqs, err := tracessh.NewClientConn(
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(
 		ctx,
 		pipeNetConn,
 		f.ssh.srv.Addr(),
@@ -2838,7 +2838,7 @@ func TestX11ProxySupport(t *testing.T) {
 	cltConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
 	// Perform ssh handshake and setup client for X11 test server.
-	cltConn, chs, reqs, err := tracessh.NewClientConn(ctx, netConn, node.addr, &cltConfig)
+	cltConn, chs, reqs, err := tracessh.NewClientConnWithTimeout(ctx, netConn, node.addr, &cltConfig)
 	require.NoError(t, err)
 	clt := tracessh.NewClient(cltConn, chs, reqs)
 
@@ -3025,7 +3025,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via proxy subsystem's TCP tunnel
-	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pipeNetConn,
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, pipeNetConn,
 		f.ssh.srv.Addr(), sshConfig)
 	require.NoError(t, err)
 	defer conn.Close()

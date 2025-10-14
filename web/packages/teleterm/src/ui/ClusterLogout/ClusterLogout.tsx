@@ -25,10 +25,12 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
 import { P } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { useClusterLogout } from './useClusterLogout';
+import { logoutWithCleanup } from './logoutWithCleanup';
 
 export function ClusterLogout({
   clusterUri,
@@ -41,9 +43,10 @@ export function ClusterLogout({
   hidden?: boolean;
   onClose(): void;
 }) {
-  const { removeCluster, status, statusText } = useClusterLogout({
-    clusterUri,
-  });
+  const ctx = useAppContext();
+  const [{ status, statusText }, removeCluster] = useAsync(() =>
+    logoutWithCleanup(ctx, clusterUri)
+  );
 
   async function removeClusterAndClose(): Promise<void> {
     const [, err] = await removeCluster();

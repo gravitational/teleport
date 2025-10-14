@@ -23,12 +23,12 @@ import { runOnce } from 'shared/utils/highbar';
 
 import type { Shell } from 'teleterm/mainProcess/shell';
 import {
+  IPtyProcess,
   PtyCommand,
   PtyProcessCreationStatus,
   WindowsPty,
 } from 'teleterm/services/pty';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -40,8 +40,11 @@ import type * as types from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
 
+import { useLogger } from '../hooks/useLogger';
+
 export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const ctx = useAppContext();
+  const logger = useLogger('useDocumentTerminal');
   const { documentsService } = useWorkspaceContext();
   const [attempt, runAttempt] = useAsync(async () => {
     if ('status' in doc) {
@@ -85,7 +88,9 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
     return () => {
       if (attempt.status === 'success') {
-        void attempt.data.ptyProcess.dispose();
+        void attempt.data.ptyProcess.dispose().catch(error => {
+          logger.error(`Failed to dispose of the PTY process: ${error}`);
+        });
       }
     };
     // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
@@ -204,15 +209,12 @@ async function setUpPtyProcess(
 
   ptyProcess.onExit(event => {
     // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,
-    // tsh ssh cannot connect to the given node.
+    // tsh ssh couldn't connect to the given node.
     //
-    // The downside of this is that if you open a local shell, then execute a command that fails
-    // (for example, `cd` to a nonexistent directory), and then try to execute `exit` or press
-    // Ctrl + D, the tab won't automatically close, because the last exit code is not zero.
-    //
-    // We can look up how the terminal in vscode handles this problem, since in the scenario
-    // described above they do close the tab correctly.
-    if (event.exitCode === 0) {
+    // We also have to account for Ctrl+D, as executing it makes the shell exit with the last
+    // reported exit code. If we depended on the exit code alone, it'd mean that the terminal tab
+    // wouldn't close if Ctrl+D followed a command that failed, say cd to a nonexistent directory.
+    if (event.exitCode === 0 || event.lastInput === /* Ctrl+D */ '\x04') {
       documentsService.close(doc.uri);
     }
   });

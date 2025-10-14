@@ -20,6 +20,7 @@ import React from 'react';
 
 import { Icon } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
+import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
@@ -50,6 +51,17 @@ export function isResourceHealthStatus(
     typeof status === 'string' &&
     resourceHealthStatuses.has(status as ResourceHealthStatus)
   );
+}
+
+export function makeTargetHealth(
+  t: TargetHealth | undefined
+): ResourceTargetHealth | undefined {
+  if (!t) return undefined;
+  return {
+    status: t.status as ResourceHealthStatus,
+    error: t.error,
+    message: t.message,
+  };
 }
 
 export type ResourceTargetHealth = {
@@ -102,6 +114,7 @@ export interface UnifiedResourceKube {
   name: string;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
+  targetHealth?: ResourceTargetHealth;
 }
 
 export type UnifiedResourceDesktop = {
@@ -274,4 +287,16 @@ export type DatabaseServer = {
   targetHealth?: ResourceTargetHealth;
 };
 
-export type SharedResourceServer = DatabaseServer;
+/**
+ * KubeServer (kube_server) describes a Kube heartbeat signal
+ * reported from an agent (kubernetes_service) that is proxying
+ * the Kubernetes cluster.
+ */
+export type KubeServer = {
+  kind: 'kube_server';
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};
+
+export type SharedResourceServer = DatabaseServer | KubeServer;
