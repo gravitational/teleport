@@ -3006,7 +3006,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-func TestTargetMetadata(t *testing.T) {
+func TestEventMetadata(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -3073,7 +3073,7 @@ func TestTargetMetadata(t *testing.T) {
 		serverOptions...)
 	require.NoError(t, err)
 
-	metadata := sshSrv.TargetMetadata()
+	metadata := sshSrv.EventMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
 	require.Empty(t, metadata.ServerAddr)

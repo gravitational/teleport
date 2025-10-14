@@ -246,15 +246,17 @@ type Server struct {
 	stableUnixUsers stableunixusersv1.StableUNIXUsersServiceClient
 }
 
-// TargetMetadata returns metadata about the server.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
+// EventMetadata returns metadata about the server.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.ID(),
-		ServerAddr:      s.Addr(),
-		ServerLabels:    s.getAllLabels(),
-		ServerHostname:  s.hostname,
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
 	}
 }
 
@@ -1057,18 +1059,6 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 		return make(map[string]types.CommandLabelV2)
 	}
 	return types.LabelsToV2(s.dynamicLabels.Get())
-}
-
-// getAllLabels return a combination of static and dynamic labels.
-func (s *Server) getAllLabels() map[string]string {
-	lmap := make(map[string]string)
-	for key, value := range s.getStaticLabels() {
-		lmap[key] = value
-	}
-	for key, cmd := range s.getDynamicLabels() {
-		lmap[key] = cmd.Result
-	}
-	return lmap
 }
 
 // GetInfo returns a services.Server that represents this server.
@@ -2409,7 +2399,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 					Time: time.Now(),
 				},
 				UserMetadata:   ctx.Identity.GetUserMetadata(),
-				ServerMetadata: ctx.GetServer().TargetMetadata(),
+				ServerMetadata: ctx.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return nil, trace.Wrap(err)
