@@ -135,7 +135,7 @@ func (r *AutoUpdateVersionReporter) Run(ctx context.Context) error {
 	for {
 		started := r.clock.Now()
 		r.runLeader(ctx)
-		leaderFor := r.clock.Now().Sub(started)
+		leaderFor := r.clock.Since(started)
 
 		// Context is done, exit immediately.
 		if ctx.Err() != nil {
