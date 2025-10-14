@@ -91,7 +91,7 @@ This is our starting configuration: Okta as sole Identity Source for Identity Ce
 At this point Okta remains in control of User provisioning and SSO, while 
 Teleport controls Identity Center groups and account assignments. 
 
-![Partial Hand-Off configuration](../../../img/identity-center/ic-migrate-mid.png)
+![Partial Hand-Off configuration](../../../../img/identity-center/ic-migrate-mid.png)
 
 Specifically:
  - Okta provides SSO login for Identity Center.
@@ -101,21 +101,10 @@ Specifically:
  - Teleport controls Identity Center group account assignments for the Identity Center groups under its control.
  - Teleport controls direct Identity Center user account assignments for the Identity Center users under its control.
 
-![Migration Mid Point](../../../img/identity-center/ic-migrate-mid.png)
-
-### Ending point
-
-Once Teleport is in control of all the users and groups you want to provision
-into Identity Center, the Okta Provisioning and Push Groups functions can be
-retired, leaving Okta only providing SSO login.
-
-![Migration End Point](../../../../img/identity-center/ic-migrate-end.png)
-
-
-## Step 1/7. Install Okta SAML connector
+### Step 1/6. Install Okta SAML connector
 
 Install Okta SAML connector into Teleport as per the Teleport
-[Okta as an SSO provider](../../../../zero-trust-access/sso/okta.mdx) guide.
+[Okta as an SSO provider](../../../zero-trust-access/sso/okta.mdx) guide.
 
 <Admonition type="note">
  For the integration to function properly, both AWS IAM Identity Center and Teleport must view the
@@ -299,7 +288,7 @@ hand-off integration.
 Moving from Partial- to Full hand-off fully transfers control of AWS users and
 groups to Teleport, including SSO login.
 
-![Full hand-off configuration](../../../img/identity-center/ic-migrate-end.png)
+![Full hand-off configuration](../../../../img/identity-center/ic-migrate-end.png)
 
 <Admonition type="note">
 Teleport generally has much less information about users than Okta, so when Teleport
@@ -486,7 +475,7 @@ $ tctl plugins delete aws-identity-center
 
 - Take a deeper dive into fundamental Teleport concepts used in Identity Center
   integration such as
-  [RBAC](../../zero-trust-access/authentication/authentication.mdx),
-  [JIT Access Requests](../access-requests/access-requests.mdx) and 
-  [Access Lists](../access-lists/access-lists.mdx).
+  [RBAC](../../../zero-trust-access/authentication/authentication.mdx),
+  [JIT Access Requests](../../access-requests/access-requests.mdx) and 
+  [Access Lists](../../access-lists/access-lists.mdx).
 - See how to [use Teleport-managed account assignments with the AWS command-line tools](./using-aws-cli.mdx). 
