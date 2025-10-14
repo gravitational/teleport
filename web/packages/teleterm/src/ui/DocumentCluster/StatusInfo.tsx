@@ -18,7 +18,8 @@
 
 import {
   DatabaseServer,
-  ResourceHealthStatus,
+  KubeServer,
+  makeTargetHealth,
   SharedResourceServer,
   UnifiedResourceDefinition,
   useResourceServersFetch,
@@ -45,32 +46,55 @@ export function StatusInfo({
     attempt: fetchResourceServersAttempt,
   } = useResourceServersFetch<SharedResourceServer>({
     fetchFunc: async (params, signal) => {
-      if (resource.kind === 'db') {
-        const { response } = await ctx.tshd.listDatabaseServers(
-          {
-            clusterUri,
-            params: {
-              ...params,
-              useSearchAsRoles: resource.requiresRequest ? true : false,
-              predicateExpression: `name == "${resource.name}"`,
+      switch (resource.kind) {
+        case 'db': {
+          const { response } = await ctx.tshd.listDatabaseServers(
+            {
+              clusterUri,
+              params: {
+                ...params,
+                useSearchAsRoles: resource.requiresRequest ? true : false,
+                predicateExpression: `name == "${resource.name}"`,
+              },
             },
-          },
-          { abort: cloneAbortSignal(signal) }
-        );
-        const servers: DatabaseServer[] = response.resources.map(d => ({
-          kind: 'db_server',
-          hostname: d.hostname,
-          hostId: d.hostId,
-          targetHealth: d.targetHealth && {
-            status: d.targetHealth.status as ResourceHealthStatus,
-            error: d.targetHealth.error,
-            message: d.targetHealth.message,
-          },
-        }));
-        return {
-          agents: servers,
-          startKey: response.nextKey,
-        };
+            { abort: cloneAbortSignal(signal) }
+          );
+          const servers: DatabaseServer[] = response.resources.map(d => ({
+            kind: 'db_server',
+            hostname: d.hostname,
+            hostId: d.hostId,
+            targetHealth: makeTargetHealth(d.targetHealth),
+          }));
+          return {
+            agents: servers,
+            startKey: response.nextKey,
+          };
+        }
+        case 'kube_cluster': {
+          const { response } = await ctx.tshd.listKubernetesServers(
+            {
+              clusterUri,
+              pageSize: params.limit,
+              pageToken: params.startKey,
+              params: {
+                ...params,
+                useSearchAsRoles: resource.requiresRequest ? true : false,
+                predicateExpression: `name == "${resource.name}"`,
+              },
+            },
+            { abort: cloneAbortSignal(signal) }
+          );
+          const servers: KubeServer[] = response.resources.map(d => ({
+            kind: 'kube_server',
+            hostname: d.hostname,
+            hostId: d.hostId,
+            targetHealth: makeTargetHealth(d.targetHealth),
+          }));
+          return {
+            agents: servers,
+            startKey: response.nextPageToken,
+          };
+        }
       }
     },
   });

@@ -25,8 +25,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -223,7 +225,14 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		r.logger.DebugContext(ctx, "Not the leader, ignoring trigger to generate report")
 		return nil
 	}
+	if err := r.generateReport(ctx); err != nil {
+		r.logger.ErrorContext(ctx, "Failed to generate bot instance report", "error", err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
+func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 	r.logger.DebugContext(ctx, "Generating report")
 
 	groups := make(map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup)
@@ -316,5 +325,36 @@ func (r *AutoUpdateVersionReporter) IsLeader() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// EmitInstancesMetric updates the given gauge metric based on the instance report.
+func EmitInstancesMetric(report *autoupdate.AutoUpdateBotInstanceReport, gauge *prometheus.GaugeVec) {
+	gauge.Reset()
+
+	byVersion := make(map[string]int32)
+
+	for group, groupMetrics := range report.GetSpec().GetGroups() {
+		// Empty group means the bot isn't using Managed Updates.
+		if group == "" {
+			for version, versionMetrics := range groupMetrics.GetVersions() {
+				gauge.With(prometheus.Labels{
+					teleport.TagVersion:          version,
+					teleport.TagAutomaticUpdates: "false",
+				}).Set(float64(versionMetrics.Count))
+			}
+			continue
+		}
+
+		for version, metrics := range groupMetrics.GetVersions() {
+			byVersion[version] += metrics.Count
+		}
+	}
+
+	for version, count := range byVersion {
+		gauge.With(prometheus.Labels{
+			teleport.TagVersion:          version,
+			teleport.TagAutomaticUpdates: "true",
+		}).Set(float64(count))
 	}
 }

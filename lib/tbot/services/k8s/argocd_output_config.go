@@ -96,6 +96,11 @@ func (o *ArgoCDOutputConfig) GetName() string {
 	return o.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *ArgoCDOutputConfig) SetName(name string) {
+	o.Name = name
+}
+
 // CheckAndSetDefaults validates the service configuration and sets any default
 // values.
 func (o *ArgoCDOutputConfig) CheckAndSetDefaults() error {

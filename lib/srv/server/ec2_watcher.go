@@ -201,36 +201,46 @@ type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
 func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client EC2ClientGetter, discoveryConfigName string) ([]Fetcher, error) {
-	return matchersToEC2InstanceFetchers(ctx, matchers, func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
-		if assumeRole != nil {
-			opts = append(opts, awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	return matchersToEC2InstanceFetchers(ctx, matchers, func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		if matcher == nil {
+			return getEC2Client(ctx, region, opts...)
 		}
-		return getEC2Client(ctx, region, opts...)
+
+		newOpts := make([]awsconfig.OptionsFn, 0, len(opts)+1)
+		copy(newOpts, opts)
+
+		if matcher.AssumeRole != nil {
+			newOpts = append(newOpts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
+		}
+
+		newOpts = append(newOpts, awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}))
+
+		return getEC2Client(ctx, region, newOpts...)
 	}, discoveryConfigName)
 }
 
-// innerEC2ClientGetter is an EC2 client getter that exposes assumeRole for tests.
-type innerEC2ClientGetter func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
+// matcherEC2ClientGetter is an EC2 client getter that builds an EC2 client for the given matcher.
+// It includes the source of credentials (integration or ambient) and the assume role if any.
+// Region is not considered part of the identity because each matcher can have multiple regions.
+type matcherEC2ClientGetter func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
 
-func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client innerEC2ClientGetter, discoveryConfigName string) ([]Fetcher, error) {
+func (g matcherEC2ClientGetter) withMatcher(matcher *types.AWSMatcher) EC2ClientGetter {
+	return func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		return g(ctx, region, matcher, opts...)
+	}
+}
+
+func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client matcherEC2ClientGetter, discoveryConfigName string) ([]Fetcher, error) {
 	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			opts := []awsconfig.OptionsFn{
-				awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
-			}
-			ec2Client, err := getEC2Client(ctx, region, matcher.AssumeRole, opts...)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
 			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
 				Matcher:             matcher,
 				Region:              region,
 				Document:            matcher.SSM.DocumentName,
 				InstallSuffix:       matcher.Params.Suffix,
 				UpdateGroup:         matcher.Params.UpdateGroup,
-				EC2Client:           ec2Client,
+				EC2ClientGetter:     getEC2Client.withMatcher(&matcher),
 				Labels:              matcher.Tags,
 				Integration:         matcher.Integration,
 				DiscoveryConfigName: discoveryConfigName,
@@ -248,7 +258,7 @@ type ec2FetcherConfig struct {
 	Document            string
 	InstallSuffix       string
 	UpdateGroup         string
-	EC2Client           ec2.DescribeInstancesAPIClient
+	EC2ClientGetter     EC2ClientGetter
 	Labels              types.Labels
 	Integration         string
 	DiscoveryConfigName string
@@ -257,7 +267,7 @@ type ec2FetcherConfig struct {
 
 type ec2InstanceFetcher struct {
 	Filters             []ec2types.Filter
-	EC2                 ec2.DescribeInstancesAPIClient
+	EC2ClientGetter     EC2ClientGetter
 	Region              string
 	DocumentName        string
 	Parameters          map[string]string
@@ -369,7 +379,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	}
 
 	fetcher := ec2InstanceFetcher{
-		EC2:                 cfg.EC2Client,
+		EC2ClientGetter:     cfg.EC2ClientGetter,
 		Filters:             tagFilters,
 		Region:              cfg.Region,
 		DocumentName:        cfg.Document,
@@ -457,9 +467,14 @@ func chunkInstances(insts EC2Instances) []Instances {
 
 // GetInstances fetches all EC2 instances matching configured filters.
 func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
+	ec2Client, err := f.EC2ClientGetter(ctx, f.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var instances []Instances
 	f.cachedInstances.clear()
-	paginator := ec2.NewDescribeInstancesPaginator(f.EC2, &ec2.DescribeInstancesInput{
+	paginator := ec2.NewDescribeInstancesPaginator(ec2Client, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
 	})
 

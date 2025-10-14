@@ -272,6 +272,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -368,6 +369,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -1673,18 +1675,9 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 	_, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
-	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
-	}
-
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		filter.PredicateExpression = expression
+	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Adjust page size, so it can't be empty.

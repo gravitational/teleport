@@ -633,7 +633,7 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	clientConfig.KeyExchanges = s.cfg.KEXAlgorithms
 	clientConfig.MACs = s.cfg.MACAlgorithms
 
-	s.remoteClient, err = tracessh.NewClientConnWithDeadline(
+	s.remoteClient, err = tracessh.NewClientWithTimeout(
 		s.cfg.ParentContext,
 		s.cfg.TargetConn,
 		s.cfg.DstAddr.String(),

@@ -1538,32 +1538,30 @@ func TestDebugService(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
 
 	dataDir := makeTempDir(t)
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DebugService.Enabled = true
+	cfg := &servicecfg.Config{
+		Clock:   fakeClock,
+		DataDir: dataDir,
+	}
 	cfg.Clock = fakeClock
 	cfg.DataDir = dataDir
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Auth.Enabled = true
-	cfg.Proxy.Enabled = false
-	cfg.Auth.StorageConfig.Params["path"] = dataDir
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SSH.Enabled = false
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-	process, err := NewTeleport(cfg)
+	log := logtest.NewLogger()
+
+	// In this test we don't want to spin a whole process and have to wait for
+	// every service to report ready (there's an integration test for this).
+	// So we craft a minimal process with only the debug service in it.
+	process := &TeleportProcess{
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: prometheus.NewRegistry(),
+		Supervisor:      NewSupervisor("supervisor-test", log),
+	}
+
+	fakeState, err := newProcessState(process)
 	require.NoError(t, err)
-
-	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
-	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
-	require.NoError(t, err)
+	fakeState.update(Event{TeleportOKEvent, "dummy"})
+	process.state = fakeState
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1573,6 +1571,9 @@ func TestDebugService(t *testing.T) {
 			},
 		},
 	}
+
+	require.NoError(t, process.initDebugService(true))
+	require.NoError(t, process.Start())
 
 	// Testing the debug listener.
 	// Fetch a random path, it should return 404 error.
@@ -2003,27 +2004,35 @@ func TestMetricsService(t *testing.T) {
 // health routes.
 func TestDiagnosticsService(t *testing.T) {
 	t.Parallel()
-	// Test setup: create a new teleport process
-	dataDir := makeTempDir(t)
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DataDir = dataDir
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Auth.Enabled = true
-	cfg.Proxy.Enabled = false
-	cfg.SSH.Enabled = false
-	cfg.DebugService.Enabled = false
-	cfg.Auth.StorageConfig.Params["path"] = dataDir
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
-	// Test setup: Create and start the Teleport service.
-	process, err := NewTeleport(cfg)
+	fakeClock := clockwork.NewFakeClock()
+	dataDir := makeTempDir(t)
+	cfg := &servicecfg.Config{
+		Clock:          fakeClock,
+		DataDir:        dataDir,
+		DiagnosticAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+	}
+
+	log := logtest.NewLogger()
+
+	// In this test we don't want to spin a whole process and have to wait for
+	// every service to report ready (there's an integration test for this).
+	// So we craft a minimal process with only the debug service in it.
+	process := &TeleportProcess{
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: prometheus.NewRegistry(),
+		Supervisor:      NewSupervisor("supervisor-test", log),
+	}
+
+	fakeState, err := newProcessState(process)
 	require.NoError(t, err)
+	fakeState.update(Event{TeleportOKEvent, "dummy"})
+	process.state = fakeState
+
+	require.NoError(t, process.initDiagnosticService())
 	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		assert.NoError(t, process.Close())
-		assert.NoError(t, process.Wait())
-	})
 
 	// Test setup: create our test metrics.
 	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -2037,11 +2046,6 @@ func TestDiagnosticsService(t *testing.T) {
 	})
 	require.NoError(t, process.metricsRegistry.Register(localMetric))
 	require.NoError(t, prometheus.Register(globalMetric))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	t.Cleanup(cancel)
-	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
-	require.NoError(t, err)
 
 	// Test execution: query the metrics endpoint and check the tests metrics are here.
 	diagAddr, err := process.DiagnosticAddr()

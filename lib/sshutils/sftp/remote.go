@@ -19,21 +19,92 @@
 package sftp
 
 import (
+	"context"
+	"io"
 	"os"
 	portablepath "path"
+	"strings"
 
+	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
+
+	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 // RemoteFS provides API for accessing the files on
 // the local file system
 type RemoteFS struct {
 	*sftp.Client
+	session io.Closer
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
 func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
 	return &RemoteFS{Client: c}
+}
+
+// OpenRemoteFilesystem opens a new remote file system on the given ssh client.
+func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moderatedSessionID string) (fs *RemoteFS, openErr error) {
+	s, err := sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
+		ModeratedSessionID: moderatedSessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if openErr != nil {
+			s.Close()
+		}
+	}()
+
+	// File transfers in a moderated session require this variable
+	// to check for approval on the ssh server
+	// TODO(Joerger): DELETE IN v20.0.0 - moderated session ID is provided
+	// in the session channel params above instead of indirectly through env vars.
+	if moderatedSessionID != "" {
+		s.Setenv(ctx, EnvModeratedSessionID, moderatedSessionID)
+	}
+
+	pe, err := s.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.RequestSubsystem(ctx, teleport.SFTPSubsystem); err != nil {
+		// If the subsystem request failed and a generic error is
+		// returned, return the session's stderr as the error if it's
+		// non-empty, as the session's stderr may have a more useful
+		// error message. String comparison is only used here because
+		// the error is not exported.
+		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
+			var sb strings.Builder
+			if n, _ := io.Copy(&sb, pe); n > 0 {
+				return nil, trace.Errorf("%s", sb.String())
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+	pw, err := s.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pr, err := s.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sftpClient, err := sftp.NewClientPipe(pr, pw,
+		// Use concurrent stream to speed up transfer on slow networks as described in
+		// https://github.com/gravitational/teleport/issues/20579
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &RemoteFS{
+		Client:  sftpClient,
+		session: s,
+	}, nil
 }
 
 func (r *RemoteFS) Type() string {
@@ -76,4 +147,12 @@ func (r *RemoteFS) Mkdir(path string) error {
 
 func (r *RemoteFS) Readlink(name string) (string, error) {
 	return r.Client.ReadLink(name)
+}
+
+func (r *RemoteFS) Close() error {
+	var sessionErr error
+	if r.session != nil {
+		sessionErr = r.session.Close()
+	}
+	return trace.NewAggregate(sessionErr, r.Client.Close())
 }

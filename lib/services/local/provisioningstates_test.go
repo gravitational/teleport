@@ -27,20 +27,20 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestProvisioningUpdate(t *testing.T) {
 	ctx := context.Background()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bk, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
 
-	uut, err := NewProvisioningStateService(backend)
+	uut, err := NewProvisioningStateService(bk)
 	require.NoError(t, err)
 
 	t.Run("downstream is honored", func(t *testing.T) {

@@ -777,7 +777,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := tracessh.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := tracessh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

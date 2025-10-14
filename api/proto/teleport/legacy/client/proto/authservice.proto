@@ -2781,6 +2781,22 @@ message ValidateTrustedClusterResponse {
   repeated types.CertAuthorityV2 CertAuthorities = 1;
 }
 
+message ListKubernetesClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListKubernetesClustersResponse {
+  // KubernetesClusters is a list of kubernetes cluster resources.
+  repeated types.KubernetesClusterV3 kubernetes_clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3400,7 +3416,11 @@ service AuthService {
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetKubernetesClusters returns all registered kubernetes clusters.
-  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List) {
+    option deprecated = true;
+  }
+  // ListKubernetesClusters returns a page of registered kubernetes clusters.
+  rpc ListKubernetesClusters(ListKubernetesClustersRequest) returns (ListKubernetesClustersResponse);
   // GetKubernetesCluster returns a kubernetes cluster by name.
   rpc GetKubernetesCluster(types.ResourceRequest) returns (types.KubernetesClusterV3);
   // CreateKubernetesCluster creates a new kubernetes cluster resource.

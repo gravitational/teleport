@@ -36,6 +36,7 @@ import (
 
 // TestPluginsCRUD tests backend operations with plugin resources.
 func TestPluginsCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	mem, err := memory.New(memory.Config{
@@ -142,6 +143,7 @@ func TestPluginsCRUD(t *testing.T) {
 }
 
 func TestListPlugins(t *testing.T) {
+	t.Parallel()
 	const pageSize = 5
 	const numPlugins = 2*pageSize + 1
 	ctx := context.Background()
@@ -217,4 +219,108 @@ func TestListPlugins(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	})
+}
+
+func TestPlugins_validate_okta(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	dummyStaticCreds := &types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+				Labels: map[string]string{"test_cred_label_1": "test_cred_value_1"},
+			},
+		},
+	}
+
+	setupServiceFn := func() *PluginsService {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { mem.Close() })
+
+		return NewPluginsService(mem)
+	}
+
+	// SyncSettings validation
+	for _, tt := range []struct {
+		desc         string
+		syncSettings *types.PluginOktaSyncSettings
+		requireErrFn func(t require.TestingT, err error, msgAndArgs ...any)
+	}{
+		{
+			desc:         "nil_sync_settings_is_ok",
+			syncSettings: nil,
+			requireErrFn: require.NoError,
+		},
+		{
+			desc:         "empty_sync_settings_is_ok",
+			syncSettings: &types.PluginOktaSyncSettings{},
+			requireErrFn: require.NoError,
+		},
+		{
+			desc: "time_between_imports_has_to_be_a_duration",
+			syncSettings: &types.PluginOktaSyncSettings{
+				TimeBetweenImports: "not-a-duration",
+			},
+			requireErrFn: func(t require.TestingT, err error, msgAndArgs ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, `time_between_imports is not valid: time: invalid duration "not-a-duration"`)
+			},
+		},
+		{
+			desc: "time_between_imports_has_to_be_positive",
+			syncSettings: &types.PluginOktaSyncSettings{
+				TimeBetweenImports: "-20s",
+			},
+			requireErrFn: func(t require.TestingT, err error, msgAndArgs ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, `time_between_imports "-20s" cannot be a negative value`)
+			},
+		},
+		{
+			desc: "time_between_imports_ok",
+			syncSettings: &types.PluginOktaSyncSettings{
+				TimeBetweenImports: "3h",
+			},
+			requireErrFn: require.NoError,
+		},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			svc := setupServiceFn()
+
+			plugin1 := types.NewPluginV1(types.Metadata{Name: "test_plugin_1"}, types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Okta{
+					Okta: &types.PluginOktaSettings{
+						OrgUrl: "https://my.okta.org.example.com",
+					},
+				},
+			}, nil)
+			plugin1.Credentials = dummyStaticCreds
+
+			plugin1.Spec.GetOkta().SyncSettings = tt.syncSettings
+			err := svc.CreatePlugin(ctx, plugin1)
+			tt.requireErrFn(t, err, "CreatePlugin")
+
+			// Make sure the plugin is in the backend and refresh the revision, so
+			// UpdatePlugin can be tested.
+			if err != nil {
+				plugin1.Spec.GetOkta().SyncSettings = nil
+				err = svc.CreatePlugin(ctx, plugin1)
+				require.NoError(t, err)
+			}
+			p, err := svc.GetPlugin(ctx, plugin1.GetName(), true)
+			require.NoError(t, err)
+			require.IsType(t, &types.PluginV1{}, p)
+			plugin1 = p.(*types.PluginV1)
+
+			plugin1.Spec.GetOkta().SyncSettings = tt.syncSettings
+			_, err = svc.UpdatePlugin(ctx, plugin1)
+			tt.requireErrFn(t, err, "UpdatePlugin")
+		})
+	}
 }

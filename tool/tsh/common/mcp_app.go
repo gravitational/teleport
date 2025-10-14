@@ -471,13 +471,14 @@ func (c *mcpConnectCommand) run() error {
 	}
 	tc.NonInteractive = true
 
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
 	if c.autoReconnect {
 		return clientmcp.ProxyStdioConnWithAutoReconnect(
 			c.cf.Context,
 			clientmcp.ProxyStdioConnWithAutoReconnectConfig{
 				ClientStdio: utils.CombinedStdio{},
 				DialServer: func(ctx context.Context) (io.ReadWriteCloser, error) {
-					conn, err := tc.DialMCPServer(ctx, c.cf.AppName)
+					conn, err := dialer.DialALPN(ctx)
 					return conn, trace.Wrap(err)
 				},
 				MakeReconnectUserMessage: makeMCPReconnectUserMessage,
@@ -485,7 +486,7 @@ func (c *mcpConnectCommand) run() error {
 		)
 	}
 
-	serverConn, err := tc.DialMCPServer(c.cf.Context, c.cf.AppName)
+	serverConn, err := dialer.DialALPN(c.cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

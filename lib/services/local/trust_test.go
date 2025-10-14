@@ -34,8 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -488,7 +486,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 

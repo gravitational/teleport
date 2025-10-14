@@ -97,6 +97,29 @@ func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request
 	}, nil
 }
 
+// clusterKubeServersList returns a list of kube servers in a form the UI can present.
+func (h *Handler) clusterKubeServersList(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := ctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := convertListResourcesRequest(r, types.KindKubeServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, err := client.GetResourcePage[types.KubeServer](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:    page.Resources,
+		StartKey: page.NextKey,
+	}, nil
+}
+
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
 func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	clt, err := sctx.GetUserClient(r.Context(), cluster)

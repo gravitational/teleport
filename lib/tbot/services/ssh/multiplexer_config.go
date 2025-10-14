@@ -67,6 +67,11 @@ func (o *MultiplexerConfig) GetName() string {
 	return o.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *MultiplexerConfig) SetName(name string) {
+	o.Name = name
+}
+
 func (s *MultiplexerConfig) SessionResumptionEnabled() bool {
 	if s.EnableResumption == nil {
 		return true

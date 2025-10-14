@@ -1831,6 +1831,7 @@ message Exec {
 }
 
 // SCP is emitted when data transfer has occurred between server and client
+// Deprecated: use SFTP
 message SCP {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -9035,6 +9036,19 @@ message SCIMRequest {
   string Query = 7;
 }
 
+// SCIMResponse describes the HTTP response from the
+message SCIMResponse {
+  // StatusCode is the HTTP response status code returned by the SCIM server.
+  uint32 StatusCode = 1;
+
+  // Body holds a representation of the arbitrary JSON body of response from the
+  // SCIM server. May be empty.
+  google.protobuf.Struct Body = 2 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
 message SCIMCommonData {
   // Request holds metadata about the original SCIM request that triggered this
   // event.
@@ -9048,6 +9062,9 @@ message SCIMCommonData {
   // this event. Valid values include, but are not limited to, "user" and
   // "group".
   string ResourceType = 5 [(gogoproto.jsontag) = "resource_type,omitempty"];
+
+  // Response holds data about the SCIM server's response to the request.
+  SCIMResponse Response = 6 [(gogoproto.jsontag) = "response,omitempty"];
 }
 
 // SCIMListingEvent records an attempt to list SCIM resources
@@ -9123,12 +9140,4 @@ message SCIMResourceEvent {
   // Display is a human-readable name or identifier for the Teleport resource
   // affected by the event.
   string Display = 6 [(gogoproto.jsontag) = "display,omitempty"];
-
-  // ResponseBody holds a representation of the JSON response (if any) to the
-  // request. This is only populated for resource-modifying requests like Create
-  // Update
-  google.protobuf.Struct ResponseBody = 7 [
-    (gogoproto.jsontag) = "body,omitempty",
-    (gogoproto.casttype) = "Struct"
-  ];
 }

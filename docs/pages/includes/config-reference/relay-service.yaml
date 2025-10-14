@@ -1,0 +1,49 @@
+relay_service:
+  # Enables the Relay Service, defaults to false.
+  enabled: true
+
+  # The name of the Relay group. All Relay Service instances that are accessible
+  # behind the same Load Balancer must use the same name, and other Relay
+  # Service instances in the same Teleport cluster must use a different name.
+  relay_group: groupname
+
+  # The amount of distinct tunnels that other Teleport agents will open when
+  # using this Relay group. The target connection count should be no bigger than
+  # the amount of distinct Relay Service instances behind the Load Balancer.
+  target_connection_count: 2
+
+  # A list of hostnames or IP addresses that agents and clients can use to
+  # connect to the Relay group. Most setups will only need one.
+  public_hostnames:
+    - relay-group.example.com
+
+  # The listen address and port for the transport server of the Relay Service,
+  # used by clients to access resources through the Relay.
+  transport_listen_addr: 0.0.0.0:3040
+
+  # Whether or not the transport server should expect a PROXY protocol v2 header
+  # for incoming connections. If set, anything with the ability to connect
+  # directly to the transport listener will be able to spoof the source of
+  # network connections. Defaults to false.
+  #transport_proxy_protocol: true
+
+  # The listen address and port for the peer server of the Relay Service, used
+  # by other Relay Service instances of the same Relay group to forward
+  # connections between instances.
+  peer_listen_addr: 0.0.0.0:3041
+
+  # The address and port that other Relay Service instances of the same group should use
+  # to connect to the peer server. Defaults to the first available private IP
+  # address found in the system's network interfaces.
+  #peer_public_addr: 1.2.3.4:3041
+
+  # The listen address and port for the tunnel server of the Relay Service, used
+  # by agents to discover the Relay group configuration and open tunnels to the
+  # Relay.
+  tunnel_listen_addr: 0.0.0.0:3042
+
+  # Whether or not the tunnel server should expect a PROXY protocol v2 header
+  # for incoming connections. If set, anything with the ability to connect
+  # directly to the tunnel listener will be able to spoof the source of network
+  # connections. Defaults to false.
+  #tunnel_proxy_protocol: true

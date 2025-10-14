@@ -175,6 +175,13 @@ func (h *httpFS) RealPath(path string) (string, error) {
 	return path, nil
 }
 
+func (h *httpFS) Close() error {
+	if h.reader != nil {
+		return trace.Wrap(h.reader.Close())
+	}
+	return nil
+}
+
 type nopWriteCloser struct {
 	io.Writer
 }

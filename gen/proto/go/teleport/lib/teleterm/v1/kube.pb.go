@@ -205,6 +205,77 @@ func (x *KubeResource) GetNamespace() string {
 	return ""
 }
 
+// KubeServer (kube_server) describes a Kube heartbeat signal
+// reported from an agent (kubernetes_service) that is proxying
+// the Kubernetes cluster.
+type KubeServer struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
+	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	HostId        string                 `protobuf:"bytes,3,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	TargetHealth  *TargetHealth          `protobuf:"bytes,4,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KubeServer) Reset() {
+	*x = KubeServer{}
+	mi := &file_teleport_lib_teleterm_v1_kube_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KubeServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KubeServer) ProtoMessage() {}
+
+func (x *KubeServer) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_kube_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KubeServer.ProtoReflect.Descriptor instead.
+func (*KubeServer) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_kube_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *KubeServer) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+func (x *KubeServer) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *KubeServer) GetHostId() string {
+	if x != nil {
+		return x.HostId
+	}
+	return ""
+}
+
+func (x *KubeServer) GetTargetHealth() *TargetHealth {
+	if x != nil {
+		return x.TargetHealth
+	}
+	return nil
+}
+
 var File_teleport_lib_teleterm_v1_kube_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_kube_proto_rawDesc = "" +
@@ -221,7 +292,13 @@ const file_teleport_lib_teleterm_v1_kube_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x127\n" +
 	"\x06labels\x18\x04 \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12\x18\n" +
 	"\acluster\x18\x05 \x01(\tR\acluster\x12\x1c\n" +
-	"\tnamespace\x18\x06 \x01(\tR\tnamespaceBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"\tnamespace\x18\x06 \x01(\tR\tnamespace\"\xa0\x01\n" +
+	"\n" +
+	"KubeServer\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +
+	"\ahost_id\x18\x03 \x01(\tR\x06hostId\x12K\n" +
+	"\rtarget_health\x18\x04 \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealthBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_kube_proto_rawDescOnce sync.Once
@@ -235,22 +312,24 @@ func file_teleport_lib_teleterm_v1_kube_proto_rawDescGZIP() []byte {
 	return file_teleport_lib_teleterm_v1_kube_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_kube_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_lib_teleterm_v1_kube_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_lib_teleterm_v1_kube_proto_goTypes = []any{
 	(*Kube)(nil),         // 0: teleport.lib.teleterm.v1.Kube
 	(*KubeResource)(nil), // 1: teleport.lib.teleterm.v1.KubeResource
-	(*Label)(nil),        // 2: teleport.lib.teleterm.v1.Label
-	(*TargetHealth)(nil), // 3: teleport.lib.teleterm.v1.TargetHealth
+	(*KubeServer)(nil),   // 2: teleport.lib.teleterm.v1.KubeServer
+	(*Label)(nil),        // 3: teleport.lib.teleterm.v1.Label
+	(*TargetHealth)(nil), // 4: teleport.lib.teleterm.v1.TargetHealth
 }
 var file_teleport_lib_teleterm_v1_kube_proto_depIdxs = []int32{
-	2, // 0: teleport.lib.teleterm.v1.Kube.labels:type_name -> teleport.lib.teleterm.v1.Label
-	3, // 1: teleport.lib.teleterm.v1.Kube.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
-	2, // 2: teleport.lib.teleterm.v1.KubeResource.labels:type_name -> teleport.lib.teleterm.v1.Label
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 0: teleport.lib.teleterm.v1.Kube.labels:type_name -> teleport.lib.teleterm.v1.Label
+	4, // 1: teleport.lib.teleterm.v1.Kube.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	3, // 2: teleport.lib.teleterm.v1.KubeResource.labels:type_name -> teleport.lib.teleterm.v1.Label
+	4, // 3: teleport.lib.teleterm.v1.KubeServer.target_health:type_name -> teleport.lib.teleterm.v1.TargetHealth
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_kube_proto_init() }
@@ -266,7 +345,7 @@ func file_teleport_lib_teleterm_v1_kube_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_kube_proto_rawDesc), len(file_teleport_lib_teleterm_v1_kube_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

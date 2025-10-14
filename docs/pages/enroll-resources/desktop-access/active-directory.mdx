@@ -641,7 +641,7 @@ To configure Teleport to protect access to Windows desktops:
    windows_desktop_service:
       enabled: true
       ldap:
-         locate_server: 
+         locate_server:
             enabled: true
             site: "my-site" # optional
          domain: example.com
@@ -865,10 +865,33 @@ windows_desktop_service:
 ```
 
 To enable NLA, set the `TELEPORT_ENABLE_RDP_NLA` environment variable to `yes`
-on any hosts running the Teleport's `windows_desktop_service`. Note that NLA is
-only supported when connecting to hosts that are part of an Active Directory
-domain. Teleport will not perform NLA when connecting to hosts as a local
-Windows user.
+on any hosts running the Teleport's `windows_desktop_service`. The process for
+setting an environment variable varies depending on the environment in which you
+are running Teleport.
+
+If you're running Teleport in Kubernetes, you'll need to
+[edit the Pod configuration](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/).
+
+If you're running Teleport as a systemd service, then you'll want to create a
+systemd override using `systemctl edit teleport`:
+
+```
+$ sudo systemctl edit teleport
+```
+
+This will open a text editor where you can insert an override for the environment:
+
+```
+### Editing /etc/systemd/system/teleport.service.d/override.conf
+### Anything between here and the comment below will become the contents of the drop-in file
+
+[Service]
+Environment="TELEPORT_ENABLE_RDP_NLA=yes"
+```
+
+Note that NLA is only supported when connecting to hosts that are part of an
+Active Directory domain. Teleport will not perform NLA when connecting to hosts
+as a local Windows user.
 
 NLA is not supported when Teleport runs in FIPS mode.
 

@@ -132,6 +132,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -2605,6 +2606,72 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	// We mark the process state as starting until the auth backend is ready.
+	// If cache is enabled, this will wait for the cache to be populated.
+	// We don't want auth to say its ready until its cache is populated,
+	// else a rollout might progress too quickly and cause backend pressure
+	// and outages.
+	{
+		component := teleport.Component(teleport.ComponentAuth, "backend")
+		process.ExpectService(component)
+		process.RegisterFunc("auth.wait-for-event-stream", func() error {
+			start := process.Clock.Now()
+
+			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  0,
+				Driver: retryutils.NewLinearDriver(5 * time.Second),
+				Max:    time.Minute,
+				Jitter: retryutils.DefaultJitter,
+				Clock:  process.Clock,
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating the backend watch retry (this is a bug)")
+			}
+			log := process.logger.With(teleport.ComponentLabel, component)
+			var attempt int
+
+			// The wait logic is retried until it is successful or a termination is triggered.
+			for {
+				attempt++
+				select {
+				case <-process.GracefulExitContext().Done():
+					return trace.Wrap(err, "context canceled while backing off (attempt %d)", attempt)
+				case <-retry.After():
+					retry.Inc()
+				}
+
+				w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
+					Name: "auth.wait-for-backend",
+					Kinds: []types.WatchKind{
+						{Kind: types.KindClusterName},
+					},
+				})
+				if err != nil {
+					log.ErrorContext(process.ExitContext(), "Failed to create watcher", "kind", types.KindClusterName, "attempt", attempt, "error", err)
+					continue
+				}
+
+				select {
+				case evt := <-w.Events():
+					w.Close()
+					if evt.Type != types.OpInit {
+						log.ErrorContext(process.ExitContext(), "expected init event, got something else (this is a bug)", "kind", types.KindClusterName, "attempt", attempt, "error", err, "event_type", evt.Type)
+						continue
+					}
+					process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
+					process.OnHeartbeat(component)(nil)
+					return nil
+				case <-w.Done():
+					log.ErrorContext(process.ExitContext(), "watcher closed while waiting for backend init", "kind", types.KindClusterName, "attempt", attempt, "error", w.Error())
+					continue
+				case <-process.GracefulExitContext().Done():
+					w.Close()
+					return trace.Wrap(err, "context canceled while waiting for backendf init event")
+				}
+			}
+		})
+	}
+
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
@@ -4858,6 +4925,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnServer               *alpnproxy.Proxy
 		reverseTunnelALPNServer  *alpnproxy.Proxy
 		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+		healthCheckManager       healthcheck.Manager
 		// initShutdownMtx ensures that shutdown only occurs after the full
 		// setup has been completed.
 		//
@@ -4933,6 +5001,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
 			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
+			}
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
 			ctx := payloadContext(payload)
@@ -4997,6 +5068,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
+			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 			}
 		}
 		if peerQUICTransport != nil {
@@ -5716,6 +5790,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		// Create a health check manager.
+		healthCheckManager, err = healthcheck.NewManager(
+			process.ExitContext(),
+			healthcheck.ManagerConfig{
+				Component:               component,
+				Events:                  accessPoint,
+				HealthCheckConfigReader: accessPoint,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+			return trace.Wrap(err)
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -5756,6 +5846,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
 			ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
+			HealthCheckManager:       healthCheckManager,
 		})
 		if err != nil {
 			return trace.Wrap(err)

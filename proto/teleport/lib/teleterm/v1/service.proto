@@ -87,7 +87,8 @@ service TerminalService {
   // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
   // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
   rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
-
+  // Lists Kubernetes servers.
+  rpc ListKubernetesServers(ListKubernetesServersRequest) returns (ListKubernetesServersResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -356,6 +357,30 @@ message ListKubernetesResourcesResponse {
   repeated KubeResource resources = 1;
   reserved 2;
   reserved "next_key";
+}
+
+// Lists Kubernetes servers request.
+message ListKubernetesServersRequest {
+  // Maximum number of servers to return per page.
+  int32 page_size = 1;
+
+  // Pagination token from a previous response.
+  string page_token = 2;
+
+  // Target Kubernetes cluster URI.
+  string cluster_uri = 3;
+
+  // Additional filters and sorting options.
+  ListResourcesParams params = 4;
+}
+
+// Lists Kubernetes servers response.
+message ListKubernetesServersResponse {
+  // Resources in this page of results.
+  repeated KubeServer resources = 1;
+
+  // Pagination token for the next page.
+  string next_page_token = 2;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
