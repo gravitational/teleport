@@ -48,7 +48,9 @@ import (
 func TestAutoUpdateVersionReporter(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
 	clock := clockwork.NewFakeClockAt(time.Now().UTC())
 
 	backend, err := memory.New(memory.Config{
@@ -105,7 +107,9 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run the leader election process. Wait for the semaphore to be acquired.
-	require.NoError(t, reporter.Run(ctx))
+	errCh := make(chan error, 1)
+	go func() { errCh <- reporter.Run(ctx) }()
+
 	select {
 	case <-reporter.LeaderCh():
 	case <-time.After(1 * time.Second):
@@ -149,6 +153,9 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	if diff != "" {
 		t.Fatal(diff)
 	}
+
+	cancel()
+	require.NoError(t, <-errCh)
 }
 
 func TestEmitInstancesMetric(t *testing.T) {

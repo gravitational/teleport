@@ -9009,6 +9009,56 @@ func TestGetSnowflakeSessions(t *testing.T) {
 	}
 }
 
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
+}
+
 func TestDeleteSnowflakeSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)

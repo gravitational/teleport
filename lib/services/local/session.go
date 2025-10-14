@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -27,7 +28,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // GetAppSession gets an application web session.
@@ -70,60 +73,82 @@ func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pag
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
+// Deprecated: Prefer paginated variant such as [IdentityService.ListSnowflakeSessions]
 func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
-	startKey := backend.ExactKey(snowflakePrefix, sessionsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	out, err := stream.Collect(s.rangeSessions(ctx, "", "", "", snowflakePrefix, sessionsPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]types.WebSession, len(result.Items))
-	for i, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = session
-	}
 	return out, nil
+}
+
+// ListSnowflakeSessions gets a paginated list of Snowflake web sessions.
+func (s *IdentityService) ListSnowflakeSessions(ctx context.Context, pageSize int, pageToken string) ([]types.WebSession, string, error) {
+	return s.listSessions(ctx, pageSize, pageToken, "", snowflakePrefix, sessionsPrefix)
+}
+
+// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+func (s *IdentityService) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return s.rangeSessions(ctx, start, end, "", snowflakePrefix, sessionsPrefix)
 }
 
 // listSessions gets a paginated list of sessions.
 func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageToken, user string, keyPrefix ...string) ([]types.WebSession, string, error) {
-	rangeStart := backend.NewKey(append(keyPrefix, pageToken)...)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(keyPrefix...))
-
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > maxSessionPageSize {
 		pageSize = maxSessionPageSize
 	}
 
-	var out []types.WebSession
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: rangeStart,
-		EndKey:   rangeEnd,
-	}) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
+	return generic.CollectPageAndCursor(
+		s.rangeSessions(ctx, pageToken, "", user, keyPrefix...),
+		pageSize,
+		types.WebSession.GetName,
+	)
+}
 
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+func (s *IdentityService) rangeSessions(ctx context.Context, start, end string, user string, keyPrefix ...string) iter.Seq2[types.WebSession, error] {
+	mapFn := func(item backend.Item) (types.WebSession, bool) {
+		// TODO(okraport): Do not unmarshal the expiry and instead rely on the unmarshalled fields.
+		// This is because currently the backend expiry is the minima of Expires and BearerTokenExpires.
+		// Address this and revisit unmarshal opts.
+		session, err := services.UnmarshalWebSession(item.Value,
+			services.WithRevision(item.Revision))
 		if err != nil {
-			continue
+			s.logger.WarnContext(ctx, "Failed to unmarshal web session",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
 		}
 
 		if user != "" && session.GetUser() != user {
-			continue
+			return session, false
 		}
 
-		if len(out) >= pageSize {
-			return out, session.GetName(), nil
-		}
-
-		out = append(out, session)
+		return session, true
 	}
 
-	return out, "", nil
+	sessionKey := backend.NewKey(keyPrefix...)
+	startKey := sessionKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(sessionKey)
+	if end != "" {
+		endKey = sessionKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(session types.WebSession) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || session.GetName() < end
+		})
 }
 
 // UpsertAppSession creates an application web session.
