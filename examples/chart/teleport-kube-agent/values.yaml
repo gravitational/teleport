@@ -828,6 +828,10 @@ highAvailability:
     # available pod specified on the PodDisruptionBudget.
     minAvailable: 1
 
+    # highAvailability.podDisruptionBudget.maxUnavailable(int) -- is the maximum
+    # unavailable pod specified on the PodDisruptionBudget.
+    maxUnavailable: null
+
 # podMonitor -- controls the PodMonitor CR (from monitoring.coreos.com/v1)
 # This CRD is managed by the prometheus-operator and allows workload to
 # get monitored. To use this value, you need to run a `prometheus-operator`
