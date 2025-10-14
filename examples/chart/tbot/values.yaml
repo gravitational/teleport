@@ -291,3 +291,10 @@ extraEnv: []
 #
 # By default, this is unset.
 securityContext: null
+
+# podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+# for more details.
+#
+# By default, this is unset.
+podSecurityContext: null
