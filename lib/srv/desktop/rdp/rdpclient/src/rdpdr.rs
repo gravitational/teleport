@@ -40,7 +40,7 @@ use ironrdp_svc::SvcMessage;
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
     /// The backend for smart card redirection.
-    scard: ScardBackend,
+    scard: ScardBackend<ClientHandle>,
     /// The backend for directory sharing.
     fs: FilesystemBackend,
     /// Whether directory sharing is enabled.

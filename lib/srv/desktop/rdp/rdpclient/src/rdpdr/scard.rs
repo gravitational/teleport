@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::client::ClientHandle;
+use crate::client::{ClientHandle, ClientResult};
 use crate::{piv, util};
 use ironrdp_pdu::pdu_other_err;
 use ironrdp_pdu::utils::CharacterSet;
@@ -29,15 +29,44 @@ use ironrdp_rdpdr::pdu::esc::{
     WriteCacheCall,
 };
 use iso7816::Command as CardCommand;
-use log::{debug, warn};
+use log::{debug, warn, info};
 use std::collections::HashMap;
+use std::fmt::Debug;
 use uuid::Uuid;
+use ironrdp_rdpdr::pdu::RdpdrPdu;
+
+pub trait Responder {
+    fn write_rdpdr(&self, pdu: RdpdrPdu) -> ClientResult<()>;
+}
+
+impl Responder for ClientHandle {
+    fn write_rdpdr(&self, pdu: RdpdrPdu) -> ClientResult<()> {
+        return self.write_rdpdr(pdu);
+    }
+}
+
+
+struct FakeRdpdr (());
+
+impl Responder for FakeRdpdr {
+    fn write_rdpdr(&self, pdu: RdpdrPdu) -> ClientResult<()> {
+        println!("response: {:?}",pdu);
+       Ok(())
+    }
+}
+
+impl std::fmt::Debug for FakeRdpdr {
+     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+     }
+}
+
 
 /// `ScardBackend` implements the smartcard device redirection backend as described in [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]
 ///
 /// [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/0428ca28-b4dc-46a3-97c3-01887fa44a90
-pub struct ScardBackend {
-    client_handle: ClientHandle,
+pub struct ScardBackend<T: Responder + Debug> {
+    client_handle: T,
     /// contexts holds all the active contexts for the server, established using
     /// SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
     ///
@@ -49,7 +78,7 @@ pub struct ScardBackend {
     pin: String,
 }
 
-impl std::fmt::Debug for ScardBackend {
+impl<T: Responder + Debug> std::fmt::Debug for ScardBackend<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScardBackend")
             .field("client_handle", &self.client_handle)
@@ -64,9 +93,9 @@ impl std::fmt::Debug for ScardBackend {
     }
 }
 
-impl ScardBackend {
+impl<T: Responder + Debug> ScardBackend<T> {
     pub fn new(
-        client_handle: ClientHandle,
+        client_handle: T,
         cert_der: Vec<u8>,
         key_der: Vec<u8>,
         pin: String,
@@ -86,6 +115,7 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ScardCall,
     ) -> PduResult<()> {
+        info!("handling {:?}", req);
         match req.io_control_code {
             ScardIoCtlCode::AccessStartedEvent => match call {
                 ScardCall::AccessStartedEventCall(_) => self.handle_access_started_event(req),
@@ -234,7 +264,7 @@ impl ScardBackend {
                     req,
                     NtStatus::SUCCESS,
                     Some(Box::new(GetStatusChangeReturn::new(
-                        ReturnCode::Cancelled,
+                        ReturnCode::Success,
                         reader_states,
                     ))),
                 ),
@@ -271,11 +301,17 @@ impl ScardBackend {
                 // This is our actual emulated smartcard reader. We always advertise its state as
                 // "present".
                 TELEPORT_READER_NAME => {
+
+                    let mut reported_state = CardStateFlags::SCARD_STATE_PRESENT;
+                    if state.common.current_state != reported_state {
+                        reported_state |= CardStateFlags::SCARD_STATE_CHANGED;
+                    }
+                    info!("reporting teleport reader state: {:?}", reported_state);
+
                     let (atr_length, atr) = padded_atr::<36>();
                     reader_states.push(ReaderStateCommonCall {
                         current_state: state.common.current_state,
-                        event_state: CardStateFlags::SCARD_STATE_CHANGED
-                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        event_state: reported_state,
                         atr_length,
                         atr,
                     });
@@ -726,3 +762,71 @@ impl std::fmt::Display for SmartcardBackendError {
 }
 
 impl std::error::Error for SmartcardBackendError {}
+
+
+#[cfg(test)]
+mod tests {
+
+    use ironrdp_core::ReadCursor;
+    use ironrdp_rdpdr::pdu::{esc::{ScardCall, ScardIoCtlCode}};
+
+    use crate::rdpdr::scard::{FakeRdpdr, ScardBackend};
+    use uuid::Uuid;
+
+    use rcgen::{CertificateParams, CertifiedKey, KeyPair, PKCS_RSA_SHA256};
+
+    #[test]
+    fn process_packets() {
+        process_ioctl_string("0008000060000000d0000900000000000000000000000000000000000000000001100800cccccccc5000000000000000040000000000020004000000040002000200000000000000000000000500000008000200000000000000000002010000040000000e000000040000000100000005000000ffca00000000000000000000");
+    }
+
+    fn gen_cert() -> CertifiedKey<KeyPair> {
+        // Generate a certificate that's valid for "localhost" and "hello.world.example"
+        let subject_alt_names = vec!["hello.world.example".to_string(),
+            "localhost".to_string()];
+
+        let signing_key = KeyPair::generate_for(&PKCS_RSA_SHA256).unwrap();
+	    let cert = CertificateParams::new(subject_alt_names).unwrap().self_signed(&signing_key).unwrap();
+        CertifiedKey { cert: cert, signing_key: signing_key }
+    }
+    
+    fn process_ioctl_string(data: &str) {
+        let vec_data = hex::decode(data).unwrap();
+        process_data(vec_data.as_ref());
+    }
+
+    fn process_data(data: &[u8]) {
+        let fake = FakeRdpdr(());
+        let pin = String::from("1234");
+        let cert = gen_cert();
+        let id = Uuid::new_v4();
+        let mut backend = ScardBackend::new(fake, vec![], vec![], pin.clone());
+        for i in 1..28 {
+            let new_context = backend.contexts.establish();
+            let _res = backend.contexts.connect(new_context, i, id, cert.cert.der(), cert.signing_key.serialized_der(), pin.clone()).unwrap();
+        }
+
+        let mut cursor = ReadCursor::new(data);
+        let device_io_req: ironrdp_rdpdr::pdu::efs::DeviceIoRequest =  ironrdp_rdpdr::pdu::efs::DeviceIoRequest{
+            device_id: 1,
+            file_id: 0,
+            completion_id: 0,
+            major_function: ironrdp_rdpdr::pdu::efs::MajorFunction::DeviceControl,
+            minor_function: ironrdp_rdpdr::pdu::efs::MinorFunction::from(0),
+        };
+
+        let req = ironrdp_rdpdr::pdu::efs::DeviceControlRequest::<ScardIoCtlCode>::decode(device_io_req, &mut cursor).unwrap();
+              
+        //let other_result = ironrdp_rdpdr::pdu::efs::DeviceControlRequest::<ScardIoCtlCode>::decode(req.header, &mut cursor).unwrap();
+        let call = ScardCall::decode(req.io_control_code, &mut cursor).unwrap();
+         backend.handle(req, call).unwrap();
+        
+    }
+}
+
+// This packet reproduces the error
+//"724452490100000001000000030000000e00000000000000 0008000060000000d0000900000000000000000000000000000000000000000001100800cccccccc5000000000000000040000000000020004000000040002000200000000000000000000000500000008000200000000000000000002010000040000000e000000040000000100000005000000ffca00000000000000000000"
+
+// Valid transmit commands
+//"724452490100000001000000010000000e00000000000000 0008000060000000d0000900000000000000000000000000000000000000000001100800cccccccc5000000000000000040000000000020004000000040002000200000000000000000000000b00000008000200000000000000000002010000040000000500000004000000010000000b00000000cb3fff055c035fc10c0000"
+//"724452490100000001000000010000000e00000000000000 0008000060000000d0000900000000000000000000000000000000000000000001100800cccccccc5000000000000000040000000000020004000000040002000200000000000000000000000500000008000200000000000000000002010000040000000500000004000000010000000500000000c000000700000000000000"

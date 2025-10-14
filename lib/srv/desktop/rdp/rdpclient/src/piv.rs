@@ -22,6 +22,7 @@ use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
 use log::{debug, warn};
+use pkcs8::DecodePrivateKey;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use rsa::{BigUint, RsaPrivateKey};
@@ -57,7 +58,7 @@ pub struct Card<const S: usize> {
 
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> PduResult<Self> {
-        let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der)
+        let piv_auth_key = RsaPrivateKey::from_pkcs8_der(key_der)
             .map_err(|_e| pdu_other_err!("failed to parse private key from DER"))?;
 
         Ok(Self {

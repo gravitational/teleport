@@ -44,6 +44,10 @@ reqwest = { version = "0.12", default-features = false }
 rustls = { version = "0.23.31", default-features = false, features = [
     "aws-lc-rs",
 ] }
+aws-lc-rs = "^1.13.1"
+hex = "0.4"
+rcgen = { version = "0.14.5", features = ["aws_lc_rs"]}
+pkcs8 = "0.10.2"
 
 [build-dependencies]
 cbindgen = "0.29.0"
