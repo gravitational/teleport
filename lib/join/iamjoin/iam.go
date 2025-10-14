@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/token"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -265,7 +266,7 @@ type CheckIAMRequestParams struct {
 	// Challenge is the challenge that was sent to the client.
 	Challenge string
 	// ProvisionToken is the provision token being used.
-	ProvisionToken types.ProvisionToken
+	ProvisionToken token.Provisioner
 	// STSIdentityRequest is the signed sts:GetCallerIdentity request sent by
 	// the client in response to the challenge.
 	STSIdentityRequest []byte
@@ -283,6 +284,11 @@ type CheckIAMRequestParams struct {
 // even if the identity does not match the token's allow rules. This is to
 // support inclusion in audit logs.
 func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSIdentity, error) {
+	ptv2, ok := params.ProvisionToken.(types.ProvisionToken)
+	if !ok {
+		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", params.ProvisionToken)
+	}
+
 	if params.ProvisionToken.GetJoinMethod() != types.JoinMethodIAM {
 		return nil, trace.AccessDenied("this token does not support the IAM join method")
 
@@ -308,7 +314,7 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, params.ProvisionToken.GetAllowRules()); err != nil {
+	if err := checkIAMAllowRules(identity, ptv2.GetAllowRules()); err != nil {
 		// We return the identity since it's "validated" but does not match the
 		// rules. This allows us to include it in a failed join audit event
 		// as additional context to help the user understand why the join failed.
