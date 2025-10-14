@@ -1543,10 +1543,10 @@ name: my-secret
 # When using the Helm chart, and specifying a namespace other than the one that
 # `tbot` is running in, you must manually grant the `tbot` service account
 # privileges to read and write to secrets in that namespace.
-namespace:
+namespace: default
 # labels specifies the labels to apply to the Kubernetes Secret. This field is
 # optional.
-tags:
+labels:
   example: "foo"
 ```
 
