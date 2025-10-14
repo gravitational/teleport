@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -49,11 +48,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -155,11 +154,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -238,10 +237,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 func TestNodeCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
-	presence := NewPresenceService(lite)
+	presence := NewPresenceService(backend)
 
 	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
 	require.NoError(t, err)
@@ -618,11 +618,11 @@ func TestListResources(t *testing.T) {
 		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			backend, err := lite.NewWithConfig(ctx, lite.Config{
-				Path:  t.TempDir(),
+			backend, err := memory.New(memory.Config{
 				Clock: clock,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { _ = backend.Close() })
 
 			presence := NewPresenceService(backend)
 
@@ -755,11 +755,11 @@ func TestListResources_Helpers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	tests := []struct {
@@ -942,11 +942,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
@@ -1071,9 +1071,9 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	maxLeases := 5
@@ -1135,11 +1135,11 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -1260,10 +1260,9 @@ func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	serverInfoA, err := types.NewServerInfo(types.Metadata{

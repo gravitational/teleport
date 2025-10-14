@@ -6489,17 +6489,67 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Filter out kube clusters user doesn't have access to.
-	clusters, err := a.authServer.GetKubernetesClusters(ctx)
+	out, err := iterstream.Collect(
+		iterstream.FilterMap(
+			a.authServer.RangeKubernetesClusters(ctx, "", ""),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if a.checkAccessToKubeCluster(cluster) == nil {
+					return cluster, true
+				}
+				return nil, false
+			},
+		),
+	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
+
 	}
-	for _, cluster := range clusters {
-		if err := a.checkAccessToKubeCluster(cluster); err == nil {
-			result = append(result, cluster)
-		}
+
+	return out, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	return result, nil
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			iterstream.FilterMap(
+				a.authServer.RangeKubernetesClusters(ctx, start, ""),
+				func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+					// Filter out kube clusters user doesn't have access to.
+					if a.checkAccessToKubeCluster(cluster) == nil {
+						return cluster, true
+					}
+					return nil, false
+				},
+			),
+			func(cluster types.KubeCluster) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = cluster.GetName()
+				return false
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.

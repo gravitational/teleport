@@ -414,7 +414,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	ctx := s.srv.ctx
 
 	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
-		return nil, trace.BadParameter("agentless node require an agent getter")
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes (this is a bug)")
 	}
 	s.logger.DebugContext(ctx, "Initiating dial and forwarding request",
 		"source_addr", logutils.StringerAttr(params.From),
