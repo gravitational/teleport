@@ -368,7 +368,7 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
-		return nil, trace.BadParameter("agentless node require an agent getter")
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes (this is a bug)")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
