@@ -139,7 +139,6 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetSAMLConnectors":                                       {},
 			"proto.AuthService.GetSemaphores":                                           {},
 			"proto.AuthService.GetSessionEvents":                                        {},
-			"proto.AuthService.GetSnowflakeSessions":                                    {},
 			"proto.AuthService.GetSSHTargets":                                           {},
 			"proto.AuthService.GetSSODiagnosticInfo":                                    {},
 			"proto.AuthService.GetTokens":                                               {},
