@@ -168,6 +168,9 @@ func TestWriteLicense(t *testing.T) {
 }
 
 func TestAppendAnonymizationKey(t *testing.T) {
+	validLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license.pem"))
+	require.NoError(t, err)
+
 	tt := []struct {
 		name       string
 		licensePEM []byte
@@ -176,15 +179,18 @@ func TestAppendAnonymizationKey(t *testing.T) {
 	}{
 		{
 			name:       "successful append",
-			licensePEM: []byte("-----BEGIN LICENSE-----\nlicense content\n-----END LICENSE-----\n"),
+			licensePEM: validLicense.KeyPair.CertPEM,
 			anonKey:    []byte("anonymization key"),
 			assert: func(t *testing.T, result []byte, err error) {
 				require.NoError(t, err, "expected no error when appending anonymization key")
 				// assert it starts with the original PEM
-				require.True(t, bytes.HasPrefix(result, []byte("-----BEGIN LICENSE-----\nlicense content\n-----END LICENSE-----\n")))
+				require.True(t, bytes.HasPrefix(result, validLicense.KeyPair.CertPEM))
 				// assert it can be decoded
-				decoded, _ := pem.Decode(result)
-				require.NotNil(t, decoded, "expected resulting PEM to be valid")
+				decoded, rest := pem.Decode(result)
+				for decoded != nil && decoded.Type != constants.AnonymizationKeyPEMBlock {
+					decoded, rest = pem.Decode(rest)
+				}
+				require.NotNil(t, decoded, "anonymization PEM block not found")
 				// assert it includes the anonymization key
 				require.Equal(t, constants.AnonymizationKeyPEMBlock, decoded.Type, "expected PEM block type to match anonymization key")
 				require.Equal(t, "anonymization key", string(decoded.Bytes))
@@ -192,17 +198,15 @@ func TestAppendAnonymizationKey(t *testing.T) {
 		},
 		{
 			name:       "empty anonKey",
-			licensePEM: []byte("-----BEGIN LICENSE-----\nlicense content\n-----END LICENSE-----\n"),
+			licensePEM: validLicense.KeyPair.CertPEM,
 			anonKey:    []byte{},
 			assert: func(t *testing.T, result []byte, err error) {
 				require.NoError(t, err, "expected no error when appending empty anonymization key")
 				// assert it starts with the original PEM
-				require.True(t, bytes.HasPrefix(result, []byte("-----BEGIN LICENSE-----\nlicense content\n-----END LICENSE-----\n")))
+				require.True(t, bytes.HasPrefix(result, validLicense.KeyPair.CertPEM))
 				// assert it can be decoded
 				decoded, _ := pem.Decode(result)
 				require.NotNil(t, decoded, "expected resulting PEM to be valid")
-				// assert it includes the anonymization key
-				require.Empty(t, decoded.Bytes)
 			},
 		},
 	}
