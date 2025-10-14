@@ -35,10 +35,9 @@ Let's look at this table:
 | - | - | - |
 | `joe` | `joe`, `root` | Teleport user `joe` can log in as user `joe` or `root` on SSH servers. |
 | `bob` | `bob` | Teleport user `bob` can log in as user `bob` on SSH servers. |
-| `kim` | | Teleport user 'kim' has no designated SSH Login users.  |
+| `kim` | | Teleport user 'kim' has no designated SSH logins.  |
 
-SSH logins are available as one of the user traits usable in Teleport roles. Multiple other traits are available 
-as listed in the reference for [tctl users add](../../../reference/cli/tctl.mdx#tctl-users-add).
+SSH logins are some of the user traits available in Teleport roles. For all supported traits, see the reference for [`tctl users add`](../../../reference/cli/tctl.mdx#tctl-users-add).
 
 Let's add a new user to Teleport using the `tctl` tool:
 
