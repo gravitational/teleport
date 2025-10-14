@@ -1,6 +1,6 @@
 module register-app-service
 
-go 1.24.8
+go 1.24.9
 
 require (
 	github.com/docker/docker v28.3.3+incompatible
