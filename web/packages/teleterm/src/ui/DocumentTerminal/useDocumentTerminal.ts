@@ -23,12 +23,12 @@ import { runOnce } from 'shared/utils/highbar';
 
 import type { Shell } from 'teleterm/mainProcess/shell';
 import {
+  IPtyProcess,
   PtyCommand,
   PtyProcessCreationStatus,
   WindowsPty,
 } from 'teleterm/services/pty';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -40,8 +40,11 @@ import type * as types from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
 
+import { useLogger } from '../hooks/useLogger';
+
 export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const ctx = useAppContext();
+  const logger = useLogger('useDocumentTerminal');
   const { documentsService } = useWorkspaceContext();
   const [attempt, runAttempt] = useAsync(async () => {
     if ('status' in doc) {
@@ -85,7 +88,9 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
     return () => {
       if (attempt.status === 'success') {
-        void attempt.data.ptyProcess.dispose();
+        void attempt.data.ptyProcess.dispose().catch(error => {
+          logger.error(`Failed to dispose of the PTY process: ${error}`);
+        });
       }
     };
     // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
