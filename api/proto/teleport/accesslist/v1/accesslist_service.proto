@@ -90,6 +90,9 @@ service AccessListService {
   // UpsertAccessListWithMembers creates or updates an access list with members.
   rpc UpsertAccessListWithMembers(UpsertAccessListWithMembersRequest) returns (UpsertAccessListWithMembersResponse);
 
+  // UpsertAccessListWithMembers updates the access list with members.
+  rpc UpdateAccessListWithMembers(UpdateAccessListWithMembersRequest) returns (UpdateAccessListWithMembersResponse);
+
   // ListAccessListReviews will list access list reviews for a particular access
   // list.
   rpc ListAccessListReviews(ListAccessListReviewsRequest) returns (ListAccessListReviewsResponse);
@@ -283,6 +286,24 @@ message UpsertAccessListWithMembersRequest {
   // access_list is the access list to upsert.
   AccessList access_list = 1;
   // members is the list of access list members.
+  repeated Member members = 2;
+}
+
+// UpdateAccessListWithMembers is the request for updated an access list with
+// members.
+message UpdateAccessListWithMembersRequest {
+  // access_list is the access list to upsert.
+  AccessList access_list = 1;
+  // members is the list of access list members.
+  repeated Member members = 2;
+}
+
+// UpdateAccessListWithMembersResponse is the response for update an access
+// list with members.
+message UpdateAccessListWithMembersResponse {
+  // access_list is the access list that was updated.
+  AccessList access_list = 1;
+  // members is the list updated access list members.
   repeated Member members = 2;
 }
 
