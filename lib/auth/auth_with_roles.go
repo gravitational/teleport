@@ -6738,6 +6738,64 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 	return result, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	out, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.KubeCluster, error) {
+				if done {
+					return nil, io.EOF
+				}
+				items, next, err := a.authServer.ListKubernetesClusters(ctx, limit, start)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				start = next
+				if next == "" {
+					done = true
+				}
+				return items, nil
+			}),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				if nextKey != "" {
+					return nil, false
+				}
+				// Filter out kube clusters user doesn't have access to.
+				if err := a.checkAccessToKubeCluster(cluster); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = cluster.GetName()
+					return nil, false
+				}
+
+				count++
+				return cluster, true
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, nextKey, nil
+}
+
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
 func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbDelete); err != nil {
