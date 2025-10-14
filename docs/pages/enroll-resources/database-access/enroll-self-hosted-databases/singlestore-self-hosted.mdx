@@ -14,6 +14,8 @@ tags:
 
 (!docs/pages/includes/database-access/how-it-works/mtls.mdx db="SingleStore"!)
 
+Teleport connects to the SingleStore database server using the same protocol and tools that are used to connect to MySQL Server.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Enroll SingleStore with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/mysql_selfhosted.png)
@@ -191,4 +193,3 @@ $ tsh db logout example-singlestore
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
-
