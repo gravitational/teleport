@@ -814,7 +814,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.botVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
+	as.BotInstanceVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
 		Clock: cfg.Clock,
 		Logger: as.logger.With(
 			teleport.ComponentKey,
@@ -826,9 +826,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Cache:      as.Cache,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := as.botVersionReporter.Run(as.CloseContext()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1340,9 +1337,9 @@ type Server struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
-	// botVersionReporter is called periodically to generate a report of the
-	// number of bot instances by version and update group.
-	botVersionReporter *machineidv1.AutoUpdateVersionReporter
+	// BotInstanceVersionReporter is called periodically to generate a report of
+	// the number of bot instances by version and update group.
+	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1858,7 +1855,7 @@ func (a *Server) runPeriodicOperations() {
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
 			case autoUpdateBotInstanceReportKey:
-				go a.botVersionReporter.Report(a.closeCtx)
+				go a.BotInstanceVersionReporter.Report(a.closeCtx)
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
 			}
