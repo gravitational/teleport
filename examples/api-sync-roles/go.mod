@@ -1,6 +1,6 @@
 module sync-roles
 
-go 1.24.7
+go 1.24.9
 
 require (
 	github.com/gravitational/teleport/api v0.0.0-20250818183108-571669ac0707
