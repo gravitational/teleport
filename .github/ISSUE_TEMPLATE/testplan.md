@@ -2177,9 +2177,12 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Web UI fails to create Access Request displaying a message that reason is required.
     - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
     - [ ] Non-affected resources/roles don't require reason.
-    - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
-      - [ ] For CLI.
-      - [ ] For Web UI.
+  - [ ] When `spec.options.request_access: reason` is set on *any* of the user's roles (even if it doesn't allow requesting any resources):
+    - [ ] Verify request reason is required for all Access Requests made by this user with the Web UI.
+    - [ ] Verify request reason is required for all Access Requests made by this user with tctl.
+  - [ ] When `spec.options.request_prompt` is set on *any* of the user's roles (even if it doesn't allow requesting any resources):
+    - [ ] Verify this prompt is displayed in the Web UI when user makes an Access Request.
+    - [ ] Verify for more than one role with `spec.options.request_prompt` assigned to a user, prompts are deduplicated and sorted.
 
   - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
     - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
@@ -2218,19 +2221,100 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] In the web UI: check if the review is blocked (add `#review` at the end of the Access List URL)
 
 - [ ] Verify Okta Sync Service
-  - [ ] Verify Okta Plugin configuration.
-    - [ ] Verify that the Okta Plugin can be configured.
-    - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
   - [ ] Verify Okta users/apps/groups sync.
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify that when bidirectional sync is disabled:
       - [ ] `x.manage` scopes are not required for plugin to function.
-      - [ ] Updates to synced Access Lists' members/grants are not allowed.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed in web UI.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed with tctl.
+      - [ ] Access Requests to Okta app_server/user_group are not allowed in web UI.
+      - [ ] Access Requests to Okta app_server/user_group are not allowed with tctl.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
-    - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
-  - [ ] Verify access to Okta apps granted by access_list/access_request.
+    - [ ] Verify that nested Access List users/groups members are reflected in Okta, and are not duplicated in the parent Access List on a subsequent sync.
+  - [ ] User Suspended/Deactivated in Okta or locked in Teleport
+    - [ ] Verify that there is no lock a user Suspended in Okta.
+    - [ ] Verify that a user Deactivated in Okta is locked+removed from Teleport on the next sync.
+    - [ ] Verify that access_request for a user locked in Teleport are expired right away and those change are reflected in Okta.
+    - [ ] Verify that RBAC changes (e.g. updated role) for locked users are not reflected in Okta.
+  - [ ] Verify access to Okta apps/groups is granted/revoked by access_list when Access List sync is enabled and Okta user member added/removed to the list.
+  - [ ] Verify access to Okta apps/groups is granted by access_request
+    - [ ] When Access List sync is enabled.
+    - [ ] When Access List sync is disabled but App and Group sync is enabled (can be done with `tctl edit plugins/otka`).
+  - [ ] Verify that the permission granted by Access Request to Okta Resources are revoked after expiration.
+    - [ ] When Access List sync is enabled.
+    - [ ] When Access List sync is disabled but App and Group sync is enabled (can be done with `tctl edit plugins/otka`).
+  - [ ] Disabling/restoring default roles.
+    - [ ] When plugin is created with `tctl plugins install okta --no-assign-default-roles` flag and the connector doesn't have `okta-requester` role mapping, Okta users don't have `okta-requester` role and can't JIT request Okta-originated app_server/user_group.
+    - [ ] After `tctl edit plugins/okta` and removing `disable_assign_default_roles: true`, Okta users are assigned `okta-requester` role and can make JIT requests to Okta-originated resources.
+  - [ ] Verify Okta SCIM sync functionality
+    - [ ] Verify Okta SCIM only functionality.
+      - [ ] Verify Okta users are pushed to Teleport.
+      - [ ] Verify that users deleted in Okta are removed from Teleport.
+      - [ ] Verify Okta SCIM User Locking:
+        - [ ] Deactivating a user in Okta locks them in Teleport
+        - [ ] Reactivating the user in Okta unlocks them in Teleport.
+    - [ ]  Verify Okta SCIM functionality with Access List Sync
+      - [ ] Verify Okta users are pushed to Teleport.
+      - [ ] Verify that users deleted in Okta are removed from Teleport.
+      - [ ] Verify Okta SCIM User Locking:
+        - [ ] Deactivating a user in Okta locks them in Teleport (not deleted).
+        - [ ] Reactivating the user in Okta unlocks them in Teleport.
+      - [ ] Verify Okta groups are pushed to Teleport.
+
+- [ ] Verify Okta Enrollment Flow
+  - [ ] Verify Web UI flow
+    - [ ] Verify Okta SAML Connector setup
+      - [ ] Verify that Okta SSO integration can be created with preexisting Okta SSO connector.
+      - [ ] Verify that Okta SSO integration can be created from SSO metadataURL
+    - [ ] Verified that Okta Plugin can be config with partial setup via Okta integration updates:
+      -  [ ] SSO only
+      -  [ ] SSO + SCIM
+      -  [ ] SSO + Access List Sync
+      -  [ ] SSO + SCIM + Access List Sync
+      -  [ ] SSO  Access List Sync + SCIM
+    -  Verify that in any time Okta Plugin can be updated via Okta Plugin status page and the change is reflected by Okta Sync
+    - [ ] Verify that the Okta Oauth credential - clientID can be updated
+    - [ ] Verify that Access List groups/app filters can be updated and the update is reflected by Okta Sync
+    - [ ] Verify that Bidirectional sync can be disabled/enabled in any time and when it is enabled Teleport doest push any changes to Okta
+  - [ ] Verify CLI Enrollment Flow
+    - [ ] Plugin can be installed using `tctl plugins install okta`.
+    - [ ] Plugin settings can be updated using `tctl edit plugins/okta`.
+    - [ ] Plugin can be uninstalled using:
+      - `tctl plugin cleanup okta` / `tctl plugins delete okta`
+
+## Teleport AWS Identity Center Integration
+- [ ] Verify **CLI Enrollment Flow**
+  - [ ] Verify plugin enrollment via CLI.
+  - [ ] AWS account and group filters can be updated using and change are elected by AWS IC Sync.
+    - `tctl edit plugin/aws-identity-center`
+- [ ] Verify **Access List Synchronization**
+  - [ ] Moving users in/out of Teleport Access Lists updates AWS IC groups accordingly.
+  - [ ] Updating role assignments in Teleport Access Lists updates AWS IC group assignments.
+  - [ ] Creating a new Access List in Teleport creates a corresponding group in AWS IC.
+  - For a new Access List:
+    - [ ] Role updates or deletions are synced to AWS IC.
+    - [ ] Member assignments/unassignments are reflected in AWS IC.
+- [ ] Verify AWS IC Access Request flow
+  - [ ] SSO user without permissions can request access to AWS IC resources.
+  - [ ] Access List owner can approve/reject AWS IC access requests.
+  - [ ] When approved, user gains access to AWS IC resource.
+  - [ ] When request expires, user loses access to AWS IC resource.
+  - [ ] When a user is locked, permissions are revoked in AWS IC.
+- [ ] Verify that when a user is Locked the permissions are revoked in AWS IC
+- [ ] Verify **Direct Role Assignment in AWS IC**
+  - [ ] Assigning/removing roles with AWS IC permissions updates the user’s permissions in AWS IC.
+  - [ ] Locked roles result in permission de-provisioning from AWS IC:
+    - [ ] Teleport role locks are reflected in AWS IC.
+    - [ ] User lock leads to removal of AWS permissions and is reflected in the Access List.
+- [ ] Verify **Access List**.
+  - [ ] Membership expiration in Teleport Access Lists is reflected in AWS IC.
+  - [ ] Renaming an Access List title in Teleport is reflected in AWS IC without breaking sync.
+  - [ ] **Nested Access List**
+    - [ ] Nested Access Lists are provisioned as a combination of all included Access Lists.
+    - [ ] Adding/removing users from a child list updates the parent Access List accordingly.
+    - [ ] Deleting a child Access List removes users from the parent.
+    - [ ] Verify behavior when users are moved between overlapping Access Lists with different permissions.
 
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.
