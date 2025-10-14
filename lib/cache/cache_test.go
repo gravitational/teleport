@@ -4277,6 +4277,37 @@ func TestCAWatcherFilters(t *testing.T) {
 	}
 }
 
+func TestSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.WebSession]{
+		newResource: func(name string) (types.WebSession, error) {
+			return &types.WebSessionV2{
+				Kind:    types.KindWebSession,
+				SubKind: types.KindSnowflakeSession,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      name,
+					Namespace: "default",
+				},
+				Spec: types.WebSessionSpecV2{
+					User: "fish",
+				},
+			}, nil
+		},
+		create: p.snowflakeSessionS.UpsertSnowflakeSession,
+		list:   p.snowflakeSessionS.ListSnowflakeSessions,
+		cacheGet: func(ctx context.Context, name string) (types.WebSession, error) {
+			return p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: name})
+		},
+		cacheList: p.cache.ListSnowflakeSessions,
+		update:    p.snowflakeSessionS.UpsertSnowflakeSession,
+		deleteAll: p.snowflakeSessionS.DeleteAllSnowflakeSessions,
+	})
+}
+
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
 	t.Helper()
 	timeoutC := time.After(timeout)

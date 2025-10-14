@@ -316,6 +316,8 @@ type SnowflakeSession interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
 	// UpsertSnowflakeSession upserts a Snowflake web session.
 	UpsertSnowflakeSession(context.Context, types.WebSession) error
 	// DeleteSnowflakeSession removes a Snowflake web session.
