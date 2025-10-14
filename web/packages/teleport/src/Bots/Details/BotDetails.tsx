@@ -41,9 +41,9 @@ import Menu from 'design/Menu/Menu';
 import MenuItem from 'design/Menu/MenuItem';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import {
   FeatureBox,
@@ -241,7 +241,7 @@ export function BotDetails() {
                     overflow={'hidden'}
                   >
                     <MonoText>{data.name}</MonoText>
-                    <CopyButton name={data.name} />
+                    <CopyButton value={data.name} />
                   </Flex>
                   <GridLabel>Max session duration</GridLabel>
                   {data.max_session_ttl

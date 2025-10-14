@@ -19,6 +19,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/gravitational/trace"
@@ -81,6 +82,20 @@ func MarshalWebSession(webSession types.WebSession, opts ...MarshalOption) ([]by
 	default:
 		return nil, trace.BadParameter("unrecognized web session version %T", webSession)
 	}
+}
+
+// WebToken defines an interface for managing web token resources.
+type WebToken interface {
+	// GetWebToken gets a web token.
+	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
+	// GetWebTokens gets all web tokens.
+	GetWebTokens(context.Context) ([]types.WebToken, error)
+	// UpsertWebToken updates the existing or inserts a new web token.
+	UpsertWebToken(context.Context, types.WebToken) error
+	// DeleteWebToken deletes a web token.
+	DeleteWebToken(context.Context, types.DeleteWebTokenRequest) error
+	// DeleteAllWebTokens deletes all web tokens.
+	DeleteAllWebTokens(context.Context) error
 }
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
