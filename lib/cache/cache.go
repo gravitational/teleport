@@ -2732,6 +2732,32 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	return sess, trace.Wrap(err)
 }
 
+// GetSnowflakeSessions returns all Snowflake session resources.
+func (c *Cache) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSessions")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.snowflakeSessions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSnowflakeSessions(ctx)
+}
+
+// ListSnowflakeSessions returns a page of Snowflake session resources.
+func (c *Cache) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSnowflakeSessions")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.snowflakeSessions)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSnowflakeSessions(ctx, limit, startKey)
+}
+
 // GetSAMLIdPSession gets a SAML IdP session.
 func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")

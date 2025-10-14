@@ -99,6 +99,11 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 	return out, nil
 }
 
+// ListSnowflakeSessions gets a paginated list of Snowflake web sessions.
+func (s *IdentityService) ListSnowflakeSessions(ctx context.Context, pageSize int, pageToken string) ([]types.WebSession, string, error) {
+	return s.listSessions(ctx, pageSize, pageToken, "", snowflakePrefix, sessionsPrefix)
+}
+
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
 // TODO(Joerger): DELETE IN v18.0.0
 func (s *IdentityService) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {

@@ -1111,6 +1111,12 @@ type Cache interface {
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 
+	// GetSnowflakeSessions returns all Snowflake session resources.
+	GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error)
+
+	// ListSnowflakeSessions returns a page of Snowflake session resources.
+	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
+
 	// GetSAMLIdPSession gets a SAML IdP session.
 	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 
