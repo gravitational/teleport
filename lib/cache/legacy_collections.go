@@ -2396,7 +2396,7 @@ var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dyna
 type kubeClusterExecutor struct{}
 
 func (kubeClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeCluster, error) {
-	return cache.Kubernetes.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, cache.Kubernetes.ListKubernetesClusters, cache.Kubernetes.GetKubernetesClusters)
 }
 
 func (kubeClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.KubeCluster) error {
@@ -2427,8 +2427,11 @@ func (kubeClusterExecutor) getReader(cache *Cache, cacheOK bool) kubernetesClust
 	return cache.Config.Kubernetes
 }
 
+var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
+
 type kubernetesClusterGetter interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
