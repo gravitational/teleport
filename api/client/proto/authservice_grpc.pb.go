@@ -233,6 +233,7 @@ const (
 	AuthService_DeleteDatabase_FullMethodName                      = "/proto.AuthService/DeleteDatabase"
 	AuthService_DeleteAllDatabases_FullMethodName                  = "/proto.AuthService/DeleteAllDatabases"
 	AuthService_GetKubernetesClusters_FullMethodName               = "/proto.AuthService/GetKubernetesClusters"
+	AuthService_ListKubernetesClusters_FullMethodName              = "/proto.AuthService/ListKubernetesClusters"
 	AuthService_GetKubernetesCluster_FullMethodName                = "/proto.AuthService/GetKubernetesCluster"
 	AuthService_CreateKubernetesCluster_FullMethodName             = "/proto.AuthService/CreateKubernetesCluster"
 	AuthService_UpdateKubernetesCluster_FullMethodName             = "/proto.AuthService/UpdateKubernetesCluster"
@@ -816,6 +817,8 @@ type AuthServiceClient interface {
 	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -3209,6 +3212,15 @@ func (c *authServiceClient) GetKubernetesClusters(ctx context.Context, in *empty
 	return out, nil
 }
 
+func (c *authServiceClient) ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error) {
+	out := new(ListKubernetesClustersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListKubernetesClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.KubernetesClusterV3, error) {
 	out := new(types.KubernetesClusterV3)
 	err := c.cc.Invoke(ctx, AuthService_GetKubernetesCluster_FullMethodName, in, out, opts...)
@@ -4341,6 +4353,8 @@ type AuthServiceServer interface {
 	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -5131,6 +5145,9 @@ func (UnimplementedAuthServiceServer) DeleteAllDatabases(context.Context, *empty
 }
 func (UnimplementedAuthServiceServer) GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesClusters not implemented")
+}
+func (UnimplementedAuthServiceServer) ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesClusters not implemented")
 }
 func (UnimplementedAuthServiceServer) GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesCluster not implemented")
@@ -8974,6 +8991,24 @@ func _AuthService_GetKubernetesClusters_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListKubernetesClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListKubernetesClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, req.(*ListKubernetesClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetKubernetesCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -10891,6 +10926,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetKubernetesClusters",
 			Handler:    _AuthService_GetKubernetesClusters_Handler,
+		},
+		{
+			MethodName: "ListKubernetesClusters",
+			Handler:    _AuthService_ListKubernetesClusters_Handler,
 		},
 		{
 			MethodName: "GetKubernetesCluster",

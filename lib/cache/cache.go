@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2494,7 +2495,20 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, rg.reader.ListKubernetesClusters, rg.reader.GetKubernetesClusters)
+}
+
+// ListKubernetesClusters returns all kubernetes cluster resources.
+func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesClusters")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeClusters)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubernetesClusters(ctx, limit, start)
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
