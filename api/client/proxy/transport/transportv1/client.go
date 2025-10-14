@@ -245,7 +245,7 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 	stream, err := c.clt.ProxySSH(ctx)
 	if err != nil {
 		cancel()
-		return nil, nil, trace.Wrap(err, "unable to establish proxy stream")
+		return nil, nil, trace.Wrap(err, "opening proxy stream")
 	}
 
 	if err := stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
@@ -253,13 +253,13 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 		Cluster:  cluster,
 	}}); err != nil {
 		cancel()
-		return nil, nil, trace.Wrap(err, "failed to send dial target request")
+		return nil, nil, trace.Wrap(err, "sending dial target request")
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
 		cancel()
-		return nil, nil, trace.Wrap(err, "failed to receive cluster details response")
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// create streams for ssh and agent protocol
