@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -6645,34 +6646,19 @@ func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey
 		return nil, "", trace.Wrap(err)
 	}
 
-	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := iterstream.Collect(
-		iterstream.TakeWhile(
-			iterstream.FilterMap(
-				a.authServer.RangeDatabases(ctx, startKey, ""),
-				func(db types.Database) (types.Database, bool) {
-					if a.checkAccessToDatabase(db) == nil {
-						return db, true
-					}
-					return nil, false
-				},
-			),
-			func(db types.Database) bool {
-				if seen < limit {
-					seen++
-					return true
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeDatabases(ctx, startKey, ""),
+			func(db types.Database) (types.Database, bool) {
+				if a.checkAccessToDatabase(db) == nil {
+					return db, true
 				}
-				next = db.GetName()
-				return false
+				return nil, false
 			},
 		),
+		limit,
+		types.Database.GetName,
 	)
-	return out, next, trace.Wrap(err)
 }
 
 // DeleteDatabase removes the specified database resource.
