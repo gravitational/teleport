@@ -109,6 +109,11 @@ func (u *UserLoginState) Clone() *UserLoginState {
 	return out
 }
 
+// IsEqual compares two user login states for equality.
+func (u *UserLoginState) IsEqual(i *UserLoginState) bool {
+	return deriveTeleportEqualUserLoginState(u, i)
+}
+
 // GetOriginalRoles returns the original roles that the user login state was derived from.
 func (u *UserLoginState) GetOriginalRoles() []string {
 	return u.Spec.OriginalRoles
