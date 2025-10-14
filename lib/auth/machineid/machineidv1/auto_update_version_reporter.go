@@ -130,36 +130,33 @@ func (r *AutoUpdateVersionReporter) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	go func() {
-		defer r.logger.DebugContext(ctx, "Shutting down")
+	defer r.logger.DebugContext(ctx, "Shutting down")
 
-		for {
-			started := r.clock.Now()
-			r.runLeader(ctx)
-			leaderFor := r.clock.Now().Sub(started)
+	for {
+		started := r.clock.Now()
+		r.runLeader(ctx)
+		leaderFor := r.clock.Since(started)
 
-			// Context is done, exit immediately.
-			if ctx.Err() != nil {
-				return
-			}
-
-			// If we were leader for a decent amount of time, any previous
-			// backoff likely doesn't apply anymore.
-			if leaderFor > 5*time.Minute {
-				retry.Reset()
-			}
-
-			// Wait for the next retry interval.
-			retry.Inc()
-
-			select {
-			case <-retry.After():
-			case <-ctx.Done():
-				return
-			}
+		// Context is done, exit immediately.
+		if ctx.Err() != nil {
+			return nil
 		}
-	}()
-	return nil
+
+		// If we were leader for a decent amount of time, any previous
+		// backoff likely doesn't apply anymore.
+		if leaderFor > 5*time.Minute {
+			retry.Reset()
+		}
+
+		// Wait for the next retry interval.
+		retry.Inc()
+
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (r *AutoUpdateVersionReporter) runLeader(ctx context.Context) error {
