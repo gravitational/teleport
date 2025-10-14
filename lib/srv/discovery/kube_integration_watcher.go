@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -118,7 +119,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				existingClusters, err := clt.GetKubernetesClusters(s.ctx)
+				// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+				existingClusters, err := clientutils.CollectWithFallback(s.ctx, clt.ListKubernetesClusters, clt.GetKubernetesClusters)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue
