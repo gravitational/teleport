@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/token"
 )
 
 // handleBoundKeypairJoin takes over the join process after the ClientInit
@@ -36,7 +37,7 @@ func (s *Server) handleBoundKeypairJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken types.ProvisionToken,
+	provisioner token.Provisioner,
 ) (*messages.BotResult, error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -74,7 +75,7 @@ func (s *Server) handleBoundKeypairJoin(
 			return nil, "", trace.Wrap(err)
 		}
 		botCertsParams.PreviousBotInstanceID = previousBotInstanceID
-		protoCerts, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, botCertsParams)
+		protoCerts, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisioner, botCertsParams)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -88,7 +89,7 @@ func (s *Server) handleBoundKeypairJoin(
 		AuthService:          s.cfg.AuthService,
 		AuthCtx:              authCtx,
 		Diag:                 diag,
-		ProvisionToken:       provisionToken,
+		ProvisionToken:       provisioner,
 		ClientInit:           clientInit,
 		BoundKeypairInit:     boundKeypairInit,
 		IssueChallenge:       issueChallenge,
@@ -156,7 +157,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	}
 
 	// Assert that the provision token allows the requested system role.
-	if err := ProvisionTokenAllowsRole(provisionToken, req.JoinRequest.Role); err != nil {
+	if err := TokenAllowsRole(provisionToken, req.JoinRequest.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

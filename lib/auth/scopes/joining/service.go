@@ -97,6 +97,10 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 		token.Metadata.Name = name
 	}
 
+	if types.JoinMethod(token.GetSpec().GetJoinMethod()) == types.JoinMethodUnspecified {
+		token.Spec.JoinMethod = string(types.JoinMethodToken)
+	}
+
 	res, err := s.backend.CreateScopedToken(ctx, req)
 	return res, trace.Wrap(err)
 }
