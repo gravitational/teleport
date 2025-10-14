@@ -2203,6 +2203,53 @@ $ tctl plugins install okta \
     --no-appgroup-sync
 ```
 
+## tctl plugins install entraid
+
+Install the Entra ID plugin.
+
+```code
+$ tctl plugins install entraid <flags>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--name` | `entra-id` | string | Name of the plugin resource to create. |
+| `--auth-connector-name` | `entra-id-default` | string | Name of the SAML connector resource to create. |
+| `--default-owner` | none | string | Required. A Teleport username to set as the default owner for the imported Access Lists. Multiple flags allowed. |
+| `--[no-]access-graph` | `--access-graph` | boolean | Optional. Enable Access Graph cache build. |
+| `--[no-]use-system-credentials` | `--no-use-system-credentials` | boolean | Optional. Use system credentials instead of OIDC. |
+| `--[no-]manual-setup` | `--no-manual-setup` | boolean | Optional. Manually set up the EntraID integration. |
+| `--[no-]force` | `--no-force` | boolean | Optional. Proceed with the installation even if the plugin already exists. |
+| `--group-id` | none | string | Optional. Include group matching the specified group ID. Multiple flags allowed. |
+| `--group-name` | none | string | Optional. Include groups matching the specified group name regex. Multiple flags allowed.  |
+| `--exclude-group-id` | none | string | Optional. Exclude group matching the specified group ID. Multiple flags allowed. |
+| `--exclude-group-name` | none | string | Optional. Exclude groups matching the specified group name regex. Multiple flags allowed. |
+
+
+### Example
+
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=admin \
+    --default-owner=root@example.com \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
+    --group-name "admin*" \
+    --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
+    --exclude-group-name "fin*" 
+```
+
+Multiple flags are collected together. In the given example, based on the 
+two `default-owner` flags, all the Access Lists imported by the integration will 
+be created with owners `admin` and `root@example.com`.
+
+
 ## tctl plugins rotate awsic
 
 Rotate the bearer token used by Teleport to authenticate with the AWS IAM Identity
