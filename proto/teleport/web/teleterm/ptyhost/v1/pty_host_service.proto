@@ -25,12 +25,12 @@ import "google/protobuf/struct.proto";
 // PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
 service PtyHostService {
   // CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
-  rpc CreatePtyProcess(CreatePtyProcessRequest) returns (CreatePtyProcessResponse) {}
+  rpc CreatePtyProcess(CreatePtyProcessRequest) returns (CreatePtyProcessResponse);
   // ManagePtyProcess is a bidirectional stream that lets the client send input and resize requests
   // to the PTY process and receive output from the PTY process.
-  rpc ManagePtyProcess(stream ManagePtyProcessRequest) returns (stream ManagePtyProcessResponse) {}
+  rpc ManagePtyProcess(stream ManagePtyProcessRequest) returns (stream ManagePtyProcessResponse);
   // GetCwd returns the current working directory of the given PTY process.
-  rpc GetCwd(GetCwdRequest) returns (GetCwdResponse) {}
+  rpc GetCwd(GetCwdRequest) returns (GetCwdResponse);
 }
 
 // CreatePtyProcessRequest includes fields necessary to start a PTY process.
