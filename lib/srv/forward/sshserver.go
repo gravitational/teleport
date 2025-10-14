@@ -268,14 +268,17 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.TargetServer == nil {
 		return trace.BadParameter("target server is required")
 	}
-	if s.TargetServer.IsOpenSSHNode() {
+	switch s.TargetServer.GetSubKind() {
+	case types.SubKindTeleportNode:
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes (agentless)")
+		}
+	case types.SubKindOpenSSHNode:
 		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	} else {
-		if s.UserAgent == nil {
-			return trace.BadParameter("user agent required for teleport nodes")
-		}
+	case types.SubKindOpenSSHEICENode:
+		// agentless signer is set once the forwarding server is started.
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -785,7 +788,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := tracessh.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := tracessh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -77,7 +77,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -144,7 +143,7 @@ type testPack struct {
 	databases               *local.DatabaseService
 	databaseServices        *local.DatabaseServicesService
 	webSessionS             types.WebSessionInterface
-	webTokenS               types.WebTokenInterface
+	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
@@ -317,17 +316,10 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 type packCfg struct {
-	memoryBackend bool
-	ignoreKinds   []types.WatchKind
+	ignoreKinds []types.WatchKind
 }
 
 type packOption func(cfg *packCfg)
-
-func memoryBackend(bool) packOption {
-	return func(cfg *packCfg) {
-		cfg.memoryBackend = true
-	}
-}
 
 // ignoreKinds specifies the list of kinds that should be removed from the watch request by eventsProxy
 // to simulate cache resource type rejection due to version incompatibility.
@@ -348,19 +340,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p := &testPack{
 		dataDir: dir,
 	}
-	var bk backend.Backend
-	var err error
-	if cfg.memoryBackend {
-		bk, err = memory.New(memory.Config{
-			Context: ctx,
-			Mirror:  true,
-		})
-	} else {
-		bk, err = lite.NewWithConfig(ctx, lite.Config{
-			Path:             p.dataDir,
-			PollStreamPeriod: 200 * time.Millisecond,
-		})
-	}
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Mirror:  true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -394,7 +377,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = idService
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
-	p.webTokenS = idService.WebTokens()
+	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
@@ -1000,7 +983,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	p, err := newPack(b.TempDir(), ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
 

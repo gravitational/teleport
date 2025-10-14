@@ -26,7 +26,7 @@ In the Azure Portal, under “Azure services”, select “Enterprise applicatio
 Click on `+ New Application` button, then click `+ Create your own application` button.
 Enter a name for your application and create the application.
 
-![Entra ID Integration](../../../img/igs/entraid/entra-create-enterprise-app.png)
+![Entra ID Integration](../../../../img/igs/entraid/entra-create-enterprise-app.png)
 
 
 ## Step 2/5. Configure SSO
@@ -44,7 +44,7 @@ E.g. `https://example.teleport.sh/v1/webapi/saml/acs/entra-id`
 For “Attributes & Claims”, attributes with user will already be available for you but you will need to 
 add a `groups` claim. 
 
-![Entra ID Integration](../../../img/igs/entraid/entra-sso-config.png)
+![Entra ID Integration](../../../../img/igs/entraid/entra-sso-config.png)
 
 
 ## Step 3/5. Configure OIDC IdP
@@ -67,7 +67,7 @@ Under “Credential details”, configure the following values:
 - **Name:** teleport-oidc
 - **Description:** Teleport OIDC Identity Provider
 
-![Entra ID Integration](../../../img/igs/entraid/entra-setup-oidc.png)
+![Entra ID Integration](../../../../img/igs/entraid/entra-setup-oidc.png)
 
 ## Step 4/5. Configure API permissions
 
@@ -81,7 +81,7 @@ The following permissions need to be added to the application.
 - `Group.Read.All`
 - `User.Read.All`
 
-![Entra ID Integration](../../../img/igs/entraid/entra-api-permission.png)
+![Entra ID Integration](../../../../img/igs/entraid/entra-api-permission.png)
 
 
 ## Step 5/5. Install the Entra ID plugin
@@ -111,7 +111,7 @@ After you enter these values, Entra ID plugin will be installed with the OIDC Id
 ## Next steps
 
 - [Configure Access](configure-access.mdx) for Entra ID users.
-- Learn more about [Access List](../access-lists/access-lists.mdx) management.
-- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/entra-id.mdx). 
-- Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
+- Learn more about [Access List](../../access-lists/access-lists.mdx) management.
+- Take a deeper look into setting up [Entra ID auth connector](../../../zero-trust-access/sso/entra-id.mdx). 
+- Learn how the [Identity Security integration with Entra ID](../../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 
