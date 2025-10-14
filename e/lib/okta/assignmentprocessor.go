@@ -114,12 +114,12 @@ func (a *assignmentProcessor) start(ctx context.Context, oktaClient oktaapi.Inte
 
 // loop runs the main body of the processing loop.
 func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaapi.Interface) {
-	ticker := a.clock.NewTicker(TimeBetweenAssignmentProcessLoops)
-	defer ticker.Stop()
+	timer := a.clock.NewTimer(TimeBetweenAssignmentProcessLoops)
+	defer timer.Stop()
 
 	for {
 		select {
-		case <-ticker.Chan():
+		case <-timer.Chan():
 		case <-a.stopCh:
 			return
 		case <-ctx.Done():
@@ -139,6 +139,8 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaapi.Inter
 		if err := a.processAllAssignments(ctx); err != nil {
 			a.logger.ErrorContext(ctx, "Error while processing assignments", "error", err)
 		}
+
+		timer.Reset(TimeBetweenAssignmentProcessLoops)
 	}
 }
 
