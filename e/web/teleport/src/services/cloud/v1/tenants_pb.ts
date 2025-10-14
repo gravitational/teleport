@@ -840,6 +840,35 @@ export interface GetUsageResponse {
      * @generated from protobuf field: int64 usage_updated_at = 4;
      */
     usageUpdatedAt: number;
+    /**
+     * Alerts generate UI alerts
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.Alert alerts = 5;
+     */
+    alerts: Alert[];
+}
+/**
+ * Alert displays an in-page alert.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.Alert
+ */
+export interface Alert {
+    /**
+     * @generated from protobuf field: string kind = 1;
+     */
+    kind: string;
+    /**
+     * @generated from protobuf field: string name = 2;
+     */
+    name: string;
+    /**
+     * @generated from protobuf field: string details = 3;
+     */
+    details: string;
+    /**
+     * @generated from protobuf field: bool dismissible = 4;
+     */
+    dismissible: boolean;
 }
 /**
  * UsageCycle contains the usage metrics of a subscription or customer in a given billing cycle.
@@ -3590,7 +3619,8 @@ class GetUsageResponse$Type extends MessageType<GetUsageResponse> {
             { no: 1, name: "usage_history", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => UsageCycle },
             { no: 2, name: "missing_entitlements", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "aggregate_count", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
-            { no: 4, name: "usage_updated_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
+            { no: 4, name: "usage_updated_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 5, name: "alerts", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Alert }
         ]);
     }
     create(value?: PartialMessage<GetUsageResponse>): GetUsageResponse {
@@ -3599,6 +3629,7 @@ class GetUsageResponse$Type extends MessageType<GetUsageResponse> {
         message.missingEntitlements = [];
         message.aggregateCount = 0;
         message.usageUpdatedAt = 0;
+        message.alerts = [];
         if (value !== undefined)
             reflectionMergePartial<GetUsageResponse>(this, message, value);
         return message;
@@ -3619,6 +3650,9 @@ class GetUsageResponse$Type extends MessageType<GetUsageResponse> {
                     break;
                 case /* int64 usage_updated_at */ 4:
                     message.usageUpdatedAt = reader.int64().toNumber();
+                    break;
+                case /* repeated gravitational.cloud.tenants.v1.Alert alerts */ 5:
+                    message.alerts.push(Alert.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3644,6 +3678,9 @@ class GetUsageResponse$Type extends MessageType<GetUsageResponse> {
         /* int64 usage_updated_at = 4; */
         if (message.usageUpdatedAt !== 0)
             writer.tag(4, WireType.Varint).int64(message.usageUpdatedAt);
+        /* repeated gravitational.cloud.tenants.v1.Alert alerts = 5; */
+        for (let i = 0; i < message.alerts.length; i++)
+            Alert.internalBinaryWrite(message.alerts[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3654,6 +3691,77 @@ class GetUsageResponse$Type extends MessageType<GetUsageResponse> {
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetUsageResponse
  */
 export const GetUsageResponse = new GetUsageResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Alert$Type extends MessageType<Alert> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.Alert", [
+            { no: 1, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "details", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "dismissible", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<Alert>): Alert {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.kind = "";
+        message.name = "";
+        message.details = "";
+        message.dismissible = false;
+        if (value !== undefined)
+            reflectionMergePartial<Alert>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Alert): Alert {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string kind */ 1:
+                    message.kind = reader.string();
+                    break;
+                case /* string name */ 2:
+                    message.name = reader.string();
+                    break;
+                case /* string details */ 3:
+                    message.details = reader.string();
+                    break;
+                case /* bool dismissible */ 4:
+                    message.dismissible = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Alert, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string kind = 1; */
+        if (message.kind !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.kind);
+        /* string name = 2; */
+        if (message.name !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.name);
+        /* string details = 3; */
+        if (message.details !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.details);
+        /* bool dismissible = 4; */
+        if (message.dismissible !== false)
+            writer.tag(4, WireType.Varint).bool(message.dismissible);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.Alert
+ */
+export const Alert = new Alert$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UsageCycle$Type extends MessageType<UsageCycle> {
     constructor() {

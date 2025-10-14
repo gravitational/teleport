@@ -51,6 +51,7 @@ export default CloudService;
 
 function makeGetUsageResponse(json: any): GetUsageResponse {
   return {
+    alerts: json?.alerts || [],
     usageHistory: makeUsageHistory(json?.usageHistory || []),
     missingEntitlements: json?.missingEntitlements || [],
     aggregateCount: json?.aggregateCount || 0,

@@ -49,6 +49,7 @@ export default {
 };
 
 const defaultResponse = makeGetUsageResponse({
+  alerts: [],
   usageHistory: [
     makeUsageCycle({
       usage: {
@@ -117,6 +118,107 @@ export const Aggregate = {
         },
         { once: true }
       ),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
+
+export const WithAPIAlerts = {
+  parameters: {
+    msw: [
+      http.post(cfg.api.billingSummaryPath, () => {
+        return HttpResponse.json({
+          ...defaultResponse,
+          alerts: [
+            {
+              name: 'About Aggregate Totals',
+              details:
+                'Teleport cannot match self-hosted users with cloud users. When usage from both is combined, the same person may be counted more than once, making totals appear higher than the actual number of users. For counts within a single cluster, view cluster-level data.',
+              kind: 'info',
+              dismissible: false,
+            },
+            {
+              name: 'Alert-001',
+              details: 'There is a usage alert',
+              kind: 'info',
+              dismissible: true,
+            },
+            {
+              name: 'Alert-002',
+              details: 'There is a usage alert',
+              kind: 'danger',
+              dismissible: false,
+            },
+            {
+              name: 'Alert-003',
+              details: 'There is a usage alert',
+              kind: 'neutral',
+              dismissible: true,
+            },
+            {
+              name: 'Alert-004',
+              details: 'There is a good usage alert',
+              kind: 'success',
+              dismissible: true,
+            },
+            {
+              name: undefined,
+              details: 'There is a usage alert without a name',
+              kind: 'info',
+              dismissible: true,
+            },
+            {
+              name: 'Alert-005 without details',
+              details: undefined,
+              kind: 'info',
+              dismissible: false,
+            },
+            {
+              name: 'Alert-006',
+              details: 'There is a usage alert without kind',
+              kind: undefined,
+              dismissible: true,
+            },
+            {
+              name: 'Alert-007',
+              details: 'There is a good usage alert without dismissable',
+              kind: 'info',
+              dismissible: undefined,
+            },
+            {
+              name: 'Alert-008',
+              details: 'invalid kind',
+              kind: 'type-not-matched',
+              dismissible: true,
+            },
+            // missing name & details; does not render
+            {
+              name: undefined,
+              details: undefined,
+              kind: 'danger',
+              dismissible: true,
+            },
+          ],
+          usageHistory: [
+            makeUsageCycle({
+              usage: {
+                igmau: 23,
+                ztamau: 40,
+                tpr: 107,
+                mwi: 30,
+              },
+              usageLimits: {
+                igmau: 30,
+                ztamau: 65,
+                tpr: 1000,
+                mwi: 50,
+              },
+            }),
+          ],
+        });
+      }),
     ],
   },
   render: () => {

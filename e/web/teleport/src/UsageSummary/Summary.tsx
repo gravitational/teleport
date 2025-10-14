@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonSelect, Flex } from 'design';
+import { Alert, Box, ButtonSelect, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import { AlertKind } from 'design/Alert/Alert';
 import { ShimmerBox } from 'design/ShimmerBox';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -93,6 +94,22 @@ export function Summary() {
                     <InfoGuideButton config={{ guide: <Guide /> }} />
                   </Flex>
                 </FeatureHeader>
+                <>
+                  {usageResponse.alerts?.map((alert, i) => {
+                    if (alert.name || alert.details) {
+                      return (
+                        <Alert
+                          key={i}
+                          kind={(alert.kind as AlertKind) || 'neutral'}
+                          details={alert.details || ''}
+                          dismissible={alert.dismissible || false}
+                        >
+                          {alert.name}
+                        </Alert>
+                      );
+                    }
+                  })}
+                </>
                 <Flex gap="5" flexDirection="column">
                   <Cycle
                     usageResponse={usageResponse}

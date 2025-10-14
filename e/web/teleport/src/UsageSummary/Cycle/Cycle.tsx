@@ -1,8 +1,6 @@
 import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, H2, H3, Subtitle2, SyncStamp, Text } from 'design';
-import { Info } from 'design/Alert';
-import { pluralize } from 'shared/utils/text';
 
 import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { usageUnixInMilliseconds } from 'e-teleport/UsageSummary/helpers';
@@ -40,7 +38,8 @@ export interface CycleProps {
 
 export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
   const theme = useTheme();
-  const { usageHistory, missingEntitlements, usageUpdatedAt } = usageResponse;
+  const { aggregateCount, usageHistory, missingEntitlements, usageUpdatedAt } =
+    usageResponse;
   const currentCycle = usageHistory[0];
   const {
     usage,
@@ -48,9 +47,11 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
     startFormatted,
     endFormatted,
     calibratingAccounts,
-    activeAccounts,
   } = currentCycle;
-  const calibrationPeriod = calibratingAccounts > 0;
+  //  if aggregate (customer) only show calibration if all accounts are calibrating
+  const calibrationPeriod = aggregate
+    ? calibratingAccounts === aggregateCount
+    : calibratingAccounts > 0;
   const customerUsage = customer?.usageHistory[0]?.usage || {
     ztamau: 0,
     tpr: 0,
@@ -190,11 +191,6 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
       <Subtitle2 color={theme.colors.text.slightlyMuted} mt="2">
         Monthly usage will reset at the end of this cycle
       </Subtitle2>
-      {calibrationPeriod && (
-        <Info
-          details={`A change to ${calibratingAccounts} Teleport ${pluralize(calibratingAccounts, 'cluster')} requires a calibration period in order to accurately count users and resources. This should resolve itself with the start of your next billing cycle. This data represents usage from ${activeAccounts} non-calibrating ${pluralize(activeAccounts, 'cluster')}.`}
-        />
-      )}
       <Flex gap="3" flexWrap="wrap" my="3">
         {sections.map(section => (
           <CyclesContainer

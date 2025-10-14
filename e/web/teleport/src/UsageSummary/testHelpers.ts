@@ -10,6 +10,7 @@ export const makeGetUsageResponse = (
 ): GetUsageResponse => {
   return Object.assign(
     {
+      alerts: [],
       usageHistory: [],
       missingEntitlements: [],
       aggregateCount: 0,
