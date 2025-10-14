@@ -204,15 +204,12 @@ async function setUpPtyProcess(
 
   ptyProcess.onExit(event => {
     // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,
-    // tsh ssh cannot connect to the given node.
+    // tsh ssh couldn't connect to the given node.
     //
-    // The downside of this is that if you open a local shell, then execute a command that fails
-    // (for example, `cd` to a nonexistent directory), and then try to execute `exit` or press
-    // Ctrl + D, the tab won't automatically close, because the last exit code is not zero.
-    //
-    // We can look up how the terminal in vscode handles this problem, since in the scenario
-    // described above they do close the tab correctly.
-    if (event.exitCode === 0) {
+    // We also have to account for Ctrl+D, as executing it makes the shell exit with the last
+    // reported exit code. If we depended on the exit code alone, it'd mean that the terminal tab
+    // wouldn't close if Ctrl+D followed a command that failed, say cd to a nonexistent directory.
+    if (event.exitCode === 0 || event.lastInput === /* Ctrl+D */ '\x04') {
       documentsService.close(doc.uri);
     }
   });
