@@ -270,19 +270,19 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	// create a reader/writer for SSH Agent protocol
 	agentStreamRW, err := streamutils.NewReadWriter(agentStream)
 	if err != nil {
-		return trace.Wrap(err, "failed constructing ssh agent streamer")
+		return trace.Wrap(err, "creating ssh agent stream")
 	}
 	defer agentStreamRW.Close()
 
 	// create a reader/writer for SSH protocol
 	sshStreamRW, err := streamutils.NewReadWriter(sshStream)
 	if err != nil {
-		return trace.Wrap(err, "failed constructing ssh streamer")
+		return trace.Wrap(err, "creating ssh stream")
 	}
 
 	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
 	if err != nil {
-		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+		return trace.Wrap(err, "retrieving destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
@@ -292,7 +292,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(err, "failed to dial target host")
+		return trace.Wrap(err)
 	}
 
 	// ensure the connection to the target host
