@@ -1433,6 +1433,7 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         } else {
             PerformanceFlags::empty()
         },
+        // spec says that any value not in [100, 500] is ignored
         desktop_scale_factor: 100,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
         hardware_id: Some(params.client_id),
