@@ -30,6 +30,7 @@ type Reporter interface {
 }
 
 type reporter struct {
+	name   string
 	mu     *sync.Mutex
 	status *ServiceStatus
 }
@@ -42,8 +43,18 @@ func (r *reporter) ReportReason(status Status, reason string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	oldStatus := r.status.Status
+
 	r.status.Status = status
 	r.status.Reason = reason
+
+	// Set old status to 0 and new status to 1
+	ServiceStatusGauge.WithLabelValues(
+		r.name, oldStatus.MetricLabelValue(),
+	).Set(0)
+	ServiceStatusGauge.WithLabelValues(
+		r.name, status.MetricLabelValue(),
+	).Set(1)
 }
 
 // NoopReporter returns a no-op Reporter that can be used when no real reporter
