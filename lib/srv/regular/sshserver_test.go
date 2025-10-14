@@ -2421,7 +2421,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 			DNSNames:             []string{hostname},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -3305,7 +3305,7 @@ func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) s
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
-		})
+		}, "")
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server

@@ -24,6 +24,7 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 type Env0TokenValidator interface {
@@ -37,7 +38,7 @@ type Env0TokenValidator interface {
 // suitable for use in `handleOIDCJoin`
 func (s *Server) validateEnv0Token(
 	ctx context.Context,
-	provisionToken types.ProvisionToken,
+	provisionToken provision.Token,
 	idToken []byte,
 ) (any, *workloadidentityv1.JoinAttrs, error) {
 	verifiedIdentity, err := s.cfg.AuthService.GetEnv0IDTokenValidator().ValidateToken(ctx, idToken)
