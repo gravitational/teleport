@@ -63,7 +63,6 @@ type IdentityCenterAccountGetter interface {
 	// ListIdentityCenterAccounts provides a paged list of all known identity
 	// center accounts
 	ListIdentityCenterAccounts(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
-	ListIdentityCenterAccounts2(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
 
 	// GetIdentityCenterAccount fetches a specific Identity Center Account
 	GetIdentityCenterAccount(context.Context, string) (*identitycenterv1.Account, error)
@@ -76,12 +75,10 @@ type IdentityCenterAccounts interface {
 
 	// CreateIdentityCenterAccount creates a new Identity Center Account record
 	CreateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
-	CreateIdentityCenterAccount2(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 
 	// UpdateIdentityCenterAccount performs a conditional update on an Identity
 	// Center Account record, returning the updated record on success.
 	UpdateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
-	UpdateIdentityCenterAccount2(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
 
 	// UpsertIdentityCenterAccount performs an *unconditional* upsert on an
 	// Identity Center Account record, returning the updated record on success.
@@ -106,7 +103,6 @@ type IdentityCenterPrincipalAssignments interface {
 	// ListPrincipalAssignments lists all PrincipalAssignment records in the
 	// service
 	ListPrincipalAssignments(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
-	ListPrincipalAssignments2(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 
 	// CreatePrincipalAssignment creates a new Principal Assignment record in
 	// the service from the supplied in-memory representation. Returns the
@@ -139,7 +135,6 @@ type PermissionSetID string
 type IdentityCenterPermissionSets interface {
 	// ListPermissionSets list the known Permission Sets
 	ListPermissionSets(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
-	ListPermissionSets2(context.Context, int, string) ([]*identitycenterv1.PermissionSet, string, error)
 
 	// CreatePermissionSet creates a new PermissionSet record based on the
 	// supplied in-memory representation, returning the created record on
@@ -210,14 +205,22 @@ type IdentityCenterAccountAssignments interface {
 	// Account Assignment, returning the updated record on success.
 	UpdateIdentityCenterAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
 
-	// UpsertAccountAssignment performs an unconditional update on the supplied
+	// UpsertIdentityCenterAccountAssignment performs an unconditional update on the supplied
 	// Account Assignment, returning the updated record on success.
-	UpsertAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
+	UpsertIdentityCenterAccountAssignment(context.Context, *identitycenterv1.AccountAssignment) (*identitycenterv1.AccountAssignment, error)
+
+	// DeleteIdentityCenterAccountAssignment deletes a specific account assignment
+	DeleteIdentityCenterAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
+
+	// DeleteAllIdentityCenterAccountAssignments deletes all known account assignments
+	DeleteAllIdentityCenterAccountAssignments(context.Context) error
 
 	// DeleteAccountAssignment deletes a specific account assignment
+	// Deprecated: Prefer using DeleteIdentityCenterAccountAssignment
 	DeleteAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
 
 	// DeleteAllAccountAssignments deletes all known account assignments
+	// Deprecated: Prefer using DeleteAllIdentityCenterAccountAssignment
 	DeleteAllAccountAssignments(context.Context) error
 }
 

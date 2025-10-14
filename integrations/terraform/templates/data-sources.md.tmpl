@@ -3,12 +3,20 @@ title: Reference for the {{.Name}} Terraform data-source
 sidebar_label: {{ slice .Name (len "teleport_") }}
 description: This page describes the supported values of the {{.Name}} data-source of the Teleport Terraform provider.
 tags:
+ - infrastructure-as-code
  - reference
  - platform-wide
 ---
 
 {{ "{/*Auto-generated file. Do not edit.*/}" }}
 {{ "{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}" }}
+
+{/* Disable the outdated name check since data source fields occasionally need
+to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
+
+This page describes the supported values of the `{{.Name}}` data source of the
+Teleport Terraform provider.
 
 {{ .Description | trimspace }}
 

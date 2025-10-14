@@ -320,6 +320,7 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	}
 
 	var resp types.ListWindowsDesktopsResponse
+
 	for wd := range rg.store.resources(windowsDesktopNameIndex, req.StartKey, "") {
 		if !req.WindowsDesktopFilter.Match(wd) {
 			continue
@@ -331,9 +332,8 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 		case match:
 			if len(resp.Desktops) == pageSize {
 				resp.NextKey = backend.GetPaginationKey(wd)
-				break
+				return &resp, nil
 			}
-
 			resp.Desktops = append(resp.Desktops, wd.Copy())
 		}
 	}

@@ -1,0 +1,64 @@
+teleport.yaml matches the snapshot (exercise-configmap):
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: false
+      relay_service:
+        enabled: true
+        peer_listen_addr: 0.0.0.0:3041
+        public_hostnames:
+        - public-hostname-3.example.com
+        - public-hostname-4.example.com
+        relay_group: relay-group-2
+        target_connection_count: 42
+        transport_listen_addr: 0.0.0.0:3040
+        transport_proxy_protocol: true
+        tunnel_listen_addr: 0.0.0.0:3042
+        tunnel_proxy_protocol: true
+      ssh_service:
+        enabled: false
+      teleport:
+        diag_addr: 0.0.0.0:3000
+        join_params:
+          method: join-method-2
+          token_name: /etc/teleport-secrets/auth-token
+        log:
+          format:
+            output: randomLogFormat
+          severity: randomLogLevel
+        proxy_server: proxy-2.example.com:443
+        shutdown_delay: 90s
+      version: v3
+teleport.yaml matches the snapshot (simple):
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: false
+      relay_service:
+        enabled: true
+        peer_listen_addr: 0.0.0.0:3041
+        public_hostnames:
+        - public-hostname-1.example.com
+        - public-hostname-2.example.com
+        relay_group: relay-group
+        target_connection_count: 2
+        transport_listen_addr: 0.0.0.0:3040
+        tunnel_listen_addr: 0.0.0.0:3042
+      ssh_service:
+        enabled: false
+      teleport:
+        diag_addr: 0.0.0.0:3000
+        join_params:
+          method: join-method
+          token_name: /etc/teleport-secrets/auth-token
+        log:
+          format:
+            output: json
+          severity: INFO
+        proxy_server: proxy.example.com:443
+        shutdown_delay: 30s
+      version: v3

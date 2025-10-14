@@ -34,7 +34,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -61,6 +60,8 @@ const (
 	// teleportToolsDirsEnv overrides Teleport tools directory for saving updated
 	// versions.
 	teleportToolsDirsEnv = "TELEPORT_TOOLS_DIR"
+	// teleportToolsPathReExecEnv is env used for passing original execution path to re-executed version.
+	teleportToolsPathReExecEnv = "TELEPORT_TOOLS_PATH_REEXEC"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -214,6 +215,12 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	proxyHost := utils.TryHost(proxyAddr)
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
+	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
+	// are disabling execution too aggressively and this causes stuck updates.
+	// If "off" was set by the user, we would not be re-executed.
+	if requestedVersion == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) != "" {
+		requestedVersion = ""
+	}
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
@@ -412,28 +419,30 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 		return 0, trace.Wrap(err)
 	}
 
-	for _, unset := range []string{
+	env := filterEnvs(os.Environ(), []string{
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
-	} {
-		if err := os.Unsetenv(unset); err != nil {
-			return 0, trace.Wrap(err)
-		}
+		teleportToolsPathReExecEnv,
+	})
+	env = append(env, teleportToolsVersionReExecEnv+"="+u.localVersion)
+	env = append(env, teleportToolsDirsEnv+"="+u.toolsDir)
+	// If tsh or tctl has already been re-executed with the original path,
+	// we need to pass that path to the next re-execution.
+	if reExecPath := GetReExecPath(); reExecPath != "" {
+		env = append(env, teleportToolsPathReExecEnv+"="+reExecPath)
+	} else {
+		env = append(env, teleportToolsPathReExecEnv+"="+executablePath)
 	}
-	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
-	// by unsetting current tools version env variable and setting it to "off".
-	// The re-execution path and tools directory are absolute. Since the v2 logic
-	// no longer uses a static path, any re-execution from the tools directory
-	// must disable further re-execution.
-	if path == executablePath || strings.HasPrefix(path, u.toolsDir) {
-		if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
-			return 0, trace.Wrap(err)
-		}
+	// by unsetting current tools version env variable and setting it to "off"
+	// if same version is requested to be re-executed.
+	// We should also prevent further re-execution if the current version is run from
+	// the deprecated `~/.tsh/bin/tsh` path; otherwise, a downgrade could result in a loop.
+	if path == executablePath || executablePath == filepath.Join(u.toolsDir, filepath.Base(executablePath)) {
+		env = filterEnvs(env, []string{teleportToolsVersionEnv})
 		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabled)
-		slog.DebugContext(ctx, "Disable next re-execution")
+		slog.DebugContext(ctx, "Disable re-execution")
 	}
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 
 	slog.DebugContext(ctx, "Re-execute updated version", "execute", path, "from", executablePath)
 	if runtime.GOOS == constants.WindowsOS {

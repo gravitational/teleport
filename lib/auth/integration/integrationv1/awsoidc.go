@@ -21,14 +21,19 @@ package integrationv1
 import (
 	"context"
 	"log/slog"
+	"slices"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
@@ -79,9 +84,103 @@ type AWSOIDCServiceConfig struct {
 	IntegrationService    *Service
 	Authorizer            authz.Authorizer
 	Cache                 CacheAWSOIDC
+	TokenCreator          TokenCreator
 	Clock                 clockwork.Clock
 	ProxyPublicAddrGetter func() string
 	Logger                *slog.Logger
+}
+
+// deleteAWSOIDCAssociatedResources deletes associated discovery_configs and
+// app_servers created by the integration being deleted.  Should only be used by
+// methods that check access for VerbDelete on KindIntegration
+func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+	// TODO(alexhemard): follow up work needed to add explicit labels for
+	// resources created by integration rather than rely on implicit rules
+
+	// Delete discovery_configs created by this integration
+	var configsRequireCleanup []string
+	var configsToDelete []string
+
+	for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		awsMatchers := config.Spec.AWS
+
+		config.Spec.AWS = slices.DeleteFunc(config.Spec.AWS, func(matcher types.AWSMatcher) bool {
+			return matcher.Integration == ig.GetName()
+		})
+
+		if len(awsMatchers) == len(config.Spec.AWS) {
+			continue
+		}
+
+		// discovery_configs can be assumed to be created by the integration
+		// and deleted if
+		// 1. only has matchers referencing this integration
+		// 2. has valid uuid name
+		if config.IsMatchersEmpty() {
+			_, err := uuid.Parse(config.GetName())
+
+			if err == nil {
+				configsToDelete = append(configsToDelete, config.GetName())
+				continue
+			}
+		}
+
+		configsRequireCleanup = append(configsRequireCleanup, config.GetName())
+	}
+
+	if len(configsRequireCleanup) > 0 {
+		var qualifiedConfigs []string
+		for _, config := range configsRequireCleanup {
+			qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
+		}
+
+		return trace.BadParameter("cannot delete integration, "+
+			"Discovery Configs referencing this integration must be removed first: %s\n\n"+
+			"Use `tsh rm %s` to remove them.",
+			strings.Join(configsRequireCleanup, ", "),
+			strings.Join(qualifiedConfigs, " "))
+	}
+
+	for _, configName := range configsToDelete {
+		s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
+			"discovery_config", configName,
+			"integration", ig.GetName())
+
+		err := s.backend.DeleteDiscoveryConfig(ctx, configName)
+
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Delete AWS access app_server associated with this integration
+	appServers, err := s.cache.GetApplicationServers(ctx, defaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, appServer := range appServers {
+		if appServer.GetApp().GetIntegration() == ig.GetName() {
+			s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
+				"app_server", appServer.GetName(),
+				"integration", ig.GetName())
+
+			err := s.backend.DeleteApplicationServer(ctx,
+				appServer.GetNamespace(), appServer.GetHostID(), appServer.GetName())
+
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+
+			break
+		}
+	}
+
+	return nil
 }
 
 // CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
@@ -97,6 +196,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 
 	if s.Cache == nil {
 		return trace.BadParameter("cache is required")
+	}
+
+	if s.TokenCreator == nil {
+		return trace.BadParameter("token creator is required")
 	}
 
 	if s.Clock == nil {
@@ -124,6 +227,7 @@ type AWSOIDCService struct {
 	clock                 clockwork.Clock
 	proxyPublicAddrGetter func() string
 	cache                 CacheAWSOIDC
+	tokenCreator          TokenCreator
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -131,11 +235,14 @@ type CacheAWSOIDC interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 
-	// UpsertToken creates or updates a provision token.
-	UpsertToken(ctx context.Context, token types.ProvisionToken) error
-
 	// GetClusterName returns the current cluster name.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
+}
+
+// TokenCreator is a subset of the auth server methods used to create tokens.
+type TokenCreator interface {
+	// UpsertToken creates or updates a provision token.
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -151,6 +258,7 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
 		clock:                 cfg.Clock,
 		cache:                 cfg.Cache,
+		tokenCreator:          cfg.TokenCreator,
 	}, nil
 }
 
@@ -464,7 +572,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -571,7 +679,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.tokenCreator.UpsertToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -634,7 +742,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

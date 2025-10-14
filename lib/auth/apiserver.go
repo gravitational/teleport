@@ -44,11 +44,12 @@ import (
 )
 
 type APIConfig struct {
-	PluginRegistry plugin.Registry
-	AuthServer     *Server
-	AuditLog       events.AuditLogSessionStreamer
-	Authorizer     authz.Authorizer
-	Emitter        apievents.Emitter
+	PluginRegistry   plugin.Registry
+	AuthServer       *Server
+	AuditLog         events.AuditLogSessionStreamer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Emitter          apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
 	// KeepAliveCount specifies amount of missed keep alives
@@ -452,6 +453,9 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions authclient.ClientOptions `json:"client_options"`
 }
 
 /*
@@ -471,11 +475,12 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 		return nil, trace.Wrap(err)
 	}
 	raw := githubAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		TLSCert:  response.TLSCert,
-		Req:      response.Req,
+		Username:      response.Username,
+		Identity:      response.Identity,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		Req:           response.Req,
+		ClientOptions: response.ClientOptions,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(

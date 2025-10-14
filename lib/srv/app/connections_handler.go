@@ -285,6 +285,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		AccessPoint:      c.cfg.AccessPoint,
 		EnableDemoServer: c.cfg.MCPDemoServer,
 		CipherSuites:     c.cfg.CipherSuites,
+		AuthClient:       c.cfg.AuthClient,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -325,12 +326,12 @@ func (c *ConnectionsHandler) expireSessions() {
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	ctx := context.Background()
 
-	// Wrap conn in a CloserConn to detect when it is closed.
+	// Wrap conn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
-	closerConn := utils.NewCloserConn(conn)
+	waitConn := utils.NewWaitConn(conn)
 
-	cleanup, err := c.handleConnection(closerConn)
+	cleanup, err := c.handleConnection(waitConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -347,7 +348,7 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	}
 
 	// Wait for connection to close.
-	closerConn.Wait()
+	waitConn.Wait()
 }
 
 // serveSession finds the app session and forwards the request.
@@ -614,7 +615,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		case app.IsTCP():
 			return nil, trace.Wrap(err)
 		case app.IsMCP():
-			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, err))
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, app, err))
 		default:
 			c.setConnAuth(tlsConn, err)
 		}

@@ -27,9 +27,9 @@ Type 'help' or '\h' for help.
 (none)> -- we clear the warning by selecting the warning count
 (none)> select @@warning_count;
 
-@@warning_count 
---------------- 
-1               
+@@warning_count
+---------------
+1    
 
 1 row in set
 
@@ -167,10 +167,10 @@ test_ddl_db> RENAME TABLE test_table
 
 test_ddl_db> SELECT * from test_table_renamed;
 
-id   value       note note2 
---   ----------- ---- ----- 
-1    'from proc' NULL NULL  
-2    'FROM PROC' NULL NULL  
+id   value       note note2
+--   -----       ---- -----
+1    'from proc' NULL NULL 
+2    'FROM PROC' NULL NULL 
 
 2 rows in set
 
@@ -184,12 +184,153 @@ test_ddl_db> RENAME
 test_ddl_db> 
 test_ddl_db> SELECT * from test_table;
 
-id   value       note note2 
---   ----------- ---- ----- 
-1    'from proc' NULL NULL  
-2    'FROM PROC' NULL NULL  
+id   value       note note2
+--   -----       ---- -----
+1    'from proc' NULL NULL 
+2    'FROM PROC' NULL NULL 
 
 2 rows in set
+
+test_ddl_db> 
+test_ddl_db> INSERT INTO test_table (value)
+          -> WITH RECURSIVE numbers(n) AS (
+          ->   SELECT 4
+          ->   UNION ALL
+          ->   SELECT n + 1 FROM numbers WHERE n < 120
+          -> )
+          -> SELECT 'especially wide column' AS value
+          -> UNION ALL
+          -> SELECT CONCAT('value_', n) FROM numbers;
+
+0 warnings, 118 rows affected
+
+test_ddl_db> 
+test_ddl_db> SELECT * from test_table;
+
+id   value                    note note2
+--   -----                    ---- -----
+1    'from proc'              NULL NULL 
+2    'FROM PROC'              NULL NULL 
+3    'ESPECIALLY WIDE COLUMN' NULL NULL 
+4    'VALUE_4'                NULL NULL 
+5    'VALUE_5'                NULL NULL 
+6    'VALUE_6'                NULL NULL 
+7    'VALUE_7'                NULL NULL 
+8    'VALUE_8'                NULL NULL 
+9    'VALUE_9'                NULL NULL 
+10   'VALUE_10'               NULL NULL 
+11   'VALUE_11'               NULL NULL 
+12   'VALUE_12'               NULL NULL 
+13   'VALUE_13'               NULL NULL 
+14   'VALUE_14'               NULL NULL 
+15   'VALUE_15'               NULL NULL 
+16   'VALUE_16'               NULL NULL 
+17   'VALUE_17'               NULL NULL 
+18   'VALUE_18'               NULL NULL 
+19   'VALUE_19'               NULL NULL 
+20   'VALUE_20'               NULL NULL 
+21   'VALUE_21'               NULL NULL 
+22   'VALUE_22'               NULL NULL 
+23   'VALUE_23'               NULL NULL 
+24   'VALUE_24'               NULL NULL 
+25   'VALUE_25'               NULL NULL 
+26   'VALUE_26'               NULL NULL 
+27   'VALUE_27'               NULL NULL 
+28   'VALUE_28'               NULL NULL 
+29   'VALUE_29'               NULL NULL 
+30   'VALUE_30'               NULL NULL 
+31   'VALUE_31'               NULL NULL 
+32   'VALUE_32'               NULL NULL 
+33   'VALUE_33'               NULL NULL 
+34   'VALUE_34'               NULL NULL 
+35   'VALUE_35'               NULL NULL 
+36   'VALUE_36'               NULL NULL 
+37   'VALUE_37'               NULL NULL 
+38   'VALUE_38'               NULL NULL 
+39   'VALUE_39'               NULL NULL 
+40   'VALUE_40'               NULL NULL 
+41   'VALUE_41'               NULL NULL 
+42   'VALUE_42'               NULL NULL 
+43   'VALUE_43'               NULL NULL 
+44   'VALUE_44'               NULL NULL 
+45   'VALUE_45'               NULL NULL 
+46   'VALUE_46'               NULL NULL 
+47   'VALUE_47'               NULL NULL 
+48   'VALUE_48'               NULL NULL 
+49   'VALUE_49'               NULL NULL 
+50   'VALUE_50'               NULL NULL 
+51   'VALUE_51'               NULL NULL 
+52   'VALUE_52'               NULL NULL 
+53   'VALUE_53'               NULL NULL 
+54   'VALUE_54'               NULL NULL 
+55   'VALUE_55'               NULL NULL 
+56   'VALUE_56'               NULL NULL 
+57   'VALUE_57'               NULL NULL 
+58   'VALUE_58'               NULL NULL 
+59   'VALUE_59'               NULL NULL 
+60   'VALUE_60'               NULL NULL 
+61   'VALUE_61'               NULL NULL 
+62   'VALUE_62'               NULL NULL 
+63   'VALUE_63'               NULL NULL 
+64   'VALUE_64'               NULL NULL 
+65   'VALUE_65'               NULL NULL 
+66   'VALUE_66'               NULL NULL 
+67   'VALUE_67'               NULL NULL 
+68   'VALUE_68'               NULL NULL 
+69   'VALUE_69'               NULL NULL 
+70   'VALUE_70'               NULL NULL 
+71   'VALUE_71'               NULL NULL 
+72   'VALUE_72'               NULL NULL 
+73   'VALUE_73'               NULL NULL 
+74   'VALUE_74'               NULL NULL 
+75   'VALUE_75'               NULL NULL 
+76   'VALUE_76'               NULL NULL 
+77   'VALUE_77'               NULL NULL 
+78   'VALUE_78'               NULL NULL 
+79   'VALUE_79'               NULL NULL 
+80   'VALUE_80'               NULL NULL 
+81   'VALUE_81'               NULL NULL 
+82   'VALUE_82'               NULL NULL 
+83   'VALUE_83'               NULL NULL 
+84   'VALUE_84'               NULL NULL 
+85   'VALUE_85'               NULL NULL 
+86   'VALUE_86'               NULL NULL 
+87   'VALUE_87'               NULL NULL 
+88   'VALUE_88'               NULL NULL 
+89   'VALUE_89'               NULL NULL 
+90   'VALUE_90'               NULL NULL 
+91   'VALUE_91'               NULL NULL 
+92   'VALUE_92'               NULL NULL 
+93   'VALUE_93'               NULL NULL 
+94   'VALUE_94'               NULL NULL 
+95   'VALUE_95'               NULL NULL 
+96   'VALUE_96'               NULL NULL 
+97   'VALUE_97'               NULL NULL 
+98   'VALUE_98'               NULL NULL 
+99   'VALUE_99'               NULL NULL 
+100  'VALUE_100'              NULL NULL 
+101  'VALUE_101' NULL NULL 
+102  'VALUE_102' NULL NULL 
+103  'VALUE_103' NULL NULL 
+104  'VALUE_104' NULL NULL 
+105  'VALUE_105' NULL NULL 
+106  'VALUE_106' NULL NULL 
+107  'VALUE_107' NULL NULL 
+108  'VALUE_108' NULL NULL 
+109  'VALUE_109' NULL NULL 
+110  'VALUE_110' NULL NULL 
+111  'VALUE_111' NULL NULL 
+112  'VALUE_112' NULL NULL 
+113  'VALUE_113' NULL NULL 
+114  'VALUE_114' NULL NULL 
+115  'VALUE_115' NULL NULL 
+116  'VALUE_116' NULL NULL 
+117  'VALUE_117' NULL NULL 
+118  'VALUE_118' NULL NULL 
+119  'VALUE_119' NULL NULL 
+120  'VALUE_120' NULL NULL 
+
+120 rows in set
 
 test_ddl_db> 
 test_ddl_db> -- there is no "test_server", this should make an error.

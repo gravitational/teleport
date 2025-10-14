@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MutationFunction } from '@tanstack/react-query';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
   canUseV1Edit,
+  canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
   validateGetBotInstanceResponse,
@@ -140,15 +143,23 @@ export async function fetchRoles(
   );
 }
 
+export const editBotMutationFunction: MutationFunction<
+  FlatBot,
+  { botName: string; req: EditBotRequest }
+> = vars => editBot(vars);
+
 export async function editBot(
   variables: { botName: string; req: EditBotRequest },
   signal?: AbortSignal
 ) {
   // TODO(nicholasmarais1158) DELETE IN v20.0.0
   const useV1 = canUseV1Edit(variables.req);
-  const path = useV1
-    ? cfg.getBotUrl({ action: 'update', botName: variables.botName })
-    : cfg.getBotUrl({ action: 'update-v2', botName: variables.botName });
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV2 = canUseV2Edit(variables.req);
+  const path = cfg.getBotUrl({
+    action: useV1 ? 'update' : useV2 ? 'update-v2' : 'update-v3',
+    botName: variables.botName,
+  });
 
   try {
     const res = await api.put(path, variables.req, signal);
@@ -176,14 +187,29 @@ export async function listBotInstances(
     pageToken: string;
     pageSize: number;
     searchTerm?: string;
-    sort?: string;
+    sortField?: string;
+    sortDir?: string;
     botName?: string;
+    query?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
+  const {
+    pageToken,
+    pageSize,
+    searchTerm,
+    sortField,
+    sortDir,
+    botName,
+    query,
+  } = variables;
 
-  const path = cfg.getBotInstanceUrl({ action: 'list' });
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV1Endpoint = !query;
+
+  const path = cfg.getBotInstanceUrl({
+    action: useV1Endpoint ? 'list' : 'listV2',
+  });
   const qs = new URLSearchParams();
 
   qs.set('page_size', pageSize.toFixed());
@@ -191,11 +217,25 @@ export async function listBotInstances(
   if (searchTerm) {
     qs.set('search', searchTerm);
   }
-  if (sort) {
-    qs.set('sort', sort);
-  }
   if (botName) {
     qs.set('bot_name', botName);
+  }
+
+  if (useV1Endpoint) {
+    const sort = `${sortField || 'name'}:${sortDir || 'asc'}`;
+    if (sort) {
+      qs.set('sort', sort);
+    }
+  } else {
+    if (sortField) {
+      qs.set('sort_field', sortField);
+    }
+    if (sortDir) {
+      qs.set('sort_dir', sortDir);
+    }
+    if (query) {
+      qs.set('query', query);
+    }
   }
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);

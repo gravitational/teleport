@@ -27,7 +27,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -58,38 +57,6 @@ const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
 )
-
-// ReservedServiceNames are the service names reserved for internal use.
-var ReservedServiceNames = []string{
-	"ca-rotation",
-	"crl-cache",
-	"heartbeat",
-	"identity",
-	"spiffe-trust-bundle-cache",
-}
-
-var reservedServiceNamesMap = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(ReservedServiceNames))
-	for _, k := range ReservedServiceNames {
-		m[k] = struct{}{}
-	}
-	return m
-}()
-
-var serviceNameRegex = regexp.MustCompile(`\A[a-z\d_\-+]+\z`)
-
-func validateServiceName(name string) error {
-	if name == "" {
-		return nil
-	}
-	if _, ok := reservedServiceNamesMap[name]; ok {
-		return trace.BadParameter("service name %q is reserved for internal use", name)
-	}
-	if !serviceNameRegex.MatchString(name) {
-		return trace.BadParameter("invalid service name: %q, may only contain lowercase letters, numbers, hyphens, underscores, or plus symbols", name)
-	}
-	return nil
-}
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
@@ -218,9 +185,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// We've migrated Outputs to Services, so copy all Outputs to Services.
+	// We've migrated Outputs to Services, so move all Outputs to Services.
 	conf.Services = append(conf.Services, conf.Outputs...)
-	uniqueNames := make(map[string]struct{}, len(conf.Services))
+	conf.Outputs = nil
+
+	namer := newServiceNamer()
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
@@ -228,14 +197,13 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
-		if name := service.GetName(); name != "" {
-			if err := validateServiceName(name); err != nil {
-				return trace.Wrap(err, "validating service[%d]", i)
-			}
-			if _, seen := uniqueNames[name]; seen {
-				return trace.BadParameter("validating service[%d]: duplicate name: %q", i, name)
-			}
-			uniqueNames[name] = struct{}{}
+
+		name, err := namer.pickName(service.Type(), service.GetName())
+		switch {
+		case err != nil:
+			return trace.Wrap(err, "validating service[%d]", i)
+		case name != service.GetName():
+			service.SetName(name)
 		}
 	}
 
@@ -331,9 +299,14 @@ type ServiceConfig interface {
 	// support these options should return the zero value.
 	GetCredentialLifetime() bot.CredentialLifetime
 
-	// GetName returns the user-given name of the service, used for validation
-	// purposes.
+	// GetName returns the service's given name. Initially the name chosen by
+	// the user, but after BotConfig.CheckAndSetDefaults is called it may be
+	// our automatically generated name.
 	GetName() string
+
+	// SetName is called by BotConfig.CheckAndSetDefaults to assign the service
+	// a new name if the user didn't specify one.
+	SetName(string)
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
@@ -438,6 +411,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		case awsra.ServiceType:
 			v := &awsra.Config{}
 			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case application.ProxyServiceType:
+			v := &application.ProxyServiceConfig{}
+			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -588,7 +567,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	case V1, "":
 		if !manualMigration {
 			log.WarnContext(
-				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/")
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration using `tbot migrate`.")
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
@@ -598,7 +577,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		if err != nil {
 			return nil, trace.WithUserMessage(
 				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/",
+				"Failed to migrate. Please contact Teleport support or use https://goteleport.com/docs/reference/machine-id/configuration/ to manually migrate your configuration.",
 			)
 		}
 		return latestConfig, nil

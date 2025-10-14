@@ -14,6 +14,7 @@ permissions:
 jobs:
   test:
     name: Flaky Tests Detector
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -60,7 +61,7 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.REVIEWERS_APP_ID }}
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}

@@ -14,6 +14,10 @@
 
 package fixtures
 
+import (
+	"time"
+)
+
 const (
 	TLSCACertPEM = `-----BEGIN CERTIFICATE-----
 MIIDKjCCAhKgAwIBAgIQJtJDJZZBkg/afM8d2ZJCTjANBgkqhkiG9w0BAQsFADBA
@@ -61,4 +65,11 @@ k+vHAoGBAJyA+RtBF5m64/TqhZFcesTtnpWaRhQ50xXnNVF3W1eKGPtdTDKOaENA
 LJxgC1GdoEz2ilXW802H9QrdKf9GPqxwi2TVzfO6pzWkdZcmbItu+QCCFz+co+r8
 +ki49FmlfbR5YVPN+8X40aLQB4xDkCHwRwTkrigzWQhIOv8NAhDA
 -----END RSA PRIVATE KEY-----`
+)
+
+var (
+	// TLSCACertNotBefore is the "Not before" date of TLSCACertPEM.
+	TLSCACertNotBefore = time.Date(2017, time.May, 9, 19, 40, 36, 0, time.UTC)
+	// TLSCACertNotAfter is the "Not after" date of TLSCACertPEM.
+	TLSCACertNotAfter = time.Date(2027, time.May, 7, 19, 40, 36, 0, time.UTC)
 )

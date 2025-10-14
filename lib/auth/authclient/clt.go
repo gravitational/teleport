@@ -869,6 +869,9 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -916,6 +919,9 @@ type SAMLAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -955,6 +961,9 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -1359,6 +1368,11 @@ type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
 
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string `json:"scope,omitempty"`
+
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
 	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
@@ -1472,6 +1486,17 @@ type SSHLoginResponse struct {
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
+}
+
+// ClientOptions contains options passed from the control plane to the client at
+// login time.
+type ClientOptions struct {
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if the client does not otherwise specify a relay.
+	DefaultRelayAddr string `json:"default_relay_addr"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1549,7 +1574,7 @@ type ClientI interface {
 	types.Events
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
 
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
@@ -1740,6 +1765,13 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
+
+	// WorkloadIdentityResourceServiceClient returns a client for interacting
+	// with workload identity resources.
+	// Clients connecting to  older Teleport versions, still get an access list
+	// client when calling this method, but all RPCs will return "not
+	// implemented" errors (as per the default gRPC behavior).
+	WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client

@@ -434,12 +434,24 @@ func NewWebToken(expires time.Time, spec WebTokenSpecV3) (WebToken, error) {
 }
 
 // WebTokensGetter provides access to web tokens
+//
+// TODO(okraport): DELETE IN v21
+//
+// Deprecated: Use [Client] methods directly such as
+// [Client.GetWebToken], [Client.GetWebTokens], [Client.DeleteWebToken] or
+// [Client.DeleteAllWebTokens]
 type WebTokensGetter interface {
 	// WebTokens returns the tokens manager
 	WebTokens() WebTokenInterface
 }
 
 // WebTokenInterface defines interface for managing web tokens
+//
+// TODO(okraport): DELETE IN v21
+//
+// Deprecated: Use [Client] methods directly such as
+// [Client.GetWebToken], [Client.GetWebTokens], [Client.DeleteWebToken] or
+// [Client.DeleteAllWebTokens]
 type WebTokenInterface interface {
 	// Get returns a token specified by the request.
 	Get(ctx context.Context, req GetWebTokenRequest) (WebToken, error)

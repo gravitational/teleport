@@ -71,6 +71,7 @@ const (
 	AuthService_SetAccessRequestState_FullMethodName               = "/proto.AuthService/SetAccessRequestState"
 	AuthService_SubmitAccessReview_FullMethodName                  = "/proto.AuthService/SubmitAccessReview"
 	AuthService_GetAccessCapabilities_FullMethodName               = "/proto.AuthService/GetAccessCapabilities"
+	AuthService_GetRemoteAccessCapabilities_FullMethodName         = "/proto.AuthService/GetRemoteAccessCapabilities"
 	AuthService_GetAccessRequestAllowedPromotions_FullMethodName   = "/proto.AuthService/GetAccessRequestAllowedPromotions"
 	AuthService_GetPluginData_FullMethodName                       = "/proto.AuthService/GetPluginData"
 	AuthService_UpdatePluginData_FullMethodName                    = "/proto.AuthService/UpdatePluginData"
@@ -234,6 +235,7 @@ const (
 	AuthService_DeleteDatabase_FullMethodName                      = "/proto.AuthService/DeleteDatabase"
 	AuthService_DeleteAllDatabases_FullMethodName                  = "/proto.AuthService/DeleteAllDatabases"
 	AuthService_GetKubernetesClusters_FullMethodName               = "/proto.AuthService/GetKubernetesClusters"
+	AuthService_ListKubernetesClusters_FullMethodName              = "/proto.AuthService/ListKubernetesClusters"
 	AuthService_GetKubernetesCluster_FullMethodName                = "/proto.AuthService/GetKubernetesCluster"
 	AuthService_CreateKubernetesCluster_FullMethodName             = "/proto.AuthService/CreateKubernetesCluster"
 	AuthService_UpdateKubernetesCluster_FullMethodName             = "/proto.AuthService/UpdateKubernetesCluster"
@@ -384,6 +386,8 @@ type AuthServiceClient interface {
 	SubmitAccessReview(ctx context.Context, in *types.AccessReviewSubmission, opts ...grpc.CallOption) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilities of a user.
 	GetAccessCapabilities(ctx context.Context, in *types.AccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.AccessCapabilities, error)
+	// GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+	GetRemoteAccessCapabilities(ctx context.Context, in *types.RemoteAccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.RemoteAccessCapabilities, error)
 	// GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
 	GetAccessRequestAllowedPromotions(ctx context.Context, in *AccessRequestAllowedPromotionRequest, opts ...grpc.CallOption) (*AccessRequestAllowedPromotionResponse, error)
 	// GetPluginData gets all plugin data matching the supplied filter.
@@ -702,7 +706,10 @@ type AuthServiceClient interface {
 	DeleteAllServerInfos(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
+	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
+	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -794,6 +801,7 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -823,8 +831,11 @@ type AuthServiceClient interface {
 	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -1435,6 +1446,16 @@ func (c *authServiceClient) GetAccessCapabilities(ctx context.Context, in *types
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AccessCapabilities)
 	err := c.cc.Invoke(ctx, AuthService_GetAccessCapabilities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetRemoteAccessCapabilities(ctx context.Context, in *types.RemoteAccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.RemoteAccessCapabilities, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.RemoteAccessCapabilities)
+	err := c.cc.Invoke(ctx, AuthService_GetRemoteAccessCapabilities_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2645,6 +2666,7 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.TrustedClusterV2List)
@@ -3005,6 +3027,7 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3List)
@@ -3146,10 +3169,21 @@ func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.KubernetesClusterV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetKubernetesClusters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListKubernetesClustersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListKubernetesClusters_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3916,6 +3950,8 @@ type AuthServiceServer interface {
 	SubmitAccessReview(context.Context, *types.AccessReviewSubmission) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilities of a user.
 	GetAccessCapabilities(context.Context, *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	// GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+	GetRemoteAccessCapabilities(context.Context, *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error)
 	// GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
 	GetAccessRequestAllowedPromotions(context.Context, *AccessRequestAllowedPromotionRequest) (*AccessRequestAllowedPromotionResponse, error)
 	// GetPluginData gets all plugin data matching the supplied filter.
@@ -4234,7 +4270,10 @@ type AuthServiceServer interface {
 	DeleteAllServerInfos(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
+	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
+	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -4326,6 +4365,7 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -4355,8 +4395,11 @@ type AuthServiceServer interface {
 	DeleteDatabase(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -4668,6 +4711,9 @@ func (UnimplementedAuthServiceServer) SubmitAccessReview(context.Context, *types
 }
 func (UnimplementedAuthServiceServer) GetAccessCapabilities(context.Context, *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessCapabilities not implemented")
+}
+func (UnimplementedAuthServiceServer) GetRemoteAccessCapabilities(context.Context, *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRemoteAccessCapabilities not implemented")
 }
 func (UnimplementedAuthServiceServer) GetAccessRequestAllowedPromotions(context.Context, *AccessRequestAllowedPromotionRequest) (*AccessRequestAllowedPromotionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequestAllowedPromotions not implemented")
@@ -5157,6 +5203,9 @@ func (UnimplementedAuthServiceServer) DeleteAllDatabases(context.Context, *empty
 }
 func (UnimplementedAuthServiceServer) GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesClusters not implemented")
+}
+func (UnimplementedAuthServiceServer) ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesClusters not implemented")
 }
 func (UnimplementedAuthServiceServer) GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesCluster not implemented")
@@ -5926,6 +5975,24 @@ func _AuthService_GetAccessCapabilities_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetAccessCapabilities(ctx, req.(*types.AccessCapabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetRemoteAccessCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.RemoteAccessCapabilitiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetRemoteAccessCapabilities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetRemoteAccessCapabilities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetRemoteAccessCapabilities(ctx, req.(*types.RemoteAccessCapabilitiesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8796,6 +8863,24 @@ func _AuthService_GetKubernetesClusters_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListKubernetesClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListKubernetesClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, req.(*ListKubernetesClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetKubernetesCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -10107,6 +10192,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetAccessCapabilities_Handler,
 		},
 		{
+			MethodName: "GetRemoteAccessCapabilities",
+			Handler:    _AuthService_GetRemoteAccessCapabilities_Handler,
+		},
+		{
 			MethodName: "GetAccessRequestAllowedPromotions",
 			Handler:    _AuthService_GetAccessRequestAllowedPromotions_Handler,
 		},
@@ -10725,6 +10814,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetKubernetesClusters",
 			Handler:    _AuthService_GetKubernetesClusters_Handler,
+		},
+		{
+			MethodName: "ListKubernetesClusters",
+			Handler:    _AuthService_ListKubernetesClusters_Handler,
 		},
 		{
 			MethodName: "GetKubernetesCluster",

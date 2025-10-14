@@ -865,9 +865,14 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		}()
 	}
 
+	var joinSessionID string
+	if t.tracker != nil {
+		joinSessionID = t.tracker.GetSessionID()
+	}
+
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, nil, beforeStart); err != nil {
+	if err = nc.RunInteractiveShell(ctx, joinSessionID, t.participantMode, beforeStart); err != nil {
 		if !t.closedByClient.Load() {
 			t.stream.WriteError(ctx, err.Error())
 		}

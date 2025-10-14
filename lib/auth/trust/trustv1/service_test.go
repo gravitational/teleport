@@ -114,6 +114,10 @@ func (f *fakeAuthServer) UpdateTrustedCluster(ctx context.Context, tc types.Trus
 	return tc, nil
 }
 
+func (f *fakeAuthServer) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	return nil, "", nil
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	allow  map[check]bool

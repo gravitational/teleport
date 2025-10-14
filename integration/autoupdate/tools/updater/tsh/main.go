@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package tsh
 
 import (
 	"context"
@@ -30,7 +30,7 @@ import (
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
 
-func main() {
+func Main() {
 	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
