@@ -1,6 +1,6 @@
 module teleport-desktop-registration
 
-go 1.23.0
+go 1.24.9
 
 require github.com/gravitational/teleport/api v0.0.0-20250801210118-2fb5249f5743
 
