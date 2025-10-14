@@ -6979,11 +6979,7 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	}
 	cfg.Logger.WarnContext(ctx, "Generating self-signed key and cert.", "key_path", keyPath, "cert_path", certPath)
 
-	hosts := []string{"localhost"}
-	if cfg.Hostname != "" {
-		hosts = append(hosts, cfg.Hostname)
-	}
-
+	hosts := []string{cfg.Hostname, "localhost"}
 	var ips []string
 
 	// add web public address hosts to self-signed cert
@@ -6992,9 +6988,6 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		if err != nil {
 			// log and skip error since this is a nice to have
 			cfg.Logger.WarnContext(ctx, "Error parsing proxy.public_address, skipping adding to self-signed cert", "public_address", addr.String(), "error", err)
-			continue
-		}
-		if proxyHost == "" {
 			continue
 		}
 		// If the address is a IP have it added as IP SAN

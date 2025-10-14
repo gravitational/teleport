@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.25.2
+go 1.25.3
 
 ignore (
 	./build
