@@ -88,7 +88,6 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		TCPPortAllocator:      m.tcpPortAllocator,
 		KubeconfigsDir:        m.t.TempDir(),
-		ClusterName:           "test-cluster", // Required to generate valid DNS SANs in cert.
 		Cert:                  gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity),
 	}
 
