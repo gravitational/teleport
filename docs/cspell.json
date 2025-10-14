@@ -646,6 +646,7 @@
     "kubeconfig",
     "kubeconfigs",
     "kubectl",
+    "kubectx",
     "kubernetesdiscovery",
     "kvno",
     "lastname",
