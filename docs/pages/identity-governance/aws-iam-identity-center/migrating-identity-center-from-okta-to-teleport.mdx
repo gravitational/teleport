@@ -10,7 +10,7 @@ tags:
 ---
 
 This guide describes how to introduce Teleport into an existing Okta-managed AWS
-Identity Center configuration. It specifically describes two scenarios: one where 
+IAM Identity Center configuration. It specifically describes two scenarios: one where 
 Teleport shares control of your Identity Center managed resources in conjunction
 with Okta, and another where Teleport replaces Okta as the Identity Center SSO
 Provider and user provisioner
@@ -23,7 +23,7 @@ instance in one of two ways:
 and SSO provider for the AWS IAM Identity Center instance, but delegate account
 assignment and (some) Identity Center group provisioning to Teleport, or
 - **Full hand-off**: Fully transfer the control of AWS IAM Identity Center from
-Okta to Teleport, including User provisioning and SAML SSO.
+Okta to Teleport, including user provisioning, group provisioning, account assignment provisioning and SAML SSO.
 
 For simplicity, we recommend full hand-off. 
 
