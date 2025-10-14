@@ -21,9 +21,6 @@ import { DuplexStreamingCall } from '@protobuf-ts/runtime-rpc';
 import {
   ManagePtyProcessRequest,
   ManagePtyProcessResponse,
-  PtyEventData,
-  PtyEventResize,
-  PtyEventStart,
 } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
@@ -56,7 +53,7 @@ export class PtyEventsStreamHandler {
     await this.send({
       event: {
         oneofKind: 'start',
-        start: PtyEventStart.create({ columns, rows }),
+        start: { columns, rows },
       },
     });
   }
@@ -65,7 +62,7 @@ export class PtyEventsStreamHandler {
     await this.send({
       event: {
         oneofKind: 'data',
-        data: PtyEventData.create({ message: data }),
+        data: { message: data },
       },
     });
   }
@@ -74,7 +71,7 @@ export class PtyEventsStreamHandler {
     await this.send({
       event: {
         oneofKind: 'resize',
-        resize: PtyEventResize.create({ columns, rows }),
+        resize: { columns, rows },
       },
     });
   }
@@ -110,7 +107,11 @@ export class PtyEventsStreamHandler {
   }
 
   onExit(
-    callback: (reason: { exitCode: number; signal?: number }) => void
+    callback: (reason: {
+      exitCode: number;
+      signal?: number;
+      lastInput: string;
+    }) => void
   ): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: ManagePtyProcessResponse) => {
