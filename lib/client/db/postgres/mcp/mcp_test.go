@@ -19,11 +19,11 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
@@ -38,24 +38,50 @@ import (
 
 func TestFormatResult(t *testing.T) {
 	for name, tc := range map[string]struct {
-		rows           pgx.Rows
+		results        []*pgconn.Result
 		expectedResult string
 	}{
 		"query results": {
-			rows:           newMockRows("SELECT 2", []string{"name", "age"}, [][]any{{"Alice", 30}, {"Bob", 31}}),
-			expectedResult: `{"data":[{"age":30,"name":"Alice"},{"age":31,"name":"Bob"}],"rowsCount":2}`,
+			results:        []*pgconn.Result{newMockResult("SELECT 2", nil, []string{"name", "age"}, [][][]byte{{[]byte("Alice"), []byte("30")}, {[]byte("Bob"), []byte("31")}})},
+			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_affected":2}]}`,
+		},
+		"multiple query results": {
+			results: []*pgconn.Result{
+				newMockResult("SELECT 2", nil, []string{"name", "age"}, [][][]byte{{[]byte("Alice"), []byte("30")}, {[]byte("Bob"), []byte("31")}}),
+				newMockResult("SELECT 1", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}}),
+			},
+			expectedResult: `{"results":[{"data":[{"age":"30","name":"Alice"},{"age":"31","name":"Bob"}],"rows_affected":2},{"data":[{"active":"true","id":"1"}],"rows_affected":1}]}`,
+		},
+		"multiple query results different types": {
+			results: []*pgconn.Result{
+				newMockResult("INSERT 5", nil, []string{}, [][][]byte{}),
+				newMockResult("SELECT 2", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}, {[]byte("2"), []byte("false")}}),
+			},
+			expectedResult: `{"results":[{"data":null,"rows_affected":5},{"data":[{"active":"true","id":"1"},{"active":"false","id":"2"}],"rows_affected":2}]}`,
 		},
 		"empty query results": {
-			rows:           newMockRows("SELECT 0", []string{}, [][]any{}),
-			expectedResult: `{"data":[],"rowsCount":0}`,
+			results:        []*pgconn.Result{newMockResult("SELECT 0", nil, []string{}, [][][]byte{})},
+			expectedResult: `{"results":[{"data":[],"rows_affected":0}]}`,
 		},
 		"non-data results": {
-			rows:           newMockRows("INSERT 1", []string{}, [][]any{}),
-			expectedResult: `{"data":null,"rowsCount":1}`,
+			results:        []*pgconn.Result{newMockResult("INSERT 1", nil, []string{}, [][][]byte{})},
+			expectedResult: `{"results":[{"data":null,"rows_affected":1}]}`,
+		},
+		"query with error": {
+			results:        []*pgconn.Result{newMockResult("SELECT 0", errors.New("something wrong with query"), []string{}, [][][]byte{})},
+			expectedResult: `{"results":[{"data":null,"rows_affected":0,"error":"something wrong with query"}]}`,
+		},
+		"multiple query with error": {
+			results: []*pgconn.Result{
+				newMockResult("INSERT 0", errors.New("constraint error"), []string{}, [][][]byte{}),
+				newMockResult("SELECT 1", nil, []string{"id", "active"}, [][][]byte{{[]byte("1"), []byte("true")}}),
+				newMockResult("SELECT 0", errors.New("something wrong with query"), []string{}, [][][]byte{}),
+			},
+			expectedResult: `{"results":[{"data":null,"rows_affected":0,"error":"constraint error"},{"data":[{"active":"true","id":"1"}],"rows_affected":1},{"data":null,"rows_affected":0,"error":"something wrong with query"}]}`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			res, err := buildQueryResult(tc.rows)
+			res, err := buildQueryResult(tc.results)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedResult, res)
 		})
@@ -86,6 +112,14 @@ func TestFormatErrors(t *testing.T) {
 		URI:      "localhost:5432",
 	})
 	require.NoError(t, err)
+	randomDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "random-database-name",
+		Labels: map[string]string{"env": "test"},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
 	dbURI := clientmcp.NewDatabaseResourceURI("root", dbName).WithoutParams().String()
 
 	for name, tc := range map[string]struct {
@@ -95,12 +129,28 @@ func TestFormatErrors(t *testing.T) {
 	}{
 		"database not found": {
 			databaseURI: "teleport://clusters/root/databases/not-found",
+			databases: []*dbmcp.Database{
+				{
+					DB:           randomDB,
+					ClusterName:  "root",
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
+				},
+			},
 			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.DatabaseNotFoundError.Error(), i1)
 			},
 		},
 		"malformed database uri": {
 			databaseURI: "not-found",
+			databases: []*dbmcp.Database{
+				{
+					DB:           randomDB,
+					ClusterName:  "root",
+					DatabaseUser: "postgres",
+					DatabaseName: "postgres",
+				},
+			},
 			expectErrorMessage: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Equal(t, dbmcp.WrongDatabaseURIFormatError.Error(), i1)
 			},
@@ -108,7 +158,7 @@ func TestFormatErrors(t *testing.T) {
 		"local proxy rejects connection": {
 			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
-				&dbmcp.Database{
+				{
 					DB:           db,
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
@@ -126,7 +176,7 @@ func TestFormatErrors(t *testing.T) {
 		"relogin error": {
 			databaseURI: dbURI,
 			databases: []*dbmcp.Database{
-				&dbmcp.Database{
+				{
 					DB:           db,
 					ClusterName:  "root",
 					DatabaseUser: "postgres",
@@ -161,7 +211,7 @@ func TestFormatErrors(t *testing.T) {
 				queryToolDatabaseParam: tc.databaseURI,
 				queryToolQueryParam:    "SELECT 1",
 			}
-			runResult, err := pgSrv.RunQuery(t.Context(), req)
+			runResult, err := pgSrv.runQuery(t.Context(), req)
 			require.NoError(t, err)
 
 			require.True(t, runResult.IsError)
@@ -169,7 +219,7 @@ func TestFormatErrors(t *testing.T) {
 			require.IsType(t, mcp.TextContent{}, runResult.Content[0])
 
 			content := runResult.Content[0].(mcp.TextContent)
-			var res RunQueryResult
+			var res QueryResult
 			require.NoError(t, json.Unmarshal([]byte(content.Text), &res), "expected result to be in JSON format")
 			require.Empty(t, res.Data)
 			tc.expectErrorMessage(t, res.ErrorMessage)
@@ -177,49 +227,15 @@ func TestFormatErrors(t *testing.T) {
 	}
 }
 
-func newMockRows(commandTag string, fields []string, rows [][]any) pgx.Rows {
+func newMockResult(commandTag string, err error, fields []string, rows [][][]byte) *pgconn.Result {
 	var fds []pgconn.FieldDescription
 	for _, fieldName := range fields {
 		fds = append(fds, pgconn.FieldDescription{Name: fieldName})
 	}
-	return &mockRows{
-		commandTag:   commandTag,
-		descriptions: fds,
-		rows:         rows,
+	return &pgconn.Result{
+		FieldDescriptions: fds,
+		Rows:              rows,
+		CommandTag:        pgconn.NewCommandTag(commandTag),
+		Err:               err,
 	}
 }
-
-type mockRows struct {
-	pgx.Rows
-
-	started bool
-	cursor  int
-
-	commandTag   string
-	descriptions []pgconn.FieldDescription
-	rows         [][]any
-}
-
-func (mr *mockRows) FieldDescriptions() []pgconn.FieldDescription {
-	return mr.descriptions
-}
-
-func (mr *mockRows) Next() bool {
-	if !mr.started {
-		mr.started = true
-		return len(mr.rows) > 0
-	}
-
-	mr.cursor += 1
-	return len(mr.rows) > mr.cursor
-}
-
-func (mr *mockRows) Values() ([]any, error) {
-	return mr.rows[mr.cursor], nil
-}
-
-func (mr *mockRows) CommandTag() pgconn.CommandTag {
-	return pgconn.NewCommandTag(mr.commandTag)
-}
-
-func (mr *mockRows) Close() {}
