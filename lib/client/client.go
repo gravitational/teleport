@@ -358,7 +358,11 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
 			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
-			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, nodeName)
+			host := nodeName
+			if h, _, err := net.SplitHostPort(nodeName); err == nil {
+				host = h
+			}
+			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, host)
 		}
 		return nil, trace.Wrap(err)
 	}
