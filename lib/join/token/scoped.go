@@ -112,5 +112,22 @@ func (s *Scoped) GetSafeName() string {
 // Expiry returns the [time.Time] representing when the wrapped
 // [joiningv1.ScopedToken] will expire.
 func (s *Scoped) Expiry() time.Time {
-	return s.GetMetadata().GetExpires().AsTime()
+	expiry := s.GetMetadata().GetExpires()
+	if expiry == nil {
+		return time.Time{}
+	}
+
+	return expiry.AsTime()
+}
+
+// GetBotName returns the bot name configured on the wrapped
+// [joiningv1.ScopedToken], if there is one.
+func (s *Scoped) GetBotName() string {
+	return s.GetSpec().GetBotName()
+}
+
+// GetAssignedScope returns the scope that will be assigned to resources
+// provisioned using the wrapped [joiningv1.ScopedToken].
+func (s *Scoped) GetAssignedScope() string {
+	return s.GetSpec().GetAssignedScope()
 }
