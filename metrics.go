@@ -316,6 +316,12 @@ const (
 	// TagVersion is a prometheus label for version of Teleport built
 	TagVersion = "version"
 
+	// TagUserAgent is a prometheus laber for identifying user agent of Teleport client.
+	TagUserAgent = "user_agent"
+
+	// TagProxy is a prometheus label for identifying the proxy host
+	TagProxy = "proxy"
+
 	// TagOS is a prometheus label for indicating the Operating System
 	// where agent is running (e.g. Darwin, Linux).
 	TagOS = "os"

@@ -953,10 +953,14 @@ var (
 		},
 	)
 	// UserLoginCount counts user logins
-	UserLoginCount = prometheus.NewCounter(
+	UserLoginCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricUserLoginCount,
 			Help: "Number of times there was a user login",
+		},
+		[]string{
+			teleport.TagUserAgent,
+			teleport.TagProxy,
 		},
 	)
 
