@@ -448,6 +448,9 @@ type TOTPRegisterChallenge struct {
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
 	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
+	if _, ok := extraHeaders["User-Agent"]; !ok {
+		extraHeaders["User-Agent"] = fmt.Sprintf("api/%s", teleport.Version)
+	}
 	log.DebugContext(context.Background(), "Initializing proxy HTTPS client",
 		"proxy_addr", proxyAddr,
 		"insecure", insecure,
@@ -478,9 +481,14 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 		return nil, nil, trace.Wrap(err)
 	}
 
+	header := make(http.Header)
+	for k, v := range extraHeaders {
+		header.Set(k, v)
+	}
 	opts = append(opts,
 		roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders)),
 		roundtrip.CookieJar(jar),
+		roundtrip.WithHeader(header),
 	)
 	clt, err := NewWebClient(proxyAddr, opts...)
 	if err != nil {
