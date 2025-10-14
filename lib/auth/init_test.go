@@ -66,8 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -1518,7 +1517,7 @@ func toSet(items []string) map[string]struct{} {
 func setupConfig(t *testing.T) auth.InitConfig {
 	tempDir := t.TempDir()
 
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
 	processStorage, err := storage.NewProcessStorage(
