@@ -109,6 +109,7 @@ type ReRegisterParams struct {
 	// Used by older instances to requisition a multi-role cert by individually
 	// proving which system roles are held.
 	SystemRoleAssertionID string
+	AgentScope            string
 }
 
 // ReRegisterClient abstracts over local auth servers and remote clients when
@@ -162,6 +163,7 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*state.Identity, 
 			Rotation:              rotation,
 			SystemRoles:           params.SystemRoles,
 			SystemRoleAssertionID: params.SystemRoleAssertionID,
+			AgentScope:            params.ID.AgentScope,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

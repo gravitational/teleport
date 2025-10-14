@@ -514,6 +514,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr:           params.RemoteAddr,
 			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
+			AgentScope:           provisioner.GetAssignedScope(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

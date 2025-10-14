@@ -5237,6 +5237,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 			ClusterName: clusterName.GetClusterName(),
 			SystemRole:  req.Role,
 			Principals:  req.AdditionalPrincipals,
+			AgentScope:  req.AgentScope,
 		},
 	})
 	if err != nil {

@@ -40,9 +40,10 @@ import (
 
 // IdentityID is a combination of role, host UUID, and node name.
 type IdentityID struct {
-	Role     types.SystemRole
-	HostUUID string
-	NodeName string
+	Role       types.SystemRole
+	HostUUID   string
+	NodeName   string
+	AgentScope string
 }
 
 // HostID is host ID part of the host UUID that consists cluster name
@@ -62,7 +63,7 @@ func (id *IdentityID) String() string {
 
 // Identity is collection of certificates and signers that represent server identity
 type Identity struct {
-	// ID specifies server unique ID, name and role
+	// ID specifies server unique ID, name, role, and scope
 	ID IdentityID
 	// KeyBytes is a PEM encoded private key
 	KeyBytes []byte
@@ -330,8 +331,9 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
 	}
 
+	agentScope := cert.Permissions.Extensions[utils.CertExtensionAgentScope]
 	return &Identity{
-		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
+		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role, AgentScope: agentScope},
 		ClusterName: clusterName,
 		KeyBytes:    keyBytes,
 		CertBytes:   certBytes,
