@@ -47,6 +47,9 @@ spec:
     {{- if .Values.tolerations }}
       tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
     {{- end }}
+    {{- if .Values.podSecurityContext }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+    {{- end }}
       containers:
         - name: tbot
           image: {{ .Values.image }}:{{ template "tbot.version" . }}

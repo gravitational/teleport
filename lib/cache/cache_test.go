@@ -126,7 +126,7 @@ type testPack struct {
 	databases               services.Databases
 	databaseServices        services.DatabaseServices
 	webSessionS             types.WebSessionInterface
-	webTokenS               types.WebTokenInterface
+	webTokenS               services.WebToken
 	windowsDesktops         services.WindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
@@ -373,7 +373,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
 	p.samlIdPSessionsS = idService
-	p.webTokenS = idService.WebTokens()
+	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
