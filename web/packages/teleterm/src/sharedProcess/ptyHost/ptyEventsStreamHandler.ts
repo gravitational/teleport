@@ -22,10 +22,8 @@ import {
   ManagePtyProcessRequest,
   ManagePtyProcessResponse,
   PtyEventData,
-  PtyEventOpen,
   PtyEventResize,
   PtyEventStart,
-  PtyEventStartError,
 } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
@@ -74,44 +72,36 @@ export class PtyEventsStreamHandler {
 
   private handleStartEvent(event: PtyEventStart): void {
     this.ptyProcess.onData(data =>
-      this.stream.write(
-        ManagePtyProcessResponse.create({
-          event: {
-            oneofKind: 'data',
-            data: PtyEventData.create({ message: data }),
-          },
-        })
-      )
+      this.stream.write({
+        event: {
+          oneofKind: 'data',
+          data: { message: data },
+        },
+      })
     );
     this.ptyProcess.onOpen(() =>
-      this.stream.write(
-        ManagePtyProcessResponse.create({
-          event: {
-            oneofKind: 'open',
-            open: PtyEventOpen.create(),
-          },
-        })
-      )
+      this.stream.write({
+        event: {
+          oneofKind: 'open',
+          open: {},
+        },
+      })
     );
     this.ptyProcess.onExit(payload =>
-      this.stream.write(
-        ManagePtyProcessResponse.create({
-          event: {
-            oneofKind: 'exit',
-            exit: payload,
-          },
-        })
-      )
+      this.stream.write({
+        event: {
+          oneofKind: 'exit',
+          exit: payload,
+        },
+      })
     );
     this.ptyProcess.onStartError(message => {
-      this.stream.write(
-        ManagePtyProcessResponse.create({
-          event: {
-            oneofKind: 'startError',
-            startError: PtyEventStartError.create({ message }),
-          },
-        })
-      );
+      this.stream.write({
+        event: {
+          oneofKind: 'startError',
+          startError: { message },
+        },
+      });
     });
     // PtyProcess.prototype.start always returns a fulfilled promise. If an error is caught during
     // start, it's reported through PtyProcess.prototype.onStartError. Similarly, the information
