@@ -39,27 +39,27 @@ import { Struct } from "../../../../../google/protobuf/struct_pb";
  */
 export interface CreatePtyProcessRequest {
     /**
-     * @generated from protobuf field: string path = 3;
+     * @generated from protobuf field: string path = 1;
      */
     path: string;
     /**
-     * @generated from protobuf field: repeated string args = 4;
+     * @generated from protobuf field: repeated string args = 2;
      */
     args: string[];
     /**
-     * @generated from protobuf field: string cwd = 5;
+     * @generated from protobuf field: string cwd = 3;
      */
     cwd: string;
     /**
-     * @generated from protobuf field: google.protobuf.Struct env = 7;
+     * @generated from protobuf field: google.protobuf.Struct env = 4;
      */
     env?: Struct;
     /**
-     * @generated from protobuf field: string init_message = 8;
+     * @generated from protobuf field: string init_message = 5;
      */
     initMessage: string;
     /**
-     * @generated from protobuf field: bool use_conpty = 9;
+     * @generated from protobuf field: bool use_conpty = 6;
      */
     useConpty: boolean;
 }
@@ -86,19 +86,19 @@ export interface ManagePtyProcessRequest {
     event: {
         oneofKind: "start";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventStart start = 2;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventStart start = 1;
          */
         start: PtyEventStart;
     } | {
         oneofKind: "resize";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventResize resize = 3;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventResize resize = 2;
          */
         resize: PtyEventResize;
     } | {
         oneofKind: "data";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventData data = 4;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventData data = 3;
          */
         data: PtyEventData;
     } | {
@@ -150,11 +150,11 @@ export interface ManagePtyProcessResponse {
  */
 export interface PtyEventStart {
     /**
-     * @generated from protobuf field: uint32 columns = 2;
+     * @generated from protobuf field: uint32 columns = 1;
      */
     columns: number;
     /**
-     * @generated from protobuf field: uint32 rows = 3;
+     * @generated from protobuf field: uint32 rows = 2;
      */
     rows: number;
 }
@@ -166,7 +166,7 @@ export interface PtyEventStart {
  */
 export interface PtyEventData {
     /**
-     * @generated from protobuf field: string message = 2;
+     * @generated from protobuf field: string message = 1;
      */
     message: string;
 }
@@ -177,11 +177,11 @@ export interface PtyEventData {
  */
 export interface PtyEventResize {
     /**
-     * @generated from protobuf field: uint32 columns = 2;
+     * @generated from protobuf field: uint32 columns = 1;
      */
     columns: number;
     /**
-     * @generated from protobuf field: uint32 rows = 3;
+     * @generated from protobuf field: uint32 rows = 2;
      */
     rows: number;
 }
@@ -244,12 +244,12 @@ export interface GetCwdResponse {
 class CreatePtyProcessRequest$Type extends MessageType<CreatePtyProcessRequest> {
     constructor() {
         super("teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest", [
-            { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "args", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "cwd", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "env", kind: "message", T: () => Struct },
-            { no: 8, name: "init_message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 9, name: "use_conpty", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "args", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "cwd", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "env", kind: "message", T: () => Struct },
+            { no: 5, name: "init_message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "use_conpty", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<CreatePtyProcessRequest>): CreatePtyProcessRequest {
@@ -268,22 +268,22 @@ class CreatePtyProcessRequest$Type extends MessageType<CreatePtyProcessRequest> 
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string path */ 3:
+                case /* string path */ 1:
                     message.path = reader.string();
                     break;
-                case /* repeated string args */ 4:
+                case /* repeated string args */ 2:
                     message.args.push(reader.string());
                     break;
-                case /* string cwd */ 5:
+                case /* string cwd */ 3:
                     message.cwd = reader.string();
                     break;
-                case /* google.protobuf.Struct env */ 7:
+                case /* google.protobuf.Struct env */ 4:
                     message.env = Struct.internalBinaryRead(reader, reader.uint32(), options, message.env);
                     break;
-                case /* string init_message */ 8:
+                case /* string init_message */ 5:
                     message.initMessage = reader.string();
                     break;
-                case /* bool use_conpty */ 9:
+                case /* bool use_conpty */ 6:
                     message.useConpty = reader.bool();
                     break;
                 default:
@@ -298,24 +298,24 @@ class CreatePtyProcessRequest$Type extends MessageType<CreatePtyProcessRequest> 
         return message;
     }
     internalBinaryWrite(message: CreatePtyProcessRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string path = 3; */
+        /* string path = 1; */
         if (message.path !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.path);
-        /* repeated string args = 4; */
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* repeated string args = 2; */
         for (let i = 0; i < message.args.length; i++)
-            writer.tag(4, WireType.LengthDelimited).string(message.args[i]);
-        /* string cwd = 5; */
+            writer.tag(2, WireType.LengthDelimited).string(message.args[i]);
+        /* string cwd = 3; */
         if (message.cwd !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.cwd);
-        /* google.protobuf.Struct env = 7; */
+            writer.tag(3, WireType.LengthDelimited).string(message.cwd);
+        /* google.protobuf.Struct env = 4; */
         if (message.env)
-            Struct.internalBinaryWrite(message.env, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
-        /* string init_message = 8; */
+            Struct.internalBinaryWrite(message.env, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* string init_message = 5; */
         if (message.initMessage !== "")
-            writer.tag(8, WireType.LengthDelimited).string(message.initMessage);
-        /* bool use_conpty = 9; */
+            writer.tag(5, WireType.LengthDelimited).string(message.initMessage);
+        /* bool use_conpty = 6; */
         if (message.useConpty !== false)
-            writer.tag(9, WireType.Varint).bool(message.useConpty);
+            writer.tag(6, WireType.Varint).bool(message.useConpty);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -377,9 +377,9 @@ export const CreatePtyProcessResponse = new CreatePtyProcessResponse$Type();
 class ManagePtyProcessRequest$Type extends MessageType<ManagePtyProcessRequest> {
     constructor() {
         super("teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest", [
-            { no: 2, name: "start", kind: "message", oneof: "event", T: () => PtyEventStart },
-            { no: 3, name: "resize", kind: "message", oneof: "event", T: () => PtyEventResize },
-            { no: 4, name: "data", kind: "message", oneof: "event", T: () => PtyEventData }
+            { no: 1, name: "start", kind: "message", oneof: "event", T: () => PtyEventStart },
+            { no: 2, name: "resize", kind: "message", oneof: "event", T: () => PtyEventResize },
+            { no: 3, name: "data", kind: "message", oneof: "event", T: () => PtyEventData }
         ]);
     }
     create(value?: PartialMessage<ManagePtyProcessRequest>): ManagePtyProcessRequest {
@@ -394,19 +394,19 @@ class ManagePtyProcessRequest$Type extends MessageType<ManagePtyProcessRequest> 
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventStart start */ 2:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventStart start */ 1:
                     message.event = {
                         oneofKind: "start",
                         start: PtyEventStart.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).start)
                     };
                     break;
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventResize resize */ 3:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventResize resize */ 2:
                     message.event = {
                         oneofKind: "resize",
                         resize: PtyEventResize.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).resize)
                     };
                     break;
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventData data */ 4:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventData data */ 3:
                     message.event = {
                         oneofKind: "data",
                         data: PtyEventData.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).data)
@@ -424,15 +424,15 @@ class ManagePtyProcessRequest$Type extends MessageType<ManagePtyProcessRequest> 
         return message;
     }
     internalBinaryWrite(message: ManagePtyProcessRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventStart start = 2; */
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventStart start = 1; */
         if (message.event.oneofKind === "start")
-            PtyEventStart.internalBinaryWrite(message.event.start, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventResize resize = 3; */
+            PtyEventStart.internalBinaryWrite(message.event.start, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventResize resize = 2; */
         if (message.event.oneofKind === "resize")
-            PtyEventResize.internalBinaryWrite(message.event.resize, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventData data = 4; */
+            PtyEventResize.internalBinaryWrite(message.event.resize, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventData data = 3; */
         if (message.event.oneofKind === "data")
-            PtyEventData.internalBinaryWrite(message.event.data, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+            PtyEventData.internalBinaryWrite(message.event.data, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -527,8 +527,8 @@ export const ManagePtyProcessResponse = new ManagePtyProcessResponse$Type();
 class PtyEventStart$Type extends MessageType<PtyEventStart> {
     constructor() {
         super("teleport.web.teleterm.ptyhost.v1.PtyEventStart", [
-            { no: 2, name: "columns", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 3, name: "rows", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "columns", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "rows", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<PtyEventStart>): PtyEventStart {
@@ -544,10 +544,10 @@ class PtyEventStart$Type extends MessageType<PtyEventStart> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* uint32 columns */ 2:
+                case /* uint32 columns */ 1:
                     message.columns = reader.uint32();
                     break;
-                case /* uint32 rows */ 3:
+                case /* uint32 rows */ 2:
                     message.rows = reader.uint32();
                     break;
                 default:
@@ -562,12 +562,12 @@ class PtyEventStart$Type extends MessageType<PtyEventStart> {
         return message;
     }
     internalBinaryWrite(message: PtyEventStart, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 columns = 2; */
+        /* uint32 columns = 1; */
         if (message.columns !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.columns);
-        /* uint32 rows = 3; */
+            writer.tag(1, WireType.Varint).uint32(message.columns);
+        /* uint32 rows = 2; */
         if (message.rows !== 0)
-            writer.tag(3, WireType.Varint).uint32(message.rows);
+            writer.tag(2, WireType.Varint).uint32(message.rows);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -582,7 +582,7 @@ export const PtyEventStart = new PtyEventStart$Type();
 class PtyEventData$Type extends MessageType<PtyEventData> {
     constructor() {
         super("teleport.web.teleterm.ptyhost.v1.PtyEventData", [
-            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PtyEventData>): PtyEventData {
@@ -597,7 +597,7 @@ class PtyEventData$Type extends MessageType<PtyEventData> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string message */ 2:
+                case /* string message */ 1:
                     message.message = reader.string();
                     break;
                 default:
@@ -612,9 +612,9 @@ class PtyEventData$Type extends MessageType<PtyEventData> {
         return message;
     }
     internalBinaryWrite(message: PtyEventData, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string message = 2; */
+        /* string message = 1; */
         if (message.message !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.message);
+            writer.tag(1, WireType.LengthDelimited).string(message.message);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -629,8 +629,8 @@ export const PtyEventData = new PtyEventData$Type();
 class PtyEventResize$Type extends MessageType<PtyEventResize> {
     constructor() {
         super("teleport.web.teleterm.ptyhost.v1.PtyEventResize", [
-            { no: 2, name: "columns", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 3, name: "rows", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "columns", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "rows", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<PtyEventResize>): PtyEventResize {
@@ -646,10 +646,10 @@ class PtyEventResize$Type extends MessageType<PtyEventResize> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* uint32 columns */ 2:
+                case /* uint32 columns */ 1:
                     message.columns = reader.uint32();
                     break;
-                case /* uint32 rows */ 3:
+                case /* uint32 rows */ 2:
                     message.rows = reader.uint32();
                     break;
                 default:
@@ -664,12 +664,12 @@ class PtyEventResize$Type extends MessageType<PtyEventResize> {
         return message;
     }
     internalBinaryWrite(message: PtyEventResize, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 columns = 2; */
+        /* uint32 columns = 1; */
         if (message.columns !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.columns);
-        /* uint32 rows = 3; */
+            writer.tag(1, WireType.Varint).uint32(message.columns);
+        /* uint32 rows = 2; */
         if (message.rows !== 0)
-            writer.tag(3, WireType.Varint).uint32(message.rows);
+            writer.tag(2, WireType.Varint).uint32(message.rows);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

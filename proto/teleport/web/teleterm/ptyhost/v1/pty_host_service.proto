@@ -35,14 +35,12 @@ service PtyHostService {
 
 // CreatePtyProcessRequest includes fields necessary to start a PTY process.
 message CreatePtyProcessRequest {
-  string path = 3;
-  repeated string args = 4;
-  string cwd = 5;
-  reserved 6;
-  reserved "init_command";
-  google.protobuf.Struct env = 7;
-  string init_message = 8;
-  bool use_conpty = 9;
+  string path = 1;
+  repeated string args = 2;
+  string cwd = 3;
+  google.protobuf.Struct env = 4;
+  string init_message = 5;
+  bool use_conpty = 6;
 }
 
 // CreatePtyProcessResponse returns the ID of the initialized PTY process.
@@ -53,9 +51,9 @@ message CreatePtyProcessResponse {
 // ManagePtyProcessRequest represents events sent from the terminal client to the PTY process.
 message ManagePtyProcessRequest {
   oneof event {
-    PtyEventStart start = 2;
-    PtyEventResize resize = 3;
-    PtyEventData data = 4;
+    PtyEventStart start = 1;
+    PtyEventResize resize = 2;
+    PtyEventData data = 3;
   }
 }
 
@@ -72,20 +70,20 @@ message ManagePtyProcessResponse {
 // PtyEventStart sent by the client makes the shared process attempt to spawn the PTY process
 // previously initialized with CreatePtyProcess.
 message PtyEventStart {
-  uint32 columns = 2;
-  uint32 rows = 3;
+  uint32 columns = 1;
+  uint32 rows = 2;
 }
 
 // PtyEventData is input sent by the client to the PTY process or output sent from the PTY process
 // to the client.
 message PtyEventData {
-  string message = 2;
+  string message = 1;
 }
 
 // PtyEventResize is a resize request sent from the client to the PTY process.
 message PtyEventResize {
-  uint32 columns = 2;
-  uint32 rows = 3;
+  uint32 columns = 1;
+  uint32 rows = 2;
 }
 
 // PtyEventOpen is sent by the PTY process after a successful start.
