@@ -821,6 +821,9 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			updater.TeleportProcess = &testProcess{
+				FuncName: func() string {
+					return "test"
+				},
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
@@ -836,7 +839,7 @@ func TestUpdater_Update(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _ bool, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _, reload, _ bool) error {
 				restarted = reload
 				setupCalls++
 				return tt.setupErr
@@ -844,6 +847,9 @@ func TestUpdater_Update(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ bool) error {
 				revertSetupCalls++
 				return nil
+			}
+			updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
+				return false, nil
 			}
 
 			ctx := context.Background()
@@ -1036,6 +1042,9 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			}
 			var syncCalls int
 			updater.TeleportProcess = &testProcess{
+				FuncName: func() string {
+					return "test"
+				},
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
 					return tt.syncErr
@@ -1278,7 +1287,6 @@ func TestUpdater_Remove(t *testing.T) {
 			syncCalls:       1,
 			reloadCalls:     1,
 			teardownCalls:   1,
-			reloadErr:       ErrNotNeeded,
 		},
 		{
 			name: "active version, sync error",
@@ -1331,10 +1339,6 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
-			updater.TeleportServiceName = teleportServiceName
-			if tt.serviceName != "" {
-				updater.TeleportServiceName = tt.serviceName
-			}
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -1366,6 +1370,12 @@ func TestUpdater_Remove(t *testing.T) {
 				},
 			}
 			updater.TeleportProcess = &testProcess{
+				FuncName: func() string {
+					if tt.serviceName != "" {
+						return tt.serviceName
+					}
+					return teleportServiceName
+				},
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
 					return tt.syncErr
@@ -1381,6 +1391,9 @@ func TestUpdater_Remove(t *testing.T) {
 			updater.TeardownNamespace = func(_ context.Context) error {
 				teardownCalls++
 				return nil
+			}
+			updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
+				return false, nil
 			}
 
 			ctx := context.Background()
@@ -1668,9 +1681,7 @@ func TestUpdater_Install(t *testing.T) {
 			errMatch:          "setup error",
 		},
 		{
-			name:      "no need to reload",
-			reloadErr: ErrNotNeeded,
-
+			name:              "no need to reload",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -1834,6 +1845,9 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			updater.TeleportProcess = &testProcess{
+				FuncName: func() string {
+					return "test"
+				},
 				FuncReload: func(_ context.Context) error {
 					reloadCalls++
 					return tt.reloadErr
@@ -1849,7 +1863,7 @@ func TestUpdater_Install(t *testing.T) {
 				},
 			}
 			var restarted bool
-			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux bool, reload bool) error {
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux, reload, tbot bool) error {
 				setupCalls++
 				if installSELinux {
 					selinuxInstalls++
@@ -1865,6 +1879,9 @@ func TestUpdater_Install(t *testing.T) {
 					selinuxRemovals++
 				}
 				return nil
+			}
+			updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
+				return false, nil
 			}
 
 			ctx := context.Background()
@@ -1981,12 +1998,6 @@ func TestUpdater_Setup(t *testing.T) {
 			present: true,
 		},
 		{
-			name:      "reload not needed",
-			restart:   true,
-			present:   true,
-			reloadErr: ErrNotNeeded,
-		},
-		{
 			name:     "not present",
 			restart:  true,
 			present:  false,
@@ -2098,6 +2109,9 @@ func TestUpdater_Setup(t *testing.T) {
 			require.NoError(t, err)
 
 			updater.TeleportProcess = &testProcess{
+				FuncName: func() string {
+					return "name"
+				},
 				FuncReload: func(_ context.Context) error {
 					return tt.reloadErr
 				},
@@ -2125,7 +2139,7 @@ func TestUpdater_Setup(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart)
+			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart, false)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -2293,11 +2307,16 @@ func (ti *testInstaller) IsLinked(ctx context.Context, rev Revision, path string
 }
 
 type testProcess struct {
+	FuncName      func() string
 	FuncReload    func(ctx context.Context) error
 	FuncSync      func(ctx context.Context) error
 	FuncIsEnabled func(ctx context.Context) (bool, error)
 	FuncIsActive  func(ctx context.Context) (bool, error)
 	FuncIsPresent func(ctx context.Context) (bool, error)
+}
+
+func (tp *testProcess) Name() string {
+	return tp.FuncName()
 }
 
 func (tp *testProcess) Reload(ctx context.Context) error {

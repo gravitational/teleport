@@ -114,29 +114,26 @@ Environment="TELEPORT_UPDATE_INSTALL_DIR={{escape .InstallDir}}"
 ExecStart=
 ExecStart=-/bin/echo "The teleport-upgrade script has been disabled by teleport-update. Please remove the teleport-ent-updater package."
 `
+
+	// This configuration sets the default value for needrestart-trigger automatic restarts for teleport.service to disabled.
+	// Users may still choose to enable needrestart for teleport.service when installing packaging interactively (or via dpkg config),
+	// but doing so will result in a hard restart that disconnects the agent whenever any dependent libraries are updated.
+	// Other network services, like openvpn, follow this pattern.
+	// It is possible to configure needrestart to trigger a soft restart (via restart.d script), but given that Teleport subprocesses
+	// can use a wide variety of installed binaries (when executed by the user), this could trigger many unexpected reloads.
+	needrestartConfTemplate = `{{range .Services}}$nrconf{override_rc}{qr(^{{replace . "." "\\."}})} = 0;
+{{end}}`
 )
 
 // systemdParams parameterizes the above updater systemd configuration templates.
 type systemdParams struct {
 	TeleportService   string
+	Services          []string
 	UpdaterBinary     string
 	InstallSuffix     string
 	InstallDir        string
 	Path              string
 	UpdaterConfigFile string
-}
-
-// This configuration sets the default value for needrestart-trigger automatic restarts for teleport.service to disabled.
-// Users may still choose to enable needrestart for teleport.service when installing packaging interactively (or via dpkg config),
-// but doing so will result in a hard restart that disconnects the agent whenever any dependent libraries are updated.
-// Other network services, like openvpn, follow this pattern.
-// It is possible to configure needrestart to trigger a soft restart (via restart.d script), but given that Teleport subprocesses
-// can use a wide variety of installed binaries (when executed by the user), this could trigger many unexpected reloads.
-var needrestartConfTemplate = `$nrconf{override_rc}{qr(^{{replace .Service "." "\\."}})} = 0;
-`
-
-type needrestartParams struct {
-	Service string
 }
 
 // standard Makefile included in 'selinux-policy-devel' RPM package
@@ -164,19 +161,20 @@ type Namespace struct {
 	teleportPIDFile string
 	// teleportDropInFile is the Teleport systemd drop-in path extending Teleport
 	teleportDropInFile string
-	// teleportNRConfigFile is the path to needrestart configuration for Teleport
-	teleportNRConfigFile string
-	tbotServiceFile      string
-	tbotConfigFile       string
-	tbotPIDFile          string
-	tbotNRConfigFile     string
+	// tbotServiceFile is the systemd service path for tbot (ns: /etc/systemd/system/tbot_myns.service)
+	tbotServiceFile string
+	// tbotConfigFile for tbot config (ns: /etc/tbot_myns.yaml)
+	tbotConfigFile string
+	// tbotPIDFile for tbot (ns: /run/tbot_myns.pid)
+	tbotPIDFile string
 	// updaterIDFile contains the updater's temporary ID file
 	updaterIDFile string
 	// updaterServiceFile is the systemd service path for the updater
 	updaterServiceFile string
 	// updaterTimerFile is the systemd timer path for the updater
 	updaterTimerFile string
-
+	// needrestartConfigFile is the path to needrestart configuration for all services
+	needrestartConfigFile string
 	// deprecatedDropInFile is the deprecated upgrader's systemd drop-in path
 	deprecatedDropInFile string
 }
@@ -202,46 +200,45 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 	if name == "" {
 		linkDir := defaultPathDir
 		return &Namespace{
-			log:                  log,
-			name:                 name,
-			installDir:           installDir,
-			defaultPathDir:       linkDir,
-			dataDir:              defaults.DataDir,
-			teleportServiceFile:  filepath.Join("/", serviceDir, teleportServiceName), // /lib for backwards-compat
-			teleportConfigFile:   defaults.ConfigFilePath,
-			teleportPIDFile:      filepath.Join(systemdPIDDir, "teleport.pid"),
-			teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+".conf"),
-			teleportDropInFile:   filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
-			updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+".id"),
-			updaterServiceFile:   filepath.Join(systemdAdminDir, BinaryName+".service"),
-			updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+".timer"),
-			deprecatedDropInFile: filepath.Join(systemdAdminDir, deprecatedServiceName+".d", BinaryName+".conf"),
-			tbotServiceFile:      filepath.Join(systemdAdminDir, "tbot.service"),
-			tbotConfigFile:       filepath.Join("/etc", "tbot.yaml"),
-			tbotPIDFile:          filepath.Join(systemdPIDDir, "tbot.pid"),
+			log:                   log,
+			name:                  name,
+			installDir:            installDir,
+			defaultPathDir:        linkDir,
+			dataDir:               defaults.DataDir,
+			teleportServiceFile:   filepath.Join("/", serviceDir, teleportServiceName), // /lib for backwards-compat
+			teleportConfigFile:    defaults.ConfigFilePath,
+			teleportPIDFile:       filepath.Join(systemdPIDDir, "teleport.pid"),
+			needrestartConfigFile: filepath.Join(needrestartConfDir, BinaryName+".conf"),
+			teleportDropInFile:    filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
+			updaterIDFile:         filepath.Join(os.TempDir(), BinaryName+".id"),
+			updaterServiceFile:    filepath.Join(systemdAdminDir, BinaryName+".service"),
+			updaterTimerFile:      filepath.Join(systemdAdminDir, BinaryName+".timer"),
+			deprecatedDropInFile:  filepath.Join(systemdAdminDir, deprecatedServiceName+".d", BinaryName+".conf"),
+			tbotServiceFile:       filepath.Join(systemdAdminDir, "tbot.service"),
+			tbotConfigFile:        filepath.Join("/etc", "tbot.yaml"),
+			tbotPIDFile:           filepath.Join(systemdPIDDir, "tbot.pid"),
 		}, nil
 	}
 
 	prefix := "teleport_" + name
 	linkDir := filepath.Join(installDir, name, "bin")
 	return &Namespace{
-		log:                  log,
-		name:                 name,
-		installDir:           installDir,
-		defaultPathDir:       linkDir,
-		dataDir:              filepath.Join(filepath.Dir(defaults.DataDir), prefix),
-		teleportServiceFile:  filepath.Join(systemdAdminDir, prefix+".service"),
-		teleportConfigFile:   filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
-		teleportPIDFile:      filepath.Join(systemdPIDDir, prefix+".pid"),
-		teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
-		teleportDropInFile:   filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
-		updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+"_"+name+".id"),
-		updaterServiceFile:   filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
-		updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
-		tbotServiceFile:      filepath.Join(systemdAdminDir, "tbot_"+name+".service"),
-		tbotConfigFile:       filepath.Join("/etc", "tbot_"+name+".yaml"),
-		tbotPIDFile:          filepath.Join(systemdPIDDir, "tbot_"+name+".pid"),
-		tbotNRConfigFile:     filepath.Join(needrestartConfDir, "tbot_"+name+".conf"),
+		log:                   log,
+		name:                  name,
+		installDir:            installDir,
+		defaultPathDir:        linkDir,
+		dataDir:               filepath.Join(filepath.Dir(defaults.DataDir), prefix),
+		teleportServiceFile:   filepath.Join(systemdAdminDir, prefix+".service"),
+		teleportConfigFile:    filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
+		teleportPIDFile:       filepath.Join(systemdPIDDir, prefix+".pid"),
+		needrestartConfigFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
+		teleportDropInFile:    filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
+		updaterIDFile:         filepath.Join(os.TempDir(), BinaryName+"_"+name+".id"),
+		updaterServiceFile:    filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
+		updaterTimerFile:      filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
+		tbotServiceFile:       filepath.Join(systemdAdminDir, "tbot_"+name+".service"),
+		tbotConfigFile:        filepath.Join("/etc", "tbot_"+name+".yaml"),
+		tbotPIDFile:           filepath.Join(systemdPIDDir, "tbot_"+name+".pid"),
 		// no deprecatedDropInFile, as teleport-upgrade does not conflict with namespaced installs
 	}, nil
 }
@@ -525,8 +522,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		ns.updaterTimerFile,
 		ns.teleportDropInFile,
 		ns.deprecatedDropInFile,
-		ns.teleportNRConfigFile,
-		ns.tbotNRConfigFile,
+		ns.needrestartConfigFile,
 	} {
 		if p == "" {
 			continue
@@ -602,38 +598,28 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 
 	// Needrestart config is non-critical for updater functionality.
 
-	var tbotNRConfigFile string
+	nrServices := []string{teleportService}
 	if ok, err := ns.HasCustomTbot(ctx); err != nil {
 		ns.log.ErrorContext(ctx, "Unable to determine if tbot is managed by the updater, skipping needrestart configuration.", errorKey, err)
 	} else if !ok {
-		tbotNRConfigFile = ns.tbotNRConfigFile
+		nrServices = append(nrServices, tbotService)
 	}
 
-	for _, v := range []struct {
-		path, service string
-	}{
-		{ns.teleportNRConfigFile, teleportService},
-		{tbotNRConfigFile, tbotService},
-	} {
-		if v.path == "" {
-			continue
-		}
-		_, err := os.Stat(filepath.Dir(v.path))
-		if os.IsNotExist(err) {
-			continue // needrestart is not present
-		}
-		if err != nil {
-			ns.log.ErrorContext(ctx, "Unable to disable needrestart.", unitKey, v.service, errorKey, err)
-			continue
-		}
-		ns.log.InfoContext(ctx, "Disabling needrestart.", unitKey, v.service)
-		err = writeSystemTemplate(v.path, "", needrestartConfTemplate, needrestartParams{
-			Service: v.service,
-		})
-		if err != nil {
-			ns.log.ErrorContext(ctx, "Unable to disable needrestart.", unitKey, v.service, errorKey, err)
-			continue
-		}
+	_, err := os.Stat(filepath.Dir(ns.needrestartConfigFile))
+	if os.IsNotExist(err) {
+		return nil // needrestart is not present
+	}
+	if err != nil {
+		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
+		return nil
+	}
+	ns.log.InfoContext(ctx, "Disabling needrestart.")
+	err = writeSystemTemplate(ns.needrestartConfigFile, "", needrestartConfTemplate, systemdParams{
+		Services: nrServices,
+	})
+	if err != nil {
+		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
+		return nil
 	}
 	return nil
 }
