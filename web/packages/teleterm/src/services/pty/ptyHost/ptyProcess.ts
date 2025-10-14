@@ -63,7 +63,13 @@ export function createPtyProcess(
       return exchangeEventsStream.onOpen(callback);
     },
 
-    onExit(callback: (reason: { exitCode: number; signal?: number }) => void) {
+    onExit(
+      callback: (reason: {
+        exitCode: number;
+        signal?: number;
+        lastInput: string;
+      }) => void
+    ) {
       return exchangeEventsStream.onExit(callback);
     },
 
