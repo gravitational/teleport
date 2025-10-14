@@ -94,7 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1585,12 +1584,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	stopTracing := initializeTracing(&cf)
 	defer stopTracing()
 
-	// start the span for the command and update the config context so that all spans created
-	// in the future will be rooted at this span.
-	ctx, span := cf.tracer.Start(cf.Context, command)
-	cf.Context = ctx
-	defer span.End()
-
 	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1929,9 +1922,14 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
-	// flush ensures that the spans are all attempted to be written when tsh exits.
+	// flush ends the root span and ensures that the spans are all attempted to be written when tsh exits.
+	var rootSpan oteltrace.Span
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
+			if rootSpan != nil {
+				rootSpan.End()
+			}
+
 			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
@@ -1976,6 +1974,9 @@ func initializeTracing(cf *CLIConf) func() {
 
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
+		// Start the root span for the command and update the config context so
+		// that all spans created in the future will be rooted at this span.
+		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -2000,6 +2001,9 @@ func initializeTracing(cf *CLIConf) func() {
 	}
 	cf.TracingProvider = provider
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+	// Start the root span for the command and update the config context so
+	// that all spans created in the future will be rooted at this span.
+	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
@@ -4452,18 +4456,17 @@ func onSCP(cf *CLIConf) error {
 		}
 	}
 
+	sftpReq := client.SFTPRequest{
+		Sources:       cf.CopySpec[:len(cf.CopySpec)-1],
+		Destination:   cf.CopySpec[len(cf.CopySpec)-1],
+		Recursive:     cf.RecursiveCopy,
+		PreserveAttrs: cf.PreserveAttrs,
+	}
+	if !cf.Quiet {
+		sftpReq.ProgressWriter = cf.Stdout()
+	}
 	err = executor(cf.Context, tc, func() error {
-		return trace.Wrap(tc.SFTP(
-			cf.Context,
-			cf.CopySpec[:len(cf.CopySpec)-1],
-			cf.CopySpec[len(cf.CopySpec)-1],
-			sftp.Options{
-				Recursive:      cf.RecursiveCopy,
-				PreserveAttrs:  cf.PreserveAttrs,
-				Quiet:          cf.Quiet,
-				ProgressWriter: cf.Stdout(),
-			},
-		))
+		return trace.Wrap(tc.SFTP(cf.Context, sftpReq))
 	})
 
 	// don't print context canceled errors to the user
@@ -4650,6 +4653,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
+	c.ProxyTemplates = cf.TSHConfig.ProxyTemplates
 	expanded, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
@@ -5228,19 +5232,26 @@ func onShow(cf *CLIConf) error {
 	return nil
 }
 
+func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock) string {
+	duration := clock.Until(validUntil)
+	switch {
+	case duration <= 0:
+		return "EXPIRED"
+	case duration < time.Minute:
+		return "valid for <1m"
+	default:
+		return fmt.Sprintf("valid for %s",
+			// Since duration is truncated to minute, duration.String() always
+			// ends with 0s.
+			strings.TrimRight(duration.Truncate(time.Minute).String(), "0s"),
+		)
+	}
+}
+
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+	clock := clockwork.NewRealClock()
 	var prefix string
-	humanDuration := "EXPIRED"
-	duration := time.Until(p.ValidUntil)
-	if duration.Nanoseconds() > 0 {
-		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
-		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
-		if duration < time.Minute {
-			humanDuration = "valid for <1m"
-		}
-	}
-
 	proxyURL := p.getProxyURLLine(isActive, env)
 	cluster := p.getClusterLine(isActive, env)
 	kubeCluster := p.getKubeClusterLine(isActive, env)
@@ -5330,7 +5341,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if p.GitHubIdentity != nil {
 		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
+	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {

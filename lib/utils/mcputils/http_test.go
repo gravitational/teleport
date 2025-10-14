@@ -20,11 +20,14 @@ package mcputils
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,66 +38,82 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
 func TestReplaceHTTPResponse(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
-	// Set up a server.
-	mcpServer := mcptest.NewServer()
-	httpServer := mcpserver.NewTestStreamableHTTPServer(mcpServer)
-	t.Cleanup(httpServer.Close)
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
 
-	// Set up a client with custom transport which calls "ReplaceHTTPResponse".
-	httpClientTransport := newTestReplaceHTTPResponseTransport()
-	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
-		httpServer.URL+"/mcp",
-		mcpclienttransport.WithHTTPBasicClient(
-			&http.Client{Transport: httpClientTransport},
-		),
-		mcpclienttransport.WithContinuousListening(),
-	)
-	require.NoError(t, err)
-	client := mcpclient.NewClient(mcpClientTransport)
-	require.NoError(t, client.Start(ctx))
+		// Set up a server. Use InMemoryListener for synctest.
+		mcpServer := mcptest.NewServer()
+		listener := listenerutils.NewInMemoryListener()
+		httpServer := http.Server{
+			Handler: mcpserver.NewStreamableHTTPServer(mcpServer),
+		}
+		go httpServer.Serve(listener)
+		t.Cleanup(func() {
+			httpServer.Close()
+		})
 
-	// Initialize client and call a tool.
-	_, err = mcptest.InitializeClient(ctx, client)
-	require.NoError(t, err)
-	mcptest.MustCallServerTool(t, ctx, client)
-	assert.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
+		// Set up a client with custom transport which calls "ReplaceHTTPResponse".
+		httpClientTransport := newTestReplaceHTTPResponseTransport(listener)
+		mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
+			"http://memory/mcp",
+			mcpclienttransport.WithHTTPBasicClient(
+				&http.Client{Transport: httpClientTransport},
+			),
+			mcpclienttransport.WithContinuousListening(),
+		)
+		require.NoError(t, err)
+		var countMCPNotification atomic.Uint32
+		client := mcpclient.NewClient(mcpClientTransport)
+		client.OnNotification(func(notification mcp.JSONRPCNotification) {
+			countMCPNotification.Add(1)
+		})
+		require.NoError(t, client.Start(ctx))
 
-	// Send notifications from server. Notifications will be sent through SSE.
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assert.Greater(collect, httpClientTransport.getCountMethods()["GET"], 0)
-	}, 2*time.Second, 100*time.Millisecond, "client SSE connected")
-	mcpServer.SendNotificationToAllClients("notifications/test", nil)
-	mcpServer.SendNotificationToAllClients("notifications/test", nil)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assert.Equal(collect, uint32(2), httpClientTransport.countMCPNotification.Load())
-	}, 2*time.Second, 100*time.Millisecond, "expected to receive notification")
+		// Initialize client and call a tool.
+		mcptest.MustInitializeClient(t, client)
+		mcptest.MustCallServerTool(t, client)
+		require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
-	// Close client and count the requests.
-	require.NoError(t, client.Close())
-	require.Equal(t, map[string]int{
-		"GET":    1, // For listening on SSE events.
-		"POST":   3, // "initialize", "notifications/initialize", and "tools/call".
-		"DELETE": 1, // Close session.
-	}, httpClientTransport.getCountMethods())
+		// Send notifications from server. Notifications will be sent through SSE.
+		synctest.Wait() // Wait for client to establish the GET connection.
+		mcpServer.SendNotificationToAllClients("notifications/test", nil)
+		mcpServer.SendNotificationToAllClients("notifications/test", nil)
+		synctest.Wait() // Wait for client to receive notifications.
+		require.Equal(t, uint32(2), countMCPNotification.Load())
+
+		// Close client and count the requests.
+		require.NoError(t, client.Close())
+		synctest.Wait()
+		require.Equal(t, map[string]int{
+			"GET":    1, // For listening on SSE events.
+			"POST":   3, // "initialize", "notifications/initialize", and "tools/call".
+			"DELETE": 1, // Close session.
+		}, httpClientTransport.getCountMethods())
+	})
 }
 
 type testReplaceHTTPResponseTransport struct {
-	countMethods         map[string]int
-	countMethodsMu       sync.Mutex
-	countMCPResponse     atomic.Uint32
-	countMCPNotification atomic.Uint32
+	countMethods     map[string]int
+	countMethodsMu   sync.Mutex
+	countMCPResponse atomic.Uint32
+	client           http.Client
 }
 
-func newTestReplaceHTTPResponseTransport() *testReplaceHTTPResponseTransport {
+func newTestReplaceHTTPResponseTransport(inMemoryListener *listenerutils.InMemoryListener) *testReplaceHTTPResponseTransport {
 	return &testReplaceHTTPResponseTransport{
 		countMethods: make(map[string]int),
+		client: http.Client{
+			Transport: &http.Transport{
+				DialContext: inMemoryListener.DialContext,
+			},
+		},
 	}
 }
 
@@ -109,7 +128,7 @@ func (t *testReplaceHTTPResponseTransport) RoundTrip(r *http.Request) (*http.Res
 	t.countMethods[r.Method]++
 	t.countMethodsMu.Unlock()
 
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := t.client.Do(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,6 +145,69 @@ func (t *testReplaceHTTPResponseTransport) ProcessResponse(_ context.Context, re
 }
 
 func (t *testReplaceHTTPResponseTransport) ProcessNotification(_ context.Context, notification *JSONRPCNotification) mcp.JSONRPCMessage {
-	t.countMCPNotification.Add(1)
 	return notification
+}
+
+func TestHTTPReaderWriter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Set up an MCP server.
+	mcpServer := mcptest.NewServer()
+	httpServer := mcpserver.NewTestStreamableHTTPServer(mcpServer)
+	t.Cleanup(httpServer.Close)
+
+	// Create a proxy that converts from stdio to HTTP.
+	clientStdin, writeToClient := io.Pipe()
+	readFromClient, clientStdout := io.Pipe()
+	t.Cleanup(func() {
+		assert.NoError(t, trace.NewAggregate(
+			clientStdin.Close(), writeToClient.Close(),
+			readFromClient.Close(), clientStdout.Close(),
+		))
+	})
+
+	serverReaderWriter, err := NewHTTPReaderWriter(ctx, httpServer.URL, mcpclienttransport.WithContinuousListening())
+	require.NoError(t, err)
+	defer serverReaderWriter.Close() // Send DELETE before server is shutdown
+
+	clientTransportReader := NewStdioReader(readFromClient)
+	clientWriter := NewStdioMessageWriter(writeToClient)
+	proxyReaderWriter(t, clientTransportReader, clientWriter, serverReaderWriter, serverReaderWriter)
+
+	// Make a "high-level" stdio MCP client and test the proxy.
+	notificationsChan := make(chan mcp.JSONRPCNotification, 1)
+	stdioClient := mcptest.NewStdioClient(t, clientStdin, clientStdout)
+	stdioClient.OnNotification(func(notification mcp.JSONRPCNotification) {
+		notificationsChan <- notification
+	})
+	mcptest.MustInitializeClient(t, stdioClient)
+	mcptest.MustCallServerTool(t, stdioClient)
+
+	// Test listening notifications from server.
+	mcpServer.SendNotificationToAllClients("notifications/test", nil)
+	select {
+	case notification := <-notificationsChan:
+		require.NotNil(t, notification)
+		require.Equal(t, "notifications/test", notification.Notification.Method)
+	case <-time.After(time.Second):
+		require.Fail(t, "timeout waiting for notification")
+	}
+}
+
+func proxyReaderWriter(
+	t *testing.T,
+	clientTransportReader TransportReader,
+	clientWriter MessageWriter,
+	serverTransportReader TransportReader,
+	serverWriter MessageWriter,
+) {
+	t.Helper()
+
+	clientMessageReader, err := NewForwardMessageReader(slog.Default(), clientTransportReader, serverWriter)
+	require.NoError(t, err)
+	serverMessageReader, err := NewForwardMessageReader(slog.Default(), serverTransportReader, clientWriter)
+	require.NoError(t, err)
+	go clientMessageReader.Run(t.Context())
+	go serverMessageReader.Run(t.Context())
 }

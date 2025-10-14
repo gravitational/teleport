@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -1890,18 +1891,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// Perform the label/search/expr filtering here (instead of at the backend
 	// `ListResources`) to ensure that it will be applied only to resources
 	// the user has access to.
-	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
-	}
-
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		filter.PredicateExpression = expression
+	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	req.Labels = nil
@@ -5784,6 +5776,7 @@ func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pag
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
+// Deprecated: Prefer paginated variant such as [ListSnowflakeSessions]
 func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
 	// Check if this a database service.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
@@ -5792,11 +5785,27 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		}
 	}
 
-	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
+	out, err := iterstream.Collect(a.authServer.RangeSnowflakeSessions(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sessions, nil
+
+	return out, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.authorizeAction(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return generic.CollectPageAndCursor(
+		a.authServer.RangeSnowflakeSessions(ctx, start, ""),
+		limit,
+		types.WebSession.GetName,
+	)
 }
 
 // CreateAppSession creates an application web session. Application web
@@ -6492,17 +6501,47 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Filter out kube clusters user doesn't have access to.
-	clusters, err := a.authServer.GetKubernetesClusters(ctx)
+	out, err := iterstream.Collect(
+		iterstream.FilterMap(
+			a.authServer.RangeKubernetesClusters(ctx, "", ""),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if a.checkAccessToKubeCluster(cluster) == nil {
+					return cluster, true
+				}
+				return nil, false
+			},
+		),
+	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
+
 	}
-	for _, cluster := range clusters {
-		if err := a.checkAccessToKubeCluster(cluster); err == nil {
-			result = append(result, cluster)
-		}
+
+	return out, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	return result, nil
+
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeKubernetesClusters(ctx, start, ""),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if a.checkAccessToKubeCluster(cluster) == nil {
+					return cluster, true
+				}
+				return nil, false
+			},
+		),
+		limit,
+		types.KubeCluster.GetName,
+	)
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
@@ -6650,34 +6689,19 @@ func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey
 		return nil, "", trace.Wrap(err)
 	}
 
-	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := iterstream.Collect(
-		iterstream.TakeWhile(
-			iterstream.FilterMap(
-				a.authServer.RangeDatabases(ctx, startKey, ""),
-				func(db types.Database) (types.Database, bool) {
-					if a.checkAccessToDatabase(db) == nil {
-						return db, true
-					}
-					return nil, false
-				},
-			),
-			func(db types.Database) bool {
-				if seen < limit {
-					seen++
-					return true
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeDatabases(ctx, startKey, ""),
+			func(db types.Database) (types.Database, bool) {
+				if a.checkAccessToDatabase(db) == nil {
+					return db, true
 				}
-				next = db.GetName()
-				return false
+				return nil, false
 			},
 		),
+		limit,
+		types.Database.GetName,
 	)
-	return out, next, trace.Wrap(err)
 }
 
 // DeleteDatabase removes the specified database resource.

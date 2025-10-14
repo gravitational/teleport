@@ -49,20 +49,15 @@ func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	waitConn := utils.NewCloserConn(conn)
-	listener := listenerutils.NewSingleUseListener(waitConn)
-	go func() {
-		// Make sure connection is closed when ctx is canceled.
-		<-ctx.Done()
-		waitConn.Close()
-	}()
+	waitConn := utils.NewWaitConn(conn)
+	context.AfterFunc(ctx, func() { waitConn.Close() })
 
 	httpServer := &http.Server{
-		Handler: handler,
-		BaseContext: func(net.Listener) context.Context {
-			return ctx
-		},
+		Handler:     handler,
+		BaseContext: func(net.Listener) context.Context { return ctx },
 	}
+
+	listener := listenerutils.NewSingleUseListener(waitConn)
 	if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
 		return trace.Wrap(err)
 	}
@@ -242,7 +237,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
 		// Only emit session start if "initialize" succeeded.
-		if mcpRequest.Method == "initialize" && respErrForAudit == nil {
+		if mcpRequest.Method == mcp.MethodInitialize && respErrForAudit == nil {
 			t.emitStartEvent(t.parentCtx)
 		}
 		t.emitRequestEvent(t.parentCtx, mcpRequest, respErrForAudit)

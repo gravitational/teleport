@@ -7373,6 +7373,11 @@ message PluginOktaSyncSettings {
   // synchronized users. This is allows for a more advanced RBAC setup where not all
   // Okta-originated users are allowed request all Okta-originated resources.
   bool disable_assign_default_roles = 13;
+
+  // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
+  // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
+  // bidirectional sync is enabled. The default value is 30m.
+  string time_between_imports = 14;
 }
 
 // Defines a set of discord channel IDs
@@ -8977,8 +8982,11 @@ message InstallerParams {
   // Valid values:
   // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
   // 1: uses script mode
-  // 2: uses eice mode
-  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+  // 2: uses eice mode (deprecated)
+  InstallParamEnrollMode EnrollMode = 8 [
+    (gogoproto.jsontag) = "enroll_mode,omitempty",
+    deprecated = true
+  ];
   // Suffix indicates the installation suffix for the teleport installation.
   // Set this value if you want multiple installations of Teleport.
   // See --install-suffix flag in teleport-update program.
@@ -9001,6 +9009,8 @@ enum InstallParamEnrollMode {
   INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
   // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
   // Only available for AWS EC2 instances.
+  //
+  // DEPRECATED: EICE mode is deprecated. Use script mode.
   INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 

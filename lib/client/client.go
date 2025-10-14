@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -356,7 +355,11 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 				"target_host", nodeName,
 				"error", err,
 			)
-			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, nodeName)
+			host := nodeName
+			if h, _, err := net.SplitHostPort(nodeName); err == nil {
+				host = h
+			}
+			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, host)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -721,7 +724,7 @@ func newClientConn(
 		// Use a noop text map propagator so that the tracing context isn't included in
 		// the connection handshake. Since the provided conn will already include the tracing
 		// context we don't want to send it again.
-		conn, chans, reqs, err := tracessh.NewClientConn(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
+		conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 
@@ -740,29 +743,6 @@ func newClientConn(
 		resp := <-respCh
 		return nil, nil, nil, trace.ConnectionProblem(resp.err, "failed to connect to %q", nodeAddress)
 	}
-}
-
-// TransferFiles transfers files over SFTP.
-func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config, moderatedSessionID string) error {
-	ctx, span := c.Tracer.Start(
-		ctx,
-		"nodeClient/TransferFiles",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	if err := cfg.TransferFiles(ctx, c.Client, moderatedSessionID); err != nil {
-		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
-		// a trace.BadParameter error when ~user path expansion was rejected, and
-		// reauthentication logic is attempted on BadParameter errors.
-		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
-			return trace.Wrap(&NonRetryableError{Err: err})
-		}
-
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 type netDialer interface {

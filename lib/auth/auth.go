@@ -90,6 +90,7 @@ import (
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -813,6 +814,21 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	as.BotInstanceVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
+		Clock: cfg.Clock,
+		Logger: as.logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentAuth, "bot-version-reporter"),
+		),
+		Semaphores: as,
+		HostUUID:   cfg.HostUUID,
+		Store:      as,
+		Cache:      as.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if _, ok := as.getCache(); !ok {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
@@ -1033,6 +1049,18 @@ var (
 		[]string{teleport.TagPrivateKeyPolicy},
 	)
 
+	botInstancesMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBotInstances,
+			Help:      "The number of bot instances across the entire cluster",
+		},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
@@ -1042,6 +1070,7 @@ var (
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
 		roleCount,
+		botInstancesMetric,
 	}
 )
 
@@ -1307,6 +1336,10 @@ type Server struct {
 	// It allows for late initialization of the summarizer in the enterprise
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
+
+	// BotInstanceVersionReporter is called periodically to generate a report of
+	// the number of bot instances by version and update group.
+	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1586,6 +1619,8 @@ const (
 	roleCountKey
 	accessListReminderNotificationsKey
 	autoUpdateAgentReportKey
+	autoUpdateBotInstanceReportKey
+	autoUpdateBotInstanceMetricsKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1680,6 +1715,18 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      constants.AutoUpdateAgentReportPeriod,
 			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
 			// No jitter here, this is intentional and required for accurate tracking across auths.
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateBotInstanceReportKey,
+			Duration:      constants.AutoUpdateBotInstanceReportPeriod,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateBotInstanceMetricsKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod / 2,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 
@@ -1807,6 +1854,10 @@ func (a *Server) runPeriodicOperations() {
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
+			case autoUpdateBotInstanceReportKey:
+				go a.BotInstanceVersionReporter.Report(a.closeCtx)
+			case autoUpdateBotInstanceMetricsKey:
+				go a.updateBotInstanceMetrics()
 			}
 		}
 	}
@@ -2119,6 +2170,18 @@ func (a *Server) updateAgentMetrics() {
 			teleport.TagUpgrader: metadata.upgraderType,
 			teleport.TagVersion:  metadata.version,
 		}).Set(float64(count))
+	}
+}
+
+func (a *Server) updateBotInstanceMetrics() {
+	report, err := a.GetAutoUpdateBotInstanceReport(a.closeCtx)
+	switch {
+	case trace.IsNotFound(err):
+		// No report to emit.
+	case err != nil:
+		a.logger.ErrorContext(a.closeCtx, "Failed to get bot instance report", "error", err)
+	default:
+		machineidv1.EmitInstancesMetric(report, botInstancesMetric)
 	}
 }
 

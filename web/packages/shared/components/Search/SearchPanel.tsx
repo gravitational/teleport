@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
+import { FlexProps } from 'design/Flex/Flex';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
@@ -35,6 +36,7 @@ export function SearchPanel({
   disableSearch,
   hideAdvancedSearch,
   extraChildren,
+  mb = 3,
 }: {
   updateQuery?: (s: string) => void;
   updateSearch: (s: string) => void;
@@ -43,6 +45,7 @@ export function SearchPanel({
   disableSearch?: boolean;
   hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
+  mb?: FlexProps['mb'];
 }) {
   const [query, setQuery] = useState(filter.search || filter.query || '');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(!!filter.query);
@@ -72,7 +75,7 @@ export function SearchPanel({
       justifyContent="space-between"
       alignItems="center"
       width="100%"
-      mb={3}
+      mb={mb}
     >
       <Flex style={{ width: '100%' }} alignItems="center">
         <StyledFlex
