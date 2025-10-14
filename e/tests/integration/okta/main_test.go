@@ -47,9 +47,6 @@ func TestMain(m *testing.M) {
 // run quicker.
 func alignOktaSyncTimes() {
 	connected.DefaultOktaConnectedCacheTTL = time.Millisecond * 100
-	libokta.OktaDefaultTimeBetweenSyncs = time.Second
 	libokta.SyncRetryAfterLeadershipFailure = time.Second
-	libokta.AccessListSyncFirstDuration = time.Second
-	libokta.DefaultAccessListSyncInterval = time.Second
 	libokta.AccessRequestCheckInventoryInterval = time.Second
 }

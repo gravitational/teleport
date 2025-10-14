@@ -7,6 +7,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -244,7 +245,7 @@ func withSSOConnector(c string) testServiceOpt {
 func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (Config, *eventstest.ChannelEmitter) {
 	t.Helper()
 
-	emitter := eventstest.NewChannelEmitter(2)
+	emitter := eventstest.NewChannelEmitter(3)
 	lockWatcher := newLockWatcher(t, ap)
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testClusterName,
@@ -254,6 +255,7 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 	require.NoError(t, err)
 
 	config := Config{
+		Logger:           slog.Default(),
 		Leader:           &mockIsLeader{true},
 		TLSConfig:        generateTestTLSConfig(t, testHostID, nil),
 		Authorizer:       authorizer,

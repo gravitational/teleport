@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -104,12 +102,6 @@ func (a *accessListSyncTestContext) addGroup(group types.UserGroup) {
 	a.oktaData.UpsertGroupForId(oktaapi.OktaGroupID(group.GetName()))
 }
 
-func (a *accessListSyncTestContext) advanceAndWaitForSync() {
-	a.clock.BlockUntil(1)
-	a.clock.Advance(a.svc.syncInterval)
-	a.clock.BlockUntil(1)
-}
-
 func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestContext {
 	t.Helper()
 
@@ -165,15 +157,11 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		GroupsGetter: func() map[string]types.UserGroup {
 			return alsCtx.groups
 		},
-		SynchronizerSuccess:   &atomic.Bool{},
-		SynchronizingMu:       &sync.RWMutex{},
 		StopChannel:           stopCh,
 		ServiceStatus:         nullStatusUpdate{},
 		OktaAssignmentService: ap,
 	})
 	require.NoError(t, err)
-
-	alSync.synchronizerSuccess.Store(true)
 
 	alsCtx.svc = alSync
 
@@ -181,10 +169,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		stopCh <- struct{}{}
 	})
 
-	// Start the synchronization process in the background.
-	go alSync.startSync(context.Background())
-
-	clock.BlockUntil(1)
+	alSync.init(t.Context())
 
 	return alsCtx
 }
@@ -196,7 +181,7 @@ func TestAccessListSync(t *testing.T) {
 
 	t.Run("no apps or groups", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
-		c.advanceAndWaitForSync()
+		c.svc.sync(ctx)
 
 		require.Empty(t, c.svc.importAccessLists.Clone())
 		require.Empty(t, c.svc.newImportAccessLists.Clone())
@@ -228,7 +213,7 @@ func TestAccessListSync(t *testing.T) {
 		c.addApp(newAccessListSyncApp(t, "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group1"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
-		c.advanceAndWaitForSync()
+		c.svc.sync(ctx)
 
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
 			"group1": newAccessList(t, "group1", "group label", []string{c.groupReviewerRoleName("group1")}, []string{c.groupAccessRoleName("group1")}, owners),
@@ -277,7 +262,7 @@ func TestAccessListSync(t *testing.T) {
 		c.addGroup(newAccessListSyncGroup(t, "group1", "app1", "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
-		c.advanceAndWaitForSync()
+		c.svc.sync(ctx)
 
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
 			"app1":   newAccessList(t, "app1", "app label", []string{c.appReviewerRoleName("app1")}, []string{c.appAccessRoleName("app1")}, owners),
@@ -343,7 +328,7 @@ func TestAccessListSync(t *testing.T) {
 		c.addGroup(newAccessListSyncGroup(t, "group1", "app1", "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
-		c.advanceAndWaitForSync()
+		c.svc.sync(ctx)
 
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
 			"app1":   newAccessList(t, "app1", "app label", []string{c.appReviewerRoleName("app1")}, []string{c.appAccessRoleName("app1")}, owners),
@@ -423,7 +408,7 @@ func TestAccessListSync(t *testing.T) {
 		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "dev-group2"))
 		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "dev-group3"))
 
-		c.advanceAndWaitForSync()
+		c.svc.sync(ctx)
 
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
 			"dev-app2":   newAccessList(t, "dev-app2", "dev-app2", []string{c.appReviewerRoleName("dev-app2")}, []string{c.appAccessRoleName("dev-app2")}, owners),
@@ -534,7 +519,7 @@ func TestAccessListSync(t *testing.T) {
 		c.addGroup(newAccessListSyncGroup(t, "group1"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
-		c.advanceAndWaitForSync()
+		c.svc.sync(ctx)
 
 		preserved.Spec.Title = "app label"
 		preserved.Spec.Grants.Roles = []string{c.appAccessRoleName("app1")}
@@ -642,7 +627,7 @@ func TestAccessListSync(t *testing.T) {
 				for _, grp := range groups {
 					c.addGroup(newAccessListSyncGroup(t, grp))
 				}
-				c.advanceAndWaitForSync()
+				c.svc.sync(ctx)
 				expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
 					require.True(t, event.Success)
 					require.Equal(t, int32(3), event.NumGroups)
@@ -659,8 +644,8 @@ func TestAccessListSync(t *testing.T) {
 						return oldGetGroupAssignmentsFunc(t, ctx, groupID)
 					}
 
-				// WHEN I force a new Access List Sync
-				c.advanceAndWaitForSync()
+					// WHEN I force a new Access List Sync
+				c.svc.sync(ctx)
 
 				// EXPECT that an appropriate sync event has been emitted
 				tt.assertEvent(t, requireAuditEvent[*apievents.OktaAccessListSync](t, c.emitter))
@@ -739,7 +724,7 @@ func TestAccessListSync(t *testing.T) {
 					c.oktaData.UpsertAppForId(oktaapi.OktaAppID(appID))
 					c.oktaData.UpsertAppUserAssignments(oktaapi.OktaAppID(appID), "1", "2")
 				}
-				c.advanceAndWaitForSync()
+				c.svc.sync(ctx)
 				expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
 					require.True(t, event.Success)
 					require.Equal(t, int32(3), event.NumApps)
@@ -757,7 +742,7 @@ func TestAccessListSync(t *testing.T) {
 					}
 
 				// WHEN I force a new Access List Sync
-				c.advanceAndWaitForSync()
+				c.svc.sync(ctx)
 
 				// EXPECT that an appropriate sync event has been emitted
 				tt.assertEvent(t, requireAuditEvent[*apievents.OktaAccessListSync](t, c.emitter))

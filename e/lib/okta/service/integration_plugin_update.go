@@ -46,6 +46,7 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 	oktaSpec.SyncSettings.AppFilters = req.GetAccessListSettings().GetAppFilters()
 	oktaSpec.SyncSettings.DefaultOwners = req.GetAccessListSettings().GetDefaultOwner()
 	oktaSpec.SyncSettings.EnableSystemLogExport = req.GetEnableSystemLogExport()
+	oktaSpec.SyncSettings.TimeBetweenImports = durationToString(req.GetTimeBetweenImports())
 	plugin.Spec.Settings = &types.PluginSpecV1_Okta{Okta: oktaSpec}
 
 	return nil

@@ -49,8 +49,8 @@ const (
 )
 
 var (
-	// OktaDefaultTimeBetweenSyncs to running synchronizations every half hour.
-	OktaDefaultTimeBetweenSyncs = 30 * time.Minute
+	// oktaDefaultTimeBetweenSyncs to running synchronizations every half hour.
+	oktaDefaultTimeBetweenSyncs = 30 * time.Minute
 )
 
 // ProxyGetter is an interface for retrieving proxy IDs.
@@ -189,7 +189,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("ConnectorService service is missing")
 	}
 	if c.TimeBetweenSyncs == 0 {
-		c.TimeBetweenSyncs = OktaDefaultTimeBetweenSyncs
+		c.TimeBetweenSyncs = oktaDefaultTimeBetweenSyncs
 	}
 	if c.BackendTasksPerSecond == 0 {
 		// Default to running 5 backend tasks per second.
@@ -276,6 +276,9 @@ type Service struct {
 	heartbeatsMu sync.Mutex
 	heartbeats   map[string]*srv.Heartbeat
 
+	// TODO(kopiczko) Extract group reconciler code and get rid of the sync maps because they
+	// are almost certainly not needed.
+
 	// groupsReconciler will reconcile groups discovered in Okta.
 	groupsReconciler *services.Reconciler[types.UserGroup]
 
@@ -290,6 +293,9 @@ type Service struct {
 	groupsAdded   []*apievents.OktaResource
 	groupsUpdated []*apievents.OktaResource
 	groupsDeleted []*apievents.OktaResource
+
+	// TODO(kopiczko) Extract apps reconciler code and get rid of the sync maps because they
+	// are almost certainly not needed.
 
 	// appsReconciler will reconcile applications discovered in Okta.
 	appsReconciler *services.Reconciler[types.Application]
@@ -327,12 +333,6 @@ type Service struct {
 
 	shutdownCalled atomic.Bool
 	closeCalled    atomic.Bool
-
-	// synchronizerSuccess will be set to true if the synchronizer has completed at least
-	// once successfully.
-	synchronizerSuccess atomic.Bool
-
-	synchronizingMu sync.RWMutex
 
 	// userReconciler is used to reconcile the Teleport user DB with an upstream
 	// Okta organization. If this value is `nil` it means that user syncing is
@@ -566,6 +566,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			Emitter:               config.Emitter,
 			Access:                config.Access,
 			AccessLists:           config.AccessLists,
+			SyncInterval:          config.TimeBetweenSyncs,
 			OrgURL:                s.orgURL,
 			Owners:                config.SyncSettings.DefaultOwners,
 			AppsGetter:            s.apps.Clone,
@@ -573,8 +574,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			AppFilters:            config.accessListSyncAppFilters,
 			GroupFilters:          config.accessListSyncGroupFilters,
 			ServiceStatus:         s.serviceStatus,
-			SynchronizerSuccess:   &s.synchronizerSuccess,
-			SynchronizingMu:       &s.synchronizingMu,
 			StopChannel:           s.stopCh,
 			OktaAssignmentService: config.AssignmentsService,
 		})
@@ -613,6 +612,9 @@ func (s *Service) Start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+	if s.accessListSync != nil {
+		s.accessListSync.init(ctx)
+	}
 
 	go s.synchronizeLoop(ctx)
 
@@ -620,10 +622,6 @@ func (s *Service) Start(ctx context.Context) error {
 		if err := s.assignmentReconciler.start(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if s.accessListSync != nil {
-		go s.accessListSync.startSync(ctx)
 	}
 
 	return nil

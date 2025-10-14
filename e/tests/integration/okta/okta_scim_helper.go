@@ -15,6 +15,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -134,6 +135,7 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *
 	}
 
 	req := &oktav1.CreateIntegrationRequest{
+		TimeBetweenImports:  durationpb.New(1 * time.Second),
 		OktaOrganizationUrl: "https://trial-1234567.okta.com",
 		ScimToken:           scimToken,
 		ApiCredentials:      opts.ApiCredentials,

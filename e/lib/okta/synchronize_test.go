@@ -152,6 +152,18 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(2), event.Deleted)
 	})
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAccessListSync) {
+		require.True(t, event.Success)
+		require.Equal(t, testClusterName, event.ClusterName)
+		require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+		require.Zero(t, event.NumAppFilters)
+		require.Zero(t, event.NumGroupFilters)
+		require.Zero(t, event.NumApps)
+		require.Zero(t, event.NumGroups)
+		require.Zero(t, event.NumRoles)
+		require.Zero(t, event.NumAccessLists)
+		require.Zero(t, event.NumAccessListMembers)
+	})
 
 	// App1 is now assigned to group3 as well.
 	client.AppsToGroups["app1"] = []oktaGroupID{"group3", "group4"}
@@ -178,6 +190,18 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(0), event.Deleted)
 	})
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAccessListSync) {
+		require.True(t, event.Success)
+		require.Equal(t, testClusterName, event.ClusterName)
+		require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+		require.Zero(t, event.NumAppFilters)
+		require.Zero(t, event.NumGroupFilters)
+		require.Zero(t, event.NumApps)
+		require.Zero(t, event.NumGroups)
+		require.Zero(t, event.NumRoles)
+		require.Zero(t, event.NumAccessLists)
+		require.Zero(t, event.NumAccessListMembers)
+	})
 
 	// Let's explicitly set group3 to have no applications to simulate the apps and group
 	// mappings getting out of sync with one another.
@@ -201,6 +225,18 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(0), event.Deleted)
 	})
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAccessListSync) {
+		require.True(t, event.Success)
+		require.Equal(t, testClusterName, event.ClusterName)
+		require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+		require.Zero(t, event.NumAppFilters)
+		require.Zero(t, event.NumGroupFilters)
+		require.Zero(t, event.NumApps)
+		require.Zero(t, event.NumGroups)
+		require.Zero(t, event.NumRoles)
+		require.Zero(t, event.NumAccessLists)
+		require.Zero(t, event.NumAccessListMembers)
+	})
 
 	// We need to simulate the user group backend getting out of sync with the reconciler here.
 
@@ -221,6 +257,18 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(0), event.Deleted)
 	})
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAccessListSync) {
+		require.True(t, event.Success)
+		require.Equal(t, testClusterName, event.ClusterName)
+		require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+		require.Zero(t, event.NumAppFilters)
+		require.Zero(t, event.NumGroupFilters)
+		require.Zero(t, event.NumApps)
+		require.Zero(t, event.NumGroups)
+		require.Zero(t, event.NumRoles)
+		require.Zero(t, event.NumAccessLists)
+		require.Zero(t, event.NumAccessListMembers)
+	})
 
 	// This will cause delete to be run on a non-existent group, which should be handled.
 	require.NoError(t, ap.DeleteUserGroup(ctx, group4.GetName()))
@@ -234,6 +282,18 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(0), event.Added)
 		require.Equal(t, int32(0), event.Updated)
 		require.Equal(t, int32(1), event.Deleted)
+	})
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAccessListSync) {
+		require.True(t, event.Success)
+		require.Equal(t, testClusterName, event.ClusterName)
+		require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+		require.Zero(t, event.NumAppFilters)
+		require.Zero(t, event.NumGroupFilters)
+		require.Zero(t, event.NumApps)
+		require.Zero(t, event.NumGroups)
+		require.Zero(t, event.NumRoles)
+		require.Zero(t, event.NumAccessLists)
+		require.Zero(t, event.NumAccessListMembers)
 	})
 }
 

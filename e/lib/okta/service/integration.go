@@ -209,6 +209,8 @@ func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAML
 			AppFilters:            req.GetAccessListSettings().GetAppFilters(),
 			DefaultOwners:         req.GetAccessListSettings().GetDefaultOwner(),
 			EnableSystemLogExport: req.GetEnableSystemLogExport(),
+
+			TimeBetweenImports: durationToString(req.GetTimeBetweenImports()),
 		},
 	}
 

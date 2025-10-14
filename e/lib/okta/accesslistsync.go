@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	accesslistsvc "github.com/gravitational/teleport/e/lib/accesslist"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
@@ -41,14 +40,6 @@ const (
 
 	// Importer
 	ImporterName = "okta-importer"
-)
-
-var (
-	// AccessListSyncFirstDuration Wait 5 minutes for the first loop in hopes that the synchronizer has run.
-	AccessListSyncFirstDuration = 5 * time.Minute
-	// DefaultAccessListSyncInterval defines a 30 minute default time between running
-	// the access list synchronizer.
-	DefaultAccessListSyncInterval = 30 * time.Minute
 )
 
 // accessListSyncConfig is the configuration for the access list synchronizer.
@@ -96,13 +87,6 @@ type accessListSyncConfig struct {
 	// GroupFilters are regexes to filter the access list sync. Only groups names that match one of these
 	// filters will be added.
 	GroupFilters []*regexp.Regexp
-
-	// SynchronizerSuccess is expected to be true if the Okta synchronizer has completed at least
-	// once successfully.
-	SynchronizerSuccess *atomic.Bool
-
-	// SynchronizingMu is a mutex that is held while synchronization is happening.
-	SynchronizingMu *sync.RWMutex
 
 	// StopChannel is the stop channel.
 	StopChannel chan struct{}
@@ -153,24 +137,12 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing org url")
 	}
 
-	if a.SyncInterval == 0 {
-		a.SyncInterval = DefaultAccessListSyncInterval
-	}
-
 	if a.AppsGetter == nil {
 		return trace.BadParameter("missing apps getter")
 	}
 
 	if a.GroupsGetter == nil {
 		return trace.BadParameter("missing groups getter")
-	}
-
-	if a.SynchronizerSuccess == nil {
-		return trace.BadParameter("missing synchronizer success")
-	}
-
-	if a.SynchronizingMu == nil {
-		return trace.BadParameter("missing synchronizing wait mutex")
 	}
 
 	if a.StopChannel == nil {
@@ -256,9 +228,7 @@ type accessListSync struct {
 	appsImported   atomic.Int32
 	groupsImported atomic.Int32
 
-	synchronizerSuccess *atomic.Bool
-	synchronizingMu     *sync.RWMutex
-	stopCh              chan struct{}
+	stopCh chan struct{}
 
 	serviceStatus      serviceStatusUpdater
 	assignmentsService common.OktaAssignmentService
@@ -279,25 +249,23 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	}
 
 	a := &accessListSync{
-		logger:              cfg.Logger,
-		clock:               cfg.Clock,
-		clusterName:         cfg.ClusterName,
-		client:              cfg.Client,
-		owners:              owners,
-		emitter:             cfg.Emitter,
-		access:              cfg.Access,
-		accessLists:         cfg.AccessLists,
-		orgURL:              cfg.OrgURL,
-		syncInterval:        cfg.SyncInterval,
-		appsGetter:          cfg.AppsGetter,
-		groupsGetter:        cfg.GroupsGetter,
-		appFilters:          cfg.AppFilters,
-		groupFilters:        cfg.GroupFilters,
-		synchronizerSuccess: cfg.SynchronizerSuccess,
-		synchronizingMu:     cfg.SynchronizingMu,
-		stopCh:              cfg.StopChannel,
-		serviceStatus:       cfg.ServiceStatus,
-		assignmentsService:  cfg.OktaAssignmentService,
+		logger:             cfg.Logger,
+		clock:              cfg.Clock,
+		clusterName:        cfg.ClusterName,
+		client:             cfg.Client,
+		owners:             owners,
+		emitter:            cfg.Emitter,
+		access:             cfg.Access,
+		accessLists:        cfg.AccessLists,
+		orgURL:             cfg.OrgURL,
+		syncInterval:       cfg.SyncInterval,
+		appsGetter:         cfg.AppsGetter,
+		groupsGetter:       cfg.GroupsGetter,
+		appFilters:         cfg.AppFilters,
+		groupFilters:       cfg.GroupFilters,
+		stopCh:             cfg.StopChannel,
+		serviceStatus:      cfg.ServiceStatus,
+		assignmentsService: cfg.OktaAssignmentService,
 	}
 
 	// Create the reconcilers we need.
@@ -420,53 +388,31 @@ func (a *accessListSync) clearLoadedOktaUsers() {
 	a.oktaUserMapping = nil
 }
 
-// startSync will start the access list synchronizer.
-func (a *accessListSync) startSync(ctx context.Context) {
-	a.logger.InfoContext(ctx, "Starting Okta access list synchronizer")
-
+func (a *accessListSync) init(ctx context.Context) {
 	// Let's make sure that any existing access lists are reflected in the Okta requester role.
 	if err := a.refreshCurrentImports(ctx); err != nil {
 		a.logger.ErrorContext(ctx, "Unable to refresh current imports", "error", err)
-	} else {
-		if err := a.addRolesToOktaRequester(ctx); err != nil {
-			a.logger.ErrorContext(ctx, "Unable to update Okta requester role")
-		}
+		return
 	}
+	if err := a.addRolesToOktaRequester(ctx); err != nil {
+		a.logger.ErrorContext(ctx, "Unable to update Okta requester role")
+	}
+}
 
-	jitter := retryutils.SeventhJitter
-	timer := a.clock.NewTimer(jitter(AccessListSyncFirstDuration))
-	defer timer.Stop()
+// sync should be called after [accessListSync.init] is called.
+func (a *accessListSync) sync(ctx context.Context) {
+	err := a.importOktaNativeAssignmentsAsAccessLists(ctx)
 
-	for {
-		select {
-		case <-timer.Chan():
-		case <-a.stopCh:
-			return
-		case <-ctx.Done():
-			return
-		}
+	a.serviceStatus.UpdateAccessListSync(ctx, a.clock.Now(),
+		int(a.appsImported.Load()),
+		int(a.groupsImported.Load()),
+		err)
 
-		// Block if we're actively synchronizing.
-		if a.synchronizerSuccess.Load() {
-			a.logger.InfoContext(ctx, "Synchronizing access lists from Okta")
-			err := a.importOktaNativeAssignmentsAsAccessLists(ctx)
-
-			a.serviceStatus.UpdateAccessListSync(ctx, a.clock.Now(),
-				int(a.appsImported.Load()),
-				int(a.groupsImported.Load()),
-				err)
-
-			if err != nil {
-				a.logger.ErrorContext(ctx, "error importing Okta native assignments", "error", err)
-			}
-			if err := a.addRolesToOktaRequester(ctx); err != nil {
-				a.logger.ErrorContext(ctx, "Unable to update Okta requester role")
-			}
-		} else {
-			a.logger.InfoContext(ctx, "Okta synchronizer has not yet completed successfully")
-		}
-
-		timer.Reset(jitter(a.syncInterval))
+	if err != nil {
+		a.logger.ErrorContext(ctx, "Error synchronizing assignments imported from Okta", "error", err)
+	}
+	if err := a.addRolesToOktaRequester(ctx); err != nil {
+		a.logger.ErrorContext(ctx, "Error updating Okta requester role", "error", err)
 	}
 }
 
@@ -597,10 +543,8 @@ func (a *accessListSync) clearNewImports() {
 // Additionally, Okta import rules and roles will be created to support these access list, as well as
 // introducing roles to review relevant resources.
 func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Context) error {
-	a.synchronizingMu.RLock()
 	apps := a.appsGetter()
 	groups := a.groupsGetter()
-	a.synchronizingMu.RUnlock()
 
 	// Reset apps/groups counters
 	a.appsImported.Store(0)

@@ -15,6 +15,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -35,11 +36,15 @@ var (
 // synchronizeLoop will synchronize Okta with the backend periodically until the process is
 // terminated. It won't do any calls to Okta until it becomes the leader.
 func (s *Service) synchronizeLoop(ctx context.Context) {
-	interval := s.getSynchronizerInterval(ctx)
+	waitTimeFn := func() time.Duration {
+		interval := s.getSynchronizerInterval(ctx)
+		jitter := min(interval, syncJitter)
+		return interval + utils.RandomDuration(jitter)
+	}
 
 	s.logger.InfoContext(ctx,
 		"Synchronizer started",
-		"refresh_interval", interval,
+		"time_between_syncs", logutils.StringerAttr(s.getSynchronizerInterval(ctx)),
 		"user_sync_enabled", s.userReconciler != nil,
 		"apps_groups_sync_enabled", s.appsReconciler != nil && s.groupsReconciler != nil,
 	)
@@ -54,7 +59,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 	}()
 
 	// Generate a random jitter between 0 and 10 seconds
-	timer := s.clock.NewTimer(interval + utils.RandomDuration(syncJitter))
+	timer := s.clock.NewTimer(waitTimeFn())
 	defer timer.Stop()
 
 	for {
@@ -62,8 +67,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 
 		select {
 		case <-timer.Chan():
-			interval = s.getSynchronizerInterval(ctx)
-			timer.Reset(interval + utils.RandomDuration(syncJitter))
+			timer.Reset(waitTimeFn())
 		case <-s.stopCh:
 			return
 		case <-ctx.Done():
@@ -136,10 +140,6 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 		return
 	}
 
-	// Add to the synchronizing wait group so that the importer waits if we're actively synchronizing.
-	s.synchronizingMu.Lock()
-	defer s.synchronizingMu.Unlock()
-
 	err := s.synchronize(ctx)
 
 	s.serviceStatus.UpdateAppGroupSync(ctx, s.clock.Now(), s.apps.Len(), s.groups.Len(), err)
@@ -147,15 +147,13 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Error while synchronizing Okta resources with Teleport", "error", err)
 		s.emitSyncError(ctx, err)
-	} else {
-		// The synchronizer has completed at least once successfully. This will allow the access
-		// list sync to proceed.
-		s.synchronizerSuccess.Store(true)
 	}
 }
 
 // synchronize will synchronize the Okta groups and applications with the backend.
 func (s *Service) synchronize(ctx context.Context) error {
+	s.logger.InfoContext(ctx, "Synchronizing Okta state to Teleport")
+
 	switch s.userReconciler {
 	case nil:
 		s.logger.InfoContext(ctx, "User sync is disabled")
@@ -194,6 +192,14 @@ func (s *Service) synchronize(ctx context.Context) error {
 		}
 	}
 
+	if s.accessListSync == nil {
+		s.logger.InfoContext(ctx, "Access List sync is disabled")
+	} else {
+		s.logger.InfoContext(ctx, "Synchronizing access lists")
+		s.accessListSync.sync(ctx)
+	}
+
+	s.logger.InfoContext(ctx, "Finished synchronizing Okta state to Teleport")
 	return nil
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -73,10 +74,6 @@ func mustRunTSHAndGetResultAs(t require.TestingT, tsh *tshCommand, args []string
 }
 
 func mustWaitForEvent(t *testing.T, sut *common.SUT, eventType string, opts ...waitOption) {
-	mustWaitForEventFrom(t, sut, eventType, time.Now(), opts...)
-}
-
-func mustWaitForEventFrom(t *testing.T, sut *common.SUT, eventType string, from time.Time, opts ...waitOption) {
 	options := &waitOptions{
 		timeout:   time.Second * 10,
 		step:      time.Millisecond * 100,
@@ -317,6 +314,7 @@ func mustCreateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient
 	ctx := t.Context()
 
 	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          settings.apiCredentials,
 		ReuseConnector:          settings.reuseConnector,
 		EnableUserSync:          settings.enableUserSync,

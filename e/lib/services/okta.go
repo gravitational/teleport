@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
+	libplugin "github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -36,7 +37,6 @@ type oktaSettings struct {
 	orgUrl           string
 	authProvider     oktaapi.AuthProvider
 	pluginStatusSink common.StatusSink
-	syncPeriod       time.Duration
 	syncSettings     types.PluginOktaSyncSettings
 	scimEnabled      bool
 }
@@ -174,6 +174,11 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 	oktaLeader.Start(ctx)
 
+	timeBetweenImports, err := libplugin.OktaParseTimeBetweenImports(&settings.syncSettings)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	oktaService, err := okta.New(ctx, okta.Config{
 		Leader:             oktaLeader,
 		ConnectorService:   conn.Client,
@@ -192,7 +197,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		OnHeartbeat:        process.OnHeartbeat(teleport.Okta),
 		OktaAPIEndpoint:    settings.orgUrl,
 		PluginStatusSink:   settings.pluginStatusSink,
-		TimeBetweenSyncs:   settings.syncPeriod,
+		TimeBetweenSyncs:   timeBetweenImports,
 		SyncSettings:       settings.syncSettings,
 		SCIMEnabled:        settings.scimEnabled,
 		AuthProvider:       settings.authProvider,

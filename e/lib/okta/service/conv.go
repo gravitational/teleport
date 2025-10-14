@@ -1,6 +1,10 @@
 package oktaservice
 
-import oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+import (
+	"google.golang.org/protobuf/types/known/durationpb"
+
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+)
 
 func toGroups(in []*oktaResourceItem) []*oktapb.GetGroupsResponse_Group {
 	if in == nil {
@@ -28,4 +32,18 @@ func toApps(in []*oktaResourceItem) []*oktapb.GetAppsResponse_App {
 		})
 	}
 	return out
+}
+
+// durationToString differs from durationpb.Duration.String() in one aspect. It returns empty
+// string instead of "0s" if the duration is not set. This is desired because we don't want to set
+// "0s" when we use a default value for Okta time_between_sync setting.
+func durationToString(d *durationpb.Duration) string {
+	if d == nil {
+		return ""
+	}
+	td := d.AsDuration()
+	if td == 0 {
+		return ""
+	}
+	return td.String()
 }

@@ -12,6 +12,7 @@ import (
 	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -71,6 +72,7 @@ func TestAccessListSync(t *testing.T) {
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		TimeBetweenImports:        durationpb.New(1 * time.Second),
 		ApiCredentials:            apiCredentials,
 		SsoMetadataUrl:            oktaApiClient.GetOrgUrl() + "/app/123487988/sso/saml/metadata",
 		EnableUserSync:            true,
@@ -211,6 +213,7 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 	// 1. Create integration with bidirectional sync disabled.
 
 	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
