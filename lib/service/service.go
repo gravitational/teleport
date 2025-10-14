@@ -272,6 +272,18 @@ const (
 	// in a graceful way.
 	TeleportReloadEvent = "TeleportReload"
 
+	// TeleportTerminatingEvent is generated when the Teleport process receives
+	// a signal to shut down. It's always generated as part of the process
+	// lifecycle and it's always generated before TeleportExitEvent, but there
+	// might be some configured delay between this event and the
+	// TeleportExitEvent signaling the actual beginning of the shut down
+	// procedures. It should be used to advertise the fact that the Teleport
+	// instance is going to shut down at some near time in the future, not to
+	// reduce the functionality of services - i.e., it's perfectly fine for
+	// services to ignore this event altogether, and nothing should get closed
+	// as a result of this event.
+	TeleportTerminatingEvent = "TeleportTerminating"
+
 	// TeleportPhaseChangeEvent is generated to indidate that teleport
 	// CA rotation phase has been updated, used in tests
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
@@ -6114,22 +6126,48 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 // StartShutdown launches non-blocking graceful shutdown process that signals
 // completion, returns context that will be closed once the shutdown is done
 func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Context {
+	shutdownDelayTimer := process.Clock.NewTimer(process.Config.ShutdownDelay)
+	defer shutdownDelayTimer.Stop()
+
+	hasChildren := process.forkedTeleportCount.Load() > 0
+	if hasChildren {
+		ctx = services.ProcessForkedContext(ctx)
+	}
+
+	process.BroadcastEvent(Event{Name: TeleportTerminatingEvent})
+
+	if process.inventoryHandle != nil {
+		deleteResources := !hasChildren
+		if deleteResources {
+			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
+				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
+			}
+		}
+	}
+
+	if d := process.Config.ShutdownDelay; d > 0 {
+		if hasChildren {
+			process.logger.InfoContext(ctx, "Ignoring shutdown delay due to the presence of forked processes")
+		} else if services.IsProcessReloading(ctx) {
+			process.logger.InfoContext(ctx, "Ignoring shutdown delay due to an in-process reload")
+		} else {
+			process.logger.InfoContext(ctx, "Waiting for shutdown delay", "shutdown_delay", d.String())
+			select {
+			case <-shutdownDelayTimer.Chan():
+			case <-process.ExitContext().Done():
+				process.logger.WarnContext(ctx, "Skipping shutdown delay early due to process exit")
+			case <-ctx.Done():
+				process.logger.WarnContext(ctx, "Skipping shutdown delay early due to context cancellation")
+			}
+		}
+	}
+
 	// by the time we get here we've already extracted the parent pipe, which is
 	// the only potential imported file descriptor that's not a listening
 	// socket, so closing every imported FD with a prefix of "" will close all
 	// imported listeners that haven't been used so far
 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
 	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
-
-	if process.forkedTeleportCount.Load() == 0 {
-		if process.inventoryHandle != nil {
-			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
-			}
-		}
-	} else {
-		ctx = services.ProcessForkedContext(ctx)
-	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
@@ -6171,6 +6209,9 @@ func (process *TeleportProcess) Shutdown(ctx context.Context) {
 
 // Close broadcasts close signals and exits immediately
 func (process *TeleportProcess) Close() error {
+	// generate a TeleportTerminatingEvent to unblock any service waiting on
+	// that event before TeleportExitEvent
+	process.BroadcastEvent(Event{Name: TeleportTerminatingEvent})
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
 	var errors []error

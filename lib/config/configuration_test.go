@@ -786,6 +786,8 @@ func TestApplyConfig(t *testing.T) {
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
+	require.Equal(t, 7*time.Minute+35*time.Second, cfg.ShutdownDelay)
+
 	u2fCAFromFile, err := os.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
@@ -1409,6 +1411,8 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 	require.Equal(t, "xxxyyy", conf.AuthToken)
 	require.Equal(t, "10.10.10.1:3022", conf.AdvertiseIP)
 	require.Equal(t, "/var/run/teleport.pid", conf.PIDFile)
+
+	require.Zero(t, conf.ShutdownDelay)
 
 	require.Empty(t, cmp.Diff(conf.Limits, ConnectionLimits{
 		MaxConnections: 90,
