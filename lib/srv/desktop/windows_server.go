@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -788,7 +789,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	log = log.With("computer_name", computerName)
 
-	kdcAddr := s.cfg.KDCAddr
+	kdcAddr, err := s.getKDCAddress(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting KDC address")
+	}
+
 	if !desktop.NonAD() && kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
 		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
 			return trace.Wrap(err, "KDC address is unspecified and LDAP address is invalid")
@@ -1329,4 +1334,57 @@ func (s *WindowsService) runCRLUpdateLoop(tlsConfig *tls.Config) {
 			continue
 		}
 	}
+}
+
+func (s *WindowsService) getKDCAddress(ctx context.Context) (string, error) {
+	if !s.cfg.LocateServer.Enabled {
+		return s.cfg.KDCAddr, nil
+	}
+
+	s.cfg.Logger.DebugContext(
+		ctx,
+		"Looking for KDC server",
+		"domain", s.cfg.Domain,
+		"site", s.cfg.LocateServer.Site,
+	)
+
+	// In development environments, the system's default resolver is unlikely to be
+	// able to resolve the Active Directory SRV records needed for server location,
+	// so we allow overriding the resolver. If the variable is not set, the default
+	// resolver will be used.
+	resolver := utils.NewResolver(ctx, os.Getenv("TELEPORT_KDC_RESOLVER"), s.cfg.Logger)
+
+	servers, err := winpki.LocateServerBySRV(
+		ctx,
+		s.cfg.Domain,
+		s.cfg.LocateServer.Site,
+		resolver,
+		"kerberos",
+		"",
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "locating KDC server")
+	}
+
+	if len(servers) == 0 {
+		return "", trace.NotFound("no KDC servers found for domain %q", s.cfg.Domain)
+	}
+
+	var lastErr error
+	for _, server := range servers {
+		conn, err := net.DialTimeout("tcp", server, 5*time.Second)
+		if conn != nil {
+			conn.Close()
+		}
+
+		if err == nil {
+			s.cfg.Logger.InfoContext(ctx, "Found KDC server", "server", server)
+			return server, nil
+		}
+		lastErr = err
+
+		s.cfg.Logger.InfoContext(ctx, "Error connecting to KDC server, trying next available server", "server", server, "error", err)
+	}
+
+	return "", trace.NotFound("no KDC servers responded successfully for domain %q: %v", s.cfg.Domain, lastErr)
 }
