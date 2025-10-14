@@ -2065,12 +2065,13 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	)
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	// if per-session mfa is required, perform the mfa ceremony to get
-	// new certificates and use them to connect.
-	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
-		clt, err := tc.connectToNodeWithMFA(ctx, clt, nodeDetails, user)
-		return clt, trace.Wrap(err)
-	}
+	// Disabled so MFA is done in-band during the SSH connection.
+	// // if per-session mfa is required, perform the mfa ceremony to get
+	// // new certificates and use them to connect.
+	// if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
+	// 	clt, err := tc.connectToNodeWithMFA(ctx, clt, nodeDetails, user)
+	// 	return clt, trace.Wrap(err)
+	// }
 
 	type clientRes struct {
 		clt *NodeClient
@@ -2082,7 +2083,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 
 	// use a child context so the goroutines can terminate the other if they succeed
 	directCtx, directCancel := context.WithCancel(ctx)
-	mfaCtx, mfaCancel := context.WithCancel(ctx)
+	// mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
 		connectCtx, span := tc.Tracer.Start(
 			directCtx,
@@ -2111,22 +2112,23 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
 
-	go func() {
-		// try performing mfa and then connecting with the single use certs
-		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
-		mfaResultC <- clientRes{clt: clt, err: err}
-	}()
+	// Disabled so MFA is done in-band during the SSH connection.
+	// go func() {
+	// 	// try performing mfa and then connecting with the single use certs
+	// 	clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
+	// 	mfaResultC <- clientRes{clt: clt, err: err}
+	// }()
 
 	var directErr, mfaErr error
 	for range 2 {
 		select {
 		case <-ctx.Done():
-			mfaCancel()
+			// mfaCancel()
 			directCancel()
 			return nil, ctx.Err()
 		case res := <-directResultC:
 			if res.clt != nil {
-				mfaCancel()
+				// mfaCancel()
 				res.clt.AddCancel(directCancel)
 				return res.clt, nil
 			}
@@ -2135,7 +2137,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		case res := <-mfaResultC:
 			if res.clt != nil {
 				directCancel()
-				res.clt.AddCancel(mfaCancel)
+				// res.clt.AddCancel(mfaCancel)
 				return res.clt, nil
 			}
 
@@ -2143,7 +2145,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		}
 	}
 
-	mfaCancel()
+	// mfaCancel()
 	directCancel()
 
 	switch {

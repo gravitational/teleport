@@ -20,9 +20,11 @@ package srv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -574,6 +576,21 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	}
 
 	if err != nil {
+		// If MFA is required, perform MFA verification with the client.
+		// TODO(cthach): Legacy clients must have provided a valid session MFA certificate. They do not understand
+		// in-band MFA challenges and should be rejected. Newer clients can handle in-band MFA challenges.
+		// We can detect legacy clients because they will have a session MFA certificate if their
+		// roles require per-session MFA.
+		if errors.Is(err, services.ErrSessionMFARequired) {
+			return nil, &ssh.PartialSuccessError{
+				Next: ssh.ServerAuthCallbacks{
+					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+						return h.mfaChallengeHandlerFunc(ctx, outputPermissions, conn, client)
+					},
+				},
+			}
+		}
+
 		log.ErrorContext(ctx, "permission denied",
 			"error", err,
 			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
@@ -920,8 +937,8 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 			state,
 			services.NewLoginMatcher(osUser),
 		); err != nil {
-			return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-				ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+			return nil, trace.WrapWithMessage(err, "user %s@%s is not authorized to login as %v@%s",
+				ident.Username, ca.GetClusterName(), osUser, clusterName)
 		}
 	}
 
@@ -1074,4 +1091,34 @@ func timestampFromGoTime(t time.Time) *timestamppb.Timestamp {
 		return nil
 	}
 	return timestamppb.New(t)
+}
+
+func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.Permissions, conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	log := h.log.With(
+		"local_addr", conn.LocalAddr(),
+		"remote_addr", conn.RemoteAddr(),
+		"user", conn.User(),
+		"permissions", perms,
+		"session_id", conn.SessionID(),
+	)
+
+	log.DebugContext(ctx, "MFA challenge requested by client")
+
+	// TODO(cthach): Properly generate and verify an MFA challenge.
+	answers, err := challenge(conn.User(), "MFA required, please enter the secret phrase to continue", []string{"Secret Phrase: "}, []bool{false})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For testing purposes, the only valid answer is "teleport".
+	if len(answers) > 0 && strings.TrimSpace(answers[0]) != "teleport" {
+		log.DebugContext(ctx, "MFA challenge failed")
+
+		return nil, trace.AccessDenied("invalid MFA secret phrase for %q and session ID %q", conn.User(), conn.SessionID())
+	}
+
+	log.DebugContext(ctx, "MFA challenge succeeded")
+
+	// Return the original permissions on success.
+	return perms, nil
 }
