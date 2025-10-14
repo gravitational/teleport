@@ -53,36 +53,30 @@ export class PtyEventsStreamHandler {
   async start(columns: number, rows: number): Promise<void> {
     this.logger.info('Start');
 
-    await this._write(
-      ManagePtyProcessRequest.create({
-        event: {
-          oneofKind: 'start',
-          start: PtyEventStart.create({ columns, rows }),
-        },
-      })
-    );
+    await this.send({
+      event: {
+        oneofKind: 'start',
+        start: PtyEventStart.create({ columns, rows }),
+      },
+    });
   }
 
   async write(data: string): Promise<void> {
-    this._write(
-      ManagePtyProcessRequest.create({
-        event: {
-          oneofKind: 'data',
-          data: PtyEventData.create({ message: data }),
-        },
-      })
-    );
+    await this.send({
+      event: {
+        oneofKind: 'data',
+        data: PtyEventData.create({ message: data }),
+      },
+    });
   }
 
   async resize(columns: number, rows: number): Promise<void> {
-    this._write(
-      ManagePtyProcessRequest.create({
-        event: {
-          oneofKind: 'resize',
-          resize: PtyEventResize.create({ columns, rows }),
-        },
-      })
-    );
+    await this.send({
+      event: {
+        oneofKind: 'resize',
+        resize: PtyEventResize.create({ columns, rows }),
+      },
+    });
   }
 
   async dispose(): Promise<void> {
@@ -139,7 +133,7 @@ export class PtyEventsStreamHandler {
     );
   }
 
-  private _write(event: ManagePtyProcessRequest): Promise<void> {
+  private send(event: ManagePtyProcessRequest): Promise<void> {
     return this.stream.requests.send(event);
   }
 
