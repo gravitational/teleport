@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // KubernetesService manages kubernetes resources in the backend.
@@ -60,32 +60,7 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	// Adjust page size, so it can't be too large.
-	if limit <= 0 || limit > defaults.DefaultChunkSize {
-		limit = defaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := stream.Collect(
-		stream.TakeWhile(
-			s.RangeKubernetesClusters(ctx, start, ""),
-			func(cluster types.KubeCluster) bool {
-				if seen < limit {
-					seen++
-					return true
-				}
-				next = cluster.GetName()
-				return false
-			},
-		),
-	)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return out, next, nil
+	return generic.CollectPageAndCursor(s.RangeKubernetesClusters(ctx, start, ""), limit, types.KubeCluster.GetName)
 }
 
 // RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
