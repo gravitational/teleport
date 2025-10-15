@@ -80,10 +80,6 @@ type GeneratorConfig struct {
 	DestinationDirectory string `yaml:"destination"`
 	// Struct types to exclude from the reference.
 	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
-	// The name of the method that assigns values to the required fields
-	// within a dynamic resource. The generator determines that a type is a
-	// dynamic resource if it has this method.
-	FieldAssignmentMethodName string `yaml:"field_assignment_method"`
 }
 
 // UnmarshalYAML checks that the GeneratorConfig includes all required fields and, if
@@ -96,8 +92,6 @@ func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
 	switch {
 	case c.DestinationDirectory == "":
 		return errors.New("no destination path provided")
-	case c.FieldAssignmentMethodName == "":
-		return errors.New("must provide a field assignment method name")
 	case len(c.RequiredFieldTypes) == 0:
 		return errors.New("must provide a list of required field types")
 	case c.SourcePath == "":

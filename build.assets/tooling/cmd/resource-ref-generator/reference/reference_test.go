@@ -251,7 +251,6 @@ func TestGenerate(t *testing.T) {
 				Package: "typestest",
 			},
 		},
-		FieldAssignmentMethodName: "setStaticFields",
 	}
 
 	goldenConf := baseConf
