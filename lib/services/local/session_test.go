@@ -324,7 +324,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	identity, err := NewTestIdentityService(backend)
+	identity := NewTestIdentityService(backend)
 	require.NoError(t, err)
 
 	users := []string{"alice", "bob"}
