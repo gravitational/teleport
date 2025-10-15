@@ -496,7 +496,7 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	id := state.IdentityID{
 		Role:     role,
 		HostUUID: instanceIdentity.ID.HostUUID,
-		NodeName: instanceIdentity.ID.NodeName,
+		NodeName: process.Config.Hostname,
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, id.HostID())
 	if err != nil {
@@ -935,6 +935,13 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Ensure the <hostname>.<clustername> principal is included and repair the
+	// host certificates if it is not. This is not included in the output of
+	// process.getAdditionalPrincipals which is usually called while joining
+	// before the cluster name is known.
+	additionalPrincipals = append(additionalPrincipals,
+		process.Config.Hostname+"."+conn.ClusterName())
 
 	var assertionID string
 	var systemRoles []types.SystemRole
