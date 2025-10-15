@@ -318,3 +318,36 @@ codes](../img/cloud/recovery-codes.png)
 Save the recovery codes into a safe location, such as your organization's
 password manager. You can use these codes to reset your account if you lose
 your password or multi-factor authentication credentials.
+
+### How do I update my security and business contacts?
+
+Teleport Cloud users can configure up to 3 security contacts and 3 business contacts for their cluster. It's important to 
+keep these up to date so that we always know who to notify of important updates and alerts.
+
+To do this, log in to your Teleport Cloud account with the email address of the user that created the initial Cloud tenant. Open
+the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the contacts sections.
+Once you add a contact, they will receive an invitation email which they must accept within 14 days.
+
+![Web UI view showing security and business contacts options](../img/cloud/security-business-contacts.png)
+
+If you don't see the contacts lists on the Help & Support page, ensure that your user has the required permissions to see and update contacts. You
+can also create a separate role that grants these permissions and assign it to your user and any other desired users:
+
+```yaml
+version: v6
+kind: role
+metadata:
+  description: Edit Contacts
+  name: contact-editor
+spec:
+  allow:
+    rules:
+    - resources:
+      - contact
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```
