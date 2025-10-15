@@ -76,7 +76,8 @@ Optional:
 
 Optional:
 
-- `shifts` (Attributes List) Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC. (see [below for nested schema](#nested-schema-for-specschedulestimeshifts))
+- `shifts` (Attributes List) Shifts contains a set of shifts that make up the schedule. (see [below for nested schema](#nested-schema-for-specschedulestimeshifts))
+- `timezone` (String) Timezone specifies the schedule timezone. This field is optional and defaults to "UTC". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or "Asia/Singapore".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.
 
 ### Nested Schema for `spec.schedules.time.shifts`
 
