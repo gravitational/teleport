@@ -214,6 +214,7 @@ func convertLDAPError(err error) error {
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
 func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
+	ctx := context.Background()
 	req := ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
@@ -228,14 +229,20 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	res, err := c.client.Search(req)
-	//res, err := c.client.SearchWithPaging(req, searchPageSize)
+	res, err := c.client.SearchWithPaging(req, searchPageSize)
 
 	if err == nil {
-		return res.Entries, nil
+		if len(res.Entries) > 0 {
+			return res.Entries, nil
+		}
+		// No results can mean that there are referrals to follow but AD doesn't send them when using paging.
+		// Let's try again with sync search.
+		c.Logger.DebugContext(ctx, "Paged query returned 0 entries, retrying with sync search")
+		res, err = c.client.Search(req)
+		if err == nil {
+			return res.Entries, nil
+		}
 	}
-
-	ctx := context.Background()
 
 	var ldapErr *ldap.Error
 	if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
