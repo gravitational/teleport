@@ -51,7 +51,7 @@ eventHandler:
   batch: 20
   # The window size configures the duration of the time window for the event handler
   # to request events from Teleport. By default, this is set to 24 hours.
-  # Reduce the window size if the events backend cannot manage the event volume 
+  # Reduce the window size if the events backend cannot manage the event volume
   # for the default window size.
   # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
   windowSize: "24h"
@@ -59,9 +59,9 @@ eventHandler:
   # debug: true
   # Optional setting for event types to forward
   # types: ["TYPE1", "TYPE2"]
-  # Optional setting for event types to skip
+  # Optional setting for audit event types to skip
   # skipEventTypes: ["TYPE1"]
-  # Optional setting for session types to skip
+  # Optional setting for session recording event types to skip
   # skipSessionTypes: ["TYPE1"]
 
 fluentd:

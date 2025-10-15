@@ -39,6 +39,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -2630,13 +2632,23 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := common.NewKubeClusterFromAWSEKS(
-		"eks-cluster1",
-		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
-		nil,
-	)
-	require.NoError(t, err)
-	eksCluster.SetOrigin(types.OriginCloud)
+	newCluster := func(index int) types.KubeCluster {
+		cluster, err := common.NewKubeClusterFromAWSEKS(
+			fmt.Sprintf("eks-cluster%d", index),
+			fmt.Sprintf("arn:aws:eks:eu-west-1:accountID:cluster/cluster%d", index),
+			nil,
+		)
+		require.NoError(t, err)
+		return cluster
+
+	}
+
+	var eksClusters []types.KubeCluster
+	for i := range 3 {
+		cluster := newCluster(i)
+		cluster.SetOrigin(types.OriginCloud)
+		eksClusters = append(eksClusters, cluster)
+	}
 
 	// Discovery service must not have access to non-cloud cluster (cluster
 	// without "cloud" origin label).
@@ -2650,11 +2662,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := common.NewKubeClusterFromAWSEKS(
-		"eks-cluster2",
-		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
-		nil,
-	)
+	clusterWithDynamicLabels := newCluster(4)
 	require.NoError(t, err)
 	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
@@ -2665,17 +2673,39 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
-		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		for _, eksCluster := range eksClusters {
+			require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		}
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff(eksClusters, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters, clusters, diffopt))
+
+		page1, page2Start, err := discoveryClt.ListKubernetesClusters(ctx, 1, "")
+		require.NotEmpty(t, page2Start)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters[:1], page1, diffopt))
+
+		page2, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, page2Start)
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters[1:], page2, diffopt))
+
+		require.Empty(t, cmp.Diff(eksClusters, append(page1, page2...), diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
-		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
+		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksClusters[0]))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
 	})
 	t.Run("Delete", func(t *testing.T) {
@@ -7247,7 +7277,13 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 
 	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
-		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
+		s, ok := status.FromError(err)
+		require.True(t, ok)
+		if s.Code() == codes.Unknown {
+			require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+			return
+		}
+		require.Equal(t, codes.DeadlineExceeded.String(), s.Code().String())
 	}
 
 	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
@@ -7649,8 +7685,60 @@ func TestGetSnowflakeSessions(t *testing.T) {
 			t.Cleanup(cancel)
 			_, err = client.GetSnowflakeSessions(ctx)
 			test.assertErr(t, err)
+			_, _, err = client.ListSnowflakeSessions(ctx, 0, "")
+			test.assertErr(t, err)
 		})
 	}
+}
+
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {

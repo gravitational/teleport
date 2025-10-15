@@ -2503,72 +2503,77 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 	return r.ws.DeleteAll(ctx)
 }
 
-// GetWebToken returns the web token specified with req.
-// Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return a.WebTokens().Get(ctx, req)
-}
-
 type webSessionsWithRoles struct {
 	c  accessChecker
 	ws types.WebSessionInterface
 }
 
-// WebTokens returns the web token manager.
-// Implements services.WebTokensGetter.
-func (a *ServerWithRoles) WebTokens() types.WebTokenInterface {
-	return &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
-}
-
-// Get returns the web token specified with req.
-func (r *webTokensWithRoles) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.action(apidefaults.Namespace, types.KindWebToken, types.VerbRead); err != nil {
+// GetWebToken returns the web token specified with req.
+func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	if err := a.currentUserAction(req.User); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return r.t.Get(ctx, req)
-}
 
-// List returns the list of all web tokens.
-func (r *webTokensWithRoles) List(ctx context.Context) ([]types.WebToken, error) {
-	if err := r.c.action(apidefaults.Namespace, types.KindWebToken, types.VerbList); err != nil {
+	token, err := a.authServer.GetWebToken(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return r.t.List(ctx)
+
+	return token, nil
 }
 
-// Upsert creates a new or updates the existing web token from the specified token.
-// TODO(dmitri): this is currently only implemented for local invocations. This needs to be
-// moved into a more appropriate API
-func (*webTokensWithRoles) Upsert(ctx context.Context, session types.WebToken) error {
-	return trace.NotImplemented(notImplementedMessage)
+// GetWebTokens returns the list of all web tokens.
+func (a *ServerWithRoles) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, err := a.authServer.GetWebTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tokens, nil
 }
 
-// Delete removes the web token specified with req.
-func (r *webTokensWithRoles) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.action(apidefaults.Namespace, types.KindWebToken, types.VerbDelete); err != nil {
+// ListWebTokens returns a page of web tokens
+func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tokens, next, err := a.authServer.ListWebTokens(ctx, limit, start)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return tokens, next, nil
+
+}
+
+// DeleteWebToken removes the web token specified with req.
+func (a *ServerWithRoles) DeleteWebToken(ctx context.Context, req types.DeleteWebTokenRequest) error {
+	if err := a.currentUserAction(req.User); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbDelete); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return r.t.Delete(ctx, req)
+	return a.authServer.DeleteWebToken(ctx, req)
 }
 
-// DeleteAll removes all web tokens.
-func (r *webTokensWithRoles) DeleteAll(ctx context.Context) error {
-	if err := r.c.action(apidefaults.Namespace, types.KindWebToken, types.VerbList); err != nil {
+// DeleteAllWebTokens removes all web tokens.
+func (a *ServerWithRoles) DeleteAllWebTokens(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbList); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := r.c.action(apidefaults.Namespace, types.KindWebToken, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return r.t.DeleteAll(ctx)
-}
 
-type webTokensWithRoles struct {
-	c accessChecker
-	t types.WebTokenInterface
+	if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllWebTokens(ctx)
 }
 
 type accessChecker interface {
@@ -5199,6 +5204,15 @@ func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.Trust
 	return a.authServer.GetTrustedClusters(ctx)
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (a *ServerWithRoles) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListTrustedClusters(ctx, limit, start)
+}
+
 func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -5782,6 +5796,27 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	sessions, nextKey, err := a.authServer.ListSnowflakeSessions(ctx, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return sessions, nextKey, nil
+
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
@@ -6576,6 +6611,64 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 		}
 	}
 	return result, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	out, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.KubeCluster, error) {
+				if done {
+					return nil, io.EOF
+				}
+				items, next, err := a.authServer.ListKubernetesClusters(ctx, limit, start)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				start = next
+				if next == "" {
+					done = true
+				}
+				return items, nil
+			}),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				if nextKey != "" {
+					return nil, false
+				}
+				// Filter out kube clusters user doesn't have access to.
+				if err := a.checkAccessToKubeCluster(cluster); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = cluster.GetName()
+					return nil, false
+				}
+
+				count++
+				return cluster, true
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, nextKey, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.

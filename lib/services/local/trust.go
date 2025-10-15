@@ -721,6 +721,41 @@ func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, er
 	return out, nil
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (s *CA) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	rangeStart := backend.NewKey(trustedClustersPrefix, start)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(trustedClustersPrefix))
+
+	result, err := s.Backend.GetRange(ctx, rangeStart, rangeEnd, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.TrustedCluster, 0, len(result.Items))
+
+	for _, item := range result.Items {
+		tc, err := services.UnmarshalTrustedCluster(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, tc.GetName(), nil
+		}
+
+		out = append(out, tc)
+	}
+
+	return out, "", nil
+}
+
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 func (s *CA) DeleteTrustedCluster(ctx context.Context, name string) error {
 	return s.DeleteTrustedClusterInternal(ctx, name, nil /* no cert authorities */)

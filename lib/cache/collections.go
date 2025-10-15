@@ -1836,7 +1836,8 @@ var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
 type snowflakeSessionExecutor struct{}
 
 func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	webSessions, err := cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	webSessions, err := clientutils.CollectWithFallback(ctx, cache.SnowflakeSession.ListSnowflakeSessions, cache.SnowflakeSession.GetSnowflakeSessions)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1875,6 +1876,8 @@ func (snowflakeSessionExecutor) getReader(cache *Cache, cacheOK bool) snowflakeS
 
 type snowflakeSessionGetter interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
+	GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error)
 }
 
 var _ executor[types.WebSession, snowflakeSessionGetter] = snowflakeSessionExecutor{}
@@ -1987,19 +1990,19 @@ var _ executor[types.WebSession, webSessionGetter] = webSessionExecutor{}
 type webTokenExecutor struct{}
 
 func (webTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebToken, error) {
-	return cache.WebToken.List(ctx)
+	return clientutils.CollectWithFallback(ctx, cache.WebToken.ListWebTokens, cache.WebToken.GetWebTokens)
 }
 
 func (webTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebToken) error {
-	return cache.webTokenCache.Upsert(ctx, resource)
+	return cache.webTokenCache.UpsertWebToken(ctx, resource)
 }
 
 func (webTokenExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.webTokenCache.DeleteAll(ctx)
+	return cache.webTokenCache.DeleteAllWebTokens(ctx)
 }
 
 func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
+	return cache.webTokenCache.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 		Token: resource.GetName(),
 	})
 }
@@ -2014,7 +2017,9 @@ func (webTokenExecutor) getReader(cache *Cache, cacheOK bool) webTokenGetter {
 }
 
 type webTokenGetter interface {
-	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebTokens(ctx context.Context) (out []types.WebToken, err error)
+	ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error)
 }
 
 var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
@@ -2472,7 +2477,7 @@ var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExe
 type kubeClusterExecutor struct{}
 
 func (kubeClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeCluster, error) {
-	return cache.Kubernetes.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, cache.Kubernetes.ListKubernetesClusters, cache.Kubernetes.GetKubernetesClusters)
 }
 
 func (kubeClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.KubeCluster) error {
@@ -2503,8 +2508,11 @@ func (kubeClusterExecutor) getReader(cache *Cache, cacheOK bool) kubernetesClust
 	return cache.Config.Kubernetes
 }
 
+var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
+
 type kubernetesClusterGetter interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 

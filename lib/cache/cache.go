@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -538,7 +539,7 @@ type Cache struct {
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	webSessionCache              types.WebSessionInterface
-	webTokenCache                types.WebTokenInterface
+	webTokenCache                services.WebToken
 	windowsDesktopsCache         services.WindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
@@ -713,7 +714,7 @@ type Config struct {
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
-	WebToken types.WebTokenInterface
+	WebToken services.WebToken
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
@@ -1041,7 +1042,7 @@ func New(config Config) (*Cache, error) {
 		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
 		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
+		webTokenCache:                local.NewIdentityService(config.Backend),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
@@ -2494,7 +2495,20 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, rg.reader.ListKubernetesClusters, rg.reader.GetKubernetesClusters)
+}
+
+// ListKubernetesClusters returns all kubernetes cluster resources.
+func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesClusters")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.kubeClusters)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubernetesClusters(ctx, limit, start)
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
@@ -2612,6 +2626,32 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	}
 
 	return sess, trace.Wrap(err)
+}
+
+// GetSnowflakeSessions returns all Snowflake session resources.
+func (c *Cache) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSessions")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.snowflakeSessions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetSnowflakeSessions(ctx)
+}
+
+// ListSnowflakeSessions returns a page of Snowflake session resources.
+func (c *Cache) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSnowflakeSessions")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.snowflakeSessions)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListSnowflakeSessions(ctx, limit, startKey)
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
@@ -2752,7 +2792,35 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.Get(ctx, req)
+	return rg.reader.GetWebToken(ctx, req)
+}
+
+func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWebTokens")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.webTokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer rg.Release()
+	return rg.reader.GetWebTokens(ctx)
+}
+
+// ListWebTokens returns a page of web tokens
+func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWebTokens")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.webTokens)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	defer rg.Release()
+	return rg.reader.ListWebTokens(ctx, limit, start)
+
 }
 
 // GetAuthPreference gets the cluster authentication config.

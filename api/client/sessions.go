@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // GetWebSession returns the web session for the specified request.
@@ -119,29 +121,18 @@ type webSessions struct {
 	c *Client
 }
 
-// GetWebToken returns the web token for the specified request.
-// Implements ReadAccessPoint
+// GetWebToken returns the web token for the specified request
 func (c *Client) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return c.WebTokens().Get(ctx, req)
-}
-
-// WebTokens returns the web tokens controller
-func (c *Client) WebTokens() types.WebTokenInterface {
-	return &webTokens{c: c}
-}
-
-// Get returns the web token for the specified request
-func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	resp, err := r.c.grpc.GetWebToken(ctx, &req)
+	resp, err := c.grpc.GetWebToken(ctx, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resp.Token, nil
 }
 
-// List returns the list of all web tokens
-func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
-	resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
+// GetWebTokens returns the list of all web tokens
+func (c *Client) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	resp, err := c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -152,27 +143,75 @@ func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
 	return out, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (c *Client) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	resp, err := c.grpc.ListWebTokens(ctx, &proto.ListWebTokensRequest{
+		PageToken: start,
+		PageSize:  int32(limit),
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tokens := make([]types.WebToken, 0, len(resp.Tokens))
+	for _, token := range resp.Tokens {
+		tokens = append(tokens, token)
+	}
+
+	return tokens, resp.NextPageToken, nil
+}
+
+// UpsertWebToken not implemented: can only be called locally.
+func (c *Client) UpsertWebToken(ctx context.Context, token types.WebToken) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteWebToken deletes the web token specified with the request
+func (c *Client) DeleteWebToken(ctx context.Context, req types.DeleteWebTokenRequest) error {
+	_, err := c.grpc.DeleteWebToken(ctx, &req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllWebTokens deletes all web tokens
+func (c *Client) DeleteAllWebTokens(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllWebTokens(ctx, &emptypb.Empty{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// WebTokens returns the web tokens controller
+func (c *Client) WebTokens() types.WebTokenInterface {
+	return &webTokens{c: c}
+}
+
+// Get returns the web token for the specified request
+func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	return r.c.GetWebToken(ctx, req)
+}
+
+// List returns the list of all web tokens
+func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
+	return clientutils.CollectWithFallback(ctx, r.c.ListWebTokens, r.c.GetWebTokens)
+}
+
 // Upsert not implemented: can only be called locally.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
-	return trace.NotImplemented(notImplementedMessage)
+	return r.c.UpsertWebToken(ctx, token)
 }
 
 // Delete deletes the web token specified with the request
 func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
-	_, err := r.c.grpc.DeleteWebToken(ctx, &req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return r.c.DeleteWebToken(ctx, req)
 }
 
 // DeleteAll deletes all web tokens
 func (r *webTokens) DeleteAll(ctx context.Context) error {
-	_, err := r.c.grpc.DeleteAllWebTokens(ctx, &emptypb.Empty{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return r.c.DeleteAllWebTokens(ctx)
 }
 
 type webTokens struct {

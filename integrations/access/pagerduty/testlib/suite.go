@@ -168,8 +168,7 @@ func (s *PagerdutySuiteEnterprise) SetupTest() {
 // specified in the role's annotation.
 func (s *PagerdutySuiteOSS) TestIncidentCreation() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -196,8 +195,7 @@ func (s *PagerdutySuiteOSS) TestIncidentCreation() {
 // is updated to reflect the new request state and a note is added to the incident.
 func (s *PagerdutySuiteOSS) TestApproval() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -228,8 +226,7 @@ func (s *PagerdutySuiteOSS) TestApproval() {
 // is updated to reflect the new request state and a note is added to the incident.
 func (s *PagerdutySuiteOSS) TestDenial() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -260,8 +257,7 @@ func (s *PagerdutySuiteOSS) TestDenial() {
 // is reviewed. Each review should create a new note.
 func (s *PagerdutySuiteEnterprise) TestReviewNotes() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -309,8 +305,7 @@ func (s *PagerdutySuiteEnterprise) TestReviewNotes() {
 // access request approval threshold is reached.
 func (s *PagerdutySuiteEnterprise) TestApprovalByReview() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -369,8 +364,7 @@ func (s *PagerdutySuiteEnterprise) TestApprovalByReview() {
 // access request denial threshold is reached.
 func (s *PagerdutySuiteEnterprise) TestDenialByReview() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -427,16 +421,15 @@ func (s *PagerdutySuiteEnterprise) TestDenialByReview() {
 
 func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	const ruleName = "test-pagerduty-amr"
 	var collectedNames []string
 	var mu sync.Mutex
 	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(_ types.OpType, name string, _ *accessmonitoringrulesv1.AccessMonitoringRule) error {
 		mu.Lock()
+		defer mu.Unlock()
 		collectedNames = append(collectedNames, name)
-		mu.Unlock()
 		return nil
 	}
 	s.startApp()
@@ -460,14 +453,14 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 				},
 			},
 		})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Incident creation may happen before plugins Access Monitoring Rule cache
 	// has been updated with new rule. Retry until the new cache picks up the rule.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		mu.Lock()
+		defer mu.Unlock()
 		require.Contains(t, collectedNames, ruleName)
-		mu.Unlock()
 	}, 3*time.Second, time.Millisecond*100, "new access monitoring rule did not begin applying")
 
 	// Test execution: create an access request
@@ -480,7 +473,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	})
 
 	incident, err := s.fakePagerduty.CheckNewIncident(ctx)
-	assert.NoError(t, err, "no new incidents stored")
+	require.NoError(t, err, "no new incidents stored")
 	assert.Equal(t, incident.ID, pluginData.IncidentID)
 
 	assert.Equal(t, pagerduty.PdIncidentKeyPrefix+"/"+req.GetName(), incident.IncidentKey)
@@ -594,8 +587,7 @@ func (s *PagerdutyBaseSuite) assertNoReviewSubmitted(ctx context.Context, userNa
 // approved when the user is not on-call.
 func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenNotOnCall() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -612,8 +604,7 @@ func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenNotOnCall() {
 // approved when the user is on-call.
 func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCall() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -635,8 +626,7 @@ func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCall() {
 // escalation policy but is on-call for the second service.
 func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallInSecondPolicy() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -659,8 +649,7 @@ func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallInSecondPolicy() {
 // service.
 func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallInSomeOtherPolicy() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	// We use the OSS user for this advanced workflow test because their role
 	// doesn't have a threshold
@@ -681,8 +670,7 @@ func (s *PagerdutySuiteEnterprise) TestAutoApprovalWhenOnCallInSomeOtherPolicy()
 // is updated to reflect the new request state and a note is added to the incident.
 func (s *PagerdutySuiteOSS) TestExpiration() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	s.startApp()
 
@@ -719,8 +707,7 @@ func (s *PagerdutySuiteOSS) TestExpiration() {
 // short time frame.
 func (s *PagerdutySuiteEnterprise) TestRace() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1623,6 +1624,35 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	}, nil
 }
 
+// ListSnowflakeSessions returns a page of Snowflake sessions.
+func (g *GRPCServer) ListSnowflakeSessions(ctx context.Context, req *authpb.ListSnowflakeSessionsRequest) (*authpb.ListSnowflakeSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, next, err := auth.ListSnowflakeSessions(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSnowflakeSessionsResponse{
+		Sessions:      make([]*types.WebSessionV2, 0, len(sessions)),
+		NextPageToken: next,
+	}
+
+	for _, session := range sessions {
+		webessionV2, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported web session type %T", session)
+		}
+		resp.Sessions = append(resp.Sessions, webessionV2)
+	}
+
+	return resp, nil
+}
+
 // GetSAMLIdPSession gets a SAML IdPsession.
 // TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *authpb.GetSAMLIdPSessionRequest) (*authpb.GetSAMLIdPSessionResponse, error) {
@@ -1996,7 +2026,7 @@ func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequ
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := auth.WebTokens().Get(ctx, *req)
+	resp, err := auth.GetWebToken(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2017,7 +2047,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := auth.WebTokens().List(ctx)
+	tokens, err := auth.GetWebTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2036,6 +2066,34 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	}, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, next, err := auth.ListWebTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListWebTokensResponse{
+		Tokens:        make([]*types.WebTokenV3, 0, len(tokens)),
+		NextPageToken: next,
+	}
+
+	for _, t := range tokens {
+		tokenV3, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", t)
+		}
+		resp.Tokens = append(resp.Tokens, tokenV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteWebToken removes the web token given with req.
 func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2043,7 +2101,7 @@ func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTok
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+	if err := auth.DeleteWebToken(ctx, *req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2057,7 +2115,7 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+	if err := auth.DeleteAllWebTokens(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3076,6 +3134,33 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *emptypb.Empty) (
 	return &types.TrustedClusterV2List{
 		TrustedClusters: trustedClustersV2,
 	}, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (g *GRPCServer) ListTrustedClusters(ctx context.Context, req *authpb.ListTrustedClustersRequest) (*authpb.ListTrustedClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tcs, next, err := auth.ServerWithRoles.ListTrustedClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListTrustedClustersResponse{
+		TrustedClusters: make([]*types.TrustedClusterV2, 0, len(tcs)),
+		NextPageToken:   next,
+	}
+
+	for _, tc := range tcs {
+		tcV2, ok := tc.(*types.TrustedClusterV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported Trusted Cluster type %T", tc)
+		}
+		resp.TrustedClusters = append(resp.TrustedClusters, tcV2)
+	}
+	return resp, nil
 }
 
 // UpsertTrustedCluster upserts a Trusted Cluster.
@@ -4815,6 +4900,34 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	}, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, next, err := auth.ListKubernetesClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListKubernetesClustersResponse{
+		KubernetesClusters: make([]*types.KubernetesClusterV3, 0, len(clusters)),
+		NextPageToken:      next,
+	}
+
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kubernetes cluster type %T", clusterV3)
+		}
+		resp.KubernetesClusters = append(resp.KubernetesClusters, clusterV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -5269,6 +5382,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(

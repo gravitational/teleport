@@ -335,16 +335,11 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		ctx,
 		addr,
 		grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
 	)
@@ -1341,25 +1336,23 @@ func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *clien
 	// send the session ID received from the server
 	var gotSessionID atomic.Bool
 	sessionIDFromServer := make(chan session.ID, 1)
-	nc.TC.OnChannelRequest = func(req *ssh.Request) *ssh.Request {
-		// ignore unrelated requests and handle only the first session
-		// ID request
-		if req.Type != teleport.CurrentSessionIDRequest || gotSessionID.Load() {
-			return req
+
+	nc.Client.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+		// only handle the first session ID request
+		if gotSessionID.Load() {
+			return
 		}
 
 		sid, err := session.ParseID(string(req.Payload))
 		if err != nil {
 			log.WithError(err).Warn("Unable to parse session ID.")
-			return nil
+			return
 		}
 
 		if gotSessionID.CompareAndSwap(false, true) {
 			sessionIDFromServer <- *sid
 		}
-
-		return nil
-	}
+	})
 
 	// If the session is about to close and we haven't received a session
 	// ID yet, ask if the server even supports sending one. Send the

@@ -467,6 +467,8 @@ type TeleportProcess struct {
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
+
+	tsrv reversetunnelclient.Server
 }
 
 type keyPairKey struct {
@@ -481,6 +483,17 @@ var processID int32
 
 func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
+}
+
+// GetReverseTunnelServer returns the process's reverse tunnel server
+// or an error if it is not configured.
+// Reverse tunnel server is used by proxies to accept incoming
+// reverse tunnels from nodes/clusters.
+func (process *TeleportProcess) GetReverseTunnelServer() (reversetunnelclient.Server, error) {
+	if process.tsrv != nil {
+		return process.tsrv, nil
+	}
+	return nil, trace.BadParameter("reverse tunnel server not configured")
 }
 
 // GetAuthServer returns the process' auth server
@@ -2527,7 +2540,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.UserLoginStates = services.UserLoginStates
 	cfg.Users = services.Identity
 	cfg.WebSession = services.Identity.WebSessions()
-	cfg.WebToken = services.Identity.WebTokens()
+	cfg.WebToken = services.Identity
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.AutoUpdateService = services.AutoUpdateService
@@ -2573,7 +2586,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.UserLoginStates = client.UserLoginStateClient()
 	cfg.Users = client
 	cfg.WebSession = client.WebSessions()
-	cfg.WebToken = client.WebTokens()
+	cfg.WebToken = client
 	cfg.WindowsDesktops = client
 	cfg.AutoUpdateService = client
 
@@ -4387,6 +4400,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.tsrv = tsrv
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -4608,7 +4622,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      utils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 		}
-		webHandler, err := web.NewHandler(webConfig)
+		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4822,17 +4836,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	sshGRPCServer := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			interceptors.GRPCServerUnaryErrorInterceptor,
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptors.GRPCServerStreamErrorInterceptor,
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(creds),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),

@@ -183,7 +183,6 @@ func (a *UserProvisioner) makeAcquireSemaphoreConfig(sessionCtx *Session) servic
 			SemaphoreKind: "db-auto-users",
 			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Database.GetName(), sessionCtx.DatabaseUser),
 			MaxLeases:     1,
-			Expires:       a.Clock.Now().Add(time.Minute),
 		},
 		// If multiple connections are being established simultaneously to the
 		// same database as the same user, retry for a few seconds.
@@ -192,5 +191,7 @@ func (a *UserProvisioner) makeAcquireSemaphoreConfig(sessionCtx *Session) servic
 			Max:   time.Second,
 			Clock: a.Clock,
 		},
+		TTL: time.Minute,
+		Now: a.Clock.Now,
 	}
 }

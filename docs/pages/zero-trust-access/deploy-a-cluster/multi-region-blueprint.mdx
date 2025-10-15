@@ -19,12 +19,18 @@ Before continuing, you must acknowledge the following warnings:
 - This setup is not required for most Teleport users and customers.
   Single-region multi-zone deployments provide the best availability/cost ratio.
   For example, Amazon SLAs are 99.99% for both DynamoDB and EC2.
+- Multi-region setups do not offer better scalability than single-region setups.
+  Due to their distributed and redundant nature, they are less performant and
+  more expensive than single-region setups for the same number of agents.
 - This blueprint relies on many complex components. If you don't have the team
   capacity and expertise to deploy and operate such components, you will end
   up with a lower availability than a single-region multi-zone setup.
 - You are responsible for deploying and maintaining the Teleport dependencies
   including the database, object storage, container runtime, network plugins
   and anything else which is required.
+- Regions must be provisioned with enough capacity to handle all traffic in
+  the event of a complete region failure. This includes the ability to
+  immediately absorb new traffic as nodes and users reconnect to the healthy regions.
 
 <Admonition type="tip">
 
@@ -65,6 +71,14 @@ To run a multi-region Teleport deployment, you must have:
 
 Teams with Kubernetes infrastructure will want to host Teleport in Kubernetes.
 This section describes this setup in more detail.
+
+<Admonition type="warning" title="Kubernetes CPU Limits">
+
+We strongly discourage setting CPU limits on any Teleport component, as throttling can introduce unpredictable
+latency, disrupt real-time authentication and networking operations, and trigger cascading failures across
+otherwise healthy regions, potentially leading to a full cluster outage.
+
+</Admonition>
 
 ### Teleport Dependencies
 

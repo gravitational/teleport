@@ -106,6 +106,7 @@ const (
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
+	AuthService_ListSnowflakeSessions_FullMethodName               = "/proto.AuthService/ListSnowflakeSessions"
 	AuthService_DeleteSnowflakeSession_FullMethodName              = "/proto.AuthService/DeleteSnowflakeSession"
 	AuthService_DeleteAllSnowflakeSessions_FullMethodName          = "/proto.AuthService/DeleteAllSnowflakeSessions"
 	AuthService_CreateSAMLIdPSession_FullMethodName                = "/proto.AuthService/CreateSAMLIdPSession"
@@ -121,6 +122,7 @@ const (
 	AuthService_DeleteAllWebSessions_FullMethodName                = "/proto.AuthService/DeleteAllWebSessions"
 	AuthService_GetWebToken_FullMethodName                         = "/proto.AuthService/GetWebToken"
 	AuthService_GetWebTokens_FullMethodName                        = "/proto.AuthService/GetWebTokens"
+	AuthService_ListWebTokens_FullMethodName                       = "/proto.AuthService/ListWebTokens"
 	AuthService_DeleteWebToken_FullMethodName                      = "/proto.AuthService/DeleteWebToken"
 	AuthService_DeleteAllWebTokens_FullMethodName                  = "/proto.AuthService/DeleteAllWebTokens"
 	AuthService_UpdateRemoteCluster_FullMethodName                 = "/proto.AuthService/UpdateRemoteCluster"
@@ -186,6 +188,7 @@ const (
 	AuthService_DeleteAllServerInfos_FullMethodName                = "/proto.AuthService/DeleteAllServerInfos"
 	AuthService_GetTrustedCluster_FullMethodName                   = "/proto.AuthService/GetTrustedCluster"
 	AuthService_GetTrustedClusters_FullMethodName                  = "/proto.AuthService/GetTrustedClusters"
+	AuthService_ListTrustedClusters_FullMethodName                 = "/proto.AuthService/ListTrustedClusters"
 	AuthService_UpsertTrustedCluster_FullMethodName                = "/proto.AuthService/UpsertTrustedCluster"
 	AuthService_DeleteTrustedCluster_FullMethodName                = "/proto.AuthService/DeleteTrustedCluster"
 	AuthService_GetToken_FullMethodName                            = "/proto.AuthService/GetToken"
@@ -232,6 +235,7 @@ const (
 	AuthService_DeleteDatabase_FullMethodName                      = "/proto.AuthService/DeleteDatabase"
 	AuthService_DeleteAllDatabases_FullMethodName                  = "/proto.AuthService/DeleteAllDatabases"
 	AuthService_GetKubernetesClusters_FullMethodName               = "/proto.AuthService/GetKubernetesClusters"
+	AuthService_ListKubernetesClusters_FullMethodName              = "/proto.AuthService/ListKubernetesClusters"
 	AuthService_GetKubernetesCluster_FullMethodName                = "/proto.AuthService/GetKubernetesCluster"
 	AuthService_CreateKubernetesCluster_FullMethodName             = "/proto.AuthService/CreateKubernetesCluster"
 	AuthService_UpdateKubernetesCluster_FullMethodName             = "/proto.AuthService/UpdateKubernetesCluster"
@@ -479,6 +483,8 @@ type AuthServiceClient interface {
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -516,6 +522,8 @@ type AuthServiceClient interface {
 	GetWebToken(ctx context.Context, in *types.GetWebTokenRequest, opts ...grpc.CallOption) (*GetWebTokenResponse, error)
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
+	// ListWebTokens returns a page of web tokens.
+	ListWebTokens(ctx context.Context, in *ListWebTokensRequest, opts ...grpc.CallOption) (*ListWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
 	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
@@ -703,6 +711,8 @@ type AuthServiceClient interface {
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
+	// ListTrustedClusters returns a page of current Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
@@ -813,6 +823,8 @@ type AuthServiceClient interface {
 	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -1928,6 +1940,15 @@ func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptyp
 	return out, nil
 }
 
+func (c *authServiceClient) ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error) {
+	out := new(ListSnowflakeSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSnowflakeSessions_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_DeleteSnowflakeSession_FullMethodName, in, out, opts...)
@@ -2087,6 +2108,15 @@ func (c *authServiceClient) GetWebToken(ctx context.Context, in *types.GetWebTok
 func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
 	out := new(GetWebTokensResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWebTokens_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListWebTokens(ctx context.Context, in *ListWebTokensRequest, opts ...grpc.CallOption) (*ListWebTokensResponse, error) {
+	out := new(ListWebTokensResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListWebTokens_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2751,6 +2781,15 @@ func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
+func (c *authServiceClient) ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error) {
+	out := new(ListTrustedClustersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListTrustedClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error) {
 	out := new(types.TrustedClusterV2)
 	err := c.cc.Invoke(ctx, AuthService_UpsertTrustedCluster_FullMethodName, in, out, opts...)
@@ -3191,6 +3230,15 @@ func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.
 func (c *authServiceClient) GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error) {
 	out := new(types.KubernetesClusterV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetKubernetesClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error) {
+	out := new(ListKubernetesClustersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListKubernetesClusters_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3993,6 +4041,8 @@ type AuthServiceServer interface {
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -4030,6 +4080,8 @@ type AuthServiceServer interface {
 	GetWebToken(context.Context, *types.GetWebTokenRequest) (*GetWebTokenResponse, error)
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error)
+	// ListWebTokens returns a page of web tokens.
+	ListWebTokens(context.Context, *ListWebTokensRequest) (*ListWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
 	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
@@ -4217,6 +4269,8 @@ type AuthServiceServer interface {
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
+	// ListTrustedClusters returns a page of current Trusted Cluster resources.
+	ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
@@ -4327,6 +4381,8 @@ type AuthServiceServer interface {
 	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -4737,6 +4793,9 @@ func (UnimplementedAuthServiceServer) GetSnowflakeSession(context.Context, *GetS
 func (UnimplementedAuthServiceServer) GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSessions not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSnowflakeSessions not implemented")
+}
 func (UnimplementedAuthServiceServer) DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnowflakeSession not implemented")
 }
@@ -4781,6 +4840,9 @@ func (UnimplementedAuthServiceServer) GetWebToken(context.Context, *types.GetWeb
 }
 func (UnimplementedAuthServiceServer) GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebTokens not implemented")
+}
+func (UnimplementedAuthServiceServer) ListWebTokens(context.Context, *ListWebTokensRequest) (*ListWebTokensResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWebTokens not implemented")
 }
 func (UnimplementedAuthServiceServer) DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebToken not implemented")
@@ -4977,6 +5039,9 @@ func (UnimplementedAuthServiceServer) GetTrustedCluster(context.Context, *types.
 func (UnimplementedAuthServiceServer) GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrustedClusters not implemented")
 }
+func (UnimplementedAuthServiceServer) ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTrustedClusters not implemented")
+}
 func (UnimplementedAuthServiceServer) UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertTrustedCluster not implemented")
 }
@@ -5114,6 +5179,9 @@ func (UnimplementedAuthServiceServer) DeleteAllDatabases(context.Context, *empty
 }
 func (UnimplementedAuthServiceServer) GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesClusters not implemented")
+}
+func (UnimplementedAuthServiceServer) ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesClusters not implemented")
 }
 func (UnimplementedAuthServiceServer) GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesCluster not implemented")
@@ -6646,6 +6714,24 @@ func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSnowflakeSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSnowflakeSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, req.(*ListSnowflakeSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_DeleteSnowflakeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteSnowflakeSessionRequest)
 	if err := dec(in); err != nil {
@@ -6915,6 +7001,24 @@ func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWebTokensRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListWebTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListWebTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListWebTokens(ctx, req.(*ListWebTokensRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8108,6 +8212,24 @@ func _AuthService_GetTrustedClusters_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListTrustedClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTrustedClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListTrustedClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListTrustedClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListTrustedClusters(ctx, req.(*ListTrustedClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_UpsertTrustedCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.TrustedClusterV2)
 	if err := dec(in); err != nil {
@@ -8935,6 +9057,24 @@ func _AuthService_GetKubernetesClusters_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetKubernetesClusters(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListKubernetesClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListKubernetesClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, req.(*ListKubernetesClustersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10370,6 +10510,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSnowflakeSessions_Handler,
 		},
 		{
+			MethodName: "ListSnowflakeSessions",
+			Handler:    _AuthService_ListSnowflakeSessions_Handler,
+		},
+		{
 			MethodName: "DeleteSnowflakeSession",
 			Handler:    _AuthService_DeleteSnowflakeSession_Handler,
 		},
@@ -10424,6 +10568,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWebTokens",
 			Handler:    _AuthService_GetWebTokens_Handler,
+		},
+		{
+			MethodName: "ListWebTokens",
+			Handler:    _AuthService_ListWebTokens_Handler,
 		},
 		{
 			MethodName: "DeleteWebToken",
@@ -10674,6 +10822,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetTrustedClusters_Handler,
 		},
 		{
+			MethodName: "ListTrustedClusters",
+			Handler:    _AuthService_ListTrustedClusters_Handler,
+		},
+		{
 			MethodName: "UpsertTrustedCluster",
 			Handler:    _AuthService_UpsertTrustedCluster_Handler,
 		},
@@ -10852,6 +11004,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetKubernetesClusters",
 			Handler:    _AuthService_GetKubernetesClusters_Handler,
+		},
+		{
+			MethodName: "ListKubernetesClusters",
+			Handler:    _AuthService_ListKubernetesClusters_Handler,
 		},
 		{
 			MethodName: "GetKubernetesCluster",

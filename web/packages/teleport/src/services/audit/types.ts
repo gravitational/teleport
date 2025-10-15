@@ -389,11 +389,15 @@ export type RawEvents = {
     {
       proto: 'kube';
       kubernetes_cluster: string;
+      sid: string;
     }
   >;
   [eventCodes.EXEC_FAILURE]: RawEvent<
     typeof eventCodes.EXEC_FAILURE,
-    { exitError: string }
+    {
+      exitError: string;
+      sid: string;
+    }
   >;
   [eventCodes.BILLING_CARD_CREATE]: RawEvent<
     typeof eventCodes.BILLING_CARD_CREATE
@@ -1216,6 +1220,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: RawEvent<
@@ -1224,6 +1229,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: RawEvent<
@@ -1232,6 +1238,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: RawEvent<
@@ -1240,6 +1247,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: RawEvent<
@@ -1250,6 +1258,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: RawEvent<
@@ -1260,6 +1269,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: RawEvent<
@@ -1270,6 +1280,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: RawEvent<
@@ -1280,6 +1291,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;

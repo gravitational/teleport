@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -348,10 +349,8 @@ func TestTerminalSizeRequest(t *testing.T) {
 		// initiating the client request for the window size to prevent flakiness.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
-			if assert.NoError(t, err) {
-				return
-			}
-			assert.Empty(t, cmp.Diff(expectedSize, size, cmp.AllowUnexported(term.Winsize{})))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectedSize, *size, cmp.AllowUnexported(term.Winsize{})))
 		}, 10*time.Second, 100*time.Millisecond)
 
 		// Send a request for the window size now that we know the window change
@@ -849,7 +848,7 @@ func TestAgentForwardPermission(t *testing.T) {
 
 	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
 	// however that does not mean the users agent will actually be forwarded.
-	require.NoError(t, agent.RequestAgentForwarding(se.Session))
+	require.NoError(t, sshagent.RequestAgentForwarding(ctx, se))
 
 	// the output of env, we should not see SSH_AUTH_SOCK in the output
 	output, err := se.Output(ctx, "env")
@@ -952,7 +951,7 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
-	err = agent.RequestAgentForwarding(se.Session)
+	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -1196,7 +1195,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// Client requests x11 forwarding for the server session.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	err = x11.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -1491,7 +1490,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via TCP
-	conn, chans, reqs, err := tracessh.NewClientConn(
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(
 		ctx,
 		pipeNetConn,
 		f.ssh.srv.Addr(),
@@ -2597,7 +2596,7 @@ func TestX11ProxySupport(t *testing.T) {
 	cltConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
 	// Perform ssh handshake and setup client for X11 test server.
-	cltConn, chs, reqs, err := tracessh.NewClientConn(ctx, netConn, node.addr, &cltConfig)
+	cltConn, chs, reqs, err := tracessh.NewClientConnWithTimeout(ctx, netConn, node.addr, &cltConfig)
 	require.NoError(t, err)
 	clt := tracessh.NewClient(cltConn, chs, reqs)
 
@@ -2777,7 +2776,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via proxy subsystem's TCP tunnel
-	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pipeNetConn,
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, pipeNetConn,
 		f.ssh.srv.Addr(), sshConfig)
 	require.NoError(t, err)
 	defer conn.Close()

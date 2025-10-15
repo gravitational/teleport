@@ -496,15 +496,14 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
 			interceptors.WithMFAUnaryInterceptor(c.PerformMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
@@ -538,25 +537,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
-
-// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
-// because each time this is called, they create a new underlying metric. If
-// something (e.g tbot) is repeatedly creating new clients and closing them,
-// then this leads to a memory leak since the underlying metric is not cleaned
-// up.
-// See https://github.com/gravitational/teleport/issues/30759
-// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.StreamClientInterceptor()
-})
-
-var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.UnaryClientInterceptor()
-})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -1504,6 +1484,22 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 	return out, nil
 }
 
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (c *Client) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSnowflakeSessions(ctx, &proto.ListSnowflakeSessionsRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	sessions := make([]types.WebSession, len(resp.Sessions))
+	for i := range resp.Sessions {
+		sessions[i] = resp.Sessions[i]
+	}
+	return sessions, resp.NextPageToken, nil
+}
+
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
 // Deprecated: Do not use. The Concept of SAML IdP Sessions is no longer in use.
 // SAML IdP Sessions are directly tied to their parent web sessions instead.
@@ -2318,6 +2314,22 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 		trustedClusters[i] = trustedCluster
 	}
 	return trustedClusters, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	resp, err := c.grpc.ListTrustedClusters(ctx, &proto.ListTrustedClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	tcs := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i := range resp.TrustedClusters {
+		tcs[i] = resp.TrustedClusters[i]
+	}
+	return tcs, resp.NextPageToken, nil
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
@@ -3527,6 +3539,22 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 		clusters[i] = items.KubernetesClusters[i]
 	}
 	return clusters, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
+	for i := range resp.KubernetesClusters {
+		kubeClusters[i] = resp.KubernetesClusters[i]
+	}
+	return kubeClusters, resp.NextPageToken, nil
 }
 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.

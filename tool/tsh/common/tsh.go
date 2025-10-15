@@ -1304,6 +1304,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if reExecPath := tools.GetReExecPath(); reExecPath != "" {
+		cf.executablePath = reExecPath
+	}
 
 	// configs
 	setEnvFlags(&cf)
@@ -4852,19 +4855,26 @@ func onShow(cf *CLIConf) error {
 	return nil
 }
 
+func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock) string {
+	duration := validUntil.Sub(clock.Now())
+	switch {
+	case duration <= 0:
+		return "EXPIRED"
+	case duration < time.Minute:
+		return "valid for <1m"
+	default:
+		return fmt.Sprintf("valid for %s",
+			// Since duration is truncated to minute, duration.String() always
+			// ends with 0s.
+			strings.TrimRight(duration.Truncate(time.Minute).String(), "0s"),
+		)
+	}
+}
+
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+	clock := clockwork.NewRealClock()
 	var prefix string
-	humanDuration := "EXPIRED"
-	duration := time.Until(p.ValidUntil)
-	if duration.Nanoseconds() > 0 {
-		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
-		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
-		if duration < time.Minute {
-			humanDuration = "valid for <1m"
-		}
-	}
-
 	proxyURL := p.getProxyURLLine(isActive, env)
 	cluster := p.getClusterLine(isActive, env)
 	kubeCluster := p.getKubeClusterLine(isActive, env)
@@ -4923,7 +4933,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
+	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {

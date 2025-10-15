@@ -650,8 +650,7 @@ func TestKubeAgentLabels(t *testing.T) {
 		resourceID,
 		extraLabels,
 	)
-
-	expectedLabels := map[string]string{
+	expectedLabels := map[string]any{
 		"priority":                      "yes",
 		"region":                        "us-east-1",
 		"custom":                        "yes",

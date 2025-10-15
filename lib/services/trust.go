@@ -130,6 +130,9 @@ type Clusters interface {
 	// GetTrustedClusters returns all TrustedClusters in the backend.
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
 
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error)
+
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 
