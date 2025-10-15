@@ -9,7 +9,11 @@ BEGIN
         RAISE NOTICE 'User has active connections';
     ELSE
         -- Revoke all role memberships except teleport-auto-user group.
-        FOR role_ IN SELECT a.rolname FROM pg_roles a WHERE pg_has_role(username, a.oid, 'member') AND a.rolname NOT IN (username, 'teleport-auto-user')
+        FOR role_ IN
+        SELECT r.rolname
+        FROM pg_roles r
+        WHERE r.rolname NOT IN (username, 'teleport-auto-user') AND
+              r.oid IN (select m.roleid from pg_auth_members m where m.member = to_regrole(username)::oid)
         LOOP
             EXECUTE FORMAT('REVOKE %I FROM %I', role_, username);
         END LOOP;
