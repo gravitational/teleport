@@ -944,6 +944,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindUserTask, services.RO()),
 				types.NewRule(types.KindGitServer, services.RO()),
 				types.NewRule(types.KindAccessGraphSettings, services.RO()),
+				types.NewRule(types.KindRelayServer, services.RO()),
 				types.NewRule(types.KindAccessList, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
@@ -1109,6 +1110,48 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 		return services.RoleFromSpec(
 			role.String(),
 			roleSpecForProxyWithRecordAtProxy(clusterName),
+		)
+	case types.RoleRelay:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{
+						types.Wildcard,
+					},
+					NodeLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					AppLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					DatabaseLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					WindowsDesktopLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					Rules: []types.Rule{
+						types.NewRule(types.KindAppServer, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindDatabaseServer, services.RO()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindKubeServer, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindRelayServer, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
+					},
+				},
+			},
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(

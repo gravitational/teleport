@@ -7,7 +7,7 @@ check_access = $(addprefix check-chart-ref-access-,$(access))
 render_access = $(addprefix render-chart-ref-access-,$(access))
 
 .PHONY: render-chart-ref
-render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-tbot $(render_access)  # render-chart-ref-teleport-cluster
+render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-teleport-relay render-chart-ref-tbot $(render_access)  # render-chart-ref-teleport-cluster
 
 .PHONY: render-chart-ref-example
 render-chart-ref-example:
@@ -25,6 +25,11 @@ render-chart-ref-teleport-kube-agent:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-kube-agent/ -output ../../docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx
 
+.PHONY: render-chart-ref-teleport-relay
+render-chart-ref-teleport-relay:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-relay/ -output ../../docs/pages/includes/helm-reference/zz_generated.teleport-relay.mdx
+
 .PHONY: render-chart-ref-teleport-operator
 render-chart-ref-teleport-operator:
 	cd ../../build.assets/tooling && \
@@ -41,7 +46,7 @@ render-chart-ref-access-%:
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/$* -output ../../docs/pages/includes/helm-reference/zz_generated.access-$*.mdx
 
 .PHONY: check-chart-ref
-check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-tbot $(check_access) #check-chart-ref-teleport-cluster
+check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-teleport-relay check-chart-ref-tbot $(check_access) #check-chart-ref-teleport-cluster
 
 .PHONY: check-chart-ref-example
 check-chart-ref-example:
@@ -62,6 +67,13 @@ check-chart-ref-teleport-kube-agent:
 	@ echo "Checking teleport-kube-agent reference"
 	@ cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-kube-agent -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )
+
+.PHONY: check-chart-ref-teleport-relay
+check-chart-ref-teleport-relay:
+	@ echo "Checking teleport-relay reference"
+	@ cd ../../build.assets/tooling && \
+	GOWORK=off go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-relay -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.teleport-relay.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )
 
 .PHONY: check-chart-ref-teleport-operator

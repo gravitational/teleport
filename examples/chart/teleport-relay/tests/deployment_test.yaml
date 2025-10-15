@@ -1,0 +1,318 @@
+suite: Test Deployment
+templates:
+  - configmap.yaml
+  - deployment.yaml
+
+tests:
+  - it: creates a deployment
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - containsDocument:
+          kind: Deployment
+          apiVersion: apps/v1
+          name: RELEASE-NAME-teleport-relay
+
+  - it: includes extraLabels and annotations
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      extraLabels:
+        deployment:
+          labelName1: labelValue1
+          labelName2: labelValue2
+      annotations:
+        deployment:
+          annotationName1: annotationValue1
+          annotationName2: annotationValue2
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            labelName1: labelValue1
+            labelName2: labelValue2
+      - equal:
+          path: metadata.annotations
+          value:
+            annotationName1: annotationValue1
+            annotationName2: annotationValue2
+  - it: includes extraLabels and annotations in the pod template
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      extraLabels:
+        pod:
+          labelName1: labelValue1
+          labelName2: labelValue2
+      annotations:
+        pod:
+          annotationName1: annotationValue1
+          annotationName2: annotationValue2
+    asserts:
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            labelName1: labelValue1
+            labelName2: labelValue2
+      - isSubset:
+          path: spec.template.metadata.annotations
+          content:
+            annotationName1: annotationValue1
+            annotationName2: annotationValue2
+
+  - it: pods are selected by deployment, service and pdb
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    # these selector labels are also checked to be matched in service_test.yaml
+    # and pdb_test.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: teleport-relay
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: teleport-relay
+
+  - it: pods are selected by the default topologySpreadConstraints
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints
+          value:
+            - topologyKey: kubernetes.io/hostname
+              maxSkew: 1
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: RELEASE-NAME
+                  app.kubernetes.io/name: teleport-relay
+            - topologyKey: topology.kubernetes.io/zone
+              maxSkew: 1
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: RELEASE-NAME
+                  app.kubernetes.io/name: teleport-relay
+
+  - it: refuses to set and disable topologySpreadConstraints at the same time
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      disableTopologySpreadConstraints: true
+      topologySpreadConstraints: nonempty
+    asserts:
+      - failedTemplate:
+          errorMessage: disableTopologySpreadConstraints cannot be enabled if topologySpreadConstraints is set in chart values
+
+  - it: requires the target connection count to be not greater than the replica count
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      highAvailability:
+        replicaCount: 2
+      targetConnectionCount: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: highAvailability.replicaCount must not be smaller than targetConnectionCount
+
+  - it: allows the replica count to be zero no matter the target connection count
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      highAvailability:
+        replicaCount: 0
+      targetConnectionCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+
+  - it: chooses the default service account and join token
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-teleport-relay
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth-token
+            secret:
+              secretName: RELEASE-NAME-teleport-relay
+
+  - it: chooses the customized service account and join token
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      serviceAccount:
+        name: randomServiceAccountName
+      joinTokenSecret:
+        name: randomSecretName
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: randomServiceAccountName
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth-token
+            secret:
+              secretName: randomSecretName
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-secrets
+            name: auth-token
+
+  - it: chooses the correct configmap
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            configMap:
+              name: RELEASE-NAME-teleport-relay
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport.yaml
+            name: config
+            subPath: teleport.yaml
+
+  - it: defines the projected service account token with the appropriate audience
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      teleportClusterName: randomTeleportClusterName
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: join-sa-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: join-sa-token
+                    expirationSeconds: 600
+                    audience: randomTeleportClusterName
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/teleport-join-sa-token
+            name: join-sa-token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/teleport-join-sa-token/join-sa-token
+  - it: does not include a projected service account if teleportClusterName is not set
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: join-sa-token
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: join-sa-token
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBERNETES_TOKEN_PATH
+          any: true
+
+  - it: defines the ports referenced by the service
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    # these are values checked for in service_test.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: transport
+            protocol: TCP
+          any: true
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tunnel
+            protocol: TCP
+          any: true
+
+  - it: uses the non-enterprise image by default
+    chart:
+      appVersion: 12.34.56-sigma
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-distroless:12.34.56-sigma
+  - it: uses the enterprise image if the option is set
+    chart:
+      appVersion: 12.34.56-sigma
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      enterprise: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-ent-distroless:12.34.56-sigma
+
+  - it: mounts a secret for SSL_CERT_FILE if the option is set
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      tls:
+        existingCASecretName: randomCASecretName
+        existingCASecretKeyName: randomCASecretKeyName
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: randomCASecretName
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca.pem
+            name: teleport-tls-ca
+            subPath: randomCASecretKeyName
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca.pem

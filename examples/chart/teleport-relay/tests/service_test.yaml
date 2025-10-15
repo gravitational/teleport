@@ -1,0 +1,100 @@
+suite: Test Service
+templates:
+  - service.yaml
+
+tests:
+  - it: creates a service
+    asserts:
+      - hasDocuments:
+          count: 1
+      - containsDocument:
+          kind: Service
+          apiVersion: v1
+          name: RELEASE-NAME-teleport-relay
+
+  - it: defines the expected ports
+    # the port names are checked in deployment_test.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.ports
+          count: 2
+      - contains:
+          path: spec.ports
+          content:
+            name: transport
+            port: 443
+            targetPort: transport
+            protocol: TCP
+      - contains:
+          path: spec.ports
+          content:
+            name: tunnel
+            port: 3042
+            targetPort: tunnel
+            protocol: TCP
+
+  - it: selects the deployment pods
+    # the selector labels are checked to be in the deployment template in
+    # deployment_test.yaml
+    asserts:
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: teleport-relay
+
+  - it: requires service.type
+    set:
+      service:
+        type: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: service.type must be set in chart values
+  - it: the default service type is LoadBalancer
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+  - it: service.type sets the service type
+    set:
+      service:
+        type: serviceType
+    asserts:
+      - equal:
+          path: spec.type
+          value: serviceType
+
+  - it: includes service.spec, extraLabels and annotations
+    set:
+      service:
+        spec:
+          specKey1:
+            - specValue1
+            - 42
+          specKey2: specValue2
+      extraLabels:
+        service:
+          labelName1: labelValue1
+          labelName2: labelValue2
+      annotations:
+        service:
+          annotationName1: annotationValue1
+          annotationName2: annotationValue2
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            labelName1: labelValue1
+            labelName2: labelValue2
+      - equal:
+          path: metadata.annotations
+          value:
+            annotationName1: annotationValue1
+            annotationName2: annotationValue2
+      - isSubset:
+          path: spec
+          content:
+            specKey2: specValue2
+            specKey1:
+              - specValue1
+              - 42

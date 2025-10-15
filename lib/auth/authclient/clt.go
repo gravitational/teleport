@@ -850,6 +850,9 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -897,6 +900,9 @@ type SAMLAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -936,6 +942,9 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -1390,6 +1399,17 @@ type SSHLoginResponse struct {
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
+}
+
+// ClientOptions contains options passed from the control plane to the client at
+// login time.
+type ClientOptions struct {
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if the client does not otherwise specify a relay.
+	DefaultRelayAddr string `json:"default_relay_addr"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility

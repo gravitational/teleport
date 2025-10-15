@@ -198,6 +198,20 @@ func TestUserAdd(t *testing.T) {
 				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
+		{
+			name: "default relay addr set",
+			args: []string{"--default-relay-addr", "foo"},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: {"foo"},
+			},
+		},
+		{
+			name: "default relay addr blank",
+			args: []string{"--default-relay-addr", ""},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: nil,
+			},
+		},
 	}
 
 	for ix, tc := range tests {
@@ -368,6 +382,20 @@ func TestUserUpdate(t *testing.T) {
 			args: []string{"--set-mcp-tools", "aa,bb", "--set-mcp-tools", "get_*"},
 			wantTraits: map[string][]string{
 				constants.TraitMCPTools: {"aa", "bb", "get_*"},
+			},
+		},
+		{
+			name: "default relay addr set",
+			args: []string{"--set-default-relay-addr", "foo"},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: {"foo"},
+			},
+		},
+		{
+			name: "default relay addr reset",
+			args: []string{"--set-default-relay-addr", ""},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: nil,
 			},
 		},
 	}
