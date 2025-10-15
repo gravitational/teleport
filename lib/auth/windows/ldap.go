@@ -228,7 +228,8 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	res, err := c.client.SearchWithPaging(req, searchPageSize)
+	res, err := c.client.Search(req)
+	//res, err := c.client.SearchWithPaging(req, searchPageSize)
 
 	if err == nil {
 		return res.Entries, nil
