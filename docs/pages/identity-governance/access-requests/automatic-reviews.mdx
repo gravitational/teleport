@@ -31,7 +31,7 @@ requests access to the `access` role.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.2.0 or higher)"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.2.8 or higher)"!)
 
 - This feature requires Teleport Identity Governance.
 - This guide requires at least one labeled SSH server.
@@ -175,6 +175,30 @@ At this point, the new Access Request should have been created, automatically
 reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings**
 and verify the Access Request status. It might take a second for the review to
 process, so you may have to refresh the page.
+
+## Schedule-based automatic reviews
+
+To demonstrate how role requests can be automatically approved during a
+specified schedule, create the following Access Automation Rule via the Teleport
+Web UI:
+
+1. Go to **Identity Governance** -> **Access Requests** -> **Set Up Access Automation Rules**
+2. Click **Create New Access Automation Rule** -> **Automatic Review Rule**
+3. Configure the rule and set:
+   - **Name of requested roles to match**: `access`
+   - **User Traits to match**: `team: demo`
+   - **Review decision**: `APPROVED`
+4. Configure the schedule:
+   - Enable **For specified times only**
+   - Select the desired **Time Zone**
+   - Choose the desired weekdays
+   - Set the schedule for each selected weekday
+5. Click **Create Rule**
+
+For example, to enable automatic reviews at any time on Mondays, the schedule
+editor would appear as follows:
+
+![Schedule Editor](../../../img/access-controls/automatic-reviews/schedule-editor.png)
 
 ## Troubleshooting
 
