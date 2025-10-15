@@ -75,6 +75,7 @@ type BotsCommand struct {
 	setLogins     string
 
 	search string
+	query  string
 
 	botsList          *kingpin.CmdClause
 	botsAdd           *kingpin.CmdClause
@@ -131,6 +132,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
 	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
+	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
 	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
@@ -563,6 +565,10 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 
 	if c.search != "" {
 		req.Filter.SearchTerm = c.search
+	}
+
+	if c.query != "" {
+		req.Filter.Query = c.query
 	}
 
 	for {
