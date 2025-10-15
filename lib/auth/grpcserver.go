@@ -39,6 +39,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
+	"google.golang.org/grpc/health"
+	_ "google.golang.org/grpc/health"
+	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -5792,6 +5795,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
+	healthcheck := health.NewServer()
+	healthgrpc.RegisterHealthServer(server, healthcheck)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
