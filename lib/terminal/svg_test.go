@@ -254,7 +254,7 @@ func TestTerminalStateToSVG(t *testing.T) {
 			tt.setup(vt)
 
 			state := vt.DumpState()
-			svg := string(VtStateToSvg(&state))
+			svg := string(VtToSvg(&state))
 
 			if golden.ShouldSet() {
 				golden.Set(t, []byte(svg))
