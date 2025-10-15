@@ -144,6 +144,8 @@ func boundKeypairJoin(
 			}); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		default:
+			return nil, trace.Errorf("server sent unexpected message type %T", msg)
 		}
 	}
 }
