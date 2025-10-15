@@ -471,9 +471,14 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
 			if isLoggingEnabled {
-				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID",
-					slog.String("resource_id", types.ResourceIDToString(resourceID)),
-				)
+				ridString, err := types.ResourceIDToString(resourceID)
+				if err != nil {
+					rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID but failed to marshal to string", slog.String("error", err.Error()))
+				} else {
+					rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID",
+						slog.String("resource_id", ridString),
+					)
+				}
 			}
 
 			return nil
@@ -531,8 +536,14 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
-	if err := a.checkAllowedResources(r); err != nil {
-		return trace.Wrap(err)
+	// Enforce AllowedResourceIDs if present; capture match
+	var matchedRID *types.ResourceID
+	if len(a.info.AllowedResourceIDs) != 0 {
+		if rid, ok := a.matchAllowedRID(r); ok {
+			matchedRID = rid
+		} else {
+			return trace.Wrap(a.checkAllowedResources(r))
+		}
 	}
 
 	switch rr := r.(type) {
@@ -542,7 +553,24 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 	}
 
+	// If matched RID has ResourceConstraints, guard any principal-bearing matcher(s)
+	if matchedRID != nil && matchedRID.Constraints != nil {
+		guard := WithConstraints(matchedRID.Constraints)
+		for i := range matchers {
+			matchers[i] = guard(matchers[i])
+		}
+	}
+
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
+}
+
+func (a *accessChecker) matchAllowedRID(r AccessCheckable) (*types.ResourceID, bool) {
+	for _, rid := range a.info.AllowedResourceIDs {
+		if rid.ClusterName == a.localCluster && matchesUCRResource(rid, r) {
+			return &rid, true
+		}
+	}
+	return nil, false
 }
 
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
