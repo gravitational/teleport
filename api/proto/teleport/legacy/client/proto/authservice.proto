@@ -995,6 +995,24 @@ message GetWebTokensResponse {
   repeated types.WebTokenV3 Tokens = 1 [(gogoproto.jsontag) = "tokens"];
 }
 
+// ListWebTokensRequest contains all the requested web tokens.
+message ListWebTokensRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListWebTokensResponse contains all the requested web tokens.
+message ListWebTokensResponse {
+  // Tokens is a list of web tokens.
+  repeated types.WebTokenV3 tokens = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // UpsertKubernetesServerRequest are the parameters used to add or update a
 // kubernetes server.
 message UpsertKubernetesServerRequest {
@@ -3059,6 +3077,8 @@ service AuthService {
   rpc GetWebToken(types.GetWebTokenRequest) returns (GetWebTokenResponse);
   // GetWebTokens gets all web tokens.
   rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
+  // ListWebTokens returns a page of web tokens.
+  rpc ListWebTokens(ListWebTokensRequest) returns (ListWebTokensResponse);
   // DeleteWebToken deletes a web token.
   rpc DeleteWebToken(types.DeleteWebTokenRequest) returns (google.protobuf.Empty);
   // DeleteAllWebTokens deletes all web tokens.
