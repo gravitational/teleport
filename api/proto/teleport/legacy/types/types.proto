@@ -5559,6 +5559,9 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+
+  // Nonce is bound to the authorization request and must match the ID token's nonce claim.
+  string nonce = 25 [(gogoproto.jsontag) = "nonce,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
