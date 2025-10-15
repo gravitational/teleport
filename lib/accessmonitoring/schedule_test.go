@@ -123,6 +123,46 @@ func TestInSchedule(t *testing.T) {
 			assertInSchedule: require.False,
 		},
 		{
+			description: "invalid timezone",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "invalid",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "14:00",
+								End:     "15:00",
+							},
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "unknown time zone")
+			},
+			assertInSchedule: require.False,
+		},
+		{
+			description: "different timezone",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "America/Los_Angeles",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "14:00",
+								End:     "15:00",
+							},
+						},
+					},
+				},
+			},
+			assertErr:        require.NoError,
+			assertInSchedule: require.False,
+		},
+		{
 			description: "different weekday",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
