@@ -449,7 +449,10 @@ type TOTPRegisterChallenge struct {
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
 	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
 	if _, ok := extraHeaders["User-Agent"]; !ok {
-		extraHeaders["User-Agent"] = fmt.Sprintf("api/%s", teleport.Version)
+		if extraHeaders == nil {
+			extraHeaders = make(map[string]string)
+		}
+		extraHeaders["User-Agent"] = "api/" + teleport.Version
 	}
 	log.DebugContext(context.Background(), "Initializing proxy HTTPS client",
 		"proxy_addr", proxyAddr,
