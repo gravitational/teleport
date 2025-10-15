@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"iter"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -371,20 +372,55 @@ func (r *IdentityService) GetWebToken(ctx context.Context, req types.GetWebToken
 }
 
 // GetWebTokens gets all web tokens.
+// Deprecated: Prefer paginated variant such as [ListWebTokens] or [RangeWebTokens]
 func (r *IdentityService) GetWebTokens(ctx context.Context) (out []types.WebToken, err error) {
-	startKey := backend.ExactKey(webPrefix, tokensPrefix)
-	result, err := r.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	tokens, err := stream.Collect(r.RangeWebTokens(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, item := range result.Items {
-		token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
+	return tokens, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (r *IdentityService) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	return generic.CollectPageAndCursor(r.RangeWebTokens(ctx, start, ""), limit, types.WebToken.GetToken)
+}
+
+// RangeWebTokens returns web tokens within the range [start, end).
+func (r *IdentityService) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	mapFn := func(item backend.Item) (types.WebToken, bool) {
+		token, err := services.UnmarshalWebToken(item.Value,
+			services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			slog.WarnContext(ctx, "Failed to unmarshal web token",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
 		}
-		out = append(out, token)
+		return token, true
 	}
-	return out, nil
+
+	tokenKey := backend.NewKey(webPrefix, tokensPrefix)
+	startKey := tokenKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(tokenKey)
+	if end != "" {
+		endKey = tokenKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			r.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(token types.WebToken) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || token.GetToken() < end
+		})
 }
 
 // UpsertWebToken updates the existing or inserts a new web token.
