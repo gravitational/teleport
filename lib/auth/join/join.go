@@ -268,6 +268,10 @@ type RegisterResult struct {
 // running on a different host than the auth server. This method requires a
 // provision token that will be used to authenticate as an identity that should
 // be allowed to join the cluster.
+//
+// Deprecated: this function is superceded by lib/join/joinclient.Join
+//
+// TODO(nklaassen): DELETE IN 20
 func Register(ctx context.Context, params RegisterParams) (result *RegisterResult, err error) {
 	ctx, span := tracer.Start(ctx, "Register")
 	defer func() { tracing.EndSpan(span, err) }()
