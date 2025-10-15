@@ -101,15 +101,12 @@ export class ClusterStore {
    * Makes network calls to get cluster details and its leaf clusters.
    */
   async sync(uri: RootClusterUri): Promise<void> {
+    let cluster: Cluster;
+    let leafs: Cluster[];
     try {
-      const { cluster, leafs } = await getClusterAndLeafs(this.tshdClient, uri);
-
-      await this.update(draft => {
-        draft.set(cluster.uri, cluster);
-        leafs.forEach(leaf => {
-          draft.set(leaf.uri, leaf);
-        });
-      });
+      const clusterAndLeafs = await getClusterAndLeafs(this.tshdClient, uri);
+      cluster = clusterAndLeafs.cluster;
+      leafs = clusterAndLeafs.leafs;
     } catch (error) {
       await this.update(draft => {
         const cluster = draft.get(uri);
@@ -123,6 +120,13 @@ export class ClusterStore {
       });
       throw error;
     }
+
+    await this.update(draft => {
+      draft.set(cluster.uri, cluster);
+      leafs.forEach(leaf => {
+        draft.set(leaf.uri, leaf);
+      });
+    });
   }
 
   getRootClusters(): Cluster[] {
@@ -184,6 +188,6 @@ async function getClusterAndLeafs(tshdClient: TshdClient, uri: RootClusterUri) {
 
   return {
     cluster: resolved[0].response,
-    leafs: new Map(resolved[1].response.clusters.map(c => [c.uri, c])),
+    leafs: resolved[1].response.clusters,
   };
 }
