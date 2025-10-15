@@ -936,6 +936,13 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		return nil, trace.Wrap(err)
 	}
 
+	// Ensure the <hostname>.<clustername> principal is included and repair the
+	// host certificates if it is not. This is not included in the output of
+	// process.getAdditionalPrincipals which is usually called while joining
+	// before the cluster name is known.
+	additionalPrincipals = append(additionalPrincipals,
+		process.Config.Hostname+"."+conn.ClusterName())
+
 	var assertionID string
 	var systemRoles []types.SystemRole
 	var wantsSystemRoleRepair bool
