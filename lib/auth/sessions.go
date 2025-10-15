@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -350,7 +349,7 @@ func (a *Server) newWebSession(
 	}
 
 	UserLoginCount.With(prometheus.Labels{
-		teleport.TagUserAgent: fmt.Sprintf("web/%s", teleport.Version),
+		teleport.TagUserAgent: "web/" + teleport.Version,
 		teleport.TagProxy:     req.LoginProxyPublicAddr,
 	}).Inc()
 
@@ -619,7 +618,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
 
 	UserLoginCount.With(prometheus.Labels{
-		teleport.TagUserAgent: fmt.Sprintf("web/%s", teleport.Version),
+		teleport.TagUserAgent: "web/" + teleport.Version,
 		teleport.TagProxy:     req.LoginProxyPublicAddr,
 	}).Inc()
 
