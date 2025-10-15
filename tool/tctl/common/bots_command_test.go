@@ -24,10 +24,15 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,6 +43,8 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -231,7 +238,7 @@ func TestUpdateBotRoles(t *testing.T) {
 				botRoles: tt.set,
 			}
 
-			err = cmd.updateBotRoles(context.TODO(), &mockClient, bot, fieldMask)
+			err = cmd.updateBotRoles(t.Context(), &mockClient, bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
@@ -303,4 +310,190 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	buf.Reset()
+}
+
+func TestListBotInstances(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	ctx := t.Context()
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	instance0 := createBotInstance(t, ctx, process)
+	instance1 := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
+		instance.Status.InitialHeartbeat.Hostname = "test-hostname-3"
+		instance.Status.InitialHeartbeat.Version = "19.0.1"
+	})
+	instance2 := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
+		instance.Spec.BotName = "test-bot-2"
+		instance.Status.InitialHeartbeat.Hostname = "test-hostname-2"
+		instance.Status.InitialHeartbeat.Version = "18.1.0"
+	})
+
+	// Give the auth cache a chance to catch-up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, _, err := process.GetAuthServer().ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, res, 3)
+	}, time.Second*10, time.Millisecond*50)
+
+	t.Run("defaults", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout: &buf,
+			format: teleport.JSON,
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 3)
+	})
+
+	t.Run("filter by bot name", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: "test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 2)
+		assertContainsInstance(t, res, instance0.GetSpec().GetInstanceId())
+		assertContainsInstance(t, res, instance1.GetSpec().GetInstanceId())
+	})
+
+	t.Run("filter with search", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout: &buf,
+			format: teleport.JSON,
+			search: "test-hostname-2",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, instance2.GetSpec().GetInstanceId())
+	})
+
+	t.Run("filter with query", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout: &buf,
+			format: teleport.JSON,
+			query:  `status.latest_heartbeat.hostname == "test-hostname-2"`,
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, instance2.GetSpec().GetInstanceId())
+	})
+
+	t.Run("sort by field", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:    &buf,
+			format:    teleport.JSON,
+			sortIndex: "version_latest",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 3)
+		assert.Equal(t, "18.1.0", res[0].GetStatus().GetInitialHeartbeat().GetVersion())
+		assert.Equal(t, "19.0.0", res[1].GetStatus().GetInitialHeartbeat().GetVersion())
+		assert.Equal(t, "19.0.1", res[2].GetStatus().GetInitialHeartbeat().GetVersion())
+	})
+
+	t.Run("sort order", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:    &buf,
+			format:    teleport.JSON,
+			sortIndex: "version_latest",
+			sortOrder: "descending",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 3)
+		assert.Equal(t, "19.0.1", res[0].GetStatus().GetInitialHeartbeat().GetVersion())
+		assert.Equal(t, "19.0.0", res[1].GetStatus().GetInitialHeartbeat().GetVersion())
+		assert.Equal(t, "18.1.0", res[2].GetStatus().GetInitialHeartbeat().GetVersion())
+	})
+}
+
+func assertContainsInstance(t *testing.T, res []*machineidv1pb.BotInstance, instanceId string) {
+	assert.True(t, slices.ContainsFunc(res, func(in *machineidv1pb.BotInstance) bool {
+		return in.GetSpec().GetInstanceId() == instanceId
+	}))
+}
+
+func createBotInstance(t *testing.T, ctx context.Context, process *service.TeleportProcess, options ...func(instance *machineidv1pb.BotInstance)) (result *machineidv1pb.BotInstance) {
+	heartbeat := &machineidv1pb.BotInstanceStatusHeartbeat{
+		RecordedAt: timestamppb.New(time.Now()),
+		IsStartup:  true,
+		Version:    "19.0.0",
+		Hostname:   "test-hostname-1",
+		Uptime:     durationpb.New(1 * time.Hour),
+		Os:         "linux",
+	}
+
+	base := &machineidv1pb.BotInstance{
+		Spec: &machineidv1pb.BotInstanceSpec{
+			BotName:    "test-bot-1",
+			InstanceId: uuid.New().String(),
+		},
+		Status: &machineidv1pb.BotInstanceStatus{
+			InitialHeartbeat: heartbeat,
+			LatestHeartbeats: []*machineidv1pb.BotInstanceStatusHeartbeat{
+				heartbeat,
+			},
+		},
+	}
+
+	for _, fn := range options {
+		fn(base)
+	}
+
+	result, err := process.GetAuthServer().CreateBotInstance(ctx, base)
+	require.NoError(t, err)
+
+	return
 }
