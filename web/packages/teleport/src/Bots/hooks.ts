@@ -16,8 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getBot } from 'teleport/services/bot/bot';
+import { getBot, listBotTokens } from 'teleport/services/bot/bot';
 import { createQueryHook } from 'teleport/services/queryHelpers';
 
 export const { createQueryKey: createGetBotQueryKey, useQuery: useGetBot } =
   createQueryHook(['bot', 'get'], getBot);
+
+export const {
+  createQueryKey: createListBotTokensQueryKey,
+  useQuery: useListBotTokens,
+} = createQueryHook(['bot', 'token', 'list'], listBotTokens);

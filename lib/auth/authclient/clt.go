@@ -49,9 +49,11 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -83,7 +85,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
+		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -574,7 +576,7 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (c *Client) UpdatePresence(ctx context.Context, _, _, _ string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -667,8 +669,8 @@ func (c *Client) DeleteStaticTokens() error {
 }
 
 // GetStaticTokens returns a list of static register tokens
-func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	return c.APIClient.GetStaticTokens(ctx)
 }
 
 // SetStaticTokens sets a list of static register tokens
@@ -867,6 +869,9 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -914,6 +919,9 @@ type SAMLAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -953,6 +961,9 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -1105,6 +1116,8 @@ type IdentityService interface {
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1157,6 +1170,8 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
+	// Deprecated: use [ListProvisionTokens] istead.
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
@@ -1213,6 +1228,41 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}, nil
 }
 
+func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
+	// Convert from interface type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+
+	return &proto.ValidateTrustedClusterRequest{
+		Token:           v.Token,
+		TeleportVersion: v.TeleportVersion,
+		CertAuthorities: cas,
+	}, nil
+}
+
+func ValidateTrustedClusterRequestFromProto(
+	req *proto.ValidateTrustedClusterRequest,
+) *ValidateTrustedClusterRequest {
+	cas := make([]types.CertAuthority, 0, len(req.CertAuthorities))
+	for _, certAuthority := range req.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterRequest{
+		Token:           req.Token,
+		CAs:             cas,
+		TeleportVersion: req.TeleportVersion,
+	}
+}
+
 type ValidateTrustedClusterRequestRaw struct {
 	Token           string   `json:"token"`
 	CAs             [][]byte `json:"certificate_authorities"`
@@ -1259,6 +1309,39 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	}, nil
 }
 
+// ToProto converts ValidateTrustedClusterResponse to its proto representation.
+func (v *ValidateTrustedClusterResponse) ToProto() (*proto.ValidateTrustedClusterResponse, error) {
+	// Cast interface to underlying type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+	return &proto.ValidateTrustedClusterResponse{
+		CertAuthorities: cas,
+	}, nil
+}
+
+// ValidateTrustedClusterResponseFromProto converts the proto representation of
+// ValidateTrustedClusterResponse to its native representation.
+func ValidateTrustedClusterResponseFromProto(
+	resp *proto.ValidateTrustedClusterResponse,
+) *ValidateTrustedClusterResponse {
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthorities))
+	for _, certAuthority := range resp.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterResponse{
+		CAs: cas,
+	}
+}
+
 type ValidateTrustedClusterResponseRaw struct {
 	CAs [][]byte `json:"certificate_authorities"`
 }
@@ -1284,6 +1367,11 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
+
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string `json:"scope,omitempty"`
 
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
@@ -1398,6 +1486,17 @@ type SSHLoginResponse struct {
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
+}
+
+// ClientOptions contains options passed from the control plane to the client at
+// login time.
+type ClientOptions struct {
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if the client does not otherwise specify a relay.
+	DefaultRelayAddr string `json:"default_relay_addr"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1475,9 +1574,11 @@ type ClientI interface {
 	types.Events
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
 
 	DynamicDesktopClient() *dynamicwindows.Client
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1665,6 +1766,13 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
+	// WorkloadIdentityResourceServiceClient returns a client for interacting
+	// with workload identity resources.
+	// Clients connecting to  older Teleport versions, still get an access list
+	// client when calling this method, but all RPCs will return "not
+	// implemented" errors (as per the default gRPC behavior).
+	WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient
+
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -1691,12 +1799,6 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
-
-	// WorkloadIdentityServiceClient returns a workload identity service client.
-	// Clients connecting to  older Teleport versions, still get a client
-	// when calling this method, but all RPCs will return "not implemented" errors
-	// (as per the default gRPC behavior).
-	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
 
 	// WorkloadIdentityIssuanceClient returns a workload identity issuance service client.
 	// Clients connecting to  older Teleport versions, still get a client
@@ -1777,4 +1879,15 @@ type ClientI interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+
+	// RecordingMetadataServiceClient returns a client for the session recording
+	// metadata service.
+	RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient
+
+	// SummarizerServiceClient returns a client for the session recording
+	// summarizer service.
+	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
 }

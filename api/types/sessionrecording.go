@@ -47,6 +47,9 @@ type SessionRecordingConfig interface {
 	// GetEncrypted gets if session recordings should be encrypted or not.
 	GetEncrypted() bool
 
+	// GetEncryptionConfig gets the encryption config from the session recording config.
+	GetEncryptionConfig() *SessionRecordingEncryptionConfig
+
 	// GetEncryptionKeys gets the encryption keys for the session recording config.
 	GetEncryptionKeys() []*AgeEncryptionKey
 
@@ -56,6 +59,9 @@ type SessionRecordingConfig interface {
 
 	// Clone returns a copy of the resource.
 	Clone() SessionRecordingConfig
+
+	// CheckAndSetDefaults verifies the constraints for a SessionRecordingConfig
+	CheckAndSetDefaults() error
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
@@ -176,12 +182,17 @@ func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 
 // GetEncrypted gets if session recordings should be encrypted or not.
 func (c *SessionRecordingConfigV2) GetEncrypted() bool {
-	encryption := c.Spec.Encryption
-	if encryption == nil {
-		return false
+	encryption := c.GetEncryptionConfig()
+	return encryption != nil && encryption.Enabled
+}
+
+// GetEncryptionConfig gets the encryption config from the session recording config.
+func (c *SessionRecordingConfigV2) GetEncryptionConfig() *SessionRecordingEncryptionConfig {
+	if c == nil {
+		return nil
 	}
 
-	return encryption.Enabled
+	return c.Spec.Encryption
 }
 
 // GetEncryptionKeys gets the encryption keys for the session recording config.
@@ -218,7 +229,8 @@ func (c *SessionRecordingConfigV2) SetEncryptionKeys(keys iter.Seq[*AgeEncryptio
 
 	}
 
-	if !keysChanged || len(newKeys) == 0 || len(existingKeys) == len(addedKeys) {
+	shouldUpdate := len(addedKeys) > 0 && (keysChanged || len(existingKeys) != len(addedKeys))
+	if !shouldUpdate {
 		return false
 	}
 

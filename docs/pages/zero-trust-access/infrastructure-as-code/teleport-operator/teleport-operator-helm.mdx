@@ -1,7 +1,8 @@
 ---
 title: Kubernetes Operator in teleport-cluster Helm chart
 description: Deploy the operator alongside your Helm-deployed Teleport Cluster.
-labels:
+tags:
+ - infrastructure-as-code
  - how-to
  - zero-trust
 ---
@@ -14,6 +15,17 @@ If your Teleport cluster is not deployed using the `teleport-cluster` Helm chart
 (Teleport Cloud, manually deployed, deployed via Terraform, ...), you need to follow
 [the standalone operator guide](./teleport-operator-standalone.mdx) instead.
 </Admonition>
+
+## How it works
+
+The `teleport-cluster` Helm chart includes the `teleport-operator` chart as a
+dependency. If you install the `teleport-cluster` chart with the
+`operator.enabled` values field set to `true`, the chart launches one or more
+pods for the Teleport Kubernetes Operator. It also creates a join token that
+allows the Teleport Kubernetes Operator to establish trust with your Teleport
+cluster, plus a Teleport role and Kubernetes service account for the Operator.
+Finally, the `teleport-operator` chart installs custom resource definitions that
+enable the Operator to manage Teleport resources.
 
 ## Prerequisites
 
@@ -107,7 +119,7 @@ roles.
 
 Helm Chart parameters are documented in the [`teleport-cluster` Helm chart reference](../../../reference/helm-reference/teleport-cluster.mdx).
 
-See the [Helm Deployment guides](../../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx) detailing specific setups like running Teleport on AWS or GCP.
+See the [Helm Deployment guides](../../deploy-a-cluster/helm-deployments/helm-deployments.mdx) detailing specific setups like running Teleport on AWS or GCP.
 
 ## Troubleshooting
 

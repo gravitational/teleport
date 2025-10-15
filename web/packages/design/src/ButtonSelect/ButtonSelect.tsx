@@ -18,9 +18,26 @@
 
 import styled from 'styled-components';
 
-import Flex from 'design/Flex';
+import { Button } from 'design/Button';
+import Flex, { FlexProps } from 'design/Flex';
+import { HoverTooltip } from 'design/Tooltip';
 
-import { Button } from '../Button/Button';
+type OptionValue = string | number | bigint;
+
+type Option<T> = {
+  value: T;
+  label: string;
+  disabled?: boolean;
+  tooltip?: string;
+};
+
+type ButtonSelectProps<T extends readonly Option<OptionValue>[]> = {
+  options: T;
+  activeValue: T[number]['value'];
+  onChange: (selectedValue: T[number]['value']) => void;
+  fullWidth?: boolean;
+  disabled?: boolean;
+};
 
 /**
  * ButtonSelect is a segmented button that allows users to select one of the provided options.
@@ -45,48 +62,52 @@ import { Button } from '../Button/Button';
  *   />
  * );
  */
-export const ButtonSelect = ({
+export const ButtonSelect = <T extends readonly Option<OptionValue>[]>({
   options,
   activeValue,
   onChange,
-}: {
-  options: { value: string; label: string }[];
-  activeValue: string;
-  onChange: (selectedvalue: string) => void;
-}) => {
-  const updateValue = (newValue: string) => {
+  disabled = false,
+  fullWidth = false,
+}: ButtonSelectProps<T> & FlexProps) => {
+  const updateValue = (newValue: T[number]['value']) => {
     if (activeValue !== newValue) {
       onChange(newValue);
     }
   };
 
   return (
-    <Wrapper>
+    <Wrapper $fullWidth={fullWidth}>
       {options.map(option => {
         const isActive = activeValue === option.value;
         return (
-          <ButtonSelectButton
-            key={option.value}
-            aria-label={option.label}
-            aria-checked={isActive}
-            onClick={() => updateValue(option.value)}
-            intent={isActive ? 'primary' : 'neutral'}
-          >
-            {option.label}
-          </ButtonSelectButton>
+          <HoverTooltip tipContent={option.tooltip} key={option.label}>
+            <ButtonSelectButton
+              aria-label={option.label}
+              aria-checked={isActive}
+              onClick={() =>
+                !(option.disabled || disabled) && updateValue(option.value)
+              }
+              intent={isActive ? 'primary' : 'neutral'}
+              disabled={option.disabled || disabled}
+            >
+              {option.label}
+            </ButtonSelectButton>
+          </HoverTooltip>
         );
       })}
     </Wrapper>
   );
 };
 
-const Wrapper = styled(Flex)`
+const Wrapper = styled(Flex)<{ $fullWidth?: boolean }>`
+  ${({ $fullWidth }) => !$fullWidth && 'width: min-content;'}
   & > * {
     min-width: fit-content;
   }
 `;
 
 const ButtonSelectButton = styled(Button)`
+  flex: 1 1 0;
   border-radius: 0px;
 
   &:focus-visible {

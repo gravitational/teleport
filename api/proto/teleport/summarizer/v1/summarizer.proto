@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
@@ -42,6 +44,22 @@ message InferenceModelSpec {
     // and specifies OpenAI-specific parameters.
     OpenAIProvider openai = 1;
   }
+  // MaxSessionLengthBytes is the maximum session length that can be sent to
+  // inference provider. Currently, it's determined by the size of model's
+  // context window; future versions of Teleport will allow summarizing larger
+  // sessions by splitting them.
+  //
+  // Inference providers will reject requests that are larger than given
+  // model's context window. Since context windows are usually sized in tokens,
+  // this value is an approximation. Assuming 2 bytes per input token should be
+  // safe.
+  //
+  // Currently, Teleport will outright reject sessions larger than this limit;
+  // future versions will split sessions in chunks, treating this size as a
+  // maximum.
+  //
+  // If unset or set to 0, defaults to 1MB.
+  int64 max_session_length_bytes = 2;
 }
 
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
@@ -106,4 +124,44 @@ message InferencePolicySpec {
   // to select sessions for summarization. If it's empty, all sessions that
   // match the list of kinds will be summarized using this model.
   string filter = 3;
+}
+
+// SummaryState is the state of the summarization process.
+enum SummaryState {
+  SUMMARY_STATE_UNSPECIFIED = 0;
+  SUMMARY_STATE_PENDING = 1;
+  SUMMARY_STATE_SUCCESS = 2;
+  SUMMARY_STATE_ERROR = 3;
+}
+
+// Summary represents a summary of a session recording. This format is used to
+// store the summaries in the session storage and return it with gRPC.
+message Summary {
+  // sessionId is an ID of the session whose recording got summarized.
+  string session_id = 1;
+  // State is the state of the summarization process.
+  SummaryState state = 2;
+  // InferenceStartedAt is the time when the summarization process started.
+  google.protobuf.Timestamp inference_started_at = 3;
+  // InferenceFinishedAt is the time when the summarization process finished.
+  google.protobuf.Timestamp inference_finished_at = 4;
+  // Content is the main text content of the summary, stored in Markdown
+  // format. Available if the state is SUMMARY_STATE_SUCCESS.
+  string content = 5;
+  // ModelName is the name of the `InferenceModel` resource that was used to
+  // generate this summary.
+  string model_name = 6;
+  // SessionEndEvent is the event that ended the summarized session. Session
+  // end events carry the most complete set of data that Teleport has about a
+  // given session. Used for checking access based on RBAC rule "where"
+  // filters.
+  //
+  // The event is stored in an unstructured form, as storing an instance of
+  // events.OneOf posed a number of technical challenges with JSON
+  // serialization as a subcomponent of this message. These challenges stem
+  // from the fact that audit events have gogoproto extensions.
+  google.protobuf.Struct session_end_event = 7;
+  // ErrorMessage is an error message if the summarization failed. Available if
+  // the state is SUMMARY_STATE_ERROR.
+  string error_message = 8;
 }

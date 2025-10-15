@@ -1,7 +1,8 @@
 ---
 title: Teleport Kubernetes Operator
 description: Easily manage Teleport resources from Kubernetes
-labels:
+tags:
+ - infrastructure-as-code
  - conceptual
  - zero-trust
 ---
@@ -27,7 +28,7 @@ Only one operator deployment should run against a Teleport cluster. Else, differ
 could cause instability and non-deterministic behaviour.
 </Admonition>
 
-Supported Teleport resources are listed in [the Operator Reference Page](../../../reference/operator-resources/operator-resources.mdx).
+Supported Teleport resources are listed in [the Operator Reference Page](../../../reference/infrastructure-as-code/operator-resources/operator-resources.mdx).
 
 ### Setting up the operator
 
@@ -82,4 +83,4 @@ See [the dedicated guide](secret-lookup.mdx) for more details.
 ## Next steps
 
 - Follow the ["Managing users and roles with IaC" guide](../managing-resources/user-and-role.mdx).
-- Check out [access controls documentation](../../../admin-guides/access-controls/access-controls.mdx).
+- Check out [access controls documentation](../../authentication/authentication.mdx).

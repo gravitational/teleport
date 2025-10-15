@@ -34,9 +34,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 
@@ -60,7 +60,7 @@ func TestTerraformJoin(t *testing.T) {
 
 	// Test setup: create a fake Kubernetes signer that will allow us to use the kubernetes/jwks join method
 	clock := clockwork.NewRealClock()
-	signer, err := fakejoin.NewKubernetesSigner(clock)
+	signer, err := fakeissuer.NewKubernetesSigner(clock)
 	require.NoError(t, err)
 
 	jwks, err := signer.GetMarshaledJWKS()
@@ -171,17 +171,24 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 	require.NoError(t, os.Setenv("TF_ACC", "true"))
 
 	// Test setup: start a full Teleport process including a proxy.
-	process := testenv.MakeTestServer(t)
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
-	var err error
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
 	// Test setup: get the terraform role
 	tfRole, err := clt.GetRole(t.Context(), teleport.PresetTerraformProviderRoleName)
 	require.NoError(t, err)
 
 	// Test setup: create a fake Kubernetes signer that will allow us to use the kubernetes/jwks join method
 	clock := clockwork.NewRealClock()
-	signer, err := fakejoin.NewKubernetesSigner(clock)
+	signer, err := fakeissuer.NewKubernetesSigner(clock)
 	require.NoError(t, err)
 
 	jwks, err := signer.GetMarshaledJWKS()

@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
@@ -222,13 +223,17 @@ func TestBackends(t *testing.T) {
 				publicKeys[i] = signer.Public()
 			}
 
+			// generate an encryption key that should not be cleaned up
+			encryptionKey, decrypter, hash, err := backend.generateDecrypter(ctx, cryptosuites.RSA4096)
+			require.NoError(t, err)
+
 			// AWS KMS keystore will not delete any keys created in the past 5
 			// minutes.
 			pack.clock.Advance(6 * time.Minute)
 
 			// say that only the first key is in use, delete the rest
 			usedKeys := [][]byte{rawPrivateKeys[0]}
-			err := backend.deleteUnusedKeys(ctx, usedKeys)
+			err = backend.deleteUnusedKeys(ctx, usedKeys)
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// make sure the first key is still good
@@ -236,6 +241,23 @@ func TestBackends(t *testing.T) {
 			require.NoError(t, err)
 			_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 			require.NoError(t, err)
+
+			// make sure the encryption key is still good
+			plaintext := "test message"
+			pubKey, ok := decrypter.Public().(*rsa.PublicKey)
+			require.True(t, ok, "expected *rsa.PublicKey, got %T", decrypter.Public())
+
+			cipher, err := rsa.EncryptOAEP(hash.New(), rand.Reader, pubKey, []byte(plaintext), nil)
+			require.NoError(t, err)
+
+			decrypter, err = backend.getDecrypter(ctx, encryptionKey, decrypter.Public(), hash)
+			require.NoError(t, err)
+
+			decrypted, err := decrypter.Decrypt(rand.Reader, cipher, &rsa.OAEPOptions{
+				Hash: hash,
+			})
+			require.NoError(t, err)
+			require.Equal(t, plaintext, string(decrypted))
 
 			// make sure all other keys are deleted
 			for i := 1; i < numKeys; i++ {
@@ -349,14 +371,18 @@ func TestManager(t *testing.T) {
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
 
 			decrypter, err := manager.GetDecrypter(ctx, encKeyPair)
-
 			require.NoError(t, err)
 			require.NotNil(t, decrypter)
 
 			// Try encrypting and decrypting some data
 			msg := []byte("teleport")
 			require.NoError(t, err)
-			ciphertext, err := encKeyPair.EncryptOAEP(msg)
+			pubKey, err := x509.ParsePKIXPublicKey(encKeyPair.PublicKey)
+			require.NoError(t, err)
+			pubKeyRSA, ok := pubKey.(*rsa.PublicKey)
+			require.True(t, ok, "expected RSA public key")
+
+			ciphertext, err := rsa.EncryptOAEP(crypto.Hash(encKeyPair.Hash).New(), rand.Reader, pubKeyRSA, msg, nil)
 			require.NoError(t, err)
 
 			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)
@@ -579,9 +605,21 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		},
 		kmsClient:         testGCPKMSClient,
 		clockworkOverride: clock,
+		RSAKeyPairSource: func(alg cryptosuites.Algorithm) ([]byte, []byte, error) {
+			switch alg {
+			case cryptosuites.RSA2048:
+				return testRSA2048PrivateKeyPEM, nil, nil
+			case cryptosuites.RSA4096:
+				return testRSA4096PrivateKeyPEM, nil, nil
+			}
+
+			return nil, nil, trace.Errorf("unexpected algorithm: %v", alg)
+		},
 	}
 
-	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{
+		rsaKeyPairSource: baseOpts.RSAKeyPairSource,
+	})
 	backends = append(backends, &backendDesc{
 		name:                "software",
 		config:              servicecfg.KeystoreConfig{},

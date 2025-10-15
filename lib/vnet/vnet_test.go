@@ -33,6 +33,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1430,7 +1431,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, fmt.Sprintf("%s:%d", tc.dialAddr, tc.dialPort), clientConfig)
+			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")

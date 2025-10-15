@@ -132,7 +132,10 @@ function SearchContent({
       subsection.searchableTags?.some(
         tag =>
           searchInput.length > 0 &&
-          tag.toLowerCase().includes(searchInput.toLocaleLowerCase())
+          (tag.toLowerCase().includes(searchInput.toLocaleLowerCase()) ||
+            subsection?.title
+              ?.toLowerCase()
+              .includes(searchInput.toLocaleLowerCase()))
       )
     )
   );
@@ -241,7 +244,7 @@ const SearchInput = styled.input`
   box-sizing: border-box;
   font-size: ${props => props.theme.fontSizes[2]}px;
   height: 32px;
-  width: 192px;
+  width: 232px;
   ${color}
   ${space}
   ${height}

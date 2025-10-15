@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
+func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
 	ctx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
@@ -71,7 +71,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 
 	ctx := t.Context()
 
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -162,7 +162,7 @@ func TestMonitorLockInForce(t *testing.T) {
 
 	ctx := t.Context()
 
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -209,7 +209,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 
 	ctx := t.Context()
 
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -259,7 +259,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 }
 
 func TestWritesDisconnectMessage(t *testing.T) {
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -313,7 +313,7 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
 	ctx := t.Context()
 
-	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})

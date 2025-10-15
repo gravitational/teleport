@@ -21,14 +21,17 @@ package kinit
 import (
 	"context"
 	_ "embed"
+	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -161,4 +164,37 @@ func TestKRBConfString(t *testing.T) {
 	krb5Config, err := newKrb5Config(cfg)
 	require.NoError(t, err)
 	require.Equal(t, expectedConfString, krb5Config)
+}
+
+type mockConnector struct {
+}
+
+func (m *mockConnector) GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error) {
+	return "S-1-5-21-2191801808-3167526388-2669316733-1104", nil
+}
+
+func TestGetCertificate(t *testing.T) {
+	auth := &mockAuthClient{
+		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+			require.NotEmpty(t, request.CRLDomain)
+
+			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			require.Equal(t, "CN=alice", csr.Subject.String())
+			require.Len(t, csr.Extensions, 3)
+			return generateDatabaseCert(ctx, request)
+		},
+	}
+
+	getter := &dbCertGetter{
+		logger:        slog.New(slog.DiscardHandler),
+		auth:          auth,
+		domain:        "example.com",
+		ldapConnector: &mockConnector{},
+	}
+
+	_, err := getter.getCertificate(context.Background(), "alice")
+	require.NoError(t, err)
 }

@@ -20,13 +20,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"time"
 
-	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -50,8 +47,6 @@ type ldapConnector struct {
 	authClient winpki.AuthInterface
 
 	ldapConfig ldapConnectionConfig
-
-	dialLDAPServerFunc func(ctx context.Context) (ldap.Client, error) // only used in tests.
 }
 
 type LDAPConnector interface {
@@ -101,51 +96,6 @@ func newLDAPConnector(logger *slog.Logger, authClient winpki.AuthInterface, adCo
 	}, nil
 }
 
-const (
-	// ldapDialTimeout is the timeout for dialing the LDAP server
-	// when making an initial connection
-	ldapDialTimeout = 15 * time.Second
-	// ldapRequestTimeout is the timeout for making LDAP requests.
-	// It is larger than the dial timeout because LDAP queries in large
-	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 45 * time.Second
-
-	// attrSAMAccountName is the SAM Account name of an LDAP object.
-	attrSAMAccountName = "sAMAccountName"
-	// attrSAMAccountType is the SAM Account type for an LDAP object.
-	attrSAMAccountType = "sAMAccountType"
-	// AccountTypeUser is the SAM account type for user accounts.
-	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
-	// (SAM_USER_OBJECT)
-	AccountTypeUser = "805306368"
-)
-
-func (s *ldapConnector) dialLDAPServer(ctx context.Context, clusterName string) (ldap.Client, error) {
-	if s.dialLDAPServerFunc != nil {
-		return s.dialLDAPServerFunc(ctx)
-	}
-
-	tc, err := s.tlsConfigForLDAP(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ldapURL := "ldaps://" + s.ldapConfig.address
-	s.logger.DebugContext(ctx, "Dialing LDAP server", "url", ldapURL)
-
-	conn, err := ldap.DialURL(
-		ldapURL,
-		ldap.DialWithDialer(&net.Dialer{Timeout: ldapDialTimeout}),
-		ldap.DialWithTLSConfig(tc),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conn.SetTimeout(ldapRequestTimeout)
-
-	return conn, nil
-}
-
 // GetActiveDirectorySID queries LDAP to get SID of a given username.
 func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error) {
 	clusterName, err := s.authClient.GetClusterName(ctx)
@@ -153,39 +103,24 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 		return "", trace.Wrap(err)
 	}
 
-	var activeDirectorySID string
-	// Find the user's SID
-	filter := winpki.CombineLDAPFilters([]string{
-		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
-	})
-
-	domainDN := winpki.DomainDN(s.ldapConfig.domain)
-
-	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
-
-	ldapConn, err := s.dialLDAPServer(ctx, clusterName.GetClusterName())
+	tc, err := s.tlsConfigForLDAP(ctx, clusterName.GetClusterName())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	lc := winpki.NewLDAPClient(ldapConn)
+	s.logger.DebugContext(ctx, "Querying LDAP for objectSid of Windows user", "username", username)
+	client, err := winpki.DialLDAP(ctx, &winpki.LDAPConfig{
+		Addr:   s.ldapConfig.address,
+		Domain: s.ldapConfig.domain,
+		Logger: s.logger,
+	}, tc)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
-	entries, err := lc.ReadWithFilter(domainDN, filter, []string{winpki.AttrObjectSid})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(entries) == 0 {
-		return "", trace.NotFound("could not find Windows account %q", username)
-	} else if len(entries) > 1 {
-		s.logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
-	}
-	activeDirectorySID, err = winpki.ADSIDStringFromLDAPEntry(entries[0])
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	s.logger.DebugContext(ctx, "Found objectSid Windows user", "username", username, "sid", activeDirectorySID)
-	return activeDirectorySID, nil
+	defer client.Close()
+
+	return client.GetActiveDirectorySID(ctx, username)
 }
 
 func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string) (*tls.Config, error) {

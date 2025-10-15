@@ -53,11 +53,8 @@ pnpm install && make build/tsh
 
 The app depends on Rust WASM code. To compile it, the following tools have to be installed:
 * `Rust` and `Cargo`. The required version is specified by `RUST_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11).
-* [`wasm-pack`](https://github.com/rustwasm/wasm-pack). The required version is specified by `WASM_PACK_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12).
-* [`binaryen`](https://github.com/WebAssembly/binaryen) which contains `wasm-opt`. This is required on on linux aarch64 (64-bit ARM).
-  You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
 
-To automatically install `wasm-pack`, run the following command:
+To automatically install `wasm-bindgen-cli` and `wasm-opt`, run the following command:
 ```shell
 make ensure-wasm-deps
 ```
@@ -111,12 +108,6 @@ make grpc
 ```
 
 Resulting Go and JS files can be found in `gen/proto`.
-
-### Generating shared process gRPC protobuf files
-
-Run `generate-grpc-shared` script from `teleterm/package.json`.
-It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
-Resulting files can be found in `sharedProcess/api/protogen`.
 
 ## Build process
 
@@ -329,18 +320,18 @@ sequenceDiagram
     PS->>PHS: createPtyProcess(options)
     PHS->>PP: new PtyProcess()
     PHS-->>PS: ptyId of the process is returned
-    PS->>PHS: establishExchangeEvents(ptyId) channel
+    PS->>PHS: establishManagePtyProcess(ptyId) channel
     Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
     PS-->>DT: pty process object
     DT->>PS: start()
-    PS->>PHS: exchangeEvents.start()
-    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
+    PS->>PHS: managePtyProcess.start()
+    Note left of PP: managePtyProcess attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
     PHS->>PP: start()
     PP-->>PHS: onOpen()
-    PHS-->>PS: exchangeEvents.onOpen()
+    PHS-->>PS: managePtyProcess.onOpen()
     PS-->>DT: onOpen()
     DT->>PS: dispose()
-    PS->>PHS: end exchangeEvents channel
+    PS->>PHS: end managePtyProcess channel
     PHS->>PP: dispose process and remove it
 
 ```

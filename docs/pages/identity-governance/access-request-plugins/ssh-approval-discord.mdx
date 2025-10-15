@@ -2,9 +2,11 @@
 title: Run the Discord Access Request Plugin
 sidebar_label: Discord
 description: How to set up Teleport's Discord plugin for privilege elevation approvals.
-labels:
+tags:
+ - access-requests
  - how-to
  - identity-governance
+ - privileged-access
 ---
 
 import BotLogo from "/static/avatar_logo.png";
@@ -24,6 +26,16 @@ compromising productivity.
 (!docs/pages/includes/plugins/enroll.mdx name="the Discord integration"!)
 
 </details>
+
+## How it works
+
+The Teleport Discord plugin authenticates to your Discord server as well as the
+Teleport Auth Service, and listens for audit events from the Teleport Auth
+Service related to Access Requests. When a user creates an Access Request, the
+plugin sends a message on Discord to reviewers of the request, including a link
+that each reviewer can follow in order to review the request in the Teleport Web
+UI. You can configure the reviewers the plugin will notify based on the role
+targeted by the Access Request.
 
 ## Prerequisites
 
@@ -339,7 +351,7 @@ Web UI and either approve or deny the request.
 Once the request is resolved, the Discord bot will update the Access Request
 message with ✅ or ❌, depending on whether the request was approved or denied.
 
-<Admonition title="Auditing Access Requests">
+<Admonition type="warning" title="Auditing Access Requests">
 
 When the Discord plugin posts an Access Request notification to a channel, anyone
 with access to the channel can view the notification and follow the link. While

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"io"
+	"maps"
 	"net"
 	"os/user"
 	"slices"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -165,7 +165,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet, &decisionpb.SSHAccessPermit{})
-			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
+			scx.SetEnv(sftp.EnvModeratedSessionID, sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
@@ -226,6 +226,9 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecording,
 				term:                   &terminal{},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
+				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -247,6 +250,9 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecordingSync,
 				term:                   &terminal{},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
+				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -336,6 +342,9 @@ func TestSession_newRecorder(t *testing.T) {
 				srv: &mockServer{
 					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 					datadir:             t.TempDir(),
+				},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
 				},
 				term: &terminal{},
 			},
@@ -701,9 +710,9 @@ func TestParties(t *testing.T) {
 	// Create a session with 3 parties
 	sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
 	require.Len(t, sess.getParties(), 1)
-	testJoinSession(t, reg, sess)
+	testJoinSession(t, reg, sess.ID())
 	require.Len(t, sess.getParties(), 2)
-	testJoinSession(t, reg, sess)
+	testJoinSession(t, reg, sess.ID())
 	require.Len(t, sess.getParties(), 3)
 
 	// If a party leaves, the session should remove the party and continue.
@@ -745,7 +754,7 @@ func TestParties(t *testing.T) {
 	regClock.BlockUntil(2)
 
 	// If a party connects to the lingering session, it will continue.
-	testJoinSession(t, reg, sess)
+	testJoinSession(t, reg, sess.ID())
 	require.Len(t, sess.getParties(), 1)
 
 	// advance clock and give lingerAndDie goroutine a second to complete.
@@ -765,10 +774,9 @@ func TestParties(t *testing.T) {
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 }
 
-func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
+func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
 	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(t.Context(), sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -776,7 +784,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sid, types.SessionPeerMode)
 	require.NoError(t, err)
 }
 
@@ -835,26 +843,18 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 
 			// Wait until server receives all non-print events.
-			checkEventsReceived := func() bool {
-				expectedEventTypes := []string{
-					events.SessionStartEvent,
-					events.SessionLeaveEvent,
-					events.SessionEndEvent,
-				}
-
-				emittedEvents := srv.Events()
-				if len(emittedEvents) != len(expectedEventTypes) {
-					return false
-				}
-
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				// Events can appear in different orders. Use a set to track.
-				eventsNotReceived := utils.StringsSet(expectedEventTypes)
-				for _, e := range emittedEvents {
+				eventsNotReceived := map[string]struct{}{
+					events.SessionStartEvent: {},
+					events.SessionLeaveEvent: {},
+					events.SessionEndEvent:   {},
+				}
+				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				return len(eventsNotReceived) == 0
-			}
-			require.Eventually(t, checkEventsReceived, time.Second*5, time.Millisecond*500, "Some events are not received.")
+				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+			}, time.Second*5, time.Millisecond*500, "Some events not received")
 		})
 	}
 }
@@ -1176,7 +1176,7 @@ func TestSessionRecordingMode(t *testing.T) {
 				},
 			}
 
-			gotMode := sess.sessionRecordingMode()
+			gotMode := sess.sessionRecordingLocation()
 			require.Equal(t, tt.expectedMode, gotMode)
 		})
 	}

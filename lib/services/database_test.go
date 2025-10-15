@@ -33,8 +33,24 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
-func TestDatabaseUnmarshal(t *testing.T) {
+// TestDatabaseUnmarshalTLSModes verifies database resource unmarshalling for both string and integer representation of DatabaseTLSMode enum.
+func TestDatabaseUnmarshalTLSModes(t *testing.T) {
+	const databaseYAML = `---
+kind: db
+version: v3
+metadata:
+  name: test-database
+  description: "Test description"
+  labels:
+    env: dev
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+  tls:
+    mode: %v
+  ca_cert: |-
+%v`
+
 	t.Parallel()
 	tlsModes := map[string]types.DatabaseTLSMode{
 		"":            types.DatabaseTLSMode_VERIFY_FULL,
@@ -492,6 +508,14 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			inputName: "valid-alloy-db",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -543,19 +567,3 @@ func indent(s string, spaces int) string {
 	}
 	return strings.Join(lines, "\n")
 }
-
-var databaseYAML = `---
-kind: db
-version: v3
-metadata:
-  name: test-database
-  description: "Test description"
-  labels:
-    env: dev
-spec:
-  protocol: "postgres"
-  uri: "localhost:5432"
-  tls:
-    mode: %v
-  ca_cert: |-
-%v`

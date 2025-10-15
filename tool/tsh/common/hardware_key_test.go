@@ -26,24 +26,37 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os/user"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -61,7 +74,7 @@ func TestHardwareKeyLogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{aliceRole.GetName()})
 
-	testServer := testserver.MakeTestServer(t, testserver.WithBootstrap(connector, alice, aliceRole), func(o *testserver.TestServersOpts) {
+	testServer, err := testserver.NewTeleportProcess(t.TempDir(), testserver.WithBootstrap(connector, alice, aliceRole), func(o *testserver.TestServersOpts) error {
 		o.ConfigFuncs = append(o.ConfigFuncs, func(cfg *servicecfg.Config) {
 			// TODO (Joerger): This test fails to propagate hardware key policy errors from Proxy SSH connections
 			// for unknown reasons unless Multiplex mode is on. I could not reproduce these errors on a live
@@ -69,7 +82,15 @@ func TestHardwareKeyLogin(t *testing.T) {
 			// are not 1-to-1 with live certs.
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		})
+
+		return nil
 	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testServer.Close())
+		require.NoError(t, testServer.Wait())
+	})
+
 	authServer := testServer.GetAuthServer()
 
 	proxyAddr, err := testServer.ProxyWebAddr()
@@ -196,10 +217,10 @@ func TestHardwareKeySSH(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{aliceRole.GetName()})
 
-	testServer := testserver.MakeTestServer(t,
+	testServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(connector, alice, aliceRole),
-		testserver.WithClusterName(t, "my-cluster"),
-		func(o *testserver.TestServersOpts) {
+		testserver.WithClusterName("my-cluster"),
+		func(o *testserver.TestServersOpts) error {
 			o.ConfigFuncs = append(o.ConfigFuncs, func(cfg *servicecfg.Config) {
 				// TODO (Joerger): This test fails to propagate hardware key policy errors from Proxy SSH connections
 				// for unknown reasons unless Multiplex mode is on. I could not reproduce these errors on a live
@@ -207,12 +228,20 @@ func TestHardwareKeySSH(t *testing.T) {
 				// are not 1-to-1 with live certs.
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			})
+
+			return nil
 		})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testServer.Close())
+		require.NoError(t, testServer.Wait())
+	})
+
 	authServer := testServer.GetAuthServer()
 	proxyAddr, err := testServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	agentless := testserver.CreateAgentlessNode(t, authServer, "my-cluster", "agentless-node")
+	agentless := CreateAgentlessNode(t, authServer, "my-cluster", "agentless-node")
 
 	// Login before adding hardware key requirement
 	tmpHomePath := t.TempDir()
@@ -285,6 +314,229 @@ func TestHardwareKeySSH(t *testing.T) {
 	}
 }
 
+func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
+	t.Helper()
+
+	ctx := context.Background()
+	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
+		DomainName: clusterName,
+	}, false)
+	require.NoError(t, err)
+
+	caCheckers, err := sshutils.GetCheckers(openSSHCA)
+	require.NoError(t, err)
+
+	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+
+	nodeUUID := uuid.New().String()
+	hostCertBytes, err := authServer.GenerateHostCert(
+		ctx,
+		ssh.MarshalAuthorizedKey(sshPub),
+		"",
+		"",
+		[]string{nodeUUID, nodeHostname, testserver.Loopback},
+		clusterName,
+		types.RoleNode,
+		0,
+	)
+	require.NoError(t, err)
+
+	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
+	require.NoError(t, err)
+	signer, err := ssh.NewSignerFromSigner(key)
+	require.NoError(t, err)
+	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
+	require.NoError(t, err)
+
+	// start SSH server
+	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
+
+	// create node resource
+	node := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: nodeUUID,
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     sshAddr,
+			Hostname: nodeHostname,
+		},
+	}
+	_, err = authServer.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// wait for node resource to be written to the backend
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	t.Cleanup(cancel)
+	w, err := authServer.NewWatcher(timedCtx, types.Watch{
+		Name: "node-create watcher",
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindNode,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for nodeCreated := false; !nodeCreated; {
+		select {
+		case e := <-w.Events():
+			if e.Type == types.OpPut {
+				nodeCreated = true
+			}
+		case <-w.Done():
+			t.Fatal("Did not receive node create event")
+		}
+	}
+	require.NoError(t, w.Close())
+
+	return node
+}
+
+// startSSHServer starts a SSH server that roughly mimics an unregistered
+// OpenSSH (agentless) server. The SSH server started only handles a small
+// subset of SSH requests necessary for testing.
+func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
+	t.Helper()
+
+	sshCfg := ssh.ServerConfig{
+		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			cert, ok := key.(*ssh.Certificate)
+			if !ok {
+				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			// Sanity check incoming cert from proxy has Ed25519 key.
+			if cert.Key.Type() != ssh.KeyAlgoED25519 {
+				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
+			}
+
+			for _, pubKey := range caPubKeys {
+				if bytes.Equal(cert.SignatureKey.Marshal(), pubKey.Marshal()) {
+					return &ssh.Permissions{}, nil
+				}
+			}
+
+			return nil, fmt.Errorf("signature key %v does not match OpenSSH CA", cert.SignatureKey)
+		},
+	}
+	sshCfg.AddHostKey(hostKey)
+
+	lis, err := net.Listen("tcp", testserver.Loopback+":")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, lis.Close())
+	})
+
+	go func() {
+		nConn, err := lis.Accept()
+		if utils.IsOKNetworkError(err) {
+			return
+		}
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			if nConn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = nConn.Close()
+			}
+		})
+
+		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			if conn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = conn.Close()
+			}
+		})
+		go ssh.DiscardRequests(reqs)
+
+		var agentForwarded bool
+		var shellRequested bool
+		var execRequested bool
+		var sftpRequested bool
+		for {
+			var channelReq ssh.NewChannel
+			select {
+			case channelReq = <-channels:
+				if channelReq == nil { // server is closed
+					return
+				}
+			case <-t.Context().Done():
+				return
+			}
+			if !assert.Equal(t, "session", channelReq.ChannelType()) {
+				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
+				continue
+			}
+			channel, reqs, err := channelReq.Accept()
+			assert.NoError(t, err)
+			t.Cleanup(func() {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = channel.Close()
+			})
+
+			go func() {
+			outer:
+				for {
+					var req *ssh.Request
+					select {
+					case req = <-reqs:
+						if req == nil { // channel is closed
+							return
+						}
+					case <-t.Context().Done():
+						break outer
+					}
+					if req.WantReply {
+						assert.NoError(t, req.Reply(true, nil))
+					}
+					switch req.Type {
+					case sshutils.AgentForwardRequest:
+						agentForwarded = true
+					case sshutils.ShellRequest:
+						assert.NoError(t, channel.Close())
+						shellRequested = true
+						break outer
+					case sshutils.ExecRequest:
+						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
+						assert.NoError(t, err)
+						assert.NoError(t, channel.Close())
+						execRequested = true
+						break outer
+					case sshutils.SubsystemRequest:
+						var r sshutils.SubsystemReq
+						err := ssh.Unmarshal(req.Payload, &r)
+						assert.NoError(t, err)
+						assert.Equal(t, "sftp", r.Name)
+						sftpRequested = true
+
+						sftpServer, err := sftp.NewServer(channel)
+						assert.NoError(t, err)
+						go sftpServer.Serve()
+						t.Cleanup(func() {
+							err := sftpServer.Close()
+							if err != nil {
+								assert.ErrorIs(t, err, io.EOF)
+							}
+						})
+						break outer
+					}
+				}
+				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
+			}()
+		}
+	}()
+
+	return lis.Addr().String()
+}
+
 // TestHardwareKeyApp tests Hardware Key App flows.
 func TestHardwareKeyApp(t *testing.T) {
 	ctx := context.Background()
@@ -298,7 +550,15 @@ func TestHardwareKeyApp(t *testing.T) {
 		},
 	})
 
-	testserver.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -315,9 +575,9 @@ func TestHardwareKeyApp(t *testing.T) {
 	accessUser.SetLogins([]string{user.Name})
 	connector := mockConnector(t)
 
-	testServer := testserver.MakeTestServer(t,
+	testServer, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithBootstrap(connector, accessUser),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps = servicecfg.AppsConfig{
@@ -329,6 +589,12 @@ func TestHardwareKeyApp(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testServer.Close())
+		require.NoError(t, testServer.Wait())
+	})
+
 	authServer := testServer.GetAuthServer()
 	proxyAddr, err := testServer.ProxyWebAddr()
 	require.NoError(t, err)

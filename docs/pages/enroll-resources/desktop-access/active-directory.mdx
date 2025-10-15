@@ -3,9 +3,10 @@ title: Configure access for Active Directory manually
 description: Explains how to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
 tocDepth: 3
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 This guide demonstrates how to connect an Active Directory domain and how to log
@@ -20,33 +21,15 @@ Service for Microsoft Entra ID.
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
-- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool
-  version >= (=teleport.version=).
-
-  You can verify the tools you have installed by running the following commands:
-
-  ```code
-  $ tctl version
-  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  You can download these tools by following the appropriate [Installation
-  instructions](../../installation/linux.mdx) for the Teleport
-  edition you use.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A Linux server to run the Teleport Windows Desktop Service.
   You can use an existing server that runs the Teleport Agent for other resources.
-
 - An Active Directory domain that is configured for LDAPS. Because Teleport requires an
   encrypted LDAP connection, you should verify that your domain uses Active Directory
   Certificate Services or a non-Microsoft certification authority (CA) to issue LDAPS
   certificates.
-
 - Administrative access to a domain controller.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Option 1: Automated configuration
@@ -602,7 +585,8 @@ To configure Teleport to protect access to Windows desktops:
    windows_desktop_service:
      enabled: true
      ldap:
-       # Port must be included for the addr.
+       # Address (including port) of an LDAP server.
+       # Can be omitted if `locate_server` is enabled.
        # LDAPS port is 636 by default (example.com:636)
        addr: "$LDAP_SERVER_ADDRESS"
        domain: "$LDAP_DOMAIN_NAME"
@@ -622,6 +606,47 @@ To configure Teleport to protect access to Windows desktops:
 
    For a detailed description of the configuration fields, see
    [Desktop Configuration Reference](../../reference/agent-services/desktop-access-reference/configuration.mdx).
+
+1. Configure LDAP server selection.
+
+   To find desktops to connect to in Active Directory, Teleport must be given the
+   address of an LDAP server. There are two ways to specify the LDAP server, either
+   by providing a single LDAP server address in the `addr` field, or by enabling
+   `locate_server` to automatically discover the LDAP server from DNS SRV records.
+
+   If you opt to use `addr`, for the best results, the address should point to a
+   highly-available endpoint to avoid downtime. The port for LDAPS should also be
+   included, which is typically 636.
+
+   <details>
+   <summary>Example of using the addr field</summary>
+   ```yaml
+   windows_desktop_service:
+      enabled: true
+      ldap:
+         addr: ldap.example.com:636
+         domain: example.com
+   ```
+   </details>
+
+   Alternatively, you can enable `locate_server` to automatically discover an
+   LDAP server from the DNS SRV records of your specified `domain`. This is useful
+   if you have multiple LDAP servers for high availability and load balancing.
+   Optionally, you can specify a `site` to limit the discovery to a specific
+   Active Directory site.
+
+   <details>
+   <summary>Example of using locate_server</summary>
+   ```yaml
+   windows_desktop_service:
+      enabled: true
+      ldap:
+         locate_server:
+            enabled: true
+            site: "my-site" # optional
+         domain: example.com
+   ```
+   </details>
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
@@ -840,10 +865,35 @@ windows_desktop_service:
 ```
 
 To enable NLA, set the `TELEPORT_ENABLE_RDP_NLA` environment variable to `yes`
-on any hosts running the Teleport's `windows_desktop_service`. Note that NLA is
-only supported when connecting to hosts that are part of an Active Directory
-domain. Teleport will not perform NLA when connecting to hosts as a local
-Windows user.
+on any hosts running the Teleport's `windows_desktop_service`. The process for
+setting an environment variable varies depending on the environment in which you
+are running Teleport.
+
+If you're running Teleport in Kubernetes, you'll need to
+[edit the Pod configuration](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/).
+
+If you're running Teleport as a systemd service, then you'll want to create a
+systemd override using `systemctl edit teleport`:
+
+```
+$ sudo systemctl edit teleport
+```
+
+This will open a text editor where you can insert an override for the environment:
+
+```
+### Editing /etc/systemd/system/teleport.service.d/override.conf
+### Anything between here and the comment below will become the contents of the drop-in file
+
+[Service]
+Environment="TELEPORT_ENABLE_RDP_NLA=yes"
+```
+
+Note that NLA is only supported when connecting to hosts that are part of an
+Active Directory domain. Teleport will not perform NLA when connecting to hosts
+as a local Windows user.
+
+NLA is not supported when Teleport runs in FIPS mode.
 
 ### Computer Name
 

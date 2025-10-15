@@ -34,9 +34,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func Test_fetchMCPServers(t *testing.T) {
@@ -133,157 +134,41 @@ func Test_mcpListCommand(t *testing.T) {
 	tests := []struct {
 		name       string
 		cf         *CLIConf
+		mcpServers []types.Application
 		wantOutput string
 	}{
 		{
-			name: "text format",
-			cf:   &CLIConf{},
-			wantOutput: `Name       Description Type  Labels  
----------- ----------- ----- ------- 
-allow-read description stdio env=dev 
-deny-write description stdio env=dev 
-
-`,
+			name:       "text format",
+			cf:         &CLIConf{},
+			mcpServers: mcpServers,
 		},
 		{
 			name: "text format in verbose",
 			cf: &CLIConf{
 				Verbose: true,
 			},
-			wantOutput: `Name       Description Type  Labels  Command Args Allowed Tools          
----------- ----------- ----- ------- ------- ---- ---------------------- 
-allow-read description stdio env=dev test    arg  [read_*]               
-deny-write description stdio env=dev test    arg  [*], except: [write_*] 
-
-`,
+			mcpServers: mcpServers,
+		},
+		{
+			name: "text format with rbac warning",
+			cf:   &CLIConf{},
+			mcpServers: []types.Application{
+				mustMakeMCPAppWithNameAndLabels(t, "no-access", devLabels),
+			},
 		},
 		{
 			name: "JSON format",
 			cf: &CLIConf{
 				Format: "json",
 			},
-			wantOutput: `[
-  {
-    "kind": "app",
-    "sub_kind": "mcp",
-    "version": "v3",
-    "metadata": {
-      "name": "allow-read",
-      "description": "description",
-      "labels": {
-        "env": "dev"
-      }
-    },
-    "spec": {
-      "uri": "mcp+stdio://",
-      "insecure_skip_verify": false,
-      "mcp": {
-        "command": "test",
-        "args": [
-          "arg"
-        ],
-        "run_as_host_user": "test"
-      }
-    },
-    "permissions": {
-      "mcp": {
-        "tools": {
-          "allowed": [
-            "read_*"
-          ]
-        }
-      }
-    }
-  },
-  {
-    "kind": "app",
-    "sub_kind": "mcp",
-    "version": "v3",
-    "metadata": {
-      "name": "deny-write",
-      "description": "description",
-      "labels": {
-        "env": "dev"
-      }
-    },
-    "spec": {
-      "uri": "mcp+stdio://",
-      "insecure_skip_verify": false,
-      "mcp": {
-        "command": "test",
-        "args": [
-          "arg"
-        ],
-        "run_as_host_user": "test"
-      }
-    },
-    "permissions": {
-      "mcp": {
-        "tools": {
-          "allowed": [
-            "*"
-          ],
-          "denied": [
-            "write_*"
-          ]
-        }
-      }
-    }
-  }
-]
-`,
+			mcpServers: mcpServers,
 		},
 		{
 			name: "YAML format",
 			cf: &CLIConf{
 				Format: "yaml",
 			},
-			wantOutput: `- kind: app
-  metadata:
-    description: description
-    labels:
-      env: dev
-    name: allow-read
-  permissions:
-    mcp:
-      tools:
-        allowed:
-        - read_*
-  spec:
-    insecure_skip_verify: false
-    mcp:
-      args:
-      - arg
-      command: test
-      run_as_host_user: test
-    uri: mcp+stdio://
-  sub_kind: mcp
-  version: v3
-- kind: app
-  metadata:
-    description: description
-    labels:
-      env: dev
-    name: deny-write
-  permissions:
-    mcp:
-      tools:
-        allowed:
-        - '*'
-        denied:
-        - write_*
-  spec:
-    insecure_skip_verify: false
-    mcp:
-      args:
-      - arg
-      command: test
-      run_as_host_user: test
-    uri: mcp+stdio://
-  sub_kind: mcp
-  version: v3
-
-`,
+			mcpServers: mcpServers,
 		},
 	}
 
@@ -296,13 +181,18 @@ deny-write description stdio env=dev test    arg  [*], except: [write_*]
 
 			cmd := &mcpListCommand{
 				cf:            tt.cf,
-				mcpServers:    mcpServers,
+				mcpServers:    tt.mcpServers,
 				accessChecker: accessChecker,
 			}
 
 			err := cmd.print()
 			require.NoError(t, err)
-			require.Equal(t, tt.wantOutput, buf.String())
+
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+
+			require.Equal(t, string(golden.Get(t)), buf.String())
 		})
 	}
 }
@@ -493,18 +383,18 @@ func setupMockMCPConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
-	config, err := claude.LoadConfigFromFile(configPath)
+	config, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
-	require.NoError(t, config.PutMCPServer("local-everything", claude.MCPServer{
+	require.NoError(t, config.PutMCPServer("local-everything", mcpconfig.MCPServer{
 		Command: "npx",
 		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
 	}))
-	require.NoError(t, config.Save(claude.FormatJSONPretty))
+	require.NoError(t, config.Save(mcpconfig.FormatJSONPretty))
 	return config.Path()
 }
 
 func mustHaveMCPServerNamesInConfig(t *testing.T, configPath string, wantNames []string) {
-	jsonConfig, err := claude.LoadConfigFromFile(configPath)
+	jsonConfig, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
 	require.ElementsMatch(t,
 		wantNames,

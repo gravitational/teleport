@@ -20,26 +20,19 @@
 package testenv
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -48,26 +41,18 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
@@ -91,55 +76,25 @@ func init() {
 	modules.SetModules(&cliModules{})
 }
 
-// WithInsecureDevMode is a test helper that sets insecure dev mode and resets
-// it in test cleanup.
-// It is NOT SAFE to use in parallel tests, because it modifies a global.
-// To run insecure dev mode tests in parallel, group them together under a
-// parent test and then run them as parallel subtests.
-// and call WithInsecureDevMode before running all the tests in parallel.
-func WithInsecureDevMode(t *testing.T, mode bool) {
-	originalValue := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(mode)
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithInsecureDevMode", "1")
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(originalValue)
-	})
-}
-
-// WithResyncInterval is a test helper that sets the tunnel resync interval and
-// resets it in test cleanup.
-// Useful to substantially speedup test cluster setup - passing 0 for the
-// interval selects a reasonably fast default of 100ms.
-// It is NOT SAFE to use in parallel tests, because it modifies a global.
-func WithResyncInterval(t *testing.T, interval time.Duration) {
-	if interval == 0 {
-		interval = time.Millisecond * 100
-	}
-	oldResyncInterval := defaults.ResyncInterval
-	defaults.ResyncInterval = interval
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithResyncInterval", "1")
-	t.Cleanup(func() {
-		defaults.ResyncInterval = oldResyncInterval
-	})
-}
-
-// MakeTestServer creates a Teleport Server for testing.
-func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.TeleportProcess) {
-	t.Helper()
-
+// NewTeleportProcess creates a Teleport Server for testing.
+func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.TeleportProcess, err error) {
 	var options TestServersOpts
 	for _, opt := range opts {
-		opt(&options)
+		if err := opt(&options); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Set up a test auth server with default config.
 	cfg := servicecfg.MakeDefaultConfig()
+	defer func() {
+		if err != nil {
+			for _, fd := range cfg.FileDescriptors {
+				fd.Close()
+			}
+		}
+	}()
+
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.CachePolicy.Enabled = false
 	// Disables cloud auto-imported labels when running tests in cloud envs
@@ -155,13 +110,18 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	cfg.Hostname = "server01"
-	cfg.DataDir = t.TempDir()
+	cfg.DataDir = dataDir
 	cfg.Logger = logtest.NewLogger()
-	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
-	cfg.SetToken(StaticToken)
-	cfg.SetAuthServerAddress(authAddr)
 
-	cfg.Auth.ListenAddr = authAddr
+	authAddr, err := newTCPListener(service.ListenerAuth, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authNetAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	cfg.SetToken(StaticToken)
+	cfg.SetAuthServerAddress(authNetAddr)
+
+	cfg.Auth.ListenAddr = authNetAddr
 	cfg.Auth.BootstrapResources = options.Bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	staticToken, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -171,7 +131,9 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 			Token:   StaticToken,
 		}},
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cfg.Auth.StaticTokens = staticToken
 	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 
@@ -180,12 +142,30 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	// Speeds up tests considerably.
 	cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
+	proxyWebAddr, err := newTCPListener(service.ListenerProxyWeb, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyWebAddr}
+
+	proxySSHAddr, err := newTCPListener(service.ListenerProxySSH, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyTunnelAddr, err := newTCPListener(service.ListenerProxyTunnel, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxySSHAddr}
+	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyTunnelAddr}
 	cfg.Proxy.DisableWebInterface = true
 
-	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
+	nodeSSHAddr, err := newTCPListener(service.ListenerNodeSSH, &cfg.FileDescriptors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: nodeSSHAddr}
 	cfg.SSH.DisableCreateHostUser = true
 
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -197,53 +177,56 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 		fn(cfg)
 	}
 
-	process, err = service.NewTeleport(cfg)
-	require.NoError(t, err, trace.DebugReport(err))
-	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
+	process, err := service.NewTeleport(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	waitForServices(t, process, cfg)
+	if err := process.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return process
+	if err := waitForServices(process, cfg); err != nil {
+		_ = process.Close()
+		_ = process.Wait()
+		return nil, trace.Wrap(err)
+	}
+
+	return process, nil
 }
 
-// NewTCPListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// newTCPListener creates a new TCP listener on 127.0.0.1:0, adds it to the
 // FileDescriptor slice (with the specified type) and returns its actual local
 // address as a string (for use in configuration). Takes a pointer to the slice
 // so that it's convenient to call in the middle of a FileConfig or Config
 // struct literal.
-func NewTCPListener(t *testing.T, lt service.ListenerType, fds *[]*servicecfg.FileDescriptor) string {
-	t.Helper()
-
+func newTCPListener(lt service.ListenerType, fds *[]*servicecfg.FileDescriptor) (string, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	defer l.Close()
 	addr := l.Addr().String()
 
 	// File() returns a dup of the listener's file descriptor as an *os.File, so
 	// the original net.Listener still needs to be closed.
 	lf, err := l.(*net.TCPListener).File()
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	fd := &servicecfg.FileDescriptor{
 		Type:    string(lt),
 		Address: addr,
 		File:    lf,
 	}
-	// If the file descriptor slice ends up being passed to a TeleportProcess
-	// that successfully starts, listeners will either get "imported" and used
-	// or discarded and closed, this is just an extra safety measure that closes
-	// the listener at the end of the test anyway (the finalizer would do that
-	// anyway, in principle).
-	t.Cleanup(func() { require.NoError(t, fd.Close()) })
 
 	*fds = append(*fds, fd)
-	return addr
+	return addr, nil
 }
 
-func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecfg.Config) {
+func waitForServices(auth *service.TeleportProcess, cfg *servicecfg.Config) error {
 	var serviceReadyEvents []string
 	if cfg.Proxy.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.ProxyWebServerReady)
@@ -263,32 +246,45 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Kube.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.KubernetesReady)
 	}
-	waitForEvents(t, auth, serviceReadyEvents...)
+	if err := waitForEvents(auth, serviceReadyEvents...); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
-		waitForDatabases(t, auth, cfg.Databases.Databases)
+		if err := waitForDatabases(auth, cfg.Databases.Databases); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if cfg.Auth.Enabled && cfg.Apps.Enabled {
-		waitForApps(t, auth, cfg.Apps.Apps)
+		if err := waitForApps(auth, cfg.Apps.Apps); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	return nil
 }
 
-func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
+func waitForEvents(svc service.Supervisor, events ...string) error {
 	for _, event := range events {
-		_, err := svc.WaitForEventTimeout(10*time.Second, event)
-		require.NoError(t, err, "service server didn't receive %v event after 10s", event)
+		if _, err := svc.WaitForEventTimeout(10*time.Second, event); err != nil {
+			return trace.Wrap(err, "service didn't receive %v event after 10s", event)
+		}
 	}
+
+	return nil
 }
 
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+func waitForDatabases(auth *service.TeleportProcess, dbs []servicecfg.Database) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
 		select {
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			// Count how many input "dbs" are registered.
 			var registered int
@@ -302,22 +298,24 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			}
 
 			if registered == len(dbs) {
-				return
+				return nil
 			}
 		case <-ctx.Done():
-			t.Fatal("Databases not registered after 10s")
+			return trace.LimitExceeded("Databases not registered after 10s")
 		}
 	}
 }
 
-func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.App) {
+func waitForApps(auth *service.TeleportProcess, apps []servicecfg.App) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
 		select {
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
 			var registered int
 			for _, app := range apps {
@@ -330,10 +328,10 @@ func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.
 			}
 
 			if registered == len(apps) {
-				return
+				return nil
 			}
 		case <-ctx.Done():
-			t.Fatal("Apps not registered after 10s")
+			return trace.LimitExceeded("Apps not registered after 10s")
 		}
 	}
 }
@@ -343,17 +341,19 @@ type TestServersOpts struct {
 	ConfigFuncs []func(cfg *servicecfg.Config)
 }
 
-type TestServerOptFunc func(o *TestServersOpts)
+type TestServerOptFunc func(o *TestServersOpts) error
 
 func WithBootstrap(bootstrap ...types.Resource) TestServerOptFunc {
-	return func(o *TestServersOpts) {
+	return func(o *TestServersOpts) error {
 		o.Bootstrap = append(o.Bootstrap, bootstrap...)
+		return nil
 	}
 }
 
 func WithConfig(fn func(cfg *servicecfg.Config)) TestServerOptFunc {
-	return func(o *TestServersOpts) {
+	return func(o *TestServersOpts) error {
 		o.ConfigFuncs = append(o.ConfigFuncs, fn)
+		return nil
 	}
 }
 
@@ -363,14 +363,14 @@ func WithAuthConfig(fn func(*servicecfg.AuthConfig)) TestServerOptFunc {
 	})
 }
 
-func WithClusterName(t *testing.T, n string) TestServerOptFunc {
+func WithClusterName(name string) TestServerOptFunc {
 	return WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
-		clusterName, err := services.NewClusterNameWithRandomID(
-			types.ClusterNameSpecV2{
-				ClusterName: n,
-			})
-		require.NoError(t, err)
-		cfg.ClusterName = clusterName
+		cfg.ClusterName = &types.ClusterNameV2{
+			Spec: types.ClusterNameSpecV2{
+				ClusterName: name,
+				ClusterID:   uuid.NewString(),
+			},
+		}
 	})
 }
 
@@ -408,14 +408,23 @@ func WithLogger(log *slog.Logger) TestServerOptFunc {
 }
 
 // WithProxyKube enables the Proxy Kube listener with a random address.
-func WithProxyKube(t *testing.T) TestServerOptFunc {
-	return WithConfig(func(cfg *servicecfg.Config) {
-		cfg.Proxy.Kube.Enabled = true
-		cfg.Proxy.Kube.ListenAddr = utils.NetAddr{
-			AddrNetwork: "tcp",
-			Addr:        NewTCPListener(t, service.ListenerProxyKube, &cfg.FileDescriptors),
+func WithProxyKube() TestServerOptFunc {
+	return func(o *TestServersOpts) error {
+		var fds []*servicecfg.FileDescriptor
+		addr, err := newTCPListener(service.ListenerProxyKube, &fds)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	})
+
+		return WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Proxy.Kube.Enabled = true
+			cfg.Proxy.Kube.ListenAddr = utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        addr,
+			}
+			cfg.FileDescriptors = append(cfg.FileDescriptors, fds...)
+		})(o)
+	}
 }
 
 // WithDebugApp enables the app service and the debug app.
@@ -428,14 +437,13 @@ func WithDebugApp() TestServerOptFunc {
 
 // WithTestApp enables the app service and adds a test app server
 // with the given name.
-func WithTestApp(t *testing.T, name string) TestServerOptFunc {
-	appUrl := startDummyHTTPServer(t, name)
+func WithTestApp(name, uri string) TestServerOptFunc {
 	return WithConfig(func(cfg *servicecfg.Config) {
 		cfg.Apps.Enabled = true
 		cfg.Apps.Apps = append(cfg.Apps.Apps,
 			servicecfg.App{
 				Name: name,
-				URI:  appUrl,
+				URI:  uri,
 				StaticLabels: map[string]string{
 					"name": name,
 				},
@@ -443,7 +451,7 @@ func WithTestApp(t *testing.T, name string) TestServerOptFunc {
 	})
 }
 
-func startDummyHTTPServer(t *testing.T, name string) string {
+func StartDummyHTTPServer(name string) *httptest.Server {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", name)
 		_, _ = w.Write([]byte("hello"))
@@ -451,55 +459,14 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 
 	srv.Start()
 
-	t.Cleanup(func() {
-		srv.Close()
-	})
-
-	return srv.URL
-}
-
-func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
-	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
-	isInsecure := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
-
-	rootProxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
-	require.NoError(t, err)
-
-	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
-		Enabled:              true,
-		Token:                StaticToken,
-		ProxyAddress:         rootProxyAddr.String(),
-		ReverseTunnelAddress: rootProxyTunnelAddr.String(),
-		RoleMap: append(additionalRoleMappings,
-			types.RoleMapping{
-				Remote: "access",
-				Local:  []string{"access"},
-			},
-		),
-	})
-	require.NoError(t, err)
-
-	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
-	require.NoError(t, err)
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
-		assert.NoError(t, err)
-		assert.Len(t, rt, 1)
-	}, time.Second*10, time.Second)
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, rts, 1)
-	}, time.Second*10, time.Second)
+	return srv
 }
 
 type cliModules struct{}
+
+func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
+}
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
@@ -570,257 +537,32 @@ func (p *cliModules) EnableAccessMonitoring() {}
 func (p *cliModules) SetFeatures(f modules.Features) {
 }
 
-func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
-	t.Helper()
-
-	ctx := context.Background()
-	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OpenSSHCA,
-		DomainName: clusterName,
-	}, false)
-	require.NoError(t, err)
-
-	caCheckers, err := sshutils.GetCheckers(openSSHCA)
-	require.NoError(t, err)
-
-	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	require.NoError(t, err)
-
-	nodeUUID := uuid.New().String()
-	hostCertBytes, err := authServer.GenerateHostCert(
-		ctx,
-		ssh.MarshalAuthorizedKey(sshPub),
-		"",
-		"",
-		[]string{nodeUUID, nodeHostname, Loopback},
-		clusterName,
-		types.RoleNode,
-		0,
-	)
-	require.NoError(t, err)
-
-	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
-	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromSigner(key)
-	require.NoError(t, err)
-	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
-	require.NoError(t, err)
-
-	// start SSH server
-	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
-
-	// create node resource
-	node := &types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: nodeUUID,
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     sshAddr,
-			Hostname: nodeHostname,
-		},
-	}
-	_, err = authServer.UpsertNode(ctx, node)
-	require.NoError(t, err)
-
-	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	t.Cleanup(cancel)
-	w, err := authServer.NewWatcher(timedCtx, types.Watch{
-		Name: "node-create watcher",
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindNode,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	for nodeCreated := false; !nodeCreated; {
-		select {
-		case e := <-w.Events():
-			if e.Type == types.OpPut {
-				nodeCreated = true
-			}
-		case <-w.Done():
-			t.Fatal("Did not receive node create event")
-		}
-	}
-	require.NoError(t, w.Close())
-
-	return node
-}
-
-// startSSHServer starts a SSH server that roughly mimics an unregistered
-// OpenSSH (agentless) server. The SSH server started only handles a small
-// subset of SSH requests necessary for testing.
-func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
-	t.Helper()
-
-	sshCfg := ssh.ServerConfig{
-		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			cert, ok := key.(*ssh.Certificate)
-			if !ok {
-				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
-			}
-
-			// Sanity check incoming cert from proxy has Ed25519 key.
-			if cert.Key.Type() != ssh.KeyAlgoED25519 {
-				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
-			}
-
-			for _, pubKey := range caPubKeys {
-				if bytes.Equal(cert.SignatureKey.Marshal(), pubKey.Marshal()) {
-					return &ssh.Permissions{}, nil
-				}
-			}
-
-			return nil, fmt.Errorf("signature key %v does not match OpenSSH CA", cert.SignatureKey)
-		},
-	}
-	sshCfg.AddHostKey(hostKey)
-
-	lis, err := net.Listen("tcp", Loopback+":")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, lis.Close())
-	})
-
-	go func() {
-		nConn, err := lis.Accept()
-		if utils.IsOKNetworkError(err) {
-			return
-		}
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if nConn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = nConn.Close()
-			}
-		})
-
-		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if conn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = conn.Close()
-			}
-		})
-		go ssh.DiscardRequests(reqs)
-
-		var agentForwarded bool
-		var shellRequested bool
-		var execRequested bool
-		var sftpRequested bool
-		for {
-			var channelReq ssh.NewChannel
-			select {
-			case channelReq = <-channels:
-				if channelReq == nil { // server is closed
-					return
-				}
-			case <-t.Context().Done():
-				return
-			}
-			if !assert.Equal(t, "session", channelReq.ChannelType()) {
-				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
-				continue
-			}
-			channel, reqs, err := channelReq.Accept()
-			assert.NoError(t, err)
-			t.Cleanup(func() {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = channel.Close()
-			})
-
-			go func() {
-			outer:
-				for {
-					var req *ssh.Request
-					select {
-					case req = <-reqs:
-						if req == nil { // channel is closed
-							return
-						}
-					case <-t.Context().Done():
-						break outer
-					}
-					if req.WantReply {
-						assert.NoError(t, req.Reply(true, nil))
-					}
-					switch req.Type {
-					case sshutils.AgentForwardRequest:
-						agentForwarded = true
-					case sshutils.ShellRequest:
-						assert.NoError(t, channel.Close())
-						shellRequested = true
-						break outer
-					case sshutils.ExecRequest:
-						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
-						assert.NoError(t, err)
-						assert.NoError(t, channel.Close())
-						execRequested = true
-						break outer
-					case sshutils.SubsystemRequest:
-						var r sshutils.SubsystemReq
-						err := ssh.Unmarshal(req.Payload, &r)
-						assert.NoError(t, err)
-						assert.Equal(t, "sftp", r.Name)
-						sftpRequested = true
-
-						sftpServer, err := sftp.NewServer(channel)
-						assert.NoError(t, err)
-						go sftpServer.Serve()
-						t.Cleanup(func() {
-							err := sftpServer.Close()
-							if err != nil {
-								assert.ErrorIs(t, err, io.EOF)
-							}
-						})
-						break outer
-					}
-				}
-				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
-			}()
-		}
-	}()
-
-	return lis.Addr().String()
-}
-
-// MakeDefaultAuthClient reimplements the bare minimum needed to create a
+// NewDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
-// MakeTestServer.
-func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
-	t.Helper()
-
+// NewTeleportProcess.
+func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
-	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
-	require.NoError(t, err)
-
-	identity, err := storage.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		types.RoleAdmin,
 	)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authConfig := new(authclient.Config)
 	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Logger
 
 	client, err := authclient.Connect(context.Background(), authConfig)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = client.Close()
-	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return client
+	return client, nil
 }

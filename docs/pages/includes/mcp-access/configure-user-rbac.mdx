@@ -1,0 +1,42 @@
+In this step, you will grant your Teleport user access to all MCP servers and
+their MCP tools.
+
+<Tabs>
+
+<TabItem label="Configure an existing user">
+
+If you have an existing Teleport user, you can create a role for MCP access
+assign it to your Teleport user.
+```code
+$ tctl create <<EOF
+kind: role
+version: v8
+metadata:
+  name: access-mcp
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    mcp:
+      tools:
+      - '*'
+EOF
+```
+
+Alternatively, add the above allow permissions to an existing Teleport role.
+
+</TabItem>
+
+<TabItem label="Create a new user">
+
+Crate a new local user called <Var name="my_user" /> with MCP access:
+
+```code
+$ tctl users add <Var name="my_user" /> --roles=access --mcp-tools "*"
+```
+
+</TabItem>
+</Tabs>
+
+
+(!docs/pages/includes/create-role-using-web.mdx!)

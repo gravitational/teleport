@@ -1,7 +1,8 @@
 ---
-title: tctl CLI reference
+title: tctl CLI Reference
+sidebar_label: tctl
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -49,7 +50,7 @@ file, then the configuration file is ignored.
 
   To provide an accurate audit trail, it is important to limit direct SSH access
   to the Auth Service with
-  [Access Controls](../../admin-guides/access-controls/access-controls.mdx) and ensure that
+  [Access Controls](../../zero-trust-access/authentication/authentication.mdx) and ensure that
   admins use `tctl` remotely instead.
 
 </Admonition>
@@ -697,7 +698,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../infrastructure-as-code/resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
@@ -798,10 +799,9 @@ $ tctl devices ls
 
 ```code
 $ tctl devices ls
-
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 ## tctl devices rm
@@ -1108,7 +1108,7 @@ $ tctl lock [<flags>]
 | `--server-id` | none | string | Target a specific node by name or UUID. |
 | `--mfa-device` | none | string | Target a specific MFA device by UUID. |
 | `--windows-desktop` | none | string | Target a specific Windows desktop by name. |
-| `--access-request` | none | string | Target a specific access request by ID. |
+| `--access-request` | none | string | Target a specific Access Request by ID. |
 | `--device` | none | string | Target a specific trusted device by ID. |
 | `--message` | none | string | Optional message explaining the reason for the lock. |
 | `--expires` | never | timestamp | When the lock should automatically expire (RFC3339). |
@@ -2203,10 +2203,139 @@ $ tctl plugins install okta \
     --no-appgroup-sync
 ```
 
+## tctl plugins install entraid
+
+Install the Entra ID plugin.
+
+```code
+$ tctl plugins install entraid <flags>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--name` | `entra-id` | string | Name of the plugin resource to create. |
+| `--auth-connector-name` | `entra-id-default` | string | Name of the SAML connector resource to create. |
+| `--default-owner` | none | string | Required. A Teleport username to set as the default owner for the imported Access Lists. Multiple flags allowed. |
+| `--[no-]access-graph` | `--access-graph` | boolean | Optional. Enable Access Graph cache build. |
+| `--[no-]use-system-credentials` | `--no-use-system-credentials` | boolean | Optional. Use system credentials instead of OIDC. |
+| `--[no-]manual-setup` | `--no-manual-setup` | boolean | Optional. Manually set up the EntraID integration. |
+| `--[no-]force` | `--no-force` | boolean | Optional. Proceed with the installation even if the plugin already exists. |
+| `--group-id` | none | string | Optional. Include group matching the specified group ID. Multiple flags allowed. |
+| `--group-name` | none | string | Optional. Include groups matching the specified group name regex. Multiple flags allowed.  |
+| `--exclude-group-id` | none | string | Optional. Exclude group matching the specified group ID. Multiple flags allowed. |
+| `--exclude-group-name` | none | string | Optional. Exclude groups matching the specified group name regex. Multiple flags allowed. |
+
+
+### Example
+
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=admin \
+    --default-owner=root@example.com \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
+    --group-name "admin*" \
+    --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
+    --exclude-group-name "fin*" 
+```
+
+Multiple flags are collected together. In the given example, based on the 
+two `default-owner` flags, all the Access Lists imported by the integration will 
+be created with owners `admin` and `root@example.com`.
+
+
+## tctl plugins rotate awsic
+
+Rotate the bearer token used by Teleport to authenticate with the AWS IAM Identity
+Center SCIM service when provisioning AWS users and groups.
+
+By default, `tctl` will validate that the token can be used to authenticate with
+the SCIM service configured in the integration. Use the `--no-validate-token`
+flag to disable token validation.
+
+```code
+$ tctl plugins rotate awsic [<flags>] <token>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target | 
+| `--[no-]validate-token` | `--validate-token` | none | Enables or disables validating the supplied token against the configured SCIM server |
+
+### Examples
+
+Rotate the SCIM bearer token without displaying the token in your command history
+
+```code
+$ tctl plugins rotate awsic $(cat ./aws-iam-ic-bearer-token)
+```
+
+Rotate the the SCIM bearer token for a custom integration enrollment that does not
+have the default name set by the guided enrollment flow.
+
+```code
+$ tctl plugins rotate awsic --plugin-name "my-custom-ic-integration" ${TOKEN_VALUE}
+```
+
 ## tctl version
 
 Print the version of your `tctl` binary:
 
 ```code
 tctl version
+```
+
+## tctl recordings encryption rotate
+
+Rotate the active session recording encryption key. Will fail if rotation is already in
+progress.
+
+### Example
+
+```code
+$ tctl recordings encryption rotate
+```
+
+## tctl recordings encryption status
+
+Print the rotation status of all active encryption keys.
+
+### Flags
+
+| Name       | Default Value(s) | Allowed Value(s)     | Description               |
+| ---------- | ---------------- | -------------------- | ------------------------- |
+| `--format` | `text`           | `text`,`yaml`,`json` | The format of the output. |
+
+### Example
+
+```code
+$ tctl recordings encryption status
+```
+
+## tctl recordings encryption complete-rotation
+
+Completes a key rotation.
+
+### Example
+
+```code
+$ tctl recordings encryption complete-rotation
+```
+
+## tctl recordings encryption rollback-rotation
+
+Reverts a key rotation.
+
+### Example
+
+```code
+$ tctl recordings encryption rollback-rotation
 ```

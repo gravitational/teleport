@@ -69,10 +69,12 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	recordingmetadatav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -108,10 +110,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
 	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
+	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -125,7 +129,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -400,7 +406,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			clusterName, err := auth.GetClusterName(auth.CloseContext())
+			clusterName, err := auth.authServer.GetClusterName(auth.CloseContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1139,6 +1145,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1190,6 +1208,29 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *authpb.GetR
 	}
 
 	return r, nil
+}
+
+func (g *GRPCServer) ListResetPasswordTokens(ctx context.Context, req *authpb.ListResetPasswordTokenRequest) (*authpb.ListResetPasswordTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ts, nextToken, err := auth.ServerWithRoles.ListResetPasswordTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userTokensV3 := make([]*types.UserTokenV3, len(ts))
+	for i, t := range ts {
+		var ok bool
+		if userTokensV3[i], ok = t.(*types.UserTokenV3); !ok {
+			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+		}
+	}
+	return &authpb.ListResetPasswordTokenResponse{
+		UserTokens:    userTokensV3,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -1462,6 +1503,10 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1585,6 +1630,34 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	return &authpb.GetSnowflakeSessionsResponse{
 		Sessions: out,
 	}, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake sessions.
+func (g *GRPCServer) ListSnowflakeSessions(ctx context.Context, req *authpb.ListSnowflakeSessionsRequest) (*authpb.ListSnowflakeSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, next, err := auth.ListSnowflakeSessions(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSnowflakeSessionsResponse{
+		Sessions:      make([]*types.WebSessionV2, 0, len(sessions)),
+		NextPageToken: next,
+	}
+
+	for _, session := range sessions {
+		webessionV2, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported web session type %T", session)
+		}
+		resp.Sessions = append(resp.Sessions, webessionV2)
+	}
+
+	return resp, nil
 }
 
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *authpb.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
@@ -1840,7 +1913,7 @@ func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequ
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := auth.WebTokens().Get(ctx, *req)
+	resp, err := auth.GetWebToken(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1861,7 +1934,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := auth.WebTokens().List(ctx)
+	tokens, err := auth.GetWebTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1880,6 +1953,34 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	}, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, next, err := auth.ListWebTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListWebTokensResponse{
+		Tokens:        make([]*types.WebTokenV3, 0, len(tokens)),
+		NextPageToken: next,
+	}
+
+	for _, t := range tokens {
+		tokenV3, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", t)
+		}
+		resp.Tokens = append(resp.Tokens, tokenV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteWebToken removes the web token given with req.
 func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1887,7 +1988,7 @@ func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTok
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+	if err := auth.DeleteWebToken(ctx, *req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1901,7 +2002,7 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+	if err := auth.DeleteAllWebTokens(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2258,6 +2359,21 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 	return rsp, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter.
+func (g *GRPCServer) ListRequestableRoles(ctx context.Context, req *authpb.ListRequestableRolesRequest) (*authpb.ListRequestableRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
 // CreateRole creates a new role.
 func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -2434,12 +2550,28 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.Wrap(err)
 	}
 
-	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
-	if err != nil {
-		return trace.Wrap(err)
+	// We must use the real username associated with the identity.
+	// GetUser() can be remote-{user}-{cluster} if we are using
+	// a leaf cluster.
+	realUsername := actx.Identity.GetIdentity().Username
+	originCluster := actx.Identity.GetIdentity().OriginClusterName
+	origErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, realUsername, originCluster)
+	switch {
+	case trace.IsNotFound(origErr):
+		// If the user was not found, it may be because the session tracker
+		// was created with the .GetUser() value (remote-{user}-{cluster}).
+		// Try again with that username as a fallback.
+		// TODO(tigrato): DELETE IN 20.0.0
+		if fallbackErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user, originCluster); fallbackErr != nil {
+			// Return the original error, as that is more relevant to the client.
+			return trace.Wrap(origErr)
+		}
+		return nil
+	case origErr != nil:
+		return trace.Wrap(origErr)
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
@@ -3228,6 +3360,8 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 }
 
 // GetTokens retrieves all tokens.
+// Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+// TODO(hugoShaka): DELETE IN 21.0.0
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -3247,6 +3381,24 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
 	}, nil
+}
+
+// GetStaticTokens returns the static tokens.
+func (g *GRPCServer) GetStaticTokens(ctx context.Context, _ *emptypb.Empty) (*types.StaticTokensV2, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	st, err := auth.ServerWithRoles.GetStaticTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, ok := st.(*types.StaticTokensV2)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected static token type: %T", st)
+	}
+	return result, nil
 }
 
 // ListProvisionTokens retrieves a paginated list of provision tokens.
@@ -3784,6 +3936,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3798,6 +3953,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -3969,6 +4127,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	return &types.DatabaseV3List{
 		Databases: databasesV3,
 	}, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteDatabase removes the specified database.
@@ -4909,6 +5095,34 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	}, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, next, err := auth.ListKubernetesClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListKubernetesClustersResponse{
+		KubernetesClusters: make([]*types.KubernetesClusterV3, 0, len(clusters)),
+		NextPageToken:      next,
+	}
+
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kubernetes cluster type %T", clusterV3)
+		}
+		resp.KubernetesClusters = append(resp.KubernetesClusters, clusterV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -5562,7 +5776,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
 		Authorizer: cfg.Authorizer,
-		Reader:     cfg.AuthServer.scopedAccessCache,
+		Reader:     cfg.AuthServer.ScopedAccessCache,
 		Writer:     cfg.AuthServer.scopedAccessBackend,
 		Logger:     logger,
 	})
@@ -5620,18 +5834,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		AuthServer: cfg.AuthServer,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		AuthServer:       cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(cfg.AuthServer)
-	authpb.RegisterJoinServiceServer(server, joinServiceServer)
+	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
+	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
+
+	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
+		Authorizer:  cfg.Authorizer,
+		AuthService: cfg.AuthServer,
+		Clock:       cfg.AuthServer.clock,
+	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
@@ -5650,7 +5871,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationAWSOIDCServiceServer, err := integrationv1.NewAWSOIDCService(&integrationv1.AWSOIDCServiceConfig{
 		Authorizer:            cfg.Authorizer,
 		IntegrationService:    integrationServiceServer,
-		Cache:                 cfg.AuthServer,
+		Cache:                 cfg.AuthServer.Cache,
+		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
 	})
@@ -5734,6 +5956,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Uploader:   cfg.AuthServer.Services,
+		KeyRotater: cfg.AuthServer.Services,
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 	})
 	if err != nil {
@@ -5855,7 +6078,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 
+		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
 	}
+
+	recordingMetadataService, err := recordingmetadatav1.NewService(recordingmetadatav1.ServiceConfig{
+		Authorizer: NewSessionRecordingAuthorizer(
+			cfg.AuthServer,
+			cfg.Authorizer,
+		),
+		Streamer:        cfg.AuthServer,
+		DownloadHandler: cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating recording metadata service")
+	}
+	recordingmetadatav1pb.RegisterRecordingMetadataServiceServer(server, recordingMetadataService)
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
 		DecisionService: cfg.AuthServer.pdp,
@@ -5996,4 +6233,31 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 			return trail.ToGRPC(trace.Wrap(err))
 		}
 	}
+}
+
+// ValidateTrustedCluster is called by the Proxy when a leaf cluster is
+// requesting to join.
+func (g *GRPCServer) ValidateTrustedCluster(
+	ctx context.Context,
+	req *authpb.ValidateTrustedClusterRequest,
+) (*authpb.ValidateTrustedClusterResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nativeReq := authclient.ValidateTrustedClusterRequestFromProto(req)
+	nativeResp, err := auth.ValidateTrustedCluster(ctx, nativeReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := nativeResp.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(
+			err,
+			"converting native ValidateTrustedClusterResponse to proto representation",
+		)
+	}
+
+	return protoResp, nil
 }

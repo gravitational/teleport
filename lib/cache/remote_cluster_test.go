@@ -26,8 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestRemoteClusters tests remote clusters caching
@@ -48,23 +46,15 @@ func TestRemoteClusters(t *testing.T) {
 				_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return p.trustS.GetRemoteClusters(ctx)
-			},
-			cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-				return p.cache.GetRemoteCluster(ctx, name)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.RemoteCluster, error) {
-				return p.cache.GetRemoteClusters(ctx)
-			},
+			list:      getAllAdapter(p.trustS.GetRemoteClusters),
+			cacheGet:  p.cache.GetRemoteCluster,
+			cacheList: getAllAdapter(p.cache.GetRemoteClusters),
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.trustS.DeleteAllRemoteClusters(ctx)
-			},
-		})
+			deleteAll: p.trustS.DeleteAllRemoteClusters,
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListRemoteClusters", func(t *testing.T) {
@@ -81,23 +71,15 @@ func TestRemoteClusters(t *testing.T) {
 				_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return p.trustS.GetRemoteClusters(ctx)
-			},
-			cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-				return p.cache.GetRemoteCluster(ctx, name)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.RemoteCluster, error) {
-				return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListRemoteClusters, pageSize))
-			},
+			list:      getAllAdapter(p.trustS.GetRemoteClusters),
+			cacheGet:  p.cache.GetRemoteCluster,
+			cacheList: getAllAdapter(p.cache.GetRemoteClusters),
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.trustS.DeleteAllRemoteClusters(ctx)
-			},
-		})
+			deleteAll: p.trustS.DeleteAllRemoteClusters,
+		}, withSkipPaginationTest())
 	})
 }
 
@@ -117,18 +99,14 @@ func TestTunnelConnections(t *testing.T) {
 				LastHeartbeat: time.Now().UTC(),
 			})
 		},
-		create: modifyNoContext(p.trustS.UpsertTunnelConnection),
-		list: func(ctx context.Context) ([]types.TunnelConnection, error) {
-			return p.trustS.GetAllTunnelConnections()
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.TunnelConnection, error) {
-			return p.cache.GetAllTunnelConnections()
-		},
-		update: modifyNoContext(p.trustS.UpsertTunnelConnection),
+		create:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
+		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
 			return p.trustS.DeleteAllTunnelConnections()
 		},
-	})
+	}, withSkipPaginationTest())
 
 	for i := range 17 {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+1), types.TunnelConnectionSpecV2{

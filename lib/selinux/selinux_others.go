@@ -34,7 +34,7 @@ func ModuleSource() string {
 }
 
 // FileContexts returns file contexts for the SELinux SSH module.
-func FileContexts(dataDir, configPath string) (string, error) {
+func FileContexts(dataDir, configPath, execPathOverride string) (string, error) {
 	return "", trace.Errorf(errPlatformNotSupportedMsg)
 }
 
@@ -42,6 +42,11 @@ func FileContexts(dataDir, configPath string) (string, error) {
 // enforce the SSH service correctly.
 func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	return trace.Errorf(errPlatformNotSupportedMsg)
+}
+
+// ModuleInstalled returns true if the SSH SELinux module is installed.
+func ModuleInstalled() (bool, error) {
+	return false, trace.Errorf(errPlatformNotSupportedMsg)
 }
 
 // UserContext returns the SELinux context that should be used when

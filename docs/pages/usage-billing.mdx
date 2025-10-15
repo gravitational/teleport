@@ -2,7 +2,7 @@
 title: Usage Reporting and Billing
 description: Provides a detailed breakdown of Teleport usage reporting and billing.
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -166,10 +166,10 @@ Identity Governance Monthly Active Users (IG MAU) is the aggregate number of uni
 We aggregate IG MAU over each monthly period starting on the subscription start date and ending on each monthly anniversary thereafter.
 
 Identity Governance "active user" means a user having performed any of the following activities:
-- Submitting an access request
-- Reviewing an access request
-- Getting roles assigned during login through access list membership
-- Reviewing an access list
+- Submitting an Access Request
+- Reviewing an Access Request
+- Getting roles assigned during login through Access List membership
+- Reviewing an Access List
 - Logging in to a service provider application via Teleport SAML IdP
 
 IG MAU is calculated separately from standard MAU and represents users specifically engaging with Teleport's Identity Governance features. A user can contribute to both standard MAU and IG MAU billing metrics within the same period if they perform activities that qualify for both metrics.
@@ -224,7 +224,7 @@ usage numbers.
 ### SSO users
 
 In Teleport, single sign-on (SSO) users are
-[ephemeral](reference/user-types.mdx#temporary-users). Teleport deletes an SSO user
+[ephemeral](reference/access-controls/user-types.mdx#temporary-users). Teleport deletes an SSO user
 when its session expires. To count the number of SSO users in your cluster, you
 can examine Teleport audit events for unique SSO users that have authenticated
 to Teleport during a given time period. The Teleport documentation includes

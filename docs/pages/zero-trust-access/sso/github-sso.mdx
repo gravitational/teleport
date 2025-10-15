@@ -2,9 +2,11 @@
 title: Set up Single Sign-On with GitHub
 description: Setting up GitHub SSO
 videoBanner: XjgN2WWFCX8
-labels:
+tags:
+ - sso
  - how-to
  - zero-trust
+ - privileged-access
 ---
 
 This guide explains how to set up GitHub Single Sign On (SSO) so you can
@@ -66,7 +68,10 @@ https://PROXY_ADDRESS/v1/webapi/github/
 ```
 
 Replace `PROXY_ADDRESS` with be the public address of the Teleport Proxy Service
-or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`).
+or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`). If you have
+a self-hosted cluster with multiple public addresses for the Teleport Proxy
+Service (the value of `proxy_service.public_addr` in the Teleport configuration
+file), ensure that this address points to the first one listed.
 
 The app must have the `read:org` scope in order to be able to read org and team
 membership details.

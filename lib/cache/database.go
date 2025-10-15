@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -37,8 +38,8 @@ type databaseIndex string
 
 const databaseNameIndex = "name"
 
-func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex], error) {
-	if p == nil {
+func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex], error) {
+	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Databases")
 	}
 
@@ -52,7 +53,13 @@ func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection
 				databaseNameIndex: types.Database.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Database, error) {
-			return p.GetDatabases(ctx)
+			out, err := stream.Collect(upstream.RangeDatabases(ctx, "", ""))
+			// TODO(lokraszewski): DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				out, err := upstream.GetDatabases(ctx)
+				return out, trace.Wrap(err)
+			}
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Database {
 			return &types.DatabaseV3{
@@ -92,6 +99,7 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 }
 
 // GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
@@ -113,6 +121,50 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	}
 
 	return out, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabases")
+	defer span.End()
+
+	lister := genericLister[types.Database, databaseIndex]{
+		cache:        c,
+		collection:   c.collections.dbs,
+		index:        databaseNameIndex,
+		upstreamList: c.Config.Databases.ListDatabases,
+		nextToken:    types.Database.GetName,
+	}
+	out, next, err := lister.list(ctx, limit, startKey)
+	return out, next, trace.Wrap(err)
+}
+
+// RangeDatabases returns database resources within the range [start, end).
+func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	lister := genericLister[types.Database, databaseIndex]{
+		cache:        c,
+		collection:   c.collections.dbs,
+		index:        databaseNameIndex,
+		upstreamList: c.Config.Databases.ListDatabases,
+		nextToken:    types.Database.GetName,
+		// TODO(lokraszewski): DELETE IN v21.0.0
+		fallbackGetter: c.Config.Databases.GetDatabases,
+	}
+
+	return func(yield func(types.Database, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabases")
+		defer span.End()
+
+		for db, err := range lister.RangeWithFallback(ctx, start, end) {
+			if !yield(db, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }
 
 type databaseServerIndex string

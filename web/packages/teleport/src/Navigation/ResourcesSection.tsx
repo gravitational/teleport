@@ -23,11 +23,14 @@ import { Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+import {
+  getFilterKindName,
+  ResourceFilterKind,
+} from 'shared/components/UnifiedResources';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
 import cfg from 'teleport/config';
-import { ResourceIdKind } from 'teleport/services/agents';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -68,7 +71,7 @@ type GetSubsectionProps = {
 
 function encodeUrlQueryParamsWithTypedKinds(
   params: Omit<EncodeUrlQueryParamsProps, 'kinds'> & {
-    kinds?: ResourceIdKind[];
+    kinds?: ResourceFilterKind[];
   }
 ) {
   return encodeUrlQueryParams(params);
@@ -114,7 +117,7 @@ function getResourcesSubsections({
     preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED;
 
   // isKindActive returns true if we are currently filtering for only the provided kind of resource.
-  const isKindActive = (kind: ResourceIdKind) => {
+  const isKindActive = (kind: ResourceFilterKind) => {
     // This subsection for this kind should only be marked active when it is the only kind being filtered for,
     // if there are multiple kinds then the "All Resources" button should be active.
     return currentKinds.length === 1 && currentKinds[0] === kind;
@@ -158,6 +161,11 @@ function getResourcesSubsections({
     kinds: ['git_server'],
     pinnedOnly: false,
   });
+  const mcpOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
+    pathname: baseRoute,
+    kinds: ['mcp'],
+    pinnedOnly: false,
+  });
 
   return [
     {
@@ -193,7 +201,7 @@ function getResourcesSubsections({
       onClick: () => setPinnedUserPreference(true),
     },
     {
-      title: 'Applications',
+      title: getFilterKindName('app'),
       icon: Icons.Application,
       route: applicationsOnlyRoute,
       searchableTags: ['resources', 'apps', 'applications'],
@@ -204,7 +212,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Databases',
+      title: getFilterKindName('db'),
       icon: Icons.Database,
       route: databasesOnlyRoute,
       searchableTags: ['resources', 'dbs', 'databases'],
@@ -215,7 +223,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Desktops',
+      title: getFilterKindName('windows_desktop'),
       icon: Icons.Desktop,
       route: desktopsOnlyRoute,
       searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
@@ -226,7 +234,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Git Servers',
+      title: getFilterKindName('git_server'),
       icon: Icons.GitHub,
       route: gitOnlyRoute,
       searchableTags: ['resources', 'git', 'github', 'git servers'],
@@ -237,7 +245,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Kubernetes',
+      title: getFilterKindName('kube_cluster'),
       icon: Icons.Kubernetes,
       route: kubesOnlyRoute,
       searchableTags: ['resources', 'k8s', 'kubes', 'kubernetes'],
@@ -248,7 +256,18 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'SSH Resources',
+      title: getFilterKindName('mcp'),
+      icon: Icons.ModelContextProtocol,
+      route: mcpOnlyRoute,
+      searchableTags: ['resources', 'mcp', 'mcp servers'],
+      category: NavigationCategory.Resources,
+      exact: false,
+      customRouteMatchFn: () => isKindActive('mcp'),
+      onClick: () => setPinnedUserPreference(false),
+      subCategory: CustomNavigationSubcategory.FilteredViews,
+    },
+    {
+      title: getFilterKindName('node'),
       icon: Icons.Server,
       route: nodesOnlyRoute,
       searchableTags: ['resources', 'servers', 'nodes', 'ssh resources'],

@@ -40,6 +40,19 @@ type mockAccessListAndMembersGetter struct {
 	members     map[string][]*accesslist.AccessListMember
 }
 
+func (m *mockAccessListAndMembersGetter) GetAccessListMember(ctx context.Context, accessListName, memberName string) (*accesslist.AccessListMember, error) {
+	member, exists := m.members[accessListName]
+	if !exists {
+		return nil, trace.NotFound("access list %v member %v not found", accessListName, memberName)
+	}
+	for _, m := range member {
+		if m.GetName() == memberName {
+			return m, nil
+		}
+	}
+	return nil, trace.NotFound("access list %v member %v not found", accessListName, memberName)
+}
+
 func (m *mockAccessListAndMembersGetter) GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error) {
 	accessList, exists := m.accessLists[accessListName]
 	if !exists {

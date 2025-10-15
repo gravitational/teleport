@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
@@ -47,7 +48,7 @@ func TestOSSModules(t *testing.T) {
 
 func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 	ctx := context.Background()
-	testServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -59,7 +60,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		},
 	})
 
-	s, err := auth.NewTestTLSServer(auth.TestTLSServerConfig{
+	s, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
 			AuthServer: testServer.AuthServer,
 			Authorizer: testServer.Authorizer,
@@ -70,7 +71,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clt, err := s.NewClient(auth.TestAdmin())
+	clt, err := s.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
 	ap := types.DefaultAuthPreference()
@@ -94,7 +95,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 	ctx := context.Background()
 
-	testServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)

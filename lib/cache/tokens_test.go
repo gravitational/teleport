@@ -29,17 +29,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestTokens tests static tokens
 func TestStaticTokens(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
+
+	// Make sure we get a NotFoundError (and not a panic) when there are no
+	// static tokens.
+	_, err := p.cache.GetStaticTokens(ctx)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -62,7 +66,7 @@ func TestStaticTokens(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetStaticTokens()
+	out, err := p.cache.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -131,19 +135,15 @@ func TestTokensCache(t *testing.T) {
 		cacheGet: func(ctx context.Context, key string) (types.ProvisionToken, error) {
 			return p.cache.GetToken(ctx, key)
 		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.ProvisionToken, error) {
-			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
-				return p.cache.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
-			}))
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+			return p.cache.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
 		},
 		create: func(ctx context.Context, resource types.ProvisionToken) error {
 			err := p.provisionerS.CreateToken(ctx, resource)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.ProvisionToken, error) {
-			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
-				return p.provisionerS.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
-			}))
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+			return p.provisionerS.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
 		},
 		update: func(ctx context.Context, t types.ProvisionToken) error {
 			err := p.provisionerS.UpsertToken(ctx, t)
@@ -203,7 +203,7 @@ func TestTokensCacheFilters(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 		require.NoError(t, err)
-		assert.Len(t, result, len(tokens))
+		require.Len(t, result, len(tokens))
 	}, 10*time.Second, 100*time.Millisecond)
 
 	t.Run("roles filter", func(t *testing.T) {

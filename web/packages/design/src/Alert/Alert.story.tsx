@@ -20,7 +20,7 @@ import { action } from 'storybook/actions';
 
 import { Restore } from 'design/Icon';
 
-import { Box } from '..';
+import { Box, Flex, Text } from '..';
 import { Alert, AlertProps, Banner } from './Alert';
 
 export default {
@@ -36,6 +36,49 @@ export const Simple = () => (
     <Alert kind="success">This is success</Alert>
     <Alert kind="neutral" icon={Restore}>
       Alert with a custom icon
+    </Alert>
+  </Box>
+);
+
+export const Wrapping = () => (
+  <Box maxWidth="300px">
+    <Alert kind="neutral" wrapContents>
+      <Flex flexDirection="column" gap={1}>
+        <Text>Some neutral message</Text>
+        <Text typography="body2" bold={false}>
+          Some more information or extended description, which may be long
+          enough to wrap to multiple lines. Note how the icon stays aligned with
+          the top despite this.
+        </Text>
+      </Flex>
+    </Alert>
+    <Alert
+      kind="warning"
+      primaryAction={{ content: 'Okay', onClick: () => {} }}
+      wrapContents
+    >
+      <Flex flexDirection="column" gap={1}>
+        <Text>Some warning</Text>
+        <Text typography="body2" bold={false}>
+          This is a warning message with an action button. When the text wraps
+          here, the button should stay centre-aligned as well.
+        </Text>
+      </Flex>
+    </Alert>
+    <Alert
+      kind="danger"
+      primaryAction={{ content: 'Action', onClick: () => {} }}
+      wrapContents
+    >
+      Some error alert with an action
+    </Alert>
+    <Alert
+      kind="danger"
+      primaryAction={{ content: 'Action', onClick: () => {} }}
+      secondaryAction={{ content: 'Cancel', onClick: () => {} }}
+      wrapContents
+    >
+      Some error alert with two actions
     </Alert>
   </Box>
 );

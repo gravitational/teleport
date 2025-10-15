@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -91,6 +90,8 @@ func (m *mockAuthClient) GetClusterName(ctx context.Context) (types.ClusterName,
 func TestTLSConfigForLDAP(t *testing.T) {
 	auth := &mockAuthClient{
 		generateDatabaseCert: func(ctx context.Context, request *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+			require.NotEmpty(t, request.CRLDomain)
+
 			csr, err := tlsca.ParseCertificateRequestPEM(request.CSR)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -119,66 +120,4 @@ func TestTLSConfigForLDAP(t *testing.T) {
 	require.Equal(t, "ldap.example.com", tlsConfig.ServerName)
 	require.NotEmpty(t, tlsConfig.Certificates)
 	require.NotNil(t, tlsConfig.RootCAs)
-}
-
-type mockLDAPClient struct {
-	searchWithPaging func(searchRequest *ldap.SearchRequest, pagingSize uint32) (*ldap.SearchResult, error)
-	ldap.Client
-}
-
-func (m *mockLDAPClient) SearchWithPaging(searchRequest *ldap.SearchRequest, pagingSize uint32) (*ldap.SearchResult, error) {
-	if m.searchWithPaging == nil {
-		return nil, trace.BadParameter("callback function searchWithPaging not set")
-	}
-	return m.searchWithPaging(searchRequest, pagingSize)
-}
-
-func TestGetActiveDirectorySID(t *testing.T) {
-	adConfig := types.AD{
-		KeytabFile:             "",
-		Krb5File:               "",
-		SPN:                    "",
-		Domain:                 "example.com",
-		LDAPCert:               fixtures.TLSCACertPEM,
-		KDCHostName:            "ldap.example.com",
-		LDAPServiceAccountName: "DOMAIN\\test-service-account",
-		LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
-	}
-
-	connector, err := newLDAPConnector(slog.Default(), &mockAuthClient{}, adConfig)
-	require.NoError(t, err)
-
-	connector.dialLDAPServerFunc = func(ctx context.Context) (ldap.Client, error) {
-		return &mockLDAPClient{searchWithPaging: func(searchRequest *ldap.SearchRequest, pagingSize uint32) (*ldap.SearchResult, error) {
-			if searchRequest.BaseDN != "DC=example,DC=com" {
-				return nil, trace.BadParameter("unexpected value of base_dn")
-			}
-			if searchRequest.Filter != "(\u0026(sAMAccountType=805306368)(sAMAccountName=DOMAIN\\test-user))" {
-				return nil, trace.BadParameter("unexpected value of filter")
-			}
-			if len(searchRequest.Attributes) != 1 {
-				return nil, trace.BadParameter("unexpected number of search attributes")
-			}
-			if searchRequest.Attributes[0] != "objectSid" {
-				return nil, trace.BadParameter("unexpected value of search attribute")
-			}
-
-			const sidValue = "\u0001\u0005\u0000\u0000\u0000\u0000\u0000\u0005\u0015\u0000\u0000\u0000\ufffd=\ufffd\ufffd\ufffd\ufffd̼}\ufffd\u001a\ufffd\ufffd\u0001\u0000\u0000"
-
-			attr := ldap.NewEntryAttribute("objectSid", []string{sidValue})
-
-			return &ldap.SearchResult{
-				Entries: []*ldap.Entry{
-					{
-						DN:         "CN=test-user,CN=Users,DC=example,DC=com",
-						Attributes: []*ldap.EntryAttribute{attr},
-					},
-				},
-			}, nil
-		}}, nil
-	}
-
-	sid, err := connector.GetActiveDirectorySID(context.Background(), "DOMAIN\\test-user")
-	require.NoError(t, err)
-	require.Equal(t, "S-1-5-21-1035845615-4022190063-3220159935-3183472573", sid)
 }

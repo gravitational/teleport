@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -43,14 +44,22 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestEditResources(t *testing.T) {
 	t.Parallel()
 	log := logtest.NewLogger()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string
@@ -140,7 +149,6 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 
 		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -176,9 +184,8 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := &roleCollection{roles: []types.Role{expected}}
+		collection := resources.NewRoleCollection([]types.Role{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the role and validate that the expected field is updated.
@@ -218,7 +225,6 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 
 		collection := &userCollection{users: []types.User{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the user and validate that the expected field is updated.
@@ -256,7 +262,6 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 
 		collection := &netConfigCollection{netConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the cnc and validate that the expected field is updated.
@@ -295,7 +300,6 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 
 		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the cap and validate that the expected field is updated.
@@ -333,7 +337,6 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 
 		collection := &recConfigCollection{recConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the src and validate that the expected field is updated.
@@ -369,8 +372,15 @@ func TestEditEnterpriseResources(t *testing.T) {
 		},
 	})
 	log := logtest.NewLogger()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string
@@ -424,7 +434,6 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 
 		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -493,7 +502,6 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 
 		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -676,4 +684,68 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 	require.NoError(t, err)
 	expected.SetRevision(actual.GetRevision())
 	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
+}
+
+func TestMultipleRoles(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	roleNames := []string{"test-role1", "test-role2"}
+	for _, name := range roleNames {
+		expected, err := types.NewRole(name, types.RoleSpecV6{})
+		require.NoError(t, err, "creating initial role resource")
+		_, err = rootClient.CreateRole(ctx, expected.(*types.RoleV6))
+		require.NoError(t, err, "persisting initial role resource")
+	}
+
+	roles, err := rootClient.GetRoles(ctx)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		for _, role := range roles {
+			if !slices.Contains(roleNames, role.GetName()) {
+				continue
+			}
+			role.SetLogins(types.Allow, []string{"abcdef"})
+		}
+
+		collection := resources.NewRoleCollection(roles)
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	// Edit the role and validate that the expected field is updated.
+	_, err = runEditCommand(t, rootClient, []string{"edit", "roles"},
+		withEditor(editor),
+	)
+	require.NoError(t, err, "expected editing role to succeed")
+
+	for _, role := range roles {
+		actual, err := rootClient.GetRole(ctx, role.GetName())
+		require.NoError(t, err, "retrieving role after edit")
+
+		assert.Equal(t, role.GetLogins(types.Allow), actual.GetLogins(types.Allow), "logins should have been modified by edit")
+		require.Empty(t, cmp.Diff(role, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		switch {
+		case !slices.Contains(roleNames, role.GetName()):
+			require.Equal(t, role.GetRevision(), actual.GetRevision(), "revision should not have been modified by edit")
+		default:
+			require.NotEqual(t, role.GetRevision(), actual.GetRevision(), "revision should have been modified by edit")
+		}
+	}
 }

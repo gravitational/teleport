@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -113,7 +115,7 @@ func CheckToolVersion(toolPath string) (string, error) {
 	// Execute "{tsh, tctl} version" and pass in TELEPORT_TOOLS_VERSION=off to
 	// turn off all automatic updates code paths to prevent any recursion.
 	command := exec.CommandContext(ctx, toolPath, "version")
-	command.Env = []string{teleportToolsVersionEnv + "=off"}
+	command.Env = []string{teleportToolsVersionEnv + "=" + teleportToolsVersionEnvDisabled}
 	output, err := command.Output()
 	if err != nil {
 		slog.DebugContext(context.Background(), "failed to determine version",
@@ -158,6 +160,12 @@ func GetReExecFromVersion(ctx context.Context) string {
 	return reExecFromVersion
 }
 
+// GetReExecPath returns the execution path if current execution binary is re-executed from
+// another version.
+func GetReExecPath() string {
+	return os.Getenv(teleportToolsPathReExecEnv)
+}
+
 // CleanUp cleans the tools directory with downloaded versions.
 func CleanUp(toolsDir string, tools []string) error {
 	var aggErr []error
@@ -193,7 +201,12 @@ type packageURL struct {
 }
 
 // teleportPackageURLs returns URLs for the Teleport archives to download.
-func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version string) ([]packageURL, error) {
+func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, requestedVersion string) ([]packageURL, error) {
+	semVersion, err := version.EnsureSemver(requestedVersion)
+	if err != nil {
+		return nil, trace.BadParameter("version %q is not following semver", requestedVersion)
+	}
+
 	m := modules.GetModules()
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
@@ -209,24 +222,35 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, version s
 		flags |= autoupdate.FlagEnterprise
 	}
 
-	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, autoupdate.DefaultPackage, version, flags)
+	// TODO(vapopov): DELETE in v22.0.0 version check - the separate `teleport-tools` package
+	// will be included in all supported versions.
+	pkg := autoupdate.DefaultPackage
+	if runtime.GOOS == constants.DarwinOS &&
+		(semVersion.Major > 18 ||
+			semVersion.Major == 18 && semVersion.Compare(semver.Version{Major: 18, Minor: 1, Patch: 5}) >= 0 ||
+			semVersion.Major == 17 && semVersion.Compare(semver.Version{Major: 17, Minor: 7, Patch: 2}) >= 0) {
+		pkg = autoupdate.DefaultToolsPackage
+	}
+
+	teleportURL, err := autoupdate.MakeURL(uriTmpl, baseURL, pkg, requestedVersion, flags)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if runtime.GOOS == constants.DarwinOS {
-		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", version, flags)
+	// TODO(vapopov): DELETE in v20.0.0 - the separate `tsh` package will no longer be supported.
+	if runtime.GOOS == constants.DarwinOS && semVersion.Major < 17 {
+		tshURL, err := autoupdate.MakeURL(uriTmpl, baseURL, "tsh", requestedVersion, flags)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return []packageURL{
-			{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
-			{Version: version, Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
+			{Version: requestedVersion, Archive: teleportURL, Hash: teleportURL + ".sha256"},
+			{Version: requestedVersion, Archive: tshURL, Hash: tshURL + ".sha256", Optional: true},
 		}, nil
 	}
 
 	return []packageURL{
-		{Version: version, Archive: teleportURL, Hash: teleportURL + ".sha256"},
+		{Version: requestedVersion, Archive: teleportURL, Hash: teleportURL + ".sha256"},
 	}, nil
 }
 
@@ -253,4 +277,12 @@ func checkFreeSpace(path string, requested uint64) error {
 	}
 
 	return nil
+}
+
+// filterEnvs excludes environment variables by the list of the keys.
+func filterEnvs(envs []string, excludeKeys []string) []string {
+	return slices.DeleteFunc(envs, func(e string) bool {
+		parts := strings.SplitN(e, "=", 2)
+		return slices.Contains(excludeKeys, parts[0])
+	})
 }

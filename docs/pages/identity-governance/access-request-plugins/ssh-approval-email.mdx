@@ -2,9 +2,11 @@
 title: Access Requests with Email
 sidebar_label: Email
 description: How to set up the Teleport email plugin to notify users when another user requests elevated privileges.
-labels:
+tags:
+ - access-requests
  - how-to
  - identity-governance
+ - privileged-access
 ---
 
 This guide will explain how to set up Teleport to send Just-in-Time Access
@@ -43,6 +45,16 @@ configuration values:
 **`Mailgun Private Key`**: Configures the Mailgun API key.
 
 </details>
+
+## How it works
+
+The Teleport email plugin authenticates to a third-party SMTP service as well as
+the Teleport Auth Service, and listens for audit events from the Teleport Auth
+Service related to Access Requests. When a user creates an Access Request, the
+plugin sends an email to reviewers of the request, including a link that each
+reviewer can follow in order to review the request in the Teleport Web UI. You
+can configure the reviewers the plugin will notify based on the role targeted by
+the Access Request.
 
 ## Prerequisites
 

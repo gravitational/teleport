@@ -312,8 +312,8 @@ type mockProtocolChecker struct {
 }
 
 func (m *mockProtocolChecker) CheckProtocol(service corev1.Service, port corev1.ServicePort) string {
-	uri := fmt.Sprintf("%s:%d", services.GetServiceFQDN(service), port.Port)
-	if result, ok := m.results[uri]; ok {
+	hostport := net.JoinHostPort(services.GetServiceFQDN(service), strconv.Itoa(int(port.Port)))
+	if result, ok := m.results[hostport]; ok {
 		return result
 	}
 	return "tcp"

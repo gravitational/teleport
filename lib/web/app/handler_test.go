@@ -327,10 +327,10 @@ func TestMatchApplicationServers(t *testing.T) {
 	// Create a httptest server to serve the application requests. It must serve
 	// TLS content with the generated certificate.
 	expectedContent := "Hello application"
-	fakeRemoteSite := startFakeAppServerOnRemoteSite(t, clusterName, authClient, cert, key)
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
 	tunnel := &reversetunnelclient.FakeServer{
-		Sites: []reversetunnelclient.RemoteSite{
-			fakeRemoteSite,
+		FakeClusters: []reversetunnelclient.Cluster{
+			fakeCluster,
 		},
 	}
 
@@ -347,9 +347,9 @@ func TestMatchApplicationServers(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusOK, status)
-	// Remote site should receive only 4 connection requests: 3 from the
+	// Cluster should receive only 4 connection requests: 3 from the
 	// MatchHealthy and 1 from the transport.
-	require.Equal(t, int64(4), fakeRemoteSite.DialCount())
+	require.Equal(t, int64(4), fakeCluster.DialCount())
 	// Guarantee the request was returned by the httptest server.
 	require.Equal(t, expectedContent, content)
 }
@@ -369,14 +369,14 @@ func TestHealthCheckAppServer(t *testing.T) {
 	for _, tc := range []struct {
 		desc                string
 		publicAddr          string
-		appServersFunc      func(t *testing.T, remoteSite *reversetunnelclient.FakeRemoteSite) []types.AppServer
+		appServersFunc      func(t *testing.T, cluster *reversetunnelclient.FakeCluster) []types.AppServer
 		expectedTunnelCalls int
 		expectErr           require.ErrorAssertionFunc
 	}{
 		{
 			desc:       "match and online services",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeCluster) []types.AppServer {
 				return []types.AppServer{createAppServer(t, "valid.example.com")}
 			},
 			expectedTunnelCalls: 1,
@@ -385,9 +385,9 @@ func TestHealthCheckAppServer(t *testing.T) {
 		{
 			desc:       "match and but no online services",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, tunnel *reversetunnelclient.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, cluster *reversetunnelclient.FakeCluster) []types.AppServer {
 				appServer := createAppServer(t, "valid.example.com")
-				tunnel.OfflineTunnels = map[string]struct{}{
+				cluster.OfflineTunnels = map[string]struct{}{
 					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
 				}
 				return []types.AppServer{appServer}
@@ -398,7 +398,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 		{
 			desc:       "no match",
 			publicAddr: "valid.example.com",
-			appServersFunc: func(t *testing.T, tunnel *reversetunnelclient.FakeRemoteSite) []types.AppServer {
+			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeCluster) []types.AppServer {
 				return []types.AppServer{}
 			},
 			expectedTunnelCalls: 0,
@@ -415,18 +415,18 @@ func TestHealthCheckAppServer(t *testing.T) {
 				caCert:      cert,
 			}
 
-			fakeRemoteSite := startFakeAppServerOnRemoteSite(t, clusterName, authClient, cert, key)
-			authClient.appServers = tc.appServersFunc(t, fakeRemoteSite)
+			fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+			authClient.appServers = tc.appServersFunc(t, fakeCluster)
 
 			tunnel := &reversetunnelclient.FakeServer{
-				Sites: []reversetunnelclient.RemoteSite{fakeRemoteSite},
+				FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
 			}
 
 			appHandler, err := NewHandler(ctx, &HandlerConfig{
 				Clock:                 fakeClock,
 				AuthClient:            authClient,
 				AccessPoint:           authClient,
-				ProxyClient:           tunnel,
+				ClusterGetter:         tunnel,
 				CipherSuites:          utils.DefaultCipherSuites(),
 				IntegrationAppHandler: &mockIntegrationAppHandler{},
 			})
@@ -434,7 +434,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 
 			err = appHandler.HealthCheckAppServer(ctx, tc.publicAddr, clusterName)
 			tc.expectErr(t, err)
-			require.Equal(t, int64(tc.expectedTunnelCalls), fakeRemoteSite.DialCount())
+			require.Equal(t, int64(tc.expectedTunnelCalls), fakeCluster.DialCount())
 		})
 	}
 }
@@ -443,12 +443,12 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
+func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:                 clock,
 		AuthClient:            authClient,
 		AccessPoint:           authClient,
-		ProxyClient:           proxyClient,
+		ClusterGetter:         clusterGetter,
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	})
@@ -576,26 +576,26 @@ func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
 	return []types.Server{}, nil
 }
 
-// fakeRemoteListener Implements a `net.Listener` that return `net.Conn` from
-// the `FakeRemoteSite`.
-type fakeRemoteListener struct {
-	fakeRemote *reversetunnelclient.FakeRemoteSite
+// fakeClusterListener Implements a `net.Listener` that return `net.Conn` from
+// the `FakeCluster`.
+type fakeClusterListener struct {
+	fakeCluster *reversetunnelclient.FakeCluster
 }
 
-func (r *fakeRemoteListener) Accept() (net.Conn, error) {
-	conn, ok := <-r.fakeRemote.ProxyConn()
+func (r *fakeClusterListener) Accept() (net.Conn, error) {
+	conn, ok := <-r.fakeCluster.ProxyConn()
 	if !ok {
-		return nil, fmt.Errorf("remote closed")
+		return nil, fmt.Errorf("cluster closed")
 	}
 
 	return conn, nil
 }
 
-func (r *fakeRemoteListener) Close() error {
+func (r *fakeClusterListener) Close() error {
 	return nil
 }
 
-func (r *fakeRemoteListener) Addr() net.Addr {
+func (r *fakeClusterListener) Addr() net.Addr {
 	return &net.IPAddr{}
 }
 
@@ -774,19 +774,19 @@ func TestMakeAppRedirectURL(t *testing.T) {
 	}
 }
 
-func startFakeAppServerOnRemoteSite(t *testing.T, clusterName string, accessPoint authclient.RemoteProxyAccessPoint, cert, key []byte) *reversetunnelclient.FakeRemoteSite {
+func startFakeAppServerOnCluster(t *testing.T, clusterName string, accessPoint authclient.RemoteProxyAccessPoint, cert, key []byte) *reversetunnelclient.FakeCluster {
 	t.Helper()
 
 	tlsCert, err := tls.X509KeyPair(cert, key)
 	require.NoError(t, err)
 
-	fakeRemoteSite := reversetunnelclient.NewFakeRemoteSite(clusterName, accessPoint)
+	fakeCluster := reversetunnelclient.NewFakeCluster(clusterName, accessPoint)
 	server := &httptest.Server{
 		TLS: &tls.Config{
 			Certificates: []tls.Certificate{tlsCert},
 		},
-		Listener: &fakeRemoteListener{
-			fakeRemote: fakeRemoteSite,
+		Listener: &fakeClusterListener{
+			fakeCluster: fakeCluster,
 		},
 		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			fmt.Fprint(w, "Hello application")
@@ -794,11 +794,11 @@ func startFakeAppServerOnRemoteSite(t *testing.T, clusterName string, accessPoin
 	}
 	server.StartTLS()
 	t.Cleanup(func() {
-		// Close fake remote site first to make sure fake listener quits.
-		fakeRemoteSite.Close()
+		// Close fake cluster first to make sure fake listener quits.
+		fakeCluster.Close()
 		server.Close()
 	})
-	return fakeRemoteSite
+	return fakeCluster
 }
 
 func TestHandlerAuthenticate(t *testing.T) {
@@ -825,14 +825,14 @@ func TestHandlerAuthenticate(t *testing.T) {
 		caCert: cert,
 	}
 
-	fakeRemoteSite := startFakeAppServerOnRemoteSite(t, clusterName, authClient, cert, key)
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
 
 	appHandler, err := NewHandler(ctx, &HandlerConfig{
 		Clock:       fakeClock,
 		AuthClient:  authClient,
 		AccessPoint: authClient,
-		ProxyClient: &reversetunnelclient.FakeServer{
-			Sites: []reversetunnelclient.RemoteSite{fakeRemoteSite},
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
 		},
 		CipherSuites:          utils.DefaultCipherSuites(),
 		IntegrationAppHandler: &mockIntegrationAppHandler{},

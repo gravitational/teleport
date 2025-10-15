@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/integrations/awscommon"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -144,16 +145,50 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	return nil, trace.Wrap(err)
 }
 
-// awsRolesAnywherePing performs an health check for the integration.
-// It returns the caller identity and the number of AWS Roles Anywhere Profiles that are active.
-// If a trust anchor is provided in the body, it will be used to check the connection ignoring the integration.
-// Otherwise, the integration is used to check the connection.
-func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+// validateAWSRolesAnywhereIntegration performs a validation for the AWS Roles Anywhere Integration name.
+// This ensures the integration name is not yet being used and that it is a valid name.
+func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
+	}
+
+	// validate integration name.
+	if err := awscommon.ValidIntegratioName(integrationName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.GetIntegration(ctx, integrationName)
+	switch {
+	case err == nil:
+		return nil, trace.AlreadyExists("integration named %q already exists", integrationName)
+
+	case trace.IsNotFound(err):
+
+	default:
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+// awsRolesAnywherePing performs an health check for the integration.
+// It returns the caller identity and the number of AWS Roles Anywhere Profiles that are active.
+// If a trust anchor is provided in the body, it will be used to check the connection ignoring the integration.
+// Otherwise, the integration is used to check the connection.
+func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req ui.AWSRolesAnywherePingRequest
@@ -161,7 +196,7 @@ func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -204,12 +239,12 @@ func (h *Handler) awsRolesAnywherePing(w http.ResponseWriter, r *http.Request, p
 }
 
 // awsRolesAnywhereListProfiles lists profiles Roles Anywhere Profiles accessible by the integration.
-func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req ui.AWSRolesAnywhereListProfilesRequest
@@ -217,18 +252,30 @@ func (h *Handler) awsRolesAnywhereListProfiles(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
-		Integration:   integrationName,
-		NextPageToken: req.StartKey,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	allProfiles := &integrationv1.ListRolesAnywhereProfilesResponse{}
+	var startKey string
+	for {
+		listResp, err := clt.IntegrationAWSRolesAnywhereClient().ListRolesAnywhereProfiles(ctx, &integrationv1.ListRolesAnywhereProfilesRequest{
+			Integration:        integrationName,
+			NextPageToken:      startKey,
+			ProfileNameFilters: req.Filters,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allProfiles.Profiles = append(allProfiles.Profiles, listResp.Profiles...)
+
+		startKey = listResp.NextPageToken
+		if startKey == "" {
+			break
+		}
 	}
 
-	return listResp, nil
+	return allProfiles, nil
 }

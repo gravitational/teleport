@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -52,7 +53,6 @@ import (
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func registerFakeEnterpriseDBEngines(t *testing.T) {
@@ -87,9 +87,26 @@ func TestTshDB(t *testing.T) {
 	// this speeds up test suite setup substantially, which is where
 	// tests spend the majority of their time, especially when leaf
 	// clusters are setup.
-	testenv.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
+
 	// Proxy uses self-signed certificates in tests.
-	testenv.WithInsecureDevMode(t, true)
+	originalValue := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithInsecureDevMode", "1")
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(originalValue)
+	})
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("DatabaseSelection", testDatabaseSelection)
@@ -1984,6 +2001,230 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			test.checkOutput(t, shouldRetryGetDatabaseUsingSearchAsRoles(test.cf, test.tc, test.inputError))
+		})
+	}
+}
+
+func TestDatabaseInfo(t *testing.T) {
+	const serviceName = "test-db"
+	tests := []struct {
+		name     string
+		dbSpec   types.DatabaseSpecV3
+		cliConf  *CLIConf
+		routeIn  tlsca.RouteToDatabase
+		routeOut tlsca.RouteToDatabase
+	}{
+		{
+			name: "basic case no changes",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+		},
+		{
+			name: "override from CLI flags",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			cliConf: &CLIConf{
+				DatabaseUser:  "bob",
+				DatabaseName:  "bob_db",
+				DatabaseRoles: "r1,r2,r3",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "bob",
+				Database:    "bob_db",
+				Roles:       []string{"r1", "r2", "r3"},
+			},
+		},
+		{
+			name: "add GCP IAM suffix for CloudSQL",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-project.iam",
+			},
+		},
+		{
+			name: "add GCP IAM suffix for AlloyDB",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-project-123456.iam",
+			},
+		},
+		{
+			name: "keep existing GCP IAM suffix",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-other-project.iam",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-other-project.iam",
+			},
+		},
+		{
+			name: "do not modify non-Postgres logins",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "spanner",
+				Database:    "spanner",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "spanner",
+				Database:    "spanner",
+				Username:    "iamuser",
+			},
+		},
+		{
+			name: "default database name from role",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "database_from_role",
+			},
+		},
+		{
+			name: "default database username from role",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "user_from_role",
+				Database:    "postgres",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:   serviceName,
+				Labels: map[string]string{"foo": "bar"},
+			}, tt.dbSpec)
+			require.NoError(t, err)
+
+			role := &types.RoleV6{
+				Metadata: types.Metadata{Name: "test-role", Namespace: apidefaults.Namespace},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"user_from_role"},
+						DatabaseNames:  []string{"database_from_role"},
+					},
+				},
+			}
+
+			checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.NewRoleSet(role))
+
+			dbInfo := &databaseInfo{
+				RouteToDatabase: tt.routeIn,
+
+				database: db,
+				checker:  checker,
+			}
+
+			cf := &CLIConf{}
+			if tt.cliConf != nil {
+				cf = tt.cliConf
+			}
+
+			// as long as dbInfo.database and dbInfo.checker are set
+			// the Teleport client won't be used and therefore can be nil.
+			var tc *client.TeleportClient = nil
+
+			err = dbInfo.checkAndSetDefaults(cf, tc)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.routeOut, dbInfo.RouteToDatabase)
 		})
 	}
 }

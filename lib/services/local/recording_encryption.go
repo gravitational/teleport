@@ -18,12 +18,14 @@ package local
 
 import (
 	"context"
+	"crypto/x509"
 
 	"github.com/gravitational/trace"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -31,12 +33,14 @@ import (
 
 const (
 	recordingEncryptionPrefix = "recording_encryption"
+	rotatedKeyPrefix          = "recording_encryption_rotated"
 )
 
 // RecordingEncryptionService exposes backend functionality for working with the
 // cluster's RecordingEncryption resource.
 type RecordingEncryptionService struct {
 	encryption *generic.ServiceWrapper[*recordingencryptionv1.RecordingEncryption]
+	rotatedKey *generic.ServiceWrapper[*recordingencryptionv1.RotatedKey]
 }
 
 var _ services.RecordingEncryption = (*RecordingEncryptionService)(nil)
@@ -56,8 +60,21 @@ func NewRecordingEncryptionService(b backend.Backend) (*RecordingEncryptionServi
 		return nil, trace.Wrap(err)
 	}
 
+	rotatedKey, err := generic.NewServiceWrapper(generic.ServiceConfig[*recordingencryptionv1.RotatedKey]{
+		Backend:       b,
+		PageLimit:     pageLimit,
+		ResourceKind:  types.KindRotatedKey,
+		BackendPrefix: backend.NewKey(rotatedKeyPrefix),
+		MarshalFunc:   services.MarshalProtoResource[*recordingencryptionv1.RotatedKey],
+		UnmarshalFunc: services.UnmarshalProtoResource[*recordingencryptionv1.RotatedKey],
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &RecordingEncryptionService{
 		encryption: encryption,
+		rotatedKey: rotatedKey,
 	}, nil
 }
 
@@ -94,6 +111,40 @@ func (s *RecordingEncryptionService) GetRecordingEncryption(ctx context.Context)
 	return encryption, trace.Wrap(err)
 }
 
+// CreateRotatedKey creates a new RotatedKey in the backend keyed on the fingerprint of the given public key.
+func (s *RecordingEncryptionService) CreateRotatedKey(ctx context.Context, key *types.EncryptionKeyPair) (*recordingencryptionv1.RotatedKey, error) {
+	parsed, err := x509.ParsePKIXPublicKey(key.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fp, err := recordingencryption.Fingerprint(parsed)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	created, err := s.rotatedKey.CreateResource(ctx, &recordingencryptionv1.RotatedKey{
+		Metadata: &headerv1.Metadata{
+			Name: fp,
+		},
+		Kind: types.KindRotatedKey,
+		Spec: &recordingencryptionv1.RotatedKeySpec{
+			EncryptionKeyPair: key,
+		},
+	})
+	return created, trace.Wrap(err)
+}
+
+// GetRotatedKey retrieves the RotatedKey related to the given public key fingerprint from the backend.
+func (s *RecordingEncryptionService) GetRotatedKey(ctx context.Context, fingerprint string) (*recordingencryptionv1.RotatedKey, error) {
+	rotatedKey, err := s.rotatedKey.GetResource(ctx, fingerprint)
+	return rotatedKey, trace.Wrap(err)
+}
+
+// DeleteRotatedKey removes the RotatedKey related with the given public key fingerprint from the backend.
+func (s *RecordingEncryptionService) DeleteRotatedKey(ctx context.Context, fingerprint string) error {
+	return trace.Wrap(s.rotatedKey.DeleteResource(ctx, fingerprint))
+}
+
 type recordingEncryptionParser struct {
 	baseParser
 }
@@ -107,15 +158,15 @@ func newRecordingEncryptionParser() *recordingEncryptionParser {
 func (p *recordingEncryptionParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpPut:
-		resource, err := services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption](
+		recordingEncryption, err := services.UnmarshalProtoResource[*recordingencryptionv1.RecordingEncryption](
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
 		}
-		return types.Resource153ToLegacy(resource), nil
+		return types.Resource153ToLegacy(recordingEncryption), nil
 	case types.OpDelete:
 		return &types.ResourceHeader{
 			Kind:    types.KindRecordingEncryption,
@@ -124,6 +175,44 @@ func (p *recordingEncryptionParser) parse(event backend.Event) (types.Resource, 
 				Name: types.MetaNameRecordingEncryption,
 			},
 		}, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+type rotatedKeyParser struct {
+	baseParser
+}
+
+func newRotatedKeyParser() *rotatedKeyParser {
+	return &rotatedKeyParser{
+		baseParser: newBaseParser(backend.NewKey(rotatedKeyPrefix)),
+	}
+}
+
+func (p *rotatedKeyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpPut:
+		rotatedKey, err := services.UnmarshalProtoResource[*recordingencryptionv1.RotatedKey](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
+		}
+
+		return types.Resource153ToLegacy(rotatedKey), nil
+	case types.OpDelete:
+		header, err := services.UnmarshalProtoResource[*headerv1.ResourceHeader](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling deleted resource header")
+		}
+		return types.Resource153ToLegacy(header), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

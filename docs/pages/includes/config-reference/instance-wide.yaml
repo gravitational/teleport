@@ -92,9 +92,23 @@ teleport:
     # point to a Load Balancer.
     proxy_server: teleport-proxy.example.com:443
 
+    # Relay tunnel address and port to connect to, if set. Used by some services
+    # to open additional tunnels to a Relay group if Teleport is configured to
+    # connect to a Proxy Server. If a Relay group consists of more than one
+    # Relay Service instance, the address should point to a Load Balancer.
+    # Used in Teleport v18.3.0 and later for the SSH service.
+    relay_server: teleport-relay.example.com:3042
+
     # cache:
     #  # The cache is enabled by default, it can be disabled with this flag
     #  enabled: true
+
+    # The duration (in string form) of the delay between receiving a termination
+    # signal and the beginning of the shutdown procedures. It can be used to
+    # give time to load balancers to stop routing connections to the Teleport
+    # instance while the instance is still capable of handling them. If unset or
+    # negative, no delay is applied.
+    #shutdown_delay: "0s"
 
     # Teleport can limit the number of connections coming from each client
     # IP address to avoid abuse. Note that these limits are enforced separately

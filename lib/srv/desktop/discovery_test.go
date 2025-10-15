@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -171,7 +171,7 @@ func TestDNSErrors(t *testing.T) {
 
 func TestDynamicWindowsDiscovery(t *testing.T) {
 	t.Parallel()
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
 	})
@@ -186,7 +186,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 
-	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, client.Close())
@@ -250,10 +250,9 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 					},
 				},
 			}
-			reconciler, err := s.startDynamicReconciler(ctx)
-			require.NoError(t, err)
+
+			require.NoError(t, s.startDynamicReconciler(t.Context()))
 			t.Cleanup(func() {
-				reconciler.Close()
 				require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(ctx))
 				var key string
 				for {
@@ -279,16 +278,12 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, desktops, testCase.expected) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, desktops, testCase.expected)
 
 				if testCase.expected > 0 {
-					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
-					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+					require.Equal(t, desktop.GetName(), desktops[0].GetName())
+					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
@@ -298,15 +293,11 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, desktops, testCase.expected) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, desktops, testCase.expected)
 				if testCase.expected > 0 {
-					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
-					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+					require.Equal(t, desktop.GetName(), desktops[0].GetName())
+					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
@@ -314,34 +305,28 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				assert.NoError(t, err)
-				assert.Empty(t, desktops)
+				require.NoError(t, err)
+				require.Empty(t, desktops)
 			}, 5*time.Second, 50*time.Millisecond)
 		})
 	}
 }
 
 func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, authServer.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	tlsServer, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, tlsServer.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, client.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
@@ -371,8 +356,8 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 			},
 		},
 	}
-	_, err = s.startDynamicReconciler(ctx)
-	require.NoError(t, err)
+
+	require.NoError(t, s.startDynamicReconciler(t.Context()))
 
 	desktop, err := types.NewDynamicWindowsDesktopV1("test", map[string]string{
 		"foo": "bar",
@@ -393,6 +378,7 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 
 	err = client.DeleteWindowsDesktop(ctx, s.cfg.Heartbeat.HostUUID, "test")
 	require.NoError(t, err)
+
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
 	require.Empty(t, desktops)

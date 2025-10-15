@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 const (
@@ -37,7 +39,7 @@ const (
 
 type JoinURIParams struct {
 	// AddressKind is the type of joining address, i.e. proxy or auth.
-	AddressKind AddressKind
+	AddressKind connection.AddressKind
 
 	// JoinMethod is the join method to use when joining, in combination with
 	// the token name.
@@ -86,7 +88,7 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 		errors = append(errors, trace.BadParameter("URI conflicts with configured field: proxy_server"))
 	} else {
 		switch p.AddressKind {
-		case AddressKindAuth:
+		case connection.AddressKindAuth:
 			cfg.AuthServer = p.Address
 		default:
 			// this parameter should not be unspecified due to checks in
@@ -123,8 +125,8 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 				"URI join method parameter %q conflicts with configured field: onboarding.gitlab.token_env_var_name", param))
 		case types.JoinMethodBoundKeypair:
 			errors = append(errors, applyValueOrError(
-				&cfg.Onboarding.BoundKeypair.RegistrationSecret, param,
-				"URI join method parameter %q conflicts with configured field: onboarding.bound_keypair.initial_join_secret", param))
+				&cfg.Onboarding.BoundKeypair.RegistrationSecretValue, param,
+				"URI join method parameter %q conflicts with configured field: onboarding.bound_keypair.registration_secret", param))
 		default:
 			slog.WarnContext(
 				context.Background(),
@@ -141,7 +143,7 @@ func (p *JoinURIParams) ApplyToConfig(cfg *BotConfig) error {
 // method constant.
 func MapURLSafeJoinMethod(name string) (types.JoinMethod, error) {
 	// When given a join method name that is already URL safe, just return it.
-	if slices.Contains(SupportedJoinMethods, name) {
+	if slices.Contains(onboarding.SupportedJoinMethods, name) {
 		return types.JoinMethod(name), nil
 	}
 
@@ -179,16 +181,16 @@ func ParseJoinURI(s string) (*JoinURIParams, error) {
 			uri.Scheme, URISchemePrefix)
 	}
 
-	var kind AddressKind
+	var kind connection.AddressKind
 	switch schemeParts[1] {
-	case string(AddressKindProxy):
-		kind = AddressKindProxy
-	case string(AddressKindAuth):
-		kind = AddressKindAuth
+	case string(connection.AddressKindProxy):
+		kind = connection.AddressKindProxy
+	case string(connection.AddressKindAuth):
+		kind = connection.AddressKindAuth
 	default:
 		return nil, trace.BadParameter(
 			"unsupported joining URI scheme %q: address kind must be one of [%q, %q], got: %q",
-			uri.Scheme, AddressKindProxy, AddressKindAuth, schemeParts[1])
+			uri.Scheme, connection.AddressKindProxy, connection.AddressKindAuth, schemeParts[1])
 	}
 
 	joinMethod, err := MapURLSafeJoinMethod(schemeParts[2])

@@ -45,6 +45,7 @@ import (
 const (
 	// GCP does not allow "." or "/" in labels
 	hostLabel                      = "teleport_auth_host"
+	encryptedHostLabel             = "teleport_encryption_auth_host"
 	gcpkmsPrefix                   = "gcpkms:"
 	gcpOAEPHash                    = crypto.SHA256
 	defaultGCPRequestTimeout       = 30 * time.Second
@@ -112,7 +113,7 @@ func (g *gcpKMSKeyStore) keyTypeDescription() string {
 }
 
 func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
-	alg, err := gcpAlgorithm(algorithm)
+	alg, err := gcpAlgorithm(usage, algorithm)
 	if err != nil {
 		return gcpKMSKeyID{}, trace.Wrap(err)
 	}
@@ -120,13 +121,18 @@ func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites
 	keyUUID := uuid.NewString()
 	g.log.InfoContext(ctx, "Creating new GCP KMS keypair.", "id", keyUUID, "algorithm", alg.String())
 
+	label := hostLabel
+	if usage == keyUsageDecrypt {
+		label = encryptedHostLabel
+	}
+
 	req := &kmspb.CreateCryptoKeyRequest{
 		Parent:      g.keyRing,
 		CryptoKeyId: keyUUID,
 		CryptoKey: &kmspb.CryptoKey{
 			Purpose: usage.toGCP(),
 			Labels: map[string]string{
-				hostLabel: g.hostUUID,
+				label: g.hostUUID,
 			},
 			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
 				ProtectionLevel: g.protectionLevel,
@@ -176,12 +182,29 @@ func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm crypto
 	return keyID.marshal(), decrypter, gcpOAEPHash, nil
 }
 
-func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
+func gcpAlgorithm(usage keyUsage, alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
 	switch alg {
 	case cryptosuites.RSA2048:
-		return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_2048_SHA256, nil
+		}
+	case cryptosuites.RSA4096:
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256, nil
+		}
 	case cryptosuites.ECDSAP256:
-		return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+		switch usage {
+		case keyUsageSign:
+			return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+		case keyUsageDecrypt:
+			return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm for decryption: %v", alg)
+		}
 	}
 	return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm: %v", alg)
 }
@@ -204,6 +227,28 @@ func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	}
 	signer, err := g.newKmsKeyWithPublicKey(ctx, keyID, publicKey)
 	return signer, trace.Wrap(err)
+}
+
+func (g *gcpKMSKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != storeGCP {
+		return nil, nil
+	}
+
+	keyMeta, err := g.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
+		Name: label.Label,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch keyMeta.GetAlgorithm() {
+	case kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256:
+	default:
+		return nil, trace.BadParameter("key spec must be RSA 4096 to be used as a decrypter")
+	}
+
+	key, err := g.newKmsKey(ctx, gcpKMSKeyID{keyMeta.GetName()})
+	return []crypto.Decrypter{key}, trace.Wrap(err)
 }
 
 // deleteKey deletes the given key from the KeyStore.
@@ -424,7 +469,7 @@ func (s *kmsKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.Decrypte
 		Ciphertext: ciphertext,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "error while attempting GCP KMS signing operation")
+		return nil, trace.Wrap(err, "error while attempting GCP KMS decryption operation")
 	}
 	return resp.Plaintext, nil
 }

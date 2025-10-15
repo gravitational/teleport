@@ -177,6 +177,8 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
+// Deprecated: use [ListProvisionTokens] instead.
+// TODO(hugoShaka): DELETE IN 19.0.0
 func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	startKey := backend.ExactKey(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)

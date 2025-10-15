@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -120,18 +120,15 @@ func TestBotJoinAuth(t *testing.T) {
 	authAddr, err := teleportServer.Process.AuthAddr()
 	require.NoError(t, err)
 	botConfig := &BotConfig{
-		Onboarding: config.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: tokenName,
 			JoinMethod: types.JoinMethodToken,
 		},
-		AuthServer:            authAddr.Addr,
-		AuthServerAddressMode: config.AllowProxyAsAuthServer,
+		AuthServer: authAddr.Addr,
 		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             defaultCertificateTTL,
 			RenewalInterval: defaultRenewalInterval,
 		},
-		Oneshot: true,
-		Debug:   true,
 	}
 	bot, err := New(botConfig, logger)
 	require.NoError(t, err)

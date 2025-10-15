@@ -36,8 +36,8 @@ import {
 } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   getResourceAvailabilityFilter,
+  makeTargetHealth,
   ResourceAvailabilityFilter,
-  ResourceHealthStatus,
   SharedUnifiedResource,
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourceDefinition,
@@ -59,7 +59,7 @@ import {
 } from 'shared/services/databases';
 import { waitForever } from 'shared/utils/wait';
 
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { getAppAddrWithProtocol, isMcp } from 'teleterm/services/tshd/app';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
@@ -494,6 +494,10 @@ const Resources = memo(
               kind: 'windows_desktop',
               disabled: false,
             },
+            {
+              kind: 'mcp',
+              disabled: false,
+            },
           ]}
           NoResources={
             <NoResources
@@ -546,11 +550,7 @@ const mapToSharedResource = (
           ).title,
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
-          targetHealth: database.targetHealth && {
-            status: database.targetHealth.status as ResourceHealthStatus,
-            error: database.targetHealth.error,
-            message: database.targetHealth.message,
-          },
+          targetHealth: makeTargetHealth(database.targetHealth),
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,
@@ -559,13 +559,13 @@ const mapToSharedResource = (
     }
     case 'kube': {
       const { resource: kube } = resource;
-
       return {
         resource: {
           kind: 'kube_cluster' as const,
           labels: kube.labels,
           name: kube.name,
           requiresRequest: resource.requiresRequest,
+          targetHealth: makeTargetHealth(kube.targetHealth),
         },
         ui: {
           ActionButton: <ConnectKubeActionButton kube={kube} />,
@@ -575,7 +575,6 @@ const mapToSharedResource = (
     case 'app': {
       const { resource: app } = resource;
       const addrWithProtocol = getAppAddrWithProtocol(app);
-      const isMCP = addrWithProtocol.startsWith('mcp+');
 
       return {
         resource: {
@@ -589,13 +588,10 @@ const mapToSharedResource = (
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
-          subKind: isMCP ? AppSubKind.MCP : undefined,
+          subKind: isMcp(app) ? AppSubKind.MCP : undefined,
         },
         ui: {
-          // TODO(greedy52) decide what to do with MCP servers.
-          ActionButton: isMCP ? undefined : (
-            <ConnectAppActionButton app={app} />
-          ),
+          ActionButton: <ConnectAppActionButton app={app} />,
         },
       };
     }

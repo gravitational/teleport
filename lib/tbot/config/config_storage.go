@@ -54,7 +54,7 @@ func (sc *StorageConfig) MarshalYAML() (any, error) {
 
 func (sc *StorageConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Effectively inlines the destination
-	dest, err := unmarshalDestination(node)
+	dest, err := unmarshalConfigContext{}.UnmarshalDestination(node)
 	if err != nil {
 		return trace.Wrap(err)
 	}

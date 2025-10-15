@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -266,8 +267,8 @@ type Identity interface {
 	// DeleteUserToken deletes a user token.
 	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// GetUserTokens returns all user tokens.
-	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
+	// ListUserTokens returns a page of user tokens.
+	ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error)
 
 	// GetUserToken returns a user token by id.
 	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
@@ -293,7 +294,7 @@ type Identity interface {
 	HeadlessAuthenticationService
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	WebToken
 
 	// AppSession defines application session features.
 	AppSession
@@ -323,6 +324,10 @@ type SnowflakeSession interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
+	// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
 	// UpsertSnowflakeSession upserts a Snowflake web session.
 	UpsertSnowflakeSession(context.Context, types.WebSession) error
 	// DeleteSnowflakeSession removes a Snowflake web session.

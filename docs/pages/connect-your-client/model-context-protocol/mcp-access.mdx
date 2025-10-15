@@ -1,6 +1,11 @@
 ---
 title: MCP Access
 description: How to configure MCP clients to use MCP servers served by Teleport.
+tags:
+ - mcp
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This guide explains how to configure MCP clients to access MCP servers served by
@@ -8,17 +13,25 @@ Teleport.
 
 ### Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)" clients="\`tsh\` client"!)
 
-- The Teleport MCP Access configured. See our guides for how to set up the MCP
-  Access.
+- Teleport MCP Access configured.
 
+  <details open>
+  <summary>Configure MCP Access</summary>
+
+  - [Quick-start with demo MCP server](../../enroll-resources/mcp-access/getting-started.mdx).
+  - [MCP Access with Stdio MCP Server](../../enroll-resources/mcp-access/stdio.mdx)
+  </details>
+  
 ### Step 1/2. Installation
 
-First, sign in into your Teleport cluster using `tsh login`:
+First, sign in into your Teleport cluster using `tsh login`, assigning 
+<Var name="teleport.example.com" /> to the web address of the Teleport Proxy
+Service in your cluster:
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=myuser@example.com
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=myuser@example.com
 ```
 
 You can now list the available MCP servers that you can use:
@@ -46,7 +59,7 @@ configuration.
 include Teleport's configuration:
 
 ```code
-$ tsh mcp config --all --config-client=claude
+$ tsh mcp config --all --client-config=claude
 Found MCP servers:
 fs
 mcp-everything
@@ -157,3 +170,22 @@ start.
 If your session expires while the MCP server is running, the next tool calls
 will fail. You need to run `tsh login` again and retry the failed requests. In
 such cases, you don't have to restart the MCP client or the MCP server.
+
+### `tsh mcp` commands not found
+
+If you're encountering an error like this when running the `tsh mcp` commands
+family:
+
+```
+ERROR: expected command but got "mcp"
+```
+
+This is caused by using an outdated version of `tsh`. The earliest version that
+includes the MCP commands is `18.1.0`, so you need to make sure you’re running
+at least this version. You can check your `tsh` version by running
+`tsh version`.
+
+### `tsh mcp ls` returns an empty list of servers
+
+Make sure your Teleport cluster has MCP access resources available and the
+correct permissions to reach them. [See our guides for enrollment instructions.](../../enroll-resources/mcp-access/mcp-access.mdx)

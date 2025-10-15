@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/textproto"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -191,9 +192,7 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 		}
 	}
 
-	// Read the request body and replace the body ready with a new reader that will allow reading the body again
-	// by HTTP Transport.
-	payload, err := utils.GetAndReplaceRequestBody(req)
+	payloadHash, err := GetV4PayloadHash(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -216,8 +215,19 @@ func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider)
 		return trace.Wrap(err)
 	}
 
+	// If the original request does not sign "content-length" (e.g. "aws sts
+	// get-caller-identity"), do not set reqCopy.ContentLength as go sdk's
+	// signer will forcefully sign "content-length" if it is set on the HTTP
+	// request.
+	findContentLength := slices.ContainsFunc(sigV4.SignedHeaders, func(header string) bool {
+		return strings.EqualFold(header, "content-length")
+	})
+	if !findContentLength {
+		reqCopy.ContentLength = 0
+	}
+
 	signer := NewSigner(sigV4.Service)
-	err = signer.SignHTTP(ctx, creds, reqCopy, GetV4PayloadHash(payload), sigV4.Service, sigV4.Region, t)
+	err = signer.SignHTTP(ctx, creds, reqCopy, payloadHash, sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -249,14 +259,26 @@ func NewSigner(signingServiceName string) *v4.Signer {
 }
 
 // GetV4PayloadHash returns the V4 signing payload hash.
-func GetV4PayloadHash(payload []byte) string {
+func GetV4PayloadHash(req *http.Request) (string, error) {
+	payloadHash := strings.ToUpper(req.Header.Get("x-amz-content-sha256"))
+	switch payloadHash {
+	// unsigned payload, so we use the literal content string instead of hashing
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+	case "UNSIGNED-PAYLOAD", "STREAMING-UNSIGNED-PAYLOAD-TRAILER":
+		return payloadHash, nil
+	default:
+	}
+	payload, err := utils.GetAndReplaceRequestBody(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	if len(payload) == 0 {
-		return EmptyPayloadHash
+		return EmptyPayloadHash, nil
 	}
 
 	hash := sha256.New()
 	hash.Write(payload)
-	return hex.EncodeToString(hash.Sum(nil))
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // filterHeaders removes request headers that are not in the headers list and returns the removed header keys.

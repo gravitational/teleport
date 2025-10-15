@@ -33,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
@@ -52,6 +53,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -235,6 +237,20 @@ var (
 			"elasticache:Connect",
 		},
 		requireSecretsManager: true,
+	}
+	elastiCacheServerlessActions = databaseActions{
+		discovery: []string{
+			"ec2:DescribeSubnets",
+			"elasticache:DescribeServerlessCaches",
+			"elasticache:ListTagsForResource",
+		},
+		metadata: []string{
+			"elasticache:DescribeServerlessCaches",
+		},
+		iamAuth: []string{
+			"elasticache:Connect",
+			"elasticache:DescribeUsers",
+		},
 	}
 	// memoryDBActions contains IAM actions for types.AWSMatcherMemoryDB.
 	memoryDBActions = databaseActions{
@@ -726,7 +742,7 @@ type unreachablePolicyTargetError struct {
 
 func (e unreachablePolicyTargetError) Error() string {
 	return fmt.Sprintf(
-		"%q is unreachable from %q",
+		"policy target %q is unreachable from assumed role %q",
 		e.target, e.from,
 	)
 }
@@ -811,11 +827,18 @@ func buildIAMARN(partitionID, accountID, resourceType, resource string) string {
 // which is necessary to attach policies to the identity.
 // Rather than returning errors about why it failed, this message suggests a
 // simple fix for the user to specify a role or user to attach policies to.
-func failedToResolveAssumeRoleARN(roleIdentity string) string {
-	return fmt.Sprintf("running with assumed-role credentials for %s, but "+
-		"policies cannot be attached to an assumed-role; "+
-		"provide the name or ARN of an IAM role (--attach-to-role) or user (--attach-to-user) to attach policies to",
-		roleIdentity)
+func failedToResolveAssumeRoleARN(roleIdentity string, missingPermissions bool) string {
+	solutions := []string{
+		"- provide the name or ARN of an IAM role (--attach-to-role) or user (--attach-to-user) to attach policies to",
+	}
+	if missingPermissions {
+		solutions = append(solutions, fmt.Sprintf("- ensure %s has the iam:GetRole permission", roleIdentity))
+	}
+	return fmt.Sprintf(
+		"could not resolve assumed-role %s to a full role ARN. To resolve, do one of the following:\n%s",
+		roleIdentity, strings.Join(solutions, "\n"),
+	)
+
 }
 
 // getRoleARNForAssumedRole attempts to resolve assumed-role credentials to
@@ -826,18 +849,21 @@ func getRoleARNForAssumedRole(iamClient iamClient, identity awslib.Identity) (aw
 	if iamClient == nil {
 		return nil, trace.BadParameter("missing iamClient")
 	}
-	failedToResolveAssumeRoleARN := failedToResolveAssumeRoleARN(identity.GetName())
-
 	out, err := iamClient.GetRole(context.Background(), &iam.GetRoleInput{
 		RoleName: aws.String(identity.GetName()),
 	})
 	if err != nil || out == nil || out.Role == nil || out.Role.Arn == nil {
-		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
+		var apiErr smithy.APIError
+		var missingPermissions bool
+		if errors.As(err, &apiErr) {
+			missingPermissions = apiErr.ErrorCode() == "AccessDenied"
+		}
+		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN(identity.GetName(), missingPermissions))
 	}
 
 	roleIdentity, err := awslib.IdentityFromArn(*out.Role.Arn)
 	if err != nil {
-		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN)
+		return nil, trace.BadParameter("%s", failedToResolveAssumeRoleARN(identity.GetName(), false))
 	}
 	return roleIdentity, nil
 }
@@ -874,6 +900,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	}
 	if hasElastiCacheDatabases(flags, targetCfg) {
 		allActions = append(allActions, elastiCacheActions)
+	}
+	if hasElastiCacheServerlessDatabases(flags, targetCfg) {
+		allActions = append(allActions, elastiCacheServerlessActions)
 	}
 	if hasMemoryDBDatabases(flags, targetCfg) {
 		allActions = append(allActions, memoryDBActions)
@@ -1032,6 +1061,16 @@ func hasElastiCacheDatabases(flags configurators.BootstrapFlags, targetCfg targe
 	}
 	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCache, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheEndpoint)
+}
+
+// hasElastiCacheServerlessDatabases checks if the agent needs permission for
+// ElastiCache serverless databases.
+func hasElastiCacheServerlessDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceElastiCacheServerlessPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCacheServerless, targetCfg.awsMatchers) ||
+		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheServerlessEndpoint)
 }
 
 // hasMemoryDBDatabases checks if the agent needs permission for
@@ -1528,14 +1567,11 @@ func isStubAccountIDError(target awslib.Identity, err error) bool {
 // rolesForTarget returns all AWS roles from cli flags, AWS matchers, and
 // databases that the target identity will need to be able to assume.
 func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, targetIsAssumeRole bool) []string {
-	roleSet := make(map[string]struct{})
-	for _, roleARN := range forcedRoles {
-		roleSet[roleARN] = struct{}{}
-	}
+	roleSet := set.New(forcedRoles...)
 	if targetIsAssumeRole {
 		// if target is the same as some assume_role_arn in matchers/databases
 		// config, then it shouldn't assume other roles from config.
-		return utils.StringsSliceFromSet(roleSet)
+		return roleSet.Elements()
 	}
 	for _, matcher := range matchers {
 		assumeRoleARN := ""
@@ -1560,5 +1596,5 @@ func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases
 		}
 		roleSet[resourceMatcher.AWS.AssumeRoleARN] = struct{}{}
 	}
-	return utils.StringsSliceFromSet(roleSet)
+	return roleSet.Elements()
 }

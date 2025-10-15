@@ -1,0 +1,439 @@
+---
+title: Session Recording Summaries
+sidebar_label: Summarize Session Recordings with AI
+description: Describes how to use Teleport Identity security to summarize session recordings with a language model.
+tags:
+  - session-recording
+  - conceptual
+  - identity-security
+  - ai
+---
+
+Teleport Identity Security allows you to generate and view session recording
+summaries for shell and database sessions. This allows you to see at a glance
+what your users do and estimate legitimacy of their actions before digging
+deeper and reviewing the entire recording.
+
+<Admonition type="note">
+**Session Recording Summaries and AI Usage**
+Session Recording Summaries are available to Teleport Enterprise customers with Teleport Identity Security.
+
+**Important**: AI-powered summarization is **disabled by default** in all Teleport deployments 
+(both self-hosted and cloud). No AI processing occurs unless you explicitly enable this feature. 
+
+When you choose to enable summarization:
+
+- For Teleport Enterprise (Self-hosted): You configure and manage your own AI integration. Using OpenAI or 
+OpenAI compatible LLMs gateways such as Lite LMM.
+- For Teleport Enterprise (Cloud) with Identity Security: Session Recording Summarization can be enabled 
+with your own OpenAI key. Later this year, Teleport Enterprise (Cloud) will provide summarization via Amazon Bedrock. 
+
+This ensures you have complete control over whether and how AI is used with your session recordings.
+
+Existing customers will never have AI features automatically enabled without explicit consent.
+Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
+</Admonition>
+
+## How it works
+
+Teleport can automatically summarize any recorded interactive SSH or Kubernetes
+session, as well as any recorded database session.
+
+After each session finishes, Teleport decides if it should be summarized by
+matching it against a set of policies which route sessions to LLMs. Exactly
+which sessions are summarized and which model is used can be decided on using
+session, resource, and user metadata, such as session kind, session
+participants, resource labels, user traits, etc.
+
+If a match is found, Teleport proceeds to summarize the session recording. It
+uses an inference model configuration indicated by the policy to generate a
+summary using an external inference provider, such as OpenAI. There is no way
+to run this process on demand.
+
+There are three fundamental concepts to that underpin session summarization:
+
+- **Inference providers** do the heavy lifting of summarization. Currently,
+  Teleport only supports OpenAI or compatible inference providers.
+- **Inference models** indicate *how* sessions get summarized: they are
+  Teleport configuration resources that provide model settings.
+- **Inference policies** indicate *what* gets summarized and which inference
+  model is used in given case.
+
+<Admonition type="warning">
+This feature is powered by AI leveraging a Large Language Model, and as such,
+its accuracy may vary.
+
+Teleport doesn't currently support any spend controls; controlling the LLM
+token budget is your responsibility.
+</Admonition>
+
+## Prerequisites
+
+- A running Teleport Enterprise (Self-Hosted) cluster v18.2.0 or later with Identity 
+  Security enabled.
+- Access to OpenAI or OpenAI-compatible inference API, either public or
+  self-hosted.
+
+## Step 1/4: Configure access to inference configuration
+
+In order to manage the summary inference configuration, you need a write access
+to `inference_model`, `inference_secret`, and `inference_policy` resources,
+which is granted by default through the preset `editor` role.
+
+Alternatively, you can create a new role to make sure you have
+access to all necessary resources. To create a new role:
+
+1. Create a `summarizer-admin.yaml` file with the following content:
+
+   ```yaml
+   kind: role
+   metadata:
+     name: summarizer-admin
+   spec:
+     allow:
+       rules:
+       - resources:
+         - inference_model
+         - inference_secret
+         - inference_policy
+         verbs:
+         - read
+         - list
+         - create
+         - update
+         - delete
+   version: v7
+   ```
+
+1. Apply your changes:
+
+   ```code
+   $ tctl create -f summarizer-admin.yaml
+   ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
+
+1. (!docs/pages/includes/add-role-to-user.mdx role="summarizer-admin"!)
+
+## Step 2/4: Create the inference configuration resources
+
+Let's start by defining an `inference_model` resource. It tells Teleport how to
+summarize a session by pointing it to a large language model (LLM) API. In
+particular, it contains an API-specific model name. Note that the *Teleport
+inference model name* and *API-specific model name* are two different things.
+This allows, for example, using the same OpenAI model with different
+temperature settings or using different API gateways by creating multiple
+Teleport inference models with the same OpenAI model name.
+
+To communicate with OpenAI, an inference model needs an API key. It's stored
+separately in an `inference_secret` resource and referenced by the
+`inference_model`'s `spec.openai.api_key_secret_ref` field.
+
+<Admonition type="warning">
+To protect your API key, once written, an `inference_secret` value cannot be
+retrieved through `tctl` or Teleport API. It can only be updated or deleted.
+</Admonition>
+
+Finally, we add an `inference_policy` that routes sessions to inference models
+using session kinds and optional custom filters. Only one policy is allowed to
+match a given session to guarantee that its recording will be summarized at
+most once. Policies are checked in alphabetical order of names and the first
+one that matches is used. Here are some example scenarios that can be expressed
+using inference policies:
+
+- Only summarize sessions to your production resources using resource labels.
+- Use different models for summarizing shell and database sessions.
+
+See [Session matching examples](#session-matching-examples) for details on how
+to configure Teleport to achieve these goals.
+
+To create the required configuration resources:
+
+1. Create an `inference-config.yaml` file with the following content:
+
+   ```yaml
+   kind: inference_model
+   version: v1
+   metadata:
+     name: shell-summary-model
+   spec:
+     # "openai" is currently the only supported inference provider.
+     openai:
+       # In this scenario, where we connect to OpenAI directly, openai_model_id
+       # needs to be a valid OpenAI model name.
+       openai_model_id: gpt-4o
+       # This value refers to the `inference_secret` resource name.
+       api_key_secret_ref: openai-key
+     # It's a good idea to limit the session length to prevent incurring cost for
+     # sessions that were too long anyway to fit in the model's context window.
+     # If unset, defaults to 200kB. See the Limitations section for more details.
+     max_session_length_bytes: 190000
+
+   ---
+
+   kind: inference_secret
+   version: v1
+   metadata:
+     name: openai-key
+   spec:
+     value: '<paste-your-openai-api-key-here>'
+
+   ---
+
+   kind: inference_policy
+   version: v1
+   metadata:
+     name: shell-sessions
+     description: Summarize all sessions using OpenAI
+   spec:
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     kinds:
+     - ssh
+     - k8s
+     - db
+     # Name of the `inference_model` resource that will be used for summarizing
+     # these sessions.
+     model: shell-summary-model
+   ```
+
+1. Create the configuration resources in the backend:
+
+   ```code
+   $ tctl create -f inference-config.yaml
+   ```
+
+For full description of the inference configuration resources, see appropriate
+sections of [Teleport Resources Reference](../reference/infrastructure-as-code/resources.mdx):
+
+- [`inference_model`](../reference/infrastructure-as-code/resources.mdx#inference-model)
+- [`inference_secret`](../reference/infrastructure-as-code/resources.mdx#inference-secret)
+- [`inference_policy`](../reference/infrastructure-as-code/resources.mdx#inference-policy)
+
+## Step 3/4: Configure access to session summaries
+
+Every user who has access to
+[given session recording](../reference/access-controls/roles.mdx#rbac-for-session-recordings)
+also has access to its summary through a `session` resource kind. The preset
+`access` role allows users to only view their sessions; in order to allow a
+user to view all recordings and summaries, it's easiest to use the preset
+`auditor` role.
+
+You can either use the built-in roles or create a new one to make sure you have
+access to all recordings. To create a new role:
+
+1. Create a `summary-auditor.yaml` file with the following content:
+
+   ```yaml
+   kind: role
+   metadata:
+     name: summary-auditor
+   spec:
+     allow:
+       rules:
+       - resources:
+         - session
+         verbs:
+         - read
+         - list
+   version: v7
+   ```
+
+1. Apply your changes:
+
+   ```code
+   $ tctl create -f summary-auditor
+   ```
+
+1. (!docs/pages/includes/add-role-to-user.mdx role="summary-auditor"!)
+
+## Step 4/4: Conduct a session and view its summary
+
+That's it! We are ready to conduct a test session. Connect to any of your
+cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
+terminal. Start an interactive session and execute any command, quit the
+session, and go to **Audit -> Session Recordings**. You should see the
+corresponding recording tile with a summary button
+![summary button](../../img/identity-security/summary-button.png). Clicking the
+summary button will show the summary.
+
+![Session recording list screen with a summary visible](../../img/identity-security/rec-list-with-summary.png)
+
+<Admonition type="info">
+It can take a while to generate a summary, and the time depends on multiple
+factors, including session size, model, and its temperature. Usually it should
+appear up to a minute after the session is uploaded to the Auth service.
+</Admonition>
+
+## Limitations
+
+Currently, Teleport doesn't attempt to summarize sessions that are larger than
+the model's context window. If after tokenization, the session turns out to be
+larger than that, OpenAI will simply reject the request; the input tokens used
+will be wasted. To prevent this, Teleport allows you to customize the maximum
+size of session that may be sent to the inference provider by using the
+`spec.max_session_length_bytes` field of the `inference_model` resource. Note
+that there's no way to provide an exact number of bytes for a given model here;
+in our experiments, we observed between 2 and 4 bytes per token, depending on
+the model and input.
+
+## Selecting sessions to summarize
+
+Indiscriminately summarizing all sessions in your cluster can increase
+costs, so it's recommended to be specific about which sessions will be
+summarized and which model will be used for inference. One of these mechanisms
+— selecting sessions by kind — was mentioned already in the above example. In
+addition to matching by kind, it's also possible to add a custom filter to each
+inference policy, which can be used to summarize only sessions that target
+production resources, are attended by certain users, etc.
+
+Filters are expressed using the [Teleport predicate language](#predicate-language).
+If an inference policy contains a filter, it will match only sessions that
+match one of the indicated kinds *and* the specified filter.
+
+### Session matching examples
+
+A typical case would be to pick only production resources for summarizing. The
+following example policy only matches Kubernetes sessions in any of the
+production clusters, picked by matching cluster labels:
+
+```yaml
+kind: inference_policy
+version: v1
+metadata:
+  name: prod-k8s-sessions
+  description: Summarize production Kubernetes sessions
+spec:
+  kinds:
+  - k8s
+  filter: 'equals(resource.metadata.labels["env"], "prod")'
+  model: shell-summary-model
+```
+
+The following example uses two policies to route shell and database sessions to
+two different models. It assumes that there are two `inference_model` resources
+created: `database-summary-model` and `shell-summary-model`.
+
+```yaml
+kind: inference_policy
+version: v1
+metadata:
+  name: shell-policy
+spec:
+  kinds: ['ssh', 'k8s']
+  model: shell-summary-model
+
+---
+
+kind: inference_policy
+version: v1
+metadata:
+  name: db-policy
+spec:
+  kinds: ['db']
+  model: db-summary-model
+```
+
+### Predicate Language
+
+Inference policy filters are expressed using Teleport predicate language. In
+this case, the language supports the following operators:
+
+| Operator | Meaning                             | Example                                                  |
+| -------- | ----------------------------------- | -------------------------------------------------------- |
+| &&       | and (all conditions must match)     | `contains(field1, field2) && equals(field2, "val")`      |
+| \|\|     | or (any one condition should match) | `contains(field1, field2) \|\| contains(field1, "val2")` |
+| !        | not (used with functions)           | `!equals(field1, field2)`                                |
+| ==       | equal to                            | `resource.metadata.labels["env"] == "prod"`              |
+| !=       | not equal to                        | `resource.metadata.labels["env"] != "prod"`              |
+
+The language also supports the following functions:
+
+| Functions                         | Return type | Description                                                                                                                                |
+| --------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `contains(list, item)`            | `Boolean`   | Returns true if `item` is included in the `list`                                                                                           |
+| `equals(a, b)`                    | `Boolean`   | Returns true if value `a` is equal to `b`                                                                                                  |
+| `contains_all(list, items)`       | `Boolean`   | Returns true if all `items` are included in the `list`                                                                                     |
+| `contains_any(list, items)`       | `Boolean`   | Returns true if any of `items` is included in the `list`                                                                                   |
+| `set(value1, value2, ...)`        | `[]string`  | Returns a list of strings                                                                                                                  |
+| `all_end_with(a, suffix)`         | `Boolean`   | If `a` is a list, returns true if all strings in the `a` end with `suffix`. If `a` is a string, returns true if `a` ends with `suffix`.    |
+| `all_equal(a, b)`                 | `Boolean`   | If `a` is a list, returns true if all items in `a` are equal to `b`. If `a` is a string, returns true if it's equal to `b`.                |
+| `is_subset(a, item1, item2, ...)` | `Boolean`   | If `a` is a list, returns true if `list(item1, item2, ...)` is a subset of `a`. If `a` is a string, returns true if the list contains `a`. |
+| `has_prefix(s, prefix)`           | `Boolean`   | Returns true if string `s` starts with `prefix`                                                                                            |
+
+It's possible to build predicates using information about target resource,
+session, and user.
+
+| Field                            | Meaning                                                                                                                                                         | Example                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| user                             | User that created the session.                                                                                                                                  |                                                   |
+| user.metadata.name               | User's name                                                                                                                                                     | `is_subset(user.metadata.name, "alice", "bob")`   |
+| user.spec.roles                  | User's roles                                                                                                                                                    | `contains(user.spec.roles, "intern")`             |
+| user.spec.traits                 | User's traits                                                                                                                                                   | `contains(user.spec.traits["teams"], "alpha")`    |
+| resource                         | Resource that this session connects to (server, Kubernetes cluster, or database)                                                                                |                                                   |
+| resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node`                          |
+| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.name == "production-cluster"`           |
+| resource.metadata.labels         | Resource labels                                                                                                                                                 | `equals(resource.metadata.labels["env"], "prod")` |
+| session                          | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |
+| session.participants             | Users that participated in the session (SSH and Kubernetes sessions only)                                                                                       | `contains(session.participants, "alice")`         |
+| session.cluster_name             | Name of the Teleport cluster                                                                                                                                    | `cluster_name == "teleport.example.com"`          |
+| session.db_name                  | Name of database (the underlying one, not the Teleport resource; database sessions only)                                                                        | `session.db_name == "orders"`                     |
+| session.db_service               | Database service name (database sessions only)                                                                                                                  | `session.db_service == "prod-db-service"`         |
+| session.kubernetes_users         | List of Kubernetes usernames (Kubernetes sessions only)                                                                                                         | `contains(session.kubernetes_users, "admin")`     |
+| session.kubernetes_groups        | List of Kubernetes groups (Kubernetes sessions only)                                                                                                            | `contains(session.kubernetes_groups, "viewers")`  |
+| session.kubernetes_node_name     | Name of node that runs the pod (Kubernetes sessions only)                                                                                                       | `session.kubernetes_node_name == "node1"`         |
+| session.kubernetes_pod_name      | Name of the pod (Kubernetes sessions only)                                                                                                                      | `session.kubernetes_pod_name == "some-pod"`       |
+| session.kubernetes_pod_namespace | Namespace that contains the pod (Kubernetes sessions only)                                                                                                      | `session.kubernetes_pod_namespace == "default"`   |
+
+## Using LiteLLM and other OpenAI-compatible proxies
+
+Although the only officially supported inference provider is currently OpenAI,
+it's also possible to use any OpenAI-compatible API for this purpose. For
+example, you may want to route some or all sessions to another provider or even
+host your language models on premises. One way to do it is using LiteLLM.
+Here's what you need to do:
+
+1. Set up [LiteLLM Proxy Server (LLM
+   Gateway)](https://docs.litellm.ai/docs/#litellm-proxy-server-llm-gateway) on a
+   host accessible from the Teleport Auth Service.
+2. Add a model of your choice to the LiteLLM configuration. In this example,
+   let's call it `my-custom-model`.
+3. Configure a Teleport inference model. Use `spec.openai.base_url` property to
+   point Teleport to your LiteLLM instance and put `my-custom-model` in
+   `spec.openai.openai_model_id`.
+4. Add an `inference_secret` containing your LiteLLM master key.
+
+Here is an example configuration:
+
+```yaml
+kind: inference_model
+version: v1
+metadata:
+  name: lite-llm-summary-model
+spec:
+  openai:
+    # In case of LiteLLM Proxy, the openai_model_id is the public model name as
+    # configured in LiteLLM.
+    openai_model_id: my-custom-model
+    api_key_secret_ref: lite-llm-master-key
+    base_url: http://llm-host:4000/
+
+---
+
+kind: inference_secret
+version: v1
+metadata:
+  name: lite-llm-master-key
+spec:
+  # In case of LiteLLM, the API key is *not* your OpenAI key; instead, use your
+  # LiteLLM master key.
+  value: '<paste-your-master-key-here>'
+```
+
+## Monitoring
+
+Teleport exposes a couple of useful Prometheus metrics that can be used to
+monitor the session summarizer. Metrics are labeled by inference model name,
+and in case of OpenAI errors — additionally with the OpenAI API error code. See
+the [Teleport Metrics
+reference](../reference/deployment/monitoring/metrics.mdx#session-recording-summarizer)
+for details.

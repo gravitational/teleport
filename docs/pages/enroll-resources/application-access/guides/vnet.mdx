@@ -1,9 +1,10 @@
 ---
 title: VNet
 description: How to configure custom DNS zones for VNet
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 VNet automatically proxies connections made to TCP applications available under the public address
@@ -27,7 +28,7 @@ to first update the VNet config in the Auth Service to include a matching DNS zo
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.0.0"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v16.0.0 or higher)"!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - A TCP application connected to the cluster.
@@ -134,7 +135,7 @@ an address for the TUN device from a range offered by one of those clusters.
 
 ### Configuring leaf cluster apps
 
-To make a [leaf cluster](../../../admin-guides/management/admin/trustedclusters.mdx) app accessible over a custom
+To make a [leaf cluster](../../../zero-trust-access/management/admin/trustedclusters.mdx) app accessible over a custom
 `public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
 
 ```code

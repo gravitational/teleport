@@ -50,15 +50,19 @@ Find out more at https://goteleport.com/docs/upgrading/agent-managed-updates`
 const (
 	// proxyServerEnvVar allows the proxy server address to be specified via env var.
 	proxyServerEnvVar = "TELEPORT_PROXY"
+	// installDirEnvVar specifies the Teleport install directory.
+	installDirEnvVar = "TELEPORT_INSTALL_DIR"
+	// pathEnvVar specifies the Teleport PATH for binary symlinks.
+	pathEnvVar = "TELEPORT_PATH"
 	// updateGroupEnvVar allows the update group to be specified via env var.
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar specifies the Teleport version.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
 	// updateFlagsEnvVar specifies Teleport version flags.
 	updateFlagsEnvVar = "TELEPORT_UPDATE_FLAGS"
+
 	// updateLockTimeout is the duration commands will wait for update to complete before failing.
 	updateLockTimeout = 10 * time.Minute
-
 	// notUpToDateExitCode is returned by `teleport-update status --is-up-to-date` if Teleport is not up-to-date.
 	notUpToDateExitCode = 3
 )
@@ -108,9 +112,9 @@ func Run(args []string) int {
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
-		Short('i').StringVar(&ccfg.InstallSuffix)
+		Short('i').Envar(common.InstallSuffixEnvVar).StringVar(&ccfg.InstallSuffix)
 	app.Flag("install-dir", "Directory containing Teleport installations.").
-		Hidden().StringVar(&ccfg.InstallDir)
+		Hidden().Envar(installDirEnvVar).StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
 
@@ -136,7 +140,9 @@ func Run(args []string) int {
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
-		Hidden().StringVar(&ccfg.Path)
+		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
+	enableCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -158,7 +164,9 @@ func Run(args []string) int {
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
-		Hidden().StringVar(&ccfg.Path)
+		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
+	pinCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -183,6 +191,8 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	setupCmd.Flag("flag", "Use the provided flags to generate configuration files.").
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
+	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).BoolVar(&ccfg.SELinuxSSH)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",
@@ -478,7 +488,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}

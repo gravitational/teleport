@@ -193,3 +193,8 @@ export type JoinTokenRequest = {
    */
   suggestedLabels?: ResourceLabel[];
 };
+
+export type ListJoinTokensResponse = {
+  items: JoinToken[];
+  next_page_token?: string;
+};

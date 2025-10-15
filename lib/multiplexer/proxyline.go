@@ -33,7 +33,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -259,12 +258,20 @@ type proxyV2Address4 struct {
 	DestinationPort uint16
 }
 
+// proxyV2Address4Size is the size of a [proxyV2Address4]. Its correctness is
+// enforced in proxyline_test.go to avoid having to import unsafe here.
+const proxyV2Address4Size = 12
+
 type proxyV2Address6 struct {
 	Source          [16]uint8
 	Destination     [16]uint8
 	SourcePort      uint16
 	DestinationPort uint16
 }
+
+// proxyV2Address6Size is the size of a [proxyV2Address6]. Its correctness is
+// enforced in proxyline_test.go to avoid having to import unsafe here.
+const proxyV2Address6Size = 36
 
 const (
 	Version2     = 2
@@ -275,7 +282,7 @@ const (
 )
 
 // ReadProxyLineV2 reads PROXY protocol v2 line from the reader
-func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
+func ReadProxyLineV2(reader io.Reader) (*ProxyLine, error) {
 	var header proxyV2Header
 	var ret ProxyLine
 	if err := binary.Read(reader, binary.BigEndian, &header); err != nil {
@@ -303,7 +310,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	switch header.Protocol {
 	case ProtocolTCP4:
 		var addr proxyV2Address4
-		size = uint16(unsafe.Sizeof(addr))
+		size = proxyV2Address4Size
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -312,7 +319,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 		ret.Destination = net.TCPAddr{IP: addr.Destination[:], Port: int(addr.DestinationPort)}
 	case ProtocolTCP6:
 		var addr proxyV2Address6
-		size = uint16(unsafe.Sizeof(addr))
+		size = proxyV2Address6Size
 		if err := binary.Read(reader, binary.BigEndian, &addr); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -325,13 +332,12 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 
 	// If there are more bytes left it means we've got TLVs
 	if header.Length > size {
-		tlvsBytes := &bytes.Buffer{}
-
-		if _, err := io.CopyN(tlvsBytes, reader, int64(header.Length-size)); err != nil {
+		tlvsBytes := make([]byte, header.Length-size)
+		if _, err := io.ReadFull(reader, tlvsBytes); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		tlvs, err := UnmarshalTLVs(tlvsBytes.Bytes())
+		tlvs, err := UnmarshalTLVs(tlvsBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

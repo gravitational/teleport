@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -228,23 +228,53 @@ func newMCPServerWithDetails(app types.Application, accessChecker services.Acces
 	return a
 }
 
+type mcpListRBACPrinter struct {
+	showFootnote bool
+}
+
+func (p *mcpListRBACPrinter) formatAllowedTools(mcpServer mcpServerWithDetails) string {
+	allowed := common.FormatAllowedEntities(mcpServer.Permissions.MCP.Tools.Allowed, mcpServer.Permissions.MCP.Tools.Denied)
+	if len(mcpServer.Permissions.MCP.Tools.Allowed) == 0 {
+		allowed += " [!]"
+		p.showFootnote = true
+	}
+	return allowed
+}
+
+func (p *mcpListRBACPrinter) maybePrintFootnote(w io.Writer) error {
+	if !p.showFootnote {
+		return nil
+	}
+	_, err := fmt.Fprintf(w, `[!] Warning: you do not have access to any tools on the MCP server.
+Please contact your Teleport administrator to ensure your Teleport role has
+appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
+https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
+`)
+	return trace.Wrap(err)
+}
+
 func printMCPServersInText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails]) error {
 	var rows [][]string
+	var rbacPrinter mcpListRBACPrinter
 	for mcpServer := range mcpServers {
 		rows = append(rows, []string{
 			mcpServer.GetName(),
 			mcpServer.GetDescription(),
 			types.GetMCPServerTransportType(mcpServer.GetURI()),
+			rbacPrinter.formatAllowedTools(mcpServer),
 			common.FormatLabels(mcpServer.GetAllLabels(), false),
 		})
 	}
-	t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Type", "Labels"}, rows, "Labels")
-	_, err := fmt.Fprintln(w, t.AsBuffer().String())
-	return trace.Wrap(err)
+	t := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Type", "Allowed Tools", "Labels"}, rows, "Labels")
+	if _, err := fmt.Fprintln(w, t.String()); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))
 }
 
 func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWithDetails]) error {
 	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "Labels", "Command", "Args", "Allowed Tools"})
+	var rbacPrinter mcpListRBACPrinter
 	for mcpServer := range mcpServers {
 		mcpSpec := cmp.Or(mcpServer.GetMCP(), &types.MCP{})
 		t.AddRow([]string{
@@ -254,11 +284,13 @@ func printMCPServersInVerboseText(w io.Writer, mcpServers iter.Seq[mcpServerWith
 			common.FormatLabels(mcpServer.GetAllLabels(), true),
 			mcpSpec.Command,
 			strings.Join(mcpSpec.Args, " "),
-			common.FormatAllowedEntities(mcpServer.Permissions.MCP.Tools.Allowed, mcpServer.Permissions.MCP.Tools.Denied),
+			rbacPrinter.formatAllowedTools(mcpServer),
 		})
 	}
-	_, err := fmt.Fprintln(w, t.AsBuffer().String())
-	return trace.Wrap(err)
+	if _, err := fmt.Fprintln(w, t.String()); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(rbacPrinter.maybePrintFootnote(w))
 }
 
 type mcpConfigCommand struct {
@@ -279,12 +311,7 @@ func (c *mcpConfigCommand) run() error {
 	if err := c.checkSelectorFlags(); err != nil {
 		return trace.Wrap(err)
 	}
-	switch {
-	case c.clientConfig.isSet():
-		return trace.Wrap(c.updateClientConfig())
-	default:
-		return trace.Wrap(c.printJSONWithHint())
-	}
+	return trace.Wrap(runMCPConfig(c.cf, &c.clientConfig, c))
 }
 
 func (c *mcpConfigCommand) checkSelectorFlags() error {
@@ -349,7 +376,7 @@ func (c *mcpConfigCommand) fetch() error {
 	return nil
 }
 
-func (c *mcpConfigCommand) addMCPServersToConfig(config claudeConfig) error {
+func (c *mcpConfigCommand) addMCPServersToConfig(config mcpConfig) error {
 	for _, app := range c.mcpServerApps {
 		localName := mcpServerAppConfigPrefix + app.GetName()
 		args := []string{"mcp", "connect", app.GetName()}
@@ -372,68 +399,48 @@ func (c *mcpConfigCommand) maybeAddAutoReconnect(args []string) []string {
 	return append(args, "--no-auto-reconnect")
 }
 
-func (c *mcpConfigCommand) printJSONWithHint() error {
+func (c *mcpConfigCommand) printInstructions(w io.Writer, configFormat mcpconfig.ConfigFormat) error {
 	if err := c.fetchAndPrintResult(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	config := claude.NewConfig()
+	config := mcpconfig.NewConfig(configFormat)
 	if err := c.addMCPServersToConfig(config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	w := c.cf.Stdout()
-	if _, err := fmt.Fprintln(w, "Here is a sample JSON configuration for launching Teleport MCP servers:"); err != nil {
+	if _, err := fmt.Fprintf(w, "Here is a sample JSON configuration for launching Teleport MCP servers using %s format:\n", configFormat); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := config.Write(w, claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
+	if err := config.Write(w, mcpconfig.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
-	}
-	if !c.autoReconnectSetByUser {
-		if err := c.printAutoReconnectHint(w); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(c.clientConfig.printHint(w))
+	return trace.Wrap(c.clientConfig.printFooterNotes(w))
 }
 
-func (c *mcpConfigCommand) updateClientConfig() error {
+func (c *mcpConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfig) error {
 	if err := c.fetchAndPrintResult(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	config, err := c.clientConfig.loadConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if err := c.addMCPServersToConfig(config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := config.Save(claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
+	if err := config.Save(mcpconfig.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
+	_, err := fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
 %s
 
 Teleport MCP servers will be prefixed with "teleport-mcp-" in this
 configuration. You may need to restart your client to reload these new
 configurations.
 `, config.Path())
-	return trace.Wrap(err)
-}
-
-func (c *mcpConfigCommand) printAutoReconnectHint(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `
-By default, tsh automatically starts a new remote MCP session if the previous
-one is interrupted by network issues or tsh session expiration.
-Auto-reconnection is recommended when MCP sessions are stateless across
-requests. To disable it, use the --no-auto-reconnect flag. If disabled, you may
-need to manually restart your client when encountering "disconnected" errors.`)
 	return trace.Wrap(err)
 }
 
@@ -464,13 +471,14 @@ func (c *mcpConnectCommand) run() error {
 	}
 	tc.NonInteractive = true
 
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
 	if c.autoReconnect {
 		return clientmcp.ProxyStdioConnWithAutoReconnect(
 			c.cf.Context,
 			clientmcp.ProxyStdioConnWithAutoReconnectConfig{
 				ClientStdio: utils.CombinedStdio{},
 				DialServer: func(ctx context.Context) (io.ReadWriteCloser, error) {
-					conn, err := tc.DialMCPServer(ctx, c.cf.AppName)
+					conn, err := dialer.DialALPN(ctx)
 					return conn, trace.Wrap(err)
 				},
 				MakeReconnectUserMessage: makeMCPReconnectUserMessage,
@@ -478,7 +486,7 @@ func (c *mcpConnectCommand) run() error {
 		)
 	}
 
-	serverConn, err := tc.DialMCPServer(c.cf.Context, c.cf.AppName)
+	serverConn, err := dialer.DialALPN(c.cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

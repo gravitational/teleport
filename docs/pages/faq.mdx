@@ -2,9 +2,9 @@
 title: Teleport FAQ
 description: Frequently Asked Questions About Using Teleport
 h1: Teleport FAQ
-labels:
- - faq
- - platform-wide
+tags:
+  - faq
+  - platform-wide
 ---
 
 This page includes answers to frequently asked questions about setting up,
@@ -21,7 +21,7 @@ the stability of Teleport from a security perspective.
 ## Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters, see [Configure Trusted Clusters](admin-guides/management/admin/trustedclusters.mdx).
+behind-firewall clusters, see [Configure Trusted Clusters](zero-trust-access/management/admin/trustedclusters.mdx).
 
 ## How is Teleport's Community Edition different from Enterprise?
 
@@ -75,7 +75,7 @@ look at [Using OpenSSH Guide](enroll-resources/server-access/openssh/openssh-age
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](admin-guides/access-controls/guides/headless.mdx),
+Yes, Teleport supports [Headless Authentication](zero-trust-access/authentication/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
@@ -108,7 +108,7 @@ Yes. You can copy and paste using a mouse.
 
 ## What TCP ports does Teleport use?
 
-Please refer to our [Networking](./reference/networking.mdx) guide.
+Please refer to our [Networking](reference/deployment/networking.mdx) guide.
 
 ## Does Teleport support authentication via OIDC, SAML, or Active Directory?
 
@@ -134,8 +134,13 @@ Teleport supports [SCIM](https://scim.cloud/) provisioning for Okta via the
 hosted Okta integration, available in the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
 
-Refer to the [hosted Okta integration guide](identity-governance/okta/okta.mdx)
+Refer to the [hosted Okta integration guide](identity-governance/integrations/okta/okta.mdx)
 for details on setting up and configuring SCIM support.
+
+You can also set up Teleport to integrate with a SCIM provider to automatically
+synchronize SCIM group memberships with Teleport Access Lists. For details, see
+the [SCIM integration
+documentation](identity-governance/integrations/scim/scim.mdx).
 
 ## Why do I see an alert that some agents are out of date?
 
@@ -202,3 +207,17 @@ editions of Teleport.
 (!docs/pages/includes/teleport-connect-telemetry.mdx!)
 
 If you no longer want to send usage data, see [disabling telemetry](./connect-your-client/teleport-connect.mdx#disabling-telemetry).
+
+### How do I update my security and business contacts?
+
+Teleport Enterprise Self-Hosted users can configure up to 3 security contacts and 3 business contacts for their cluster. It's important to
+keep these up to date so that we always know who to notify of important updates and alerts.
+
+To do this, log in to your Teleport License dashboard with the email address of the user that created the dashboard initially. Open
+the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the contacts sections.
+Once you add a contact, they will receive an invitation email which they must accept within 14 days.
+
+![Web UI view showing security and business contacts options](../img/cloud/security-business-contacts.png)
+
+If you don't see the contacts lists on the Help & Support page, ensure that you are logged into the Teleport License dashboard and not your self-hosted cluster,
+and ensure that your user has the `dashboard-admin` role. Users with the `dashboard-user` role cannot edit contacts.

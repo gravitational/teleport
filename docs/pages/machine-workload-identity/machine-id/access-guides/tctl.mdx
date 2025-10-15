@@ -1,10 +1,13 @@
 ---
 title: Machine ID with tctl
 description: How to use Machine ID with tctl to manage your Teleport configuration
-labels:
+tags:
  - how-to
  - mwi
+ - infrastructure-identity
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 `tctl` is the Teleport cluster management CLI tool. Whilst it usually uses the
 credentials from the locally logged in user, it is also possible to use
@@ -146,5 +149,5 @@ $ tctl get role/tctl-test
 
 - Explore the [`tctl` reference](../../../reference/cli/tctl.mdx) to discover all
   `tctl` can do.
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available `tbot` configuration options.

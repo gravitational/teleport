@@ -33,11 +33,13 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -83,6 +85,41 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 	return &listResourcesWithoutCountGetResponse{
 		Items:    uiRoles,
 		StartKey: roles.GetNextKey(),
+	}, nil
+}
+
+// listRequestableRolesHandle is the web handler for listing requestable roles.
+// Under the hood this just calls the `ListRoles` method with a filter for requestable roles,
+// we have this as a separate endpoint because the response needs to be formatted differently.
+func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rolesReq := &proto.ListRequestableRolesRequest{
+		PageSize:  limit,
+		PageToken: values.Get("startKey"),
+		Filter: &proto.ListRequestableRolesRequest_Filter{
+			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
+		},
+	}
+
+	resp, err := clt.ListRequestableRoles(r.Context(), rolesReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesWithoutCountGetResponse{
+		Items:    ui.RequestableRolesFromProto(resp.Roles),
+		StartKey: resp.NextPageToken,
 	}, nil
 }
 
@@ -301,9 +338,18 @@ func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Reques
 }
 
 func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	trustedClusters, err := clt.GetTrustedClusters(ctx)
+
+	trustedClusters, err := stream.Collect(clientutils.Resources(ctx, clt.ListTrustedClusters))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// TODO(okraport) DELETE IN v21.0.0
+		if trace.IsNotImplemented(err) {
+			trustedClusters, err = clt.GetTrustedClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ui.NewTrustedClusters(trustedClusters)
@@ -626,6 +672,8 @@ type resourcesAPIGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// ListRoles returns a paginated list of roles.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	// ListRequestableRoles returns a paginated list of requestable roles.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// GetGithubConnectors returns all configured Github connectors
@@ -640,6 +688,8 @@ type resourcesAPIGetter interface {
 	GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error)
 	// GetTrustedClusters returns all TrustedClusters in the backend.
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResources returns a paginated list of resources.

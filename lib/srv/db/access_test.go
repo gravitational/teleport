@@ -61,11 +61,12 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -108,12 +109,16 @@ import (
 
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
-	cryptosuites.PrecomputeRSATestKeys(m)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 // TestAccessPostgres verifies access scenarios to a Postgres database based
@@ -1470,19 +1475,19 @@ func TestRedisNil(t *testing.T) {
 }
 
 type testContext struct {
-	hostID         string
-	clusterName    string
-	tlsServer      *auth.TestTLSServer
-	authServer     *auth.Server
-	authClient     *authclient.Client
-	proxyServer    *ProxyServer
-	mux            *multiplexer.Mux
-	mysqlListener  net.Listener
-	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
-	server         *Server
-	emitter        *eventstest.ChannelEmitter
-	databaseCA     types.CertAuthority
+	hostID        string
+	clusterName   string
+	tlsServer     *authtest.TLSServer
+	authServer    *auth.Server
+	authClient    *authclient.Client
+	proxyServer   *ProxyServer
+	mux           *multiplexer.Mux
+	mysqlListener net.Listener
+	webListener   *multiplexer.WebListener
+	fakeCluster   *reversetunnelclient.FakeCluster
+	server        *Server
+	emitter       *eventstest.ChannelEmitter
+	databaseCA    types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
@@ -1625,7 +1630,7 @@ func (c *testContext) startHandlingConnections() {
 	// Start all proxy services.
 	c.startProxy()
 	// Start handling database client connections on the database server.
-	for conn := range c.fakeRemoteSite.ProxyConn() {
+	for conn := range c.fakeCluster.ProxyConn() {
 		go c.server.HandleConnection(conn)
 	}
 }
@@ -2219,7 +2224,7 @@ func withClientIdleTimeout(clientIdleTimeout time.Duration) roleOptFn {
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
+	user, role, err := authtest.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
@@ -2292,7 +2297,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	t.Cleanup(func() { testCtx.Close() })
 
 	// Create and start test auth server.
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
 		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
@@ -2337,7 +2342,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client for database service.
-	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, testCtx.hostID))
+	testCtx.authClient, err = testCtx.tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, testCtx.hostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
 
@@ -2345,7 +2350,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for database proxy.
-	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.tlsServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -2364,7 +2369,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
+	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -2376,11 +2381,11 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
-	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
+	testCtx.fakeCluster = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeCluster.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		Sites: []reversetunnelclient.RemoteSite{
-			testCtx.fakeRemoteSite,
+		FakeClusters: []reversetunnelclient.Cluster{
+			testCtx.fakeCluster,
 		},
 	}
 	// Empty config means no limit.
@@ -2513,7 +2518,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	p.setDefaults(c)
 
 	// Database service credentials.
-	serverIdentity, err := auth.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
+	serverIdentity, err := authtest.NewServerIdentity(c.authServer, p.HostID, types.RoleDatabase)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -2563,7 +2568,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	}
 
 	// Auth client for this database server identity.
-	clt, err := c.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, p.HostID))
+	clt, err := c.tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, p.HostID))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
@@ -3338,6 +3343,46 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 				Region: "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withElastiCacheServerlessRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				ElastiCacheServerless: types.ElastiCacheServerless{
+					CacheName: "example-cache",
 				},
 			},
 			// Set CA cert to pass cert validation.

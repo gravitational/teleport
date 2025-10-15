@@ -66,6 +66,8 @@ type SSOLoginConsoleReq struct {
 	CertTTL       time.Duration `json:"cert_ttl"`
 	ConnectorID   string        `json:"connector_id"`
 	Compatibility string        `json:"compatibility,omitempty"`
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string `json:"scope,omitempty"`
 	// RouteToCluster is an optional cluster name to route the response
 	// credentials to.
 	RouteToCluster string
@@ -120,7 +122,7 @@ type MFAChallengeResponse struct {
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
 	SSOResponse *SSOResponse `json:"sso_response"`
-	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
+	// TODO(Joerger): DELETE IN v20.0.0, WebauthnResponse used instead.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
@@ -182,37 +184,6 @@ func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateRe
 
 	protoResp, err := resp.GetOptionalMFAResponseProtoReq()
 	return protoResp, trace.Wrap(err)
-}
-
-// CreateSSHCertReq is passed by tsh to authenticate a local user without MFA
-// and receive short-lived certificates.
-type CreateSSHCertReq struct {
-	// User is a teleport username
-	User string `json:"user"`
-	// Password is user's pass
-	Password string `json:"password"`
-	// OTPToken is second factor token
-	OTPToken string `json:"otp_token"`
-	// HeadlessAuthenticationID is a headless authentication resource id.
-	HeadlessAuthenticationID string `json:"headless_id"`
-	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
-	// should be used as the subject of issued certificates, and optional
-	// hardware key attestation statements for each key.
-	UserPublicKeys
-	TTL time.Duration `json:"ttl"`
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string `json:"compatibility,omitempty"`
-	// RouteToCluster is an optional cluster name to route the response
-	// credentials to.
-	RouteToCluster string
-	// KubernetesCluster is an optional k8s cluster name to route the response
-	// credentials to.
-	KubernetesCluster string
-}
-
-// CheckAndSetDefaults checks and sets default values.
-func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
-	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
 }
 
 // HeadlessLoginReq is a headless login request for /webapi/headless/login.
@@ -289,6 +260,8 @@ type AuthenticateSSHUserRequest struct {
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string `json:"scope,omitempty"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
 	// RouteToCluster is an optional cluster name to route the response
@@ -334,6 +307,8 @@ type SSHLogin struct {
 	Insecure bool
 	// Pool is x509 cert pool to use for server certificate verification
 	Pool *x509.CertPool
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
 	// RouteToCluster is an optional cluster name to route the response
@@ -515,41 +490,6 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 	return clt, u, nil
 }
 
-// SSHAgentLogin is used by tsh to fetch local user credentials.
-func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:     login.User,
-		Password: login.Password,
-		OTPToken: login.OTPToken,
-		UserPublicKeys: UserPublicKeys{
-			SSHPubKey:               login.SSHPubKey,
-			TLSPubKey:               login.TLSPubKey,
-			SSHAttestationStatement: login.SSHAttestationStatement,
-			TLSAttestationStatement: login.TLSAttestationStatement,
-		},
-		TTL:               login.TTL,
-		Compatibility:     login.Compatibility,
-		RouteToCluster:    login.RouteToCluster,
-		KubernetesCluster: login.KubernetesCluster,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var out authclient.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &out, nil
-}
-
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
 func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
@@ -569,7 +509,8 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 			SSHAttestationStatement: login.SSHAttestationStatement,
 			TLSAttestationStatement: login.TLSAttestationStatement,
 		},
-		TTL:               login.TTL,
+		TTL: login.TTL,
+		// TODO(fspmarshall/scopes): add scope support to headless login
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
@@ -656,6 +597,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 			},
 			TTL:               login.TTL,
 			Compatibility:     login.Compatibility,
+			Scope:             login.Scope,
 			RouteToCluster:    login.RouteToCluster,
 			KubernetesCluster: login.KubernetesCluster,
 		})
@@ -696,6 +638,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,
+		Scope:             login.Scope,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
 	}
@@ -826,13 +769,8 @@ type CreateWebSessionResponse struct {
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
-func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+// sshAgentLoginWebCreateSession takes an existing client and login details and attempts to create a web session using OTP token
+func sshAgentLoginWebCreateSession(ctx context.Context, clt *WebClient, login SSHLoginDirect) (types.WebSession, error) {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -852,10 +790,25 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 		return clt.HTTPClient().Do(req)
 	}))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	session, err := GetSessionFromResponse(resp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+// sshAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func sshAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := sshAgentLoginWebCreateSession(ctx, clt, login)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -863,10 +816,10 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 	return clt, session, nil
 }
 
-// SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
+// sshAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
-func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
+func sshAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -880,23 +833,35 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	challengeResp := AuthenticateWebUserRequest{
 		User: login.User,
 	}
+
+	var session types.WebSession
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		// If TOTP is configured we have to fallback on direct login
+		session, err = sshAgentLoginWebCreateSession(ctx, clt, SSHLoginDirect{
+			User:     login.User,
+			Password: login.Password,
+			OTPToken: r.TOTP.Code,
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+		loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		session, err = GetSessionFromResponse(loginRespJSON)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	default:
-		// No challenge was sent, so we send back just username/password.
+		return nil, nil, trace.NotImplemented("unsupported MFA challenge for web session login (%T)", r)
 	}
 
-	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	session, err := GetSessionFromResponse(loginRespJSON)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	return clt, session, nil
 }
 

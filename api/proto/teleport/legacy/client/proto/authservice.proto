@@ -23,6 +23,7 @@ import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
+import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
@@ -430,6 +431,24 @@ message CreateResetPasswordTokenRequest {
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// ListResetPasswordTokenRequest is a request for a page of user tokens.
+message ListResetPasswordTokenRequest {
+  // PageSize is the maximum amount of resources to retrieve.
+  int32 page_size = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string page_token = 2;
+}
+
+// ListResetPasswordTokenResponse contains a page of user tokens.
+message ListResetPasswordTokenResponse {
+  // UserTokens is a list of user tokens.
+  repeated types.UserTokenV3 user_tokens = 1;
+  // NextKey is the key for the next page of user tokens.
+  string next_page_token = 2;
 }
 
 // RenewableCertsRequest is a request to generate a first set of renewable
@@ -974,6 +993,24 @@ message GetWebTokenResponse {
 message GetWebTokensResponse {
   // Tokens is a list of web tokens.
   repeated types.WebTokenV3 Tokens = 1 [(gogoproto.jsontag) = "tokens"];
+}
+
+// ListWebTokensRequest contains all the requested web tokens.
+message ListWebTokensRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListWebTokensResponse contains all the requested web tokens.
+message ListWebTokensResponse {
+  // Tokens is a list of web tokens.
+  repeated types.WebTokenV3 tokens = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // UpsertKubernetesServerRequest are the parameters used to add or update a
@@ -1612,6 +1649,22 @@ message ListAppsResponse {
   repeated types.AppV3 applications = 1;
   // NextKey is the key for the next page of applications.
   string next_key = 2;
+}
+
+message ListDatabasesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListDatabasesResponse {
+  // a list of databases.
+  repeated types.DatabaseV3 databases = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
@@ -2725,6 +2778,59 @@ message ListProvisionTokensResponse {
   string NextKey = 2;
 }
 
+// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterRequest {
+  // Token is the join token to use to join.
+  string Token = 1;
+  // CertAuthorities are the certificate authorities submitted from the leaf to
+  // the root as part of the join process.
+  repeated types.CertAuthorityV2 CertAuthorities = 2;
+  // TeleportVersion is the version of Teleport that the leaf cluster is
+  // running.
+  string TeleportVersion = 3;
+}
+
+// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterResponse {
+  // CertAuthorities are the certificate authorities of the root cluster that
+  // should be trusted by the leaf cluster.
+  repeated types.CertAuthorityV2 CertAuthorities = 1;
+}
+
+message ListKubernetesClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListKubernetesClustersResponse {
+  // KubernetesClusters is a list of kubernetes cluster resources.
+  repeated types.KubernetesClusterV3 kubernetes_clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+message ListSnowflakeSessionsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListSnowflakeSessionsResponse {
+  // Sessions is a list of Snowflake web sessions.
+  repeated types.WebSessionV2 sessions = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2825,6 +2931,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+  rpc GetRemoteAccessCapabilities(types.RemoteAccessCapabilitiesRequest) returns (types.RemoteAccessCapabilities);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
@@ -2845,6 +2953,9 @@ service AuthService {
   //
   // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
+
+  // ListResetPasswordTokens returns a page of user tokens.
+  rpc ListResetPasswordTokens(ListResetPasswordTokenRequest) returns (ListResetPasswordTokenResponse);
 
   // GetUser gets a user resource by name.
   //
@@ -2936,7 +3047,14 @@ service AuthService {
   // GetSnowflakeSession returns a web session with sub kind Snowflake.
   rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
   // GetSnowflakeSessions gets all Snowflake web sessions.
-  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
+  // Deprecated: Use [ListSnowflakeSessions] instead.
+  // TODO(okraport): DELETE IN 21.0.0
+  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse) {
+    option deprecated = true;
+  }
+  // ListSnowflakeSessions returns a page of Snowflake web sessions.
+  rpc ListSnowflakeSessions(ListSnowflakeSessionsRequest) returns (ListSnowflakeSessionsResponse);
+
   // DeleteSnowflakeSession removes a Snowflake web session.
   rpc DeleteSnowflakeSession(DeleteSnowflakeSessionRequest) returns (google.protobuf.Empty);
   // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -2983,7 +3101,11 @@ service AuthService {
   // GetWebToken gets a web token.
   rpc GetWebToken(types.GetWebTokenRequest) returns (GetWebTokenResponse);
   // GetWebTokens gets all web tokens.
-  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
+  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse) {
+    option deprecated = true;
+  }
+  // ListWebTokens returns a page of web tokens.
+  rpc ListWebTokens(ListWebTokensRequest) returns (ListWebTokensResponse);
   // DeleteWebToken deletes a web token.
   rpc DeleteWebToken(types.DeleteWebTokenRequest) returns (google.protobuf.Empty);
   // DeleteAllWebTokens deletes all web tokens.
@@ -3028,6 +3150,8 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // ListRequestableRoles is a paginated requestable role getter.
+  rpc ListRequestableRoles(ListRequestableRolesRequest) returns (ListRequestableRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.
@@ -3185,7 +3309,11 @@ service AuthService {
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
-  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+  // Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+  // TODO(okraport): DELETE IN 21.0.0
+  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List) {
+    option deprecated = true;
+  }
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
   // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
@@ -3198,7 +3326,13 @@ service AuthService {
   // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
-  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+  // TODO(hugoShaka): DELETE IN 21.0.0
+  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List) {
+    option deprecated = true;
+  }
+  // GetStaticTokens retrieves all static tokens.
+  rpc GetStaticTokens(google.protobuf.Empty) returns (types.StaticTokensV2);
   // ListToken retrieves a paginated list of filtered provision tokens.
   rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.
@@ -3293,7 +3427,9 @@ service AuthService {
   rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetApps returns all registered applications.
-  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List) {
+    option deprecated = true;
+  }
   // ListApps returns a page of registered applications.
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
@@ -3308,7 +3444,11 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
+    option deprecated = true;
+  }
+  // ListDatabases returns a page of registered databases.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
   rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
   // CreateDatabase creates a new database resource.
@@ -3321,7 +3461,11 @@ service AuthService {
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetKubernetesClusters returns all registered kubernetes clusters.
-  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List) {
+    option deprecated = true;
+  }
+  // ListKubernetesClusters returns a page of registered kubernetes clusters.
+  rpc ListKubernetesClusters(ListKubernetesClustersRequest) returns (ListKubernetesClustersResponse);
   // GetKubernetesCluster returns a kubernetes cluster by name.
   rpc GetKubernetesCluster(types.ResourceRequest) returns (types.KubernetesClusterV3);
   // CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -3554,4 +3698,9 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+  // by the proxy on behalf of a cluster that wishes to join to this one as a
+  // leaf cluster.
+  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }

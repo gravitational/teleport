@@ -70,6 +70,7 @@ export type BotInstanceSummary = {
   host_name_latest?: string;
   version_latest?: string;
   active_at_latest?: string;
+  os_latest?: string;
 };
 
 export type GetBotInstanceResponse = {
@@ -130,4 +131,6 @@ export type EditBotRequest = {
   traits?: ApiBotTrait[] | null;
   // max_session_ttl is the maximum session TTL
   max_session_ttl?: string | null;
+  // description is the bot's metadata description
+  description?: string | null;
 };

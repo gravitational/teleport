@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -60,18 +61,24 @@ func ModuleSource() string {
 	return module
 }
 
-// FileContexts returns file contexts for the SELinux SSH module.
-func FileContexts(dataDir, configPath string) (string, error) {
+// FileContexts returns file contexts for the SELinux SSH module. If the
+// teleport binary is not calling this, then execPathOverride should be
+// set to the path of the teleport binary that should be confined by
+// SELinux.
+func FileContexts(dataDir, configPath, execPathOverride string) (string, error) {
 	fcTempl, err := template.New("selinux file contexts").Parse(fileContexts)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to parse file contexts template")
 	}
 
-	execPath, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err, "failed to get the path of the executable")
+	binaryPath := execPathOverride
+	if binaryPath == "" {
+		binaryPath, err = os.Executable()
+		if err != nil {
+			return "", trace.Wrap(err, "failed to get the path of the executable")
+		}
 	}
-	binaryPath, err := filepath.EvalSymlinks(execPath)
+	binaryPath, err = filepath.EvalSymlinks(binaryPath)
 	if err != nil {
 		return "", trace.Wrap(err, "failed to expand symlinks for the executable")
 	}
@@ -165,7 +172,7 @@ func CheckConfiguration(ensureEnforced bool, logger *slog.Logger) error {
 	}
 
 	if !installed {
-		return trace.Errorf("the SSH SELinux module %s is not installed", moduleName)
+		return trace.NotFound("the SSH SELinux module %s is not installed", moduleName)
 	}
 	if disabled {
 		return trace.Errorf("the SSH SELinux module %s is disabled", moduleName)
@@ -215,6 +222,25 @@ func diagnoseWrongDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 	}
 
 	return fallbackErr
+}
+
+// ModuleInstalled returns true if the SSH SELinux module is installed.
+func ModuleInstalled() (bool, error) {
+	selinuxType, err := readConfig(selinuxTypeTag)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, trace.Wrap(err, "failed to find SELinux type")
+	}
+
+	modulesDir := filepath.Join(selinuxRoot, selinuxType, "active/modules")
+	installed, _, _, err := moduleStatus(modulesDir)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return installed, nil
 }
 
 func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive bool, err error) {

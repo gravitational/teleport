@@ -46,8 +46,8 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -744,7 +744,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 				}
 				userRoles = append(userRoles, existingRole)
 			}
-			_, err = auth.CreateUser(ctx, authServer, userName, userRoles...)
+			_, err = authtest.CreateUser(ctx, authServer, userName, userRoles...)
 			require.NoError(t, err)
 
 			userPassword := uuid
@@ -845,7 +845,7 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 	require.NoError(t, err)
 	userRoles := []types.Role{ruleWithAllowRules}
 
-	_, err = auth.CreateUser(ctx, authServer, userName, userRoles...)
+	_, err = authtest.CreateUser(ctx, authServer, userName, userRoles...)
 	require.NoError(t, err)
 
 	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
@@ -1002,7 +1002,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 	userRoles := []types.Role{ruleWithAllowRules}
 
-	_, err = auth.CreateUser(ctx, authServer, userName, userRoles...)
+	_, err = authtest.CreateUser(ctx, authServer, userName, userRoles...)
 	require.NoError(t, err)
 
 	// Log in as the new user.
@@ -1050,9 +1050,12 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
+	nodeID, err := nodeSvc.WaitForHostID(ctx)
+	require.NoError(t, err)
+
 	// waits for the node to be added
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return err == nil
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 
@@ -1068,7 +1071,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	// waits for the node to be deleted
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
@@ -1092,11 +1095,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateRole(ctx, role)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			if assert.NoError(collect, err) {
-				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
-			}
+			require.NoError(t, err)
+			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1110,11 +1113,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateUser(ctx, user)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			if assert.NoError(collect, err) {
-				assert.Equal(collect, roles, user.GetRoles())
-			}
+			require.NoError(t, err)
+
+			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 

@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { space, SpaceProps } from '../system';
+import { border, BorderProps, space, SpaceProps } from '../system';
 import { Theme } from '../theme';
 
 const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
@@ -52,13 +52,35 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     };
   }
 
-  if (kind === 'outline') {
+  if (kind === 'outline-secondary') {
     return {
+      color: theme.colors.text.main,
+      backgroundColor: 'transparent',
       borderColor: theme.colors.interactive.tonal.neutral[0],
       borderWidth: 1,
       borderStyle: 'solid',
-      backgroundColor: 'transparent',
-      color: theme.colors.text.main,
+      fontWeight: theme.fontWeights.regular,
+    };
+  }
+
+  if (kind === 'outline-warning') {
+    return {
+      color: theme.colors.dataVisualisation.primary.sunflower,
+      backgroundColor: theme.colors.interactive.tonal.alert[0],
+      borderColor: theme.colors.interactive.tonal.alert[2],
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+    };
+  }
+
+  if (kind === 'outline-danger') {
+    return {
+      color: theme.colors.interactive.solid.danger.default,
+      backgroundColor: theme.colors.interactive.tonal.danger[0],
+      borderColor: theme.colors.interactive.tonal.danger[2],
+      borderWidth: 1,
+      borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
     };
   }
@@ -73,28 +95,33 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
 export type LabelKind =
   | 'primary'
   | 'secondary'
-  | 'outline'
   | 'warning'
   | 'danger'
-  | 'success';
+  | 'success'
+  | 'outline-secondary'
+  | 'outline-warning'
+  | 'outline-danger';
 
-interface LabelProps extends SpaceProps {
+type LabelProps = {
   kind?: LabelKind;
   children?: React.ReactNode;
-}
+} & SpaceProps &
+  BorderProps;
 
 const Label = styled.div<LabelProps>`
   box-sizing: border-box;
-  border-radius: 10px;
+  border-radius: 999px;
   display: inline-block;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
+  overflow: hidden;
 
   ${kind}
   ${space}
+  ${border}
 `;
 
 export default Label;
@@ -107,12 +134,18 @@ export const Primary = (props: LabelPropsWithoutKind) => (
 export const Secondary = (props: LabelPropsWithoutKind) => (
   <Label kind="secondary" {...props} />
 );
-export const Outline = (props: LabelPropsWithoutKind) => (
-  <Label kind="outline" {...props} />
-);
 export const Warning = (props: LabelPropsWithoutKind) => (
   <Label kind="warning" {...props} />
 );
 export const Danger = (props: LabelPropsWithoutKind) => (
   <Label kind="danger" {...props} />
+);
+export const SecondaryOutlined = (props: LabelPropsWithoutKind) => (
+  <Label kind="outline-secondary" {...props} />
+);
+export const WarningOutlined = (props: LabelPropsWithoutKind) => (
+  <Label kind="outline-warning" {...props} />
+);
+export const DangerOutlined = (props: LabelPropsWithoutKind) => (
+  <Label kind="outline-danger" {...props} />
 );

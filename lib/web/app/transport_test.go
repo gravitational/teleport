@@ -85,8 +85,8 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			identity:    identity,
 			servers:     []types.AppServer{server},
 
-			cipherSuites: utils.DefaultCipherSuites(),
-			proxyClient:  &mockProxyClient{},
+			cipherSuites:  utils.DefaultCipherSuites(),
+			clusterGetter: &mockClusterGetter{},
 			accessPoint: &mockAuthClient{
 				caKey:       caKey,
 				caCert:      caCert,
@@ -218,20 +218,20 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 }
 
 type fakeTunnel struct {
-	reversetunnelclient.Tunnel
+	reversetunnelclient.ClusterGetter
 
-	fakeSite *reversetunnelclient.FakeRemoteSite
-	err      error
+	fakeCluster *reversetunnelclient.FakeCluster
+	err         error
 }
 
-func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
-	return f.fakeSite, f.err
+func (f fakeTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return f.fakeCluster, f.err
 }
 
 func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	tp := transport{
 		c: &transportConfig{
-			proxyClient: fakeTunnel{
+			clusterGetter: fakeTunnel{
 				err: trace.ConnectionProblem(errors.New(reversetunnelclient.NoApplicationTunnel), ""),
 			},
 			identity: &tlsca.Identity{},
@@ -305,9 +305,9 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				AzureIdentity: "azure-identity",
 			},
 		},
-		servers:      []types.AppServer{azureAppServer},
-		cipherSuites: utils.DefaultCipherSuites(),
-		proxyClient:  &mockProxyClient{},
+		servers:       []types.AppServer{azureAppServer},
+		cipherSuites:  utils.DefaultCipherSuites(),
+		clusterGetter: &mockClusterGetter{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,
@@ -481,9 +481,9 @@ func Test_transport_with_integration(t *testing.T) {
 				AWSRoleARN:  "MyAWSRole",
 			},
 		},
-		servers:      []types.AppServer{awsAppServer},
-		cipherSuites: utils.DefaultCipherSuites(),
-		proxyClient:  &mockProxyClient{},
+		servers:       []types.AppServer{awsAppServer},
+		cipherSuites:  utils.DefaultCipherSuites(),
+		clusterGetter: &mockClusterGetter{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,

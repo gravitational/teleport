@@ -21,7 +21,7 @@ import { Alert } from 'design';
 import { ArrowForward, BellRinging } from 'design/Icon';
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export function TaskAlert({

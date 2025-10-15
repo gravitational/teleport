@@ -50,7 +50,8 @@ type Modules struct {
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GenerateAccessRequestPromotionsFn  func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GenerateLongTermResourceGroupingFn func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -81,6 +82,14 @@ func (m *Modules) EnableRecoveryCodes() {}
 // Features implements modules.Modules.
 func (m *Modules) Features() modules.Features {
 	return m.TestFeatures
+}
+
+// GenerateLongTermResourceGrouping implements modules.Modules.
+func (m *Modules) GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	if m.GenerateLongTermResourceGroupingFn != nil {
+		return m.GenerateLongTermResourceGroupingFn(ctx, clt, req)
+	}
+	return nil, trace.NotImplemented("GenerateLongTermResourceGrouping not implemented")
 }
 
 // GenerateAccessRequestPromotions implements modules.Modules.

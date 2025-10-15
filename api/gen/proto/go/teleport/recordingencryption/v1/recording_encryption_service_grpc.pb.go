@@ -33,9 +33,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RecordingEncryptionService_CreateUpload_FullMethodName   = "/teleport.recordingencryption.v1.RecordingEncryptionService/CreateUpload"
-	RecordingEncryptionService_UploadPart_FullMethodName     = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadPart"
-	RecordingEncryptionService_CompleteUpload_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteUpload"
+	RecordingEncryptionService_CreateUpload_FullMethodName     = "/teleport.recordingencryption.v1.RecordingEncryptionService/CreateUpload"
+	RecordingEncryptionService_UploadPart_FullMethodName       = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadPart"
+	RecordingEncryptionService_CompleteUpload_FullMethodName   = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteUpload"
+	RecordingEncryptionService_RotateKey_FullMethodName        = "/teleport.recordingencryption.v1.RecordingEncryptionService/RotateKey"
+	RecordingEncryptionService_GetRotationState_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/GetRotationState"
+	RecordingEncryptionService_CompleteRotation_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteRotation"
+	RecordingEncryptionService_RollbackRotation_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/RollbackRotation"
 )
 
 // RecordingEncryptionServiceClient is the client API for RecordingEncryptionService service.
@@ -51,6 +55,14 @@ type RecordingEncryptionServiceClient interface {
 	UploadPart(ctx context.Context, in *UploadPartRequest, opts ...grpc.CallOption) (*UploadPartResponse, error)
 	// CompleteUploadRequest marks a multipart upload as complete.
 	CompleteUpload(ctx context.Context, in *CompleteUploadRequest, opts ...grpc.CallOption) (*CompleteUploadResponse, error)
+	// RotateKey rotates the key pair used for encrypting session recording data.
+	RotateKey(ctx context.Context, in *RotateKeyRequest, opts ...grpc.CallOption) (*RotateKeyResponse, error)
+	// GetRotationState returns whether or not a rotation is in progress.
+	GetRotationState(ctx context.Context, in *GetRotationStateRequest, opts ...grpc.CallOption) (*GetRotationStateResponse, error)
+	// CompleteRotation moves rotated keys out of the active set.
+	CompleteRotation(ctx context.Context, in *CompleteRotationRequest, opts ...grpc.CallOption) (*CompleteRotationResponse, error)
+	// RollbackRotation removes active keys and reverts rotating keys back to being active.
+	RollbackRotation(ctx context.Context, in *RollbackRotationRequest, opts ...grpc.CallOption) (*RollbackRotationResponse, error)
 }
 
 type recordingEncryptionServiceClient struct {
@@ -91,6 +103,46 @@ func (c *recordingEncryptionServiceClient) CompleteUpload(ctx context.Context, i
 	return out, nil
 }
 
+func (c *recordingEncryptionServiceClient) RotateKey(ctx context.Context, in *RotateKeyRequest, opts ...grpc.CallOption) (*RotateKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RotateKeyResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_RotateKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recordingEncryptionServiceClient) GetRotationState(ctx context.Context, in *GetRotationStateRequest, opts ...grpc.CallOption) (*GetRotationStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRotationStateResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_GetRotationState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recordingEncryptionServiceClient) CompleteRotation(ctx context.Context, in *CompleteRotationRequest, opts ...grpc.CallOption) (*CompleteRotationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteRotationResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_CompleteRotation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recordingEncryptionServiceClient) RollbackRotation(ctx context.Context, in *RollbackRotationRequest, opts ...grpc.CallOption) (*RollbackRotationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RollbackRotationResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_RollbackRotation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RecordingEncryptionServiceServer is the server API for RecordingEncryptionService service.
 // All implementations must embed UnimplementedRecordingEncryptionServiceServer
 // for forward compatibility.
@@ -104,6 +156,14 @@ type RecordingEncryptionServiceServer interface {
 	UploadPart(context.Context, *UploadPartRequest) (*UploadPartResponse, error)
 	// CompleteUploadRequest marks a multipart upload as complete.
 	CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error)
+	// RotateKey rotates the key pair used for encrypting session recording data.
+	RotateKey(context.Context, *RotateKeyRequest) (*RotateKeyResponse, error)
+	// GetRotationState returns whether or not a rotation is in progress.
+	GetRotationState(context.Context, *GetRotationStateRequest) (*GetRotationStateResponse, error)
+	// CompleteRotation moves rotated keys out of the active set.
+	CompleteRotation(context.Context, *CompleteRotationRequest) (*CompleteRotationResponse, error)
+	// RollbackRotation removes active keys and reverts rotating keys back to being active.
+	RollbackRotation(context.Context, *RollbackRotationRequest) (*RollbackRotationResponse, error)
 	mustEmbedUnimplementedRecordingEncryptionServiceServer()
 }
 
@@ -122,6 +182,18 @@ func (UnimplementedRecordingEncryptionServiceServer) UploadPart(context.Context,
 }
 func (UnimplementedRecordingEncryptionServiceServer) CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CompleteUpload not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) RotateKey(context.Context, *RotateKeyRequest) (*RotateKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RotateKey not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) GetRotationState(context.Context, *GetRotationStateRequest) (*GetRotationStateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRotationState not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) CompleteRotation(context.Context, *CompleteRotationRequest) (*CompleteRotationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CompleteRotation not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) RollbackRotation(context.Context, *RollbackRotationRequest) (*RollbackRotationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RollbackRotation not implemented")
 }
 func (UnimplementedRecordingEncryptionServiceServer) mustEmbedUnimplementedRecordingEncryptionServiceServer() {
 }
@@ -199,6 +271,78 @@ func _RecordingEncryptionService_CompleteUpload_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RecordingEncryptionService_RotateKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RotateKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).RotateKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_RotateKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).RotateKey(ctx, req.(*RotateKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RecordingEncryptionService_GetRotationState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRotationStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).GetRotationState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_GetRotationState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).GetRotationState(ctx, req.(*GetRotationStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RecordingEncryptionService_CompleteRotation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteRotationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).CompleteRotation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_CompleteRotation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).CompleteRotation(ctx, req.(*CompleteRotationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RecordingEncryptionService_RollbackRotation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackRotationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).RollbackRotation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_RollbackRotation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).RollbackRotation(ctx, req.(*RollbackRotationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RecordingEncryptionService_ServiceDesc is the grpc.ServiceDesc for RecordingEncryptionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -217,6 +361,22 @@ var RecordingEncryptionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteUpload",
 			Handler:    _RecordingEncryptionService_CompleteUpload_Handler,
+		},
+		{
+			MethodName: "RotateKey",
+			Handler:    _RecordingEncryptionService_RotateKey_Handler,
+		},
+		{
+			MethodName: "GetRotationState",
+			Handler:    _RecordingEncryptionService_GetRotationState_Handler,
+		},
+		{
+			MethodName: "CompleteRotation",
+			Handler:    _RecordingEncryptionService_CompleteRotation_Handler,
+		},
+		{
+			MethodName: "RollbackRotation",
+			Handler:    _RecordingEncryptionService_RollbackRotation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

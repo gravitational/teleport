@@ -27,10 +27,12 @@ import {
 import { Platform } from 'teleterm/mainProcess/types';
 
 export function CompatibilityWarning(props: {
+  isAnyClusterProvidingUpdates: boolean;
   authSettings: AuthSettings;
   platform: Platform;
   shouldSkipVersionCheck: boolean;
   disableVersionCheck(): void;
+  onSwitchToAppUpdateDetails(): void;
   mx?: number;
 }) {
   if (props.shouldSkipVersionCheck) {
@@ -56,15 +58,22 @@ export function CompatibilityWarning(props: {
               fill="border"
               intent="neutral"
               inputAlignment
-              action={{
-                content: (
-                  <>
-                    Download in Browser
-                    <NewTab size="small" ml={1} />
-                  </>
-                ),
-                href: buildDownloadUrl(props.platform),
-              }}
+              action={
+                props.isAnyClusterProvidingUpdates
+                  ? {
+                      content: 'Go to Auto Updates',
+                      onClick: props.onSwitchToAppUpdateDetails,
+                    }
+                  : {
+                      content: (
+                        <>
+                          Download in Browser
+                          <NewTab size="small" ml={1} />
+                        </>
+                      ),
+                      href: buildDownloadUrl(props.platform),
+                    }
+              }
             />
             <ActionButton
               fill="minimal"
@@ -117,7 +126,7 @@ function buildDownloadUrl(platform: Platform): string {
   let os: string;
   switch (platform) {
     case 'darwin':
-      os = 'mac';
+      os = 'darwin';
       break;
     case 'linux':
       os = 'linux';
@@ -127,7 +136,7 @@ function buildDownloadUrl(platform: Platform): string {
       break;
   }
 
-  return `https://goteleport.com/download/?product=connect&os=${os}`;
+  return `https://goteleport.com/download/client-tools/?os=${os}`;
 }
 
 function getMajorVersion(version: string): string {

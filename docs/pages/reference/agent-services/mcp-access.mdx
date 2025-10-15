@@ -1,0 +1,142 @@
+---
+title: MCP Access Reference
+sidebar_label: MCP Access
+description: Configuration and CLI reference for Teleport MCP access.
+tags:
+- reference
+- zero-trust
+- mcp
+---
+
+This guide describes interfaces and options for interacting with the Teleport
+Application Service for MCP access, including the static configuration file for
+the `teleport` binary, and `tsh mcp` commands.
+
+## Configuration
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+The following snippet shows the full YAML configuration of an Application Service
+appearing in the `teleport.yaml` configuration file:
+
+```yaml
+app_service:
+  # Enables application proxy service.
+  enabled: true
+  # Enables the builtin Teleport demo MCP server that shows current user and
+  # session information. To access it, this MCP server uses the app label
+  # "teleport.internal/resource-type" with the value "demo".
+  mcp_demo_server: true
+  # This section contains definitions of all applications proxied by this
+  # service. It can contain multiple items.
+  apps:
+  # Name of the application. Used for identification purposes.
+  - name: "mcp-everything"
+    # Free-form application description.
+    description: "Example Everything MCP server"
+    # Static labels to assign to the app. Used in RBAC.
+    labels:
+      env: "prod"
+    # Contains MCP server-related configurations.
+    mcp:
+      # Command to launch stdio-based MCP servers.
+      command: "docker"
+      # Args to execute with the command.
+      args: ["run", "-i", "--rm", "mcp/everything"]
+      # Name of the host user account under which the command will be
+      # executed. Required for stdio-based MCP servers.
+      run_as_host_user: "docker"
+```
+
+## Resource
+
+The MCP server resources are registered as `app` resources in the Teleport
+backend. Here is the spec of MCP server resources managed by `tctl` resource
+command:
+
+```yaml
+kind: app
+version: v3
+metadata:
+  # MCP server name
+  name: everything
+  # MCP server description.
+  description: The Everything MCP server
+  # MCP server labels.
+  labels:
+    env: local
+spec:
+  mcp:
+    # Command to launch stdio-based MCP servers.
+    command: "docker"
+    # Args to execute with the command.
+    args: ["run", "-i", "--rm", "mcp/everything"]
+    # Name of the host user account under which the command will be
+    # executed. Required for stdio-based MCP servers.
+    run_as_host_user: "docker"
+```
+
+## CLI
+
+This section shows CLI commands relevant for MCP access.
+
+### tsh mcp ls
+
+Lists available MCP servers.
+
+```code
+# List all MCP servers.
+$ tsh mcp ls
+# Search MCP servers with keywords.
+$ tsh mcp ls --search foo,bar
+# Filter MCP servers with labels.
+$ tsh mcp ls key1=value1,key2=value2
+# Get MCP server names using "jq".
+$ tsh mcp ls --format json  | jq -r '.[].metadata.name'
+```
+
+| Flag | Description |
+| - | - |
+| `--search` | List of comma separated search keywords or phrases enclosed in quotations (e.g. `--search=foo,bar,"some phrase"`). |
+| `--query`  | Query by predicate language enclosed in single quotes. (e.g. `--query='labels["key1"] == "value1" && labels["key2"] != "value2"')`. |
+| `--format` | Format output (`text`, `json`, `yaml`). |
+
+### tsh mcp config
+
+Print client configuration details or update the configuration directly.
+
+```code
+# Print sample configuration for a MCP server app
+$ tsh mcp config my-mcp-server-app
+# Add all MCP servers to Claude Desktop
+$ tsh mcp config --all --client-config=claude
+# Search MCP servers with labels and add to the specified JSON file
+$ tsh mcp config --labels env=dev --client-config=my-config.json`
+```
+
+| Flag | Description |
+| - | - |
+| `--all` | Select all MCP servers. Mutually exclusive with `--labels` or `--query`.|
+| `--labels`  | List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
+| `--query`  | Query by predicate language enclosed in single quotes. (e.g. `--query='labels["key1"] == "value1" && labels["key2"] != "value2"')`. |
+| `--client-config` | If specified, update the specified client config. `claude` for default Claude Desktop config, or specify a JSON file path. Can also be set with environment variable `TELEPORT_MCP_CLIENT_CONFIG`.",
+| `--json-format` |	Format the JSON file (`pretty`, `compact`, `auto`, `none`). `auto` saves in compact if the file is already compact, otherwise pretty. Can also be set with environment variable `TELEPORT_MCP_CONFIG_JSON_FORMAT`. Default is `auto`.",
+
+### tsh mcp connect
+
+Used by AI tools such as Claude Desktop to connect to an MCP server via
+Teleport.
+
+<Admonition type="tip">
+`tsh mcp config` can print sample configuration or update your AI tools
+directly. This eliminates the need to manually construct the tsh mcp connect
+command.
+</Admonition>
+
+```code
+$ tsh mcp connect mcp-everything
+```
+
+`tsh` debug logs are enabled by default and can be disabled by the environment
+variable `TELEPORT_DEBUG=false`. You can also specify the `--no-debug` flag when
+generating sample configurations with `tsh mcp config`.

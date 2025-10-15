@@ -65,6 +65,15 @@ service SummarizerService {
   rpc DeleteInferencePolicy(DeleteInferencePolicyRequest) returns (DeleteInferencePolicyResponse);
   // ListInferencePolicies lists all InferencePolicies that match the request.
   rpc ListInferencePolicies(ListInferencePoliciesRequest) returns (ListInferencePoliciesResponse);
+
+  // GetSummary retrieves the inference result for a session, which
+  // contains the session summary.
+  rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
+
+  // IsEnabled tells if the summarizer is enabled by the license and
+  // configured. (Note that this doesn't tell anything about actual correctness
+  // of the configuration or presence of recording summaries.)
+  rpc IsEnabled(IsEnabledRequest) returns (IsEnabledResponse);
 }
 
 // Summarization inference models
@@ -308,4 +317,27 @@ message ListInferencePoliciesResponse {
   // NextPageToken is the token to retrieve the next page of results, or empty
   // if there are no more results in the list.
   string next_page_token = 2;
+}
+
+// GetSummaryRequest is a request for retrieving a session recording summary.
+message GetSummaryRequest {
+  // SessionId is the ID of the session whose summary is being requested.
+  string session_id = 1;
+}
+
+// GetSummaryResponse is a response to retrieving a session recording summary.
+message GetSummaryResponse {
+  // Summary is the session recording summary.
+  Summary summary = 1;
+}
+
+// IsEnabledRequest is a request to tell if the summarizer is enabled.
+message IsEnabledRequest {}
+
+// IsEnabledResponse is a response that tells if the summarizer is enabled.
+message IsEnabledResponse {
+  // Enabled tells if the summarizer is enabled by the license and configured.
+  // (Note that this doesn't tell anything about actual correctness of the
+  // configuration or presence of recording summaries.)
+  bool enabled = 1;
 }

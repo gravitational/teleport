@@ -65,7 +65,7 @@ package rdpclient
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
-#include <librdprs.h>
+#include <librdpclient.h>
 */
 import "C"
 
@@ -190,9 +190,9 @@ func New(cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// Run starts the rdp client and blocks until the client disconnects,
-// then ensures the cleanup is run.
-func (c *Client) Run(ctx context.Context) error {
+// Run starts the RDP client, using the provided user certificate and private key.
+// It blocks until the client disconnects, then ensures the cleanup is run.
+func (c *Client) Run(ctx context.Context, certDER, keyDER []byte) error {
 	// Create a handle to the client to pass to Rust.
 	// The handle is used to call back into this Client from Rust.
 	// Since the handle is created and deleted here, methods which
@@ -213,7 +213,7 @@ func (c *Client) Run(ctx context.Context) error {
 	rustRDPReturnCh := make(chan error, 1)
 	// Kick off rust RDP loop goroutine
 	go func() {
-		rustRDPReturnCh <- c.startRustRDP(ctx)
+		rustRDPReturnCh <- c.startRustRDP(ctx, certDER, keyDER)
 	}()
 
 	select {
@@ -316,14 +316,9 @@ func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
 	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
 }
 
-func (c *Client) startRustRDP(ctx context.Context) error {
+func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
 	c.cfg.Logger.InfoContext(ctx, "Rust RDP loop starting")
 	defer c.cfg.Logger.InfoContext(ctx, "Rust RDP loop finished")
-
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// [username] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
@@ -349,14 +344,14 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	computerName := C.CString(c.cfg.ComputerName)
 	defer C.free(unsafe.Pointer(computerName))
 
-	cert_der, err := utils.UnsafeSliceData(userCertDER)
+	cert_der, err := utils.UnsafeSliceData(certDER)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if cert_der == nil {
 		return trace.BadParameter("user cert was nil")
 	}
 
-	key_der, err := utils.UnsafeSliceData(userKeyDER)
+	key_der, err := utils.UnsafeSliceData(keyDER)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if key_der == nil {
@@ -386,10 +381,10 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
-			cert_der_len: C.uint32_t(len(userCertDER)),
+			cert_der_len: C.uint32_t(len(certDER)),
 			cert_der:     (*C.uint8_t)(cert_der),
 			// key length and bytes.
-			key_der_len:             C.uint32_t(len(userKeyDER)),
+			key_der_len:             C.uint32_t(len(keyDER)),
 			key_der:                 (*C.uint8_t)(key_der),
 			screen_width:            C.uint16_t(c.requestedWidth),
 			screen_height:           C.uint16_t(c.requestedHeight),
@@ -1000,6 +995,13 @@ func cgo_handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32
 // handleRemoteCopy is called from Rust when data is copied
 // on the remote desktop
 func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
+	// Ignore empty clipboard data to mitigate a part of a clipboard
+	// issue where sometimes the clipboard data is wiped.
+	if len(data) == 0 {
+		c.cfg.Logger.DebugContext(context.Background(), "Received empty clipboard data from Windows desktop, ignoring message")
+		return C.ErrCodeSuccess
+	}
+
 	c.cfg.Logger.DebugContext(context.Background(), "Received clipboard data from Windows desktop", "len", len(data))
 
 	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {

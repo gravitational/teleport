@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -57,7 +58,7 @@ func (h *Handler) desktopConnectHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) (any, error) {
 	desktopName := p.ByName("desktopName")
@@ -67,11 +68,11 @@ func (h *Handler) desktopConnectHandle(
 
 	log := sctx.cfg.Log.With(
 		"desktop_name", desktopName,
-		"cluster_name", site.GetName(),
+		"cluster_name", cluster.GetName(),
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, site.GetName(), log, sctx, site, ws); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -88,7 +89,7 @@ func (h *Handler) createDesktopConnection(
 	clusterName string,
 	log *slog.Logger,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) error {
 	defer ws.Close()
@@ -155,7 +156,7 @@ func (h *Handler) createDesktopConnection(
 		withheld = append(withheld, msg)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
 	}
@@ -167,7 +168,7 @@ func (h *Handler) createDesktopConnection(
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk.Public(), desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -189,7 +190,7 @@ func (h *Handler) createDesktopConnection(
 	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
-		Site:           site,
+		Cluster:        cluster,
 		ClientSrcAddr:  clientSrcAddr,
 		ClientDstAddr:  clientDstAddr,
 		DesktopName:    desktopName,
@@ -297,7 +298,7 @@ func createUserCertsRequest(
 func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	publicKey crypto.PublicKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
@@ -307,12 +308,12 @@ func (h *Handler) prepareForCertIssuance(
 			DesktopName: desktopName,
 			Login:       username,
 		},
-	}, sctx, site)
+	}, sctx, cluster)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, site.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName())
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
@@ -416,7 +417,7 @@ func (h *Handler) performSessionMFACeremony(
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.AccessDenied("Only WebAuthn and SSO MFA methods are supported on the web, please register a supported MFA method to connect to this desktop")
+					return nil, trace.Wrap(authclient.ErrNoMFADevices)
 				}
 
 				// Send the challenge over the socket.

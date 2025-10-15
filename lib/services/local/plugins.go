@@ -20,13 +20,16 @@ package local
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	libplugin "github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const pluginsPrefix = "plugins"
@@ -43,6 +46,9 @@ func NewPluginsService(backend backend.Backend) *PluginsService {
 
 // CreatePlugin implements services.Plugins
 func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+	if err := libplugin.Validate(plugin); err != nil {
+		return trace.Wrap(err)
+	}
 	value, err := services.MarshalPlugin(plugin)
 	if err != nil {
 		return trace.Wrap(err)
@@ -73,6 +79,9 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 
 // UpdatePlugin updates a plugin resource.
 func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
+	if err := libplugin.Validate(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.CheckAndSetDefaults(plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,7 +178,8 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	for _, item := range result.Items {
 		plugin, err := services.UnmarshalPlugin(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			slog.WarnContext(ctx, "skipping plugin resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+			continue
 		}
 		if !withSecrets {
 			plugin = plugin.WithoutSecrets().(types.Plugin)

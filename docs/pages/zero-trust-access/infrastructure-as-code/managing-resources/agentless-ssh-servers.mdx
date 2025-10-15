@@ -1,9 +1,11 @@
 ---
 title: Registering Agentless OpenSSH Servers with IaC
 description: Use infrastructure-as-code tooling to register Agentless OpenSSH servers in Teleport.
-labels:
+tags:
+ - infrastructure-as-code
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 In this guide, you will see how to register in Teleport your OpenSSH nodes
@@ -16,7 +18,24 @@ dynamically create resources from code:
 - The `tctl` CLI, which allows you to manage Teleport resources from your local
   computer or your CI environment
 
-## Prerequisites
+## How it works
+
+Teleport can route SSH connections through the Teleport Proxy Service to SSH
+nodes. Once you have configured your SSH nodes to trust the Teleport certificate
+authority for OpenSSH (see the [Agentless OpenSSH
+guide](../../../enroll-resources/server-access/openssh/openssh-agentless.mdx),
+the Proxy Service can present a Teleport-signed certificate to the node and
+establish a connection. For this to work, the Teleport Proxy Service must be
+able to dial the node.
+
+Agentless SSH servers are registered with the Teleport Auth Service as resources
+stored on the Auth Service backend. The Teleport Auth Service exposes a gRPC API
+that enables clients to create, delete, or modify backend resources, including
+agentless SSH servers. The Teleport Kubernetes Operator and Terraform provider,
+along with the `tctl` command-line tool, can manage agentless SSH services by
+authenticating to the Teleport Auth Service and interacting with its gRPC API.
+
+# Prerequisites
 
 To follow this guide, you must have:
 

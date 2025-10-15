@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -42,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
@@ -250,8 +250,8 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.HostCA, "rc1"),
-				suite.NewTestCA(types.HostCA, "rc2"),
+				authtest.NewTestCA(types.HostCA, "rc1"),
+				authtest.NewTestCA(types.HostCA, "rc2"),
 			},
 		})
 		require.Error(t, err)
@@ -262,7 +262,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.UserCA, "rc3"),
+				authtest.NewTestCA(types.UserCA, "rc3"),
 			},
 		})
 		require.Error(t, err)
@@ -273,7 +273,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.HostCA, localClusterName),
+				authtest.NewTestCA(types.HostCA, localClusterName),
 			},
 		})
 		require.Error(t, err)
@@ -292,7 +292,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.HostCA, trustedCluster.GetName()),
+				authtest.NewTestCA(types.HostCA, trustedCluster.GetName()),
 			},
 		})
 		require.Error(t, err)
@@ -300,7 +300,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster-1"))
+		leafClusterCA := types.CertAuthority(authtest.NewTestCA(types.HostCA, "leafcluster-1"))
 		resp, err := a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -371,11 +371,11 @@ func TestValidateTrustedCluster(t *testing.T) {
 			CAs:   []types.CertAuthority{leafClusterCA},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "already registered")
+		require.Contains(t, err.Error(), "conflicts with an existing cluster or ca")
 	})
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster-2"))
+		leafClusterCA := types.CertAuthority(authtest.NewTestCA(types.HostCA, "leafcluster-2"))
 		resp, err := a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -409,7 +409,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				suite.NewTestCAWithConfig(suite.TestCAConfig{
+				authtest.NewTestCAWithConfig(authtest.TestCAConfig{
 					Type:                types.HostCA,
 					ClusterName:         "remoteCluster",
 					SubjectOrganization: "commonName",
@@ -440,6 +440,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -499,7 +500,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
+	ca := authtest.NewTestCA(types.UserCA, "trustedcluster")
 
 	auth.ConfigureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 
@@ -638,7 +639,7 @@ func TestUpdateTrustedCluster(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster(testClusterName, trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := suite.NewTestCA(types.UserCA, testClusterName)
+	ca := authtest.NewTestCA(types.UserCA, testClusterName)
 
 	auth.ConfigureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 

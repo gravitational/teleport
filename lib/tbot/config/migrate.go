@@ -27,6 +27,12 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 type destinationMixinV1 struct {
@@ -264,7 +270,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &ApplicationOutput{
+		return &application.OutputConfig{
 			Destination:           dest,
 			Roles:                 c.Roles,
 			AppName:               c.App,
@@ -278,28 +284,28 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		format := UnspecifiedDatabaseFormat
+		format := database.UnspecifiedDatabaseFormat
 		for _, templateConfig := range c.Configs {
 			if templateConfig.Mongo != nil {
-				if format != UnspecifiedDatabaseFormat {
+				if format != database.UnspecifiedDatabaseFormat {
 					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				format = MongoDatabaseFormat
+				format = database.MongoDatabaseFormat
 			}
 			if templateConfig.Cockroach != nil {
-				if format != UnspecifiedDatabaseFormat {
+				if format != database.UnspecifiedDatabaseFormat {
 					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				format = CockroachDatabaseFormat
+				format = database.CockroachDatabaseFormat
 			}
 			if templateConfig.TLS != nil {
-				if format != UnspecifiedDatabaseFormat {
+				if format != database.UnspecifiedDatabaseFormat {
 					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				format = TLSDatabaseFormat
+				format = database.TLSDatabaseFormat
 			}
 		}
-		return &DatabaseOutput{
+		return &database.OutputConfig{
 			Destination: dest,
 			Roles:       c.Roles,
 			Format:      format,
@@ -315,7 +321,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		return &KubernetesOutput{
+		return &k8s.OutputV1Config{
 			Destination:       dest,
 			Roles:             c.Roles,
 			KubernetesCluster: c.KubernetesCluster,
@@ -337,7 +343,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &SSHHostOutput{
+		return &ssh.HostOutputConfig{
 			Destination: dest,
 			Roles:       c.Roles,
 			Principals:  principals,
@@ -350,7 +356,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		return &IdentityOutput{
+		return &identity.OutputConfig{
 			Destination: dest,
 			Roles:       c.Roles,
 			Cluster:     c.Cluster,
@@ -359,14 +365,14 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 }
 
 type configV1 struct {
-	Onboarding      OnboardingConfig `yaml:"onboarding"`
-	Debug           bool             `yaml:"debug"`
-	AuthServer      string           `yaml:"auth_server"`
-	CertificateTTL  time.Duration    `yaml:"certificate_ttl"`
-	RenewalInterval time.Duration    `yaml:"renewal_interval"`
-	Oneshot         bool             `yaml:"oneshot"`
-	FIPS            bool             `yaml:"fips"`
-	DiagAddr        string           `yaml:"diag_addr"`
+	Onboarding      onboarding.Config `yaml:"onboarding"`
+	Debug           bool              `yaml:"debug"`
+	AuthServer      string            `yaml:"auth_server"`
+	CertificateTTL  time.Duration     `yaml:"certificate_ttl"`
+	RenewalInterval time.Duration     `yaml:"renewal_interval"`
+	Oneshot         bool              `yaml:"oneshot"`
+	FIPS            bool              `yaml:"fips"`
+	DiagAddr        string            `yaml:"diag_addr"`
 
 	Destinations  []configV1Destination `yaml:"destinations"`
 	StorageConfig *storageConfigV1      `yaml:"storage"`

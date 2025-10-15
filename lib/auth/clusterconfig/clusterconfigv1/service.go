@@ -738,6 +738,10 @@ func (s *Service) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
+	if err := services.ValidateSessionRecordingConfig(cfg, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := s.backend.CreateSessionRecordingConfig(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -771,6 +775,10 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 	}
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
@@ -817,6 +825,10 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 	}
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 

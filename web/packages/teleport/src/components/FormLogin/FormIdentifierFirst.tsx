@@ -49,6 +49,11 @@ type Props = {
    * isLocalAuthEnabled is whether local auth is enabled. If not, the identifier first login screen should be the only possible screen.
    */
   isLocalAuthEnabled: boolean;
+  /**
+   * title is the title of the form.
+   */
+  title: string;
+  ssoTitle: string;
 };
 
 /**
@@ -58,6 +63,8 @@ export function FormIdentifierFirst({
   onLoginWithSso,
   onUseLocalLogin,
   isLocalAuthEnabled,
+  title,
+  ssoTitle,
 }: Props) {
   const [resourceService] = useState(() => new ResourceService());
 
@@ -119,9 +126,7 @@ export function FormIdentifierFirst({
     <Card my="5" mx="auto" width={650} p={4}>
       <Flex flexDirection="column" alignItems="center">
         <Text typography="h1" textAlign="center">
-          {rememberedUsername
-            ? 'Sign in to Teleport'
-            : 'Sign in to Teleport with SSO'}
+          {rememberedUsername ? title : ssoTitle}
         </Text>
         {fetchAttempt.status === 'error' && (
           <Alerts.Danger mt={3}>{fetchAttempt.statusText}</Alerts.Danger>

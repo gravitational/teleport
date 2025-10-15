@@ -512,6 +512,192 @@ func TestPluginJamfValidation(t *testing.T) {
 	}
 }
 
+func TestPluginIntuneValidation(t *testing.T) {
+	testCases := []struct {
+		name      string
+		settings  *PluginSpecV1_Intune
+		creds     *PluginCredentialsV1
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no settings",
+			settings: &PluginSpecV1_Intune{
+				Intune: nil,
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing Intune settings")
+			},
+		},
+		{
+			name: "no tenant",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "tenant must be set")
+			},
+		},
+		{
+			name: "no credentials inner",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "invalid credential type (oauth2)",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "invalid credentials (static credentials)",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name: "valid credentials (static credentials)",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{Tenant: "foo"},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "invalid login endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					LoginEndpoint: "example.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "login endpoint")
+			},
+		},
+		{
+			name: "valid login endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					LoginEndpoint: "https://login.microsoftonline.us",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "invalid graph endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					GraphEndpoint: "example.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, "graph endpoint")
+			},
+		},
+		{
+			name: "valid graph endpoint",
+			settings: &PluginSpecV1_Intune{
+				Intune: &PluginIntuneSettings{
+					Tenant:        "foo",
+					GraphEndpoint: "https://graph.microsoft.us",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, PluginSpecV1{
+				Settings: tc.settings,
+			}, tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
 func TestPluginMattermostValidation(t *testing.T) {
 	defaultSettings := &PluginSpecV1_Mattermost{
 		Mattermost: &PluginMattermostSettings{

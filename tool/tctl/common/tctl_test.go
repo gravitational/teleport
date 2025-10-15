@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -48,7 +49,11 @@ func TestMain(m *testing.M) {
 	}
 
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 func BenchmarkInit(b *testing.B) {
@@ -128,7 +133,9 @@ func TestConnect(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	fileConfigAgent := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),

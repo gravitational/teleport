@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -459,9 +459,9 @@ func advanceAndLookForRecipients(t *testing.T,
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
 }
 
-func newTestAuth(t *testing.T) *auth.TestServer {
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+func newTestAuth(t *testing.T) *authtest.Server {
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			Dir:   t.TempDir(),
 			Clock: clockwork.NewFakeClock(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{

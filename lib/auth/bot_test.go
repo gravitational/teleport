@@ -54,11 +54,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -66,7 +64,9 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -154,7 +154,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -259,7 +259,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	k8s, err := fakejoin.NewKubernetesSigner(srv.Clock())
+	k8s, err := fakeissuer.NewKubernetesSigner(srv.Clock())
 	require.NoError(t, err)
 	jwks, err := k8s.GetMarshaledJWKS()
 	require.NoError(t, err)
@@ -294,7 +294,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, tok))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token:      tok.GetName(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
@@ -406,7 +406,7 @@ func TestRegisterBotInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -552,7 +552,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -628,7 +628,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -823,8 +823,8 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 }
 
 // authClientForRegisterResult is a test helper that creats an auth client for
-// the given [*join.RegisterResult].
-func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.NetAddr, result *join.RegisterResult) *authclient.Client {
+// the given [*joinclient.JoinResult].
+func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.NetAddr, result *joinclient.JoinResult) *authclient.Client {
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	require.NoError(t, err)
 	sshPub, err := ssh.NewPublicKey(result.PrivateKey.Public())
@@ -895,14 +895,14 @@ func instanceIDFromCerts(t *testing.T, certs *proto.Certs) (string, uint64) {
 	return ident.BotInstanceID, ident.Generation
 }
 
-// registerHelper calls `join.Register` with the given token, prefilling params
+// registerHelper calls `joinclient.Join` with the given token, prefilling params
 // where possible. Overrides may be applied with `fns`.
 func registerHelper(
 	ctx context.Context, token types.ProvisionToken,
 	addr *utils.NetAddr,
-	fns ...func(*join.RegisterParams),
-) (*join.RegisterResult, error) {
-	params := join.RegisterParams{
+	fns ...func(*joinclient.JoinParams),
+) (*joinclient.JoinResult, error) {
+	params := joinclient.JoinParams{
 		JoinMethod: token.GetJoinMethod(),
 		Token:      token.GetName(),
 		ID: state.IdentityID{
@@ -918,7 +918,7 @@ func registerHelper(
 		fn(&params)
 	}
 
-	result, err := join.Register(ctx, params)
+	result, err := joinclient.Join(ctx, params)
 	return result, trace.Wrap(err)
 }
 
@@ -1015,7 +1015,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	require.NoError(t, a.UpsertToken(ctx, awsToken))
 
 	// Join as a "bot" with both token types.
-	k8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *join.RegisterParams) {
+	k8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *joinclient.JoinParams) {
 		p.KubernetesReadFileFunc = k8sReadFileFunc
 	})
 	require.NoError(t, err)
@@ -1035,7 +1035,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	// Rejoin using the k8s client and make sure we're issued certs with the
 	// same instance ID.
 	k8sClient := authClientForRegisterResult(t, ctx, addr, k8sResult)
-	rejoinedK8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *join.RegisterParams) {
+	rejoinedK8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *joinclient.JoinParams) {
 		p.KubernetesReadFileFunc = k8sReadFileFunc
 		p.AuthClient = k8sClient
 	})
@@ -1049,7 +1049,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	// join service, the instance ID must be provided to auth by the proxy as
 	// part of the `RegisterUsingTokenRequest`.
 	iamClient := authClientForRegisterResult(t, ctx, addr, awsResult)
-	rejoinedAWSResult, err := registerHelper(ctx, awsToken, addr, func(p *join.RegisterParams) {
+	rejoinedAWSResult, err := registerHelper(ctx, awsToken, addr, func(p *joinclient.JoinParams) {
 		p.AuthClient = iamClient
 	})
 	require.NoError(t, err)
@@ -1229,7 +1229,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, tokenB))
 
-	resultA, err := join.Register(ctx, join.RegisterParams{
+	resultA, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: tokenA.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -1242,7 +1242,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	initialInstanceA, _ := instanceIDFromCerts(t, certsA)
 	require.NotEmpty(t, initialInstanceA)
 
-	resultB, err := join.Register(ctx, join.RegisterParams{
+	resultB, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: tokenB.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,

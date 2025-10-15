@@ -27,6 +27,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -37,6 +38,7 @@ var supportedResourceKinds = []string{
 	types.KindApp,
 	types.KindSAMLIdPServiceProvider,
 	types.KindWindowsDesktop,
+	types.KindMCP,
 }
 
 func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
@@ -66,10 +68,15 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 		requiresRequest := enrichedResource.RequiresRequest
 		switch r := enrichedResource.ResourceWithLabels.(type) {
 		case types.Server:
+			logins, err := libclient.CalculateSSHLogins(cluster.GetLoggedInUser().SSHLogins, enrichedResource.Logins)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Server: &clusters.Server{
 					URI:    cluster.URI.AppendServer(r.GetName()),
 					Server: r,
+					Logins: logins,
 				},
 				RequiresRequest: requiresRequest,
 			})
@@ -114,13 +121,18 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			})
 		case types.KubeServer:
 			kubeCluster := r.GetCluster()
-			response.Resources = append(response.Resources, UnifiedResource{
+			ur := UnifiedResource{
 				Kube: &clusters.Kube{
 					URI:               cluster.URI.AppendKube(kubeCluster.GetName()),
 					KubernetesCluster: kubeCluster,
 				},
 				RequiresRequest: requiresRequest,
-			})
+			}
+			targetHealth := r.GetTargetHealth()
+			if targetHealth != nil {
+				ur.Kube.TargetHealth = *targetHealth
+			}
+			response.Resources = append(response.Resources, ur)
 		case types.WindowsDesktop:
 			response.Resources = append(response.Resources, UnifiedResource{
 				WindowsDesktop: &clusters.WindowsDesktop{

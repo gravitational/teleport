@@ -44,11 +44,12 @@ import (
 )
 
 type APIConfig struct {
-	PluginRegistry plugin.Registry
-	AuthServer     *Server
-	AuditLog       events.AuditLogSessionStreamer
-	Authorizer     authz.Authorizer
-	Emitter        apievents.Emitter
+	PluginRegistry   plugin.Registry
+	AuthServer       *Server
+	AuditLog         events.AuditLogSessionStreamer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Emitter          apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
 	// KeepAliveCount specifies amount of missed keep alives
@@ -132,18 +133,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// trusted clusters
+	// TODO(noah): DELETE IN v21.0.0 - this has been migrated to gRPC from v19.
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
-
-	// these endpoints are still in use by v17 agents since they cache
-	// KindNamespace
-	//
-	// TODO(espadolini): REMOVE IN v19
-	srv.GET("/:version/namespaces", srv.WithAuth(srv.getNamespaces))
-	srv.GET("/:version/namespaces/:namespace", srv.WithAuth(srv.getNamespace))
-
-	// cluster configuration
-	// TODO(noah): DELETE IN v19.0.0 - from v18 we switched to a gRPC equiv.
-	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
@@ -152,6 +143,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/reversetunnels", httpMigratedHandler)
 	srv.GET("/:version/reversetunnels", httpMigratedHandler)
 	srv.DELETE("/:version/reversetunnels/:domain", httpMigratedHandler)
+	srv.GET("/:version/namespaces", httpMigratedHandler)
+	srv.GET("/:version/namespaces/:namespace", httpMigratedHandler)
+	srv.GET("/:version/configuration/name", httpMigratedHandler)
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -459,6 +453,9 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions authclient.ClientOptions `json:"client_options"`
 }
 
 /*
@@ -478,11 +475,12 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 		return nil, trace.Wrap(err)
 	}
 	raw := githubAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		TLSCert:  response.TLSCert,
-		Req:      response.Req,
+		Username:      response.Username,
+		Identity:      response.Identity,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		Req:           response.Req,
+		ClientOptions: response.ClientOptions,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(
@@ -502,45 +500,6 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 		raw.HostSigners[i] = data
 	}
 	return &raw, nil
-}
-
-func (*APIServer) getNamespaces(*ServerWithRoles, http.ResponseWriter, *http.Request, httprouter.Params, string) (any, error) {
-	return []types.Namespace{{
-		Kind:    types.KindNamespace,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      defaults.Namespace,
-			Namespace: defaults.Namespace,
-		},
-	}}, nil
-}
-
-func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *http.Request, p httprouter.Params, _ string) (any, error) {
-	name := p.ByName("namespace")
-	if !types.IsValidNamespace(name) {
-		return nil, trace.BadParameter("invalid namespace %q", name)
-	}
-	if name != defaults.Namespace {
-		return nil, trace.NotFound("namespace %q is not found", name)
-	}
-
-	return &types.Namespace{
-		Kind:    types.KindNamespace,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      defaults.Namespace,
-			Namespace: defaults.Namespace,
-		},
-	}, nil
-}
-
-func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	cn, err := auth.GetClusterName(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalClusterName(cn, services.WithVersion(version), services.PreserveRevision()))
 }
 
 type upsertTunnelConnectionRawReq struct {

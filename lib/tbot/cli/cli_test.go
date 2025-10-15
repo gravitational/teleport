@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -74,7 +75,7 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	// A single default Destination should exist
 	require.Len(t, cfg.Services, 1)
 	output := cfg.Services[0]
-	identOutput, ok := output.(*config.IdentityOutput)
+	identOutput, ok := output.(*identity.OutputConfig)
 	require.True(t, ok)
 
 	destImpl := identOutput.GetDestination()

@@ -437,7 +437,7 @@ func (h *Handler) joinKubernetesSession(
 	sessionID string,
 	mode types.SessionParticipantMode,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
 ) error {
 	h.logger.InfoContext(ctx, "Attempting to join kubernetes existing session",
@@ -450,7 +450,7 @@ func (h *Handler) joinKubernetesSession(
 		return trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -499,7 +499,7 @@ func (h *Handler) joinKubernetesSession(
 		return trace.Wrap(err)
 	}
 
-	authAccessPoint, err := site.CachingAccessPoint()
+	authAccessPoint, err := cluster.CachingAccessPoint()
 	if err != nil {
 		return trace.Wrap(err)
 	}

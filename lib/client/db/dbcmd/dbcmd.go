@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -588,7 +589,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,
-		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
+		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
 		RawQuery: query.Encode(),
 		Path:     fmt.Sprintf("/%s", c.db.Database),
 	}

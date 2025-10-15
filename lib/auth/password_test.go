@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,6 +89,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -908,12 +909,12 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "me.localhost"))
+	err := s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}
 
-	err = s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "me.localhost"))
+	err = s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -302,6 +304,9 @@ type AccessChecker interface {
 // host SSH certificate, TLS certificate, or user information stored in the
 // backend.
 type AccessInfo struct {
+	// ScopePin is an optional pin that ties an identity to a specific scope and set of scoped roles. When
+	// set, the Roles field must not be set.
+	ScopePin *scopesv1.Pin
 	// Roles is the list of cluster local roles for the identity.
 	Roles []string
 	// Traits is the set of traits for the identity.
@@ -338,8 +343,29 @@ type accessChecker struct {
 //   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
 //     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	if info.ScopePin != nil {
+		return nil, trace.BadParameter("cannot create unscoped AccessChecker based on scoped identity")
+	}
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newAccessChecker(info, localCluster, roleSet), nil
+}
+
+// NewAccessCheckerForUserSession is an alternative to NewAccessChecker that includes a UserSessionRoleNotFoundErrorMsg if
+// a role from the user's session is not found during the access check. This allows the Web UI to distinguish between
+// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
+// failures.
+func NewAccessCheckerForUserSession(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was encountered fetching
+			// the user's session roles. This can only happen if the user's session certificate contains a role that no longer exists.
+			return nil, trace.Wrap(err, UserSessionRoleNotFoundErrorMsg)
+		}
 		return nil, trace.Wrap(err)
 	}
 	return &accessChecker{
@@ -352,6 +378,10 @@ func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) 
 // NewAccessCheckerWithRoleSet is similar to NewAccessChecker, but accepts the
 // full RoleSet rather than a RoleGetter.
 func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet RoleSet) AccessChecker {
+	return newAccessChecker(info, localCluster, roleSet)
+}
+
+func newAccessChecker(info *AccessInfo, localCluster string, roleSet RoleSet) *accessChecker {
 	return &accessChecker{
 		info:         info,
 		localCluster: localCluster,
@@ -373,6 +403,10 @@ type CurrentUserRoleGetter interface {
 // user's access to resources that may be located in remote/leaf Teleport
 // clusters.
 func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *AccessInfo, clusterName string, access CurrentUserRoleGetter) (AccessChecker, error) {
+	if localAccessInfo.ScopePin != nil {
+		return nil, trace.BadParameter("cannot create unscoped remote cluster AccessChecker based on scoped identity")
+	}
+
 	// Fetch the remote cluster's view of the current user's roles.
 	remoteRoles, err := access.GetCurrentUserRoles(ctx)
 	if err != nil {
@@ -714,18 +748,20 @@ func (result *checkDatabaseRolesResult) allowedRoles() []string {
 		return nil
 	}
 
-	rolesMap := make(map[string]struct{})
+	rolesMap := set.New[string]()
 	for _, role := range result.allowedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
-			rolesMap[dbRole] = struct{}{}
+			rolesMap.Add(dbRole)
 		}
 	}
 	for _, role := range result.deniedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
-			delete(rolesMap, dbRole)
+			rolesMap.Remove(dbRole)
 		}
 	}
-	return utils.StringsSliceFromSet(rolesMap)
+	// The database user provisioning code is picky - it requires a non-nil
+	// slice of roles, because this value is passed directly to a SQL query.
+	return rolesMap.ElementsNotNil()
 }
 
 func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatabaseRolesResult, error) {
@@ -765,7 +801,6 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 			continue
 		}
 		deniedRoleSet = append(deniedRoleSet, role)
-
 	}
 
 	// The collected role list can be empty and that should be ok, we want to
@@ -1104,7 +1139,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 // DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
-	groups := make(map[string]struct{})
+	groups := set.New[string]()
 	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
@@ -1121,7 +1156,7 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
 		for _, group := range role.GetDesktopGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 	for _, role := range a.RoleSet {
@@ -1133,11 +1168,14 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			continue
 		}
 		for _, group := range role.GetDesktopGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
-	return utils.StringsSliceFromSet(groups), nil
+	// These groups get encoded into a certificate that's parsed by
+	// Rust code on Windows. That code expects an empty JSON array,
+	// not a null value.
+	return groups.ElementsNotNil(), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
@@ -1154,7 +1192,7 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
-	groups := make(map[string]struct{})
+	groups := set.New[string]()
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
@@ -1201,7 +1239,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		}
 
 		for _, group := range role.GetHostGroups(types.Allow) {
-			groups[group] = struct{}{}
+			groups.Add(group)
 		}
 	}
 
@@ -1226,7 +1264,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 			continue
 		}
 		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 	}
 
@@ -1243,7 +1281,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 	}
 
 	return &decisionpb.HostUsersInfo{
-		Groups: utils.StringsSliceFromSet(groups),
+		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
@@ -1314,6 +1352,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 	return &AccessInfo{
 		Username:           ident.Username,
+		ScopePin:           ident.ScopePin,
 		Roles:              ident.Roles,
 		Traits:             ident.Traits,
 		AllowedResourceIDs: ident.AllowedResourceIDs,
@@ -1324,6 +1363,10 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 // given remote cluster user's ssh identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
+	if unmappedIdentity.ScopePin != nil {
+		return nil, trace.BadParameter("scope pinning is not supported for remote SSH identities")
+	}
+
 	// make a shallow copy of traits to avoid modifying the original
 	// (don't use maps.Clone, as we want to ensure the result is an empty, but not nil, map)
 	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
@@ -1360,35 +1403,16 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 // AccessInfoFromLocalTLSIdentity returns a new AccessInfo populated from the given
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
-func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
-	roles := identity.Groups
-	traits := identity.Traits
-
-	// Legacy certs are not encoded with roles or traits,
-	// so we fallback to the traits and roles in the backend.
-	// empty traits are a valid use case in standard certs,
-	// so we only check for whether roles are empty.
-	if len(identity.Groups) == 0 {
-		if access == nil {
-			return nil, trace.BadParameter("UserGetter not provided")
-		}
-		u, err := access.GetUser(context.TODO(), identity.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		const msg = "Failed to find roles in x509 identity. Fetching " +
-			"from backend. If the identity provider allows username changes, this can " +
-			"potentially allow an attacker to change the role of the existing user."
-		slog.WarnContext(context.Background(), msg, "username", identity.Username)
-		roles = u.GetRoles()
-		traits = u.GetTraits()
+func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error) {
+	if len(identity.Groups) == 0 && identity.ScopePin == nil {
+		return nil, trace.BadParameter("tls identity %q has no roles or scope pin, this may indicate a malformed certificate or one that was issued by an incompatible teleport version", identity.Username)
 	}
 
 	return &AccessInfo{
 		Username:           identity.Username,
-		Roles:              roles,
-		Traits:             traits,
+		ScopePin:           identity.ScopePin,
+		Roles:              identity.Groups,
+		Traits:             identity.Traits,
 		AllowedResourceIDs: identity.AllowedResourceIDs,
 	}, nil
 }
@@ -1397,6 +1421,10 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity, access UserGetter) 
 // given remote cluster user's tlsca.Identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
+	if identity.ScopePin != nil {
+		return nil, trace.BadParameter("scope pinning is not supported for remote TLS identities")
+	}
+
 	// Set internal traits for the remote user. This allows Teleport to work by
 	// passing exact logins, Kubernetes users/groups, database users/names, and
 	// AWS Role ARNs to the remote cluster.
@@ -1477,11 +1505,21 @@ type UserState interface {
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
 func AccessInfoFromUserState(user UserState) *AccessInfo {
-	roles := user.GetRoles()
-	traits := user.GetTraits()
+	return accessInfoFromUserState(user, user.GetRoles(), nil)
+}
+
+// ScopePinnedAccessInfoFromUserState returns a new AccessInfo populated from the
+// traits held by the user and the provided scope pin. Population/verification of the
+// scope pin must be performed prior to calling this function.
+func ScopePinnedAccessInfoFromUserState(user UserState, pin *scopesv1.Pin) *AccessInfo {
+	return accessInfoFromUserState(user, nil, pin)
+}
+
+func accessInfoFromUserState(user UserState, roles []string, pin *scopesv1.Pin) *AccessInfo {
 	return &AccessInfo{
 		Username: user.GetName(),
 		Roles:    roles,
-		Traits:   traits,
+		ScopePin: pin,
+		Traits:   user.GetTraits(),
 	}
 }

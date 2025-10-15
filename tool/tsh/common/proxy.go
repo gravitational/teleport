@@ -516,7 +516,13 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp login --help' for more details.")
+		// TODO(greedy52) refactor and implement "tsh proxy mcp".
+		switch types.GetMCPServerTransportType(app.GetURI()) {
+		case types.MCPTransportHTTP:
+			// continue
+		default:
+			return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+		}
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
@@ -529,7 +535,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 	appName := cf.AppName
 	if portMapping.TargetPort != 0 {
-		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
+		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
 	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.

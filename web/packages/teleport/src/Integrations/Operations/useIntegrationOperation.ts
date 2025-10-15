@@ -20,13 +20,14 @@ import { useState } from 'react';
 
 import {
   IntegrationAwsOidc,
+  IntegrationAwsRa,
   IntegrationKind,
   integrationService,
   type Integration,
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { DeleteRequestOptions } from './IntegrationOperations';
+import { type DeleteRequestOptions } from './IntegrationOperations';
 
 export function useIntegrationOperation() {
   const { clusterId } = useStickyClusterId();
@@ -105,4 +106,4 @@ export type Operation = {
   item?: Integration;
 };
 
-export type EditableIntegration = IntegrationAwsOidc;
+export type EditableIntegration = IntegrationAwsOidc | IntegrationAwsRa;

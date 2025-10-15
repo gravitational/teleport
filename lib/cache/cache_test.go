@@ -20,7 +20,9 @@ package cache
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
+	"iter"
 	"log/slog"
 	"os"
 	"slices"
@@ -73,19 +75,21 @@ import (
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -140,7 +144,7 @@ type testPack struct {
 	databases               *local.DatabaseService
 	databaseServices        *local.DatabaseServicesService
 	webSessionS             types.WebSessionInterface
-	webTokenS               types.WebTokenInterface
+	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
@@ -171,28 +175,116 @@ type testPack struct {
 	plugin                  *local.PluginsService
 }
 
-// testFuncs are functions to support testing an object in a cache.
-type testFuncs[T types.Resource] struct {
-	newResource    func(string) (T, error)
-	create         func(context.Context, T) error
-	list           func(context.Context) ([]T, error)
-	cacheGet       func(context.Context, string) (T, error)
-	cacheList      func(context.Context, int) ([]T, error)
-	update         func(context.Context, T) error
-	deleteAll      func(context.Context) error
-	changeResource func(T)
+// resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
+// have a slightly different interface.
+type resourceOps[T any] struct {
+	Name    func(T) string
+	Setup   func(T)
+	Modify  func(T)
+	cmpOpts []cmp.Option
 }
 
-// testFuncs153 are functions to support testing an RFD153-style resource in a cache.
-type testFuncs153[T types.Resource153] struct {
+func defaultResourceOps[T types.Resource]() *resourceOps[T] {
+	return &resourceOps[T]{
+		Modify: func(t T) {
+			// types.Resource metadata is immutable, modify expiry only.
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		},
+		Name: func(t T) string { return t.GetName() },
+		Setup: func(t T) {
+			// types.Resource metadata is immutable, modify expiry only.
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		},
+		cmpOpts: []cmp.Option{
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		},
+	}
+}
+
+func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
+	return &resourceOps[T]{
+		Setup: func(t T) {
+			metadata := t.GetMetadata()
+			if metadata.Expires == nil {
+				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			} else {
+				expiry := metadata.Expires.AsTime()
+				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+			}
+			metadata.Labels = map[string]string{"label": "value1"}
+		},
+		Modify: func(t T) {
+			metadata := t.GetMetadata()
+			if metadata.Expires == nil {
+				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			} else {
+				expiry := metadata.Expires.AsTime()
+				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+			}
+			metadata.Labels["label"] = "value2"
+		},
+		Name: func(t T) string { return t.GetMetadata().GetName() },
+		cmpOpts: []cmp.Option{
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+			protocmp.Transform(),
+			cmpopts.EquateEmpty(),
+		},
+	}
+}
+
+// getAllAdapter adapts collection getters that do not support pagination to conform to [testFuncs] interface
+// TODO(okraport): delete this once all APIs are paginated.
+func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Context, int, string) ([]T, string, error) {
+	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
+		out, err := fn(ctx)
+		return out, "", trace.Wrap(err)
+	}
+}
+
+// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
+func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
+	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
+		out, err := fn(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, "", nil
+			}
+			return nil, "", trace.Wrap(err)
+		}
+		return []T{out}, "", nil
+	}
+}
+
+// testFuncs are functions to support testing an object in a cache.
+type testFuncs[T any] struct {
 	newResource func(string) (T, error)
 	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
+	list        func(context.Context, int, string) ([]T, string, error)
+	Range       func(context.Context, string, string) iter.Seq2[T, error]
 	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context) ([]T, error)
+	cacheList   func(context.Context, int, string) ([]T, string, error)
+	cacheRange  func(context.Context, string, string) iter.Seq2[T, error]
 	update      func(context.Context, T) error
 	delete      func(context.Context, string) error
 	deleteAll   func(context.Context) error
+	resource    *resourceOps[T]
+}
+
+func (f *testFuncs[T]) listAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.list))
+}
+
+func (f *testFuncs[T]) cacheListAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.cacheList))
 }
 
 func (t *testPack) Close() {
@@ -225,17 +317,10 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 type packCfg struct {
-	memoryBackend bool
-	ignoreKinds   []types.WatchKind
+	ignoreKinds []types.WatchKind
 }
 
 type packOption func(cfg *packCfg)
-
-func memoryBackend(bool) packOption {
-	return func(cfg *packCfg) {
-		cfg.memoryBackend = true
-	}
-}
 
 // ignoreKinds specifies the list of kinds that should be removed from the watch request by eventsProxy
 // to simulate cache resource type rejection due to version incompatibility.
@@ -256,19 +341,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p := &testPack{
 		dataDir: dir,
 	}
-	var bk backend.Backend
-	var err error
-	if cfg.memoryBackend {
-		bk, err = memory.New(memory.Config{
-			Context: ctx,
-			Mirror:  true,
-		})
-	} else {
-		bk, err = lite.NewWithConfig(ctx, lite.Config{
-			Path:             p.dataDir,
-			PollStreamPeriod: 200 * time.Millisecond,
-		})
-	}
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Mirror:  true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -302,7 +378,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = idService
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
-	p.webTokenS = idService.WebTokens()
+	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
@@ -563,7 +639,7 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -622,7 +698,7 @@ func TestWatchers(t *testing.T) {
 
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
-	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
+	filteredCa := NewTestCA(types.HostCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
@@ -717,7 +793,7 @@ func TestCompletenessInit(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -809,7 +885,7 @@ func TestCompletenessReset(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -908,7 +984,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	p, err := newPack(b.TempDir(), ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
 
@@ -916,7 +992,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 
 	count := 100000
 	for i := range count {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
 		server.Spec.CmdLabels = map[string]types.CommandLabelV2{
@@ -1027,7 +1103,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	require.NoError(t, err)
 
 	for range nodeCount {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -1052,11 +1128,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		assert.Len(t, resources, nodeCount)
+		require.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -1128,7 +1204,7 @@ func initStrategy(t *testing.T) {
 	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -1190,7 +1266,7 @@ func TestRecovery(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -1209,7 +1285,7 @@ func TestRecovery(t *testing.T) {
 	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
-	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
+	ca2 := NewTestCA(types.UserCA, "example2.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
@@ -1272,74 +1348,96 @@ type testOptions struct {
 
 type optionsFunc func(*testOptions)
 
+// TODO(okraport): remove this when all getters support pagination.
 func withSkipPaginationTest() optionsFunc {
 	return func(opts *testOptions) {
 		opts.skipPaginationTest = true
 	}
 }
 
-// defaultTestPageSize is the default page size used in tests.
-// to test the cache pagination logic.
-// The test setup creates defaultTestPageSize + 1 items and forwards the
-// defaultTestPageSize to the cache.cacheList(context.Context, pageSize method.
-// where the test implementation needs to forward the pageSize to the
-// resource list request/call.
-const defaultTestPageSize = 2
-
-// testResources is a generic tester for resources.
+// testResources is a wrapper for testing resources conforming to types.Resource
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	funcs.resource = defaultResourceOps[T]()
+	testResourcesInternal(t, p, funcs, opts...)
+}
+
+// testResources153 is a wrapper for testing resources conforming to types.Resource153
+func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	funcs.resource = defaultResource153Ops[T]()
+	testResourcesInternal(t, p, funcs, opts...)
+}
+
+// testResourcesInternal is a generic tester for resources.
+func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
 	t.Helper()
+	require.NotNil(t, funcs.resource)
+	require.NotNil(t, funcs.resource.Name)
+	if funcs.update != nil {
+		require.NotNil(t, funcs.resource.Modify)
+		require.NotNil(t, funcs.resource.Setup)
+	}
+
 	var options testOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
 	ctx := t.Context()
 
-	if funcs.changeResource == nil {
-		funcs.changeResource = func(t T) {
-			if t.Expiry().IsZero() {
-				t.SetExpiry(time.Now().Add(30 * time.Minute))
-			} else {
-				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
-			}
-		}
-	}
 	if !options.skipPaginationTest {
 		testResourcePagination(t, p, funcs)
 	}
 
 	// Create a resource.
-	r, err := funcs.newResource("test-sp")
+	r, err := funcs.newResource("test-resource-1")
 	require.NoError(t, err)
-	funcs.changeResource(r)
+	// update is optional as not every resource implements it
+	if funcs.update != nil {
+		funcs.resource.Setup(r)
+	}
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	cmpOpts := funcs.resource.cmpOpts
+
+	assertCacheContents := func(expected []T) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			out, err := funcs.cacheListAll(ctx)
+			assert.NoError(t, err)
+
+			// If the cache is expected to be empty, then test explicitly for
+			// *that* rather than do an equality test. An equality test here
+			// would be overly-pedantic about a service returning `nil` rather
+			// than an empty slice.
+			if len(expected) == 0 {
+				require.Empty(t, out)
+				return
+			}
+
+			require.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+		}, 2*time.Second, 10*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
-	out, err := funcs.list(ctx)
+	out, err := funcs.listAll(ctx)
 	require.NoError(t, err)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-	}, time.Second*2, time.Millisecond*250)
+	assertCacheContents([]T{r})
 
 	// cacheGet is optional as not every resource implements it
 	if funcs.cacheGet != nil {
 		// Make sure a single cache get works.
-		getR, err := funcs.cacheGet(ctx, r.GetName())
+		getR, err := funcs.cacheGet(ctx, funcs.resource.Name(r))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+
+		// Make sure we get a NotFoundError (and not a panic) when the resource
+		// is not found.
+		_, err = funcs.cacheGet(ctx, "no-such-resource")
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	}
 
 	// update is optional as not every resource implements it
@@ -1350,108 +1448,18 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		// copy of the resource is loaded prior to updating.
 		if funcs.cacheGet != nil {
 			var err error
-			r, err = funcs.cacheGet(ctx, r.GetName())
+			r, err = funcs.cacheGet(ctx, funcs.resource.Name(r))
 			require.NoError(t, err)
 		}
 		// Update the resource and upsert it into the backend again.
-		funcs.changeResource(r)
+		funcs.resource.Modify(r)
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
 
 	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
-	out, err = funcs.list(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-
-	// Check that information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-	}, time.Second*2, time.Millisecond*250)
-
-	// Remove all service providers from the backend.
-	err = funcs.deleteAll(ctx)
-	require.NoError(t, err)
-	// Check that information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, out)
-	}, time.Second*2, time.Millisecond*250)
-
-}
-
-// testResources153 is a generic tester for RFD153-style resources.
-func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs153[T]) {
-	ctx := context.Background()
-
-	// Create a resource.
-	r, err := funcs.newResource("test-resource")
-	require.NoError(t, err)
-	// update is optional as not every resource implements it
-	if funcs.update != nil {
-		r.GetMetadata().Labels = map[string]string{"label": "value1"}
-	}
-
-	err = funcs.create(ctx, r)
-	require.NoError(t, err)
-
-	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-		protocmp.Transform(),
-		cmpopts.EquateEmpty(),
-	}
-
-	assertCacheContents := func(expected []T) {
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			out, err := funcs.cacheList(ctx)
-			assert.NoError(t, err)
-
-			// If the cache is expected to be empty, then test explicitly for
-			// *that* rather than do an equality test. An equality test here
-			// would be overly-pedantic about a service returning `nil` rather
-			// than an empty slice.
-			if len(expected) == 0 {
-				assert.Empty(t, out)
-				return
-			}
-
-			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
-		}, 2*time.Second, 10*time.Millisecond)
-	}
-
-	// Check that the resource is now in the backend.
-	out, err := funcs.list(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-
-	// Wait until the information has been replicated to the cache.
-	assertCacheContents([]T{r})
-
-	// cacheGet is optional as not every resource implements it
-	if funcs.cacheGet != nil {
-		// Make sure a single cache get works.
-		getR, err := funcs.cacheGet(ctx, r.GetMetadata().GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
-	}
-
-	// update is optional as not every resource implements it
-	if funcs.update != nil {
-		// Update the resource and upsert it into the backend again.
-		r.GetMetadata().Labels["label"] = "value2"
-		err = funcs.update(ctx, r)
-		require.NoError(t, err)
-	}
-
-	// Check that the resource is in the backend and only one exists (so an
-	// update occurred).
-	out, err = funcs.list(ctx)
+	out, err = funcs.listAll(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
@@ -1465,7 +1473,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		require.NoError(t, funcs.create(ctx, r2))
 		assertCacheContents([]T{r, r2})
 		// Check that only one resource is deleted.
-		require.NoError(t, funcs.delete(ctx, r2.GetMetadata().Name))
+		require.NoError(t, funcs.delete(ctx, funcs.resource.Name(r2)))
 		assertCacheContents([]T{r})
 	}
 
@@ -1501,7 +1509,7 @@ func TestRelativeExpiry(t *testing.T) {
 	now := clock.Now()
 	for i := range nodeCount {
 		exp := now.Add(time.Minute * time.Duration(i))
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1579,7 +1587,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	now := clock.Now()
 	for i := range nodeCount {
 		exp := now.Add(time.Minute * time.Duration(i))
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1727,6 +1735,7 @@ func TestSetupConfigFns(t *testing.T) {
 
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
+		"ForRelay":          ForRelay,
 		"ForRemoteProxy":    ForRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
@@ -1836,6 +1845,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	cases := map[string]Config{
 		"ForAuth":        ForAuth(Config{}),
 		"ForProxy":       ForProxy(Config{}),
+		"ForRelay":       ForRelay(Config{}),
 		"ForRemoteProxy": ForRemoteProxy(Config{}),
 		"ForNode":        ForNode(Config{}),
 		"ForKubernetes":  ForKubernetes(Config{}),
@@ -1898,7 +1908,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
 		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t, "test")),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
@@ -1908,6 +1918,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
+		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
 		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
@@ -1962,6 +1973,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
@@ -2142,8 +2155,8 @@ func TestInvalidDatabases(t *testing.T) {
 				// Wait until the database appear on cache.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbs, err := c.GetDatabases(ctx)
-					assert.NoError(t, err)
-					assert.Len(t, dbs, 1)
+					require.NoError(t, err)
+					require.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2279,7 +2292,7 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 			Name: name,
 		},
 		accesslist.Spec{
-			Title:       "title",
+			Title:       "Title" + name,
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -2478,12 +2491,14 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	return notification
 }
 
-func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind:     types.KindAccessMonitoringRule,
-		Version:  types.V1,
-		Metadata: &headerv1.Metadata{},
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "test",
@@ -2574,6 +2589,35 @@ func newAutoUpdateAgentReport(t *testing.T, name string) *autoupdate.AutoUpdateA
 	return r
 }
 
+func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInstanceReport {
+	t.Helper()
+
+	return &autoupdate.AutoUpdateBotInstanceReport{
+		Kind:    types.KindAutoUpdateBotInstanceReport,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameAutoUpdateBotInstanceReport,
+		},
+		Spec: &autoupdate.AutoUpdateBotInstanceReportSpec{
+			Timestamp: timestamppb.Now(),
+			Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+				"foo": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"1.2.3": {Count: 1},
+						"1.2.4": {Count: 2},
+					},
+				},
+				"bar": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"2.3.4": {Count: 3},
+						"2.3.5": {Count: 4},
+					},
+				},
+			},
+		},
+	}
+}
+
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
@@ -2612,9 +2656,12 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	return ev
 }
 
-func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
+func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	t.Helper()
-	totalItems := defaultTestPageSize + 1
+
+	const defaultTestPageSize = 2
+	const numberOfFullPages = 2
+	const totalItemCount = (numberOfFullPages * defaultTestPageSize) + 1
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -2630,67 +2677,258 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 		}
 	}()
 
-	// Generate and create test resources
-	names := make(map[string]struct{}, totalItems)
-	for i := range totalItems {
+	// Generate resources
+	for i := range totalItemCount {
 		name := fmt.Sprintf("resources-%d", i)
 		r, err := funcs.newResource(name)
 		require.NoError(t, err)
 		require.NoError(t, funcs.create(ctx, r))
-		names[name] = struct{}{}
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, err := funcs.cacheList(ctx, totalItems)
-		require.NoError(t, err)
-		require.Len(t, out, totalItems)
-		all, err := funcs.list(ctx)
-		require.NoError(t, err)
-		require.Len(t, all, totalItems)
-	}, time.Second*3, time.Millisecond*100)
-
-	out, err := funcs.cacheList(ctx, defaultTestPageSize)
+	// Fetch all of the created items from the upstream:
+	expected, err := funcs.listAll(ctx)
 	require.NoError(t, err)
+	require.Len(t, expected, totalItemCount)
 
-	seen := make(map[string]bool, totalItems)
-	for _, item := range out {
-		name := item.GetName()
-		if seen[name] {
-			t.Fatalf("duplicate resource returned in pagination: %q", name)
-		}
-		if _, expected := names[name]; !expected {
-			t.Fatalf("unexpected resource returned: %q", name)
-		}
-		seen[name] = true
+	cmpOpts := funcs.resource.cmpOpts
+
+	// Wait for all the resources to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		items, _ := funcs.cacheListAll(ctx)
+		assert.Len(t, items, len(expected))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	page1, page2Start, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, defaultTestPageSize)
+	assert.NotEmpty(t, page2Start)
+
+	page2, page3Start, err := funcs.cacheList(ctx, defaultTestPageSize, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, defaultTestPageSize)
+	assert.NotEmpty(t, page3Start)
+
+	page3, end, err := funcs.cacheList(ctx, defaultTestPageSize, page3Start)
+	require.NoError(t, err)
+	assert.Len(t, page3, 1)
+	assert.Empty(t, end)
+
+	var listed []T
+	listed = append(listed, page1...)
+	listed = append(listed, page2...)
+	listed = append(listed, page3...)
+
+	// All items have been returned as expected
+	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
+
+	// Small pages
+	pageSmall, pageSmallNext, err := funcs.cacheList(ctx, 1, "")
+	require.NoError(t, err)
+	assert.Len(t, pageSmall, 1)
+	assert.NotEmpty(t, pageSmallNext)
+
+	if funcs.Range != nil && funcs.cacheRange != nil {
+		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
+		require.NoError(t, err)
+		assert.Len(t, out, len(page1))
+		assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, page2Start, ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected)-defaultTestPageSize)
+		assert.Empty(t, cmp.Diff(expected, append(page1, out...), cmpOpts...))
+
+		// invalidate the cache, cover upstream fallback
+		p.cache.ok = false
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
 	}
-	// Remove all resource from the backend to has fresh state
+
+	// invalidate the cache, cover upstream fallback
+	p.cache.ok = false
+	out, err := funcs.cacheListAll(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
+		items, err := funcs.cacheListAll(ctx)
 		assert.NoError(t, err)
-		assert.Empty(t, out)
-	}, time.Second*3, time.Millisecond*100)
+		assert.Empty(t, items)
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 type resourcesLister interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-func listAllResource(t *testing.T, lister resourcesLister, kind string, pageSize int) ([]types.ResourceWithLabels, error) {
-	return stream.Collect(clientutils.Resources(
-		t.Context(),
-		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
-			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
-				ResourceType: kind,
-				Limit:        int32(pageSize),
-				StartKey:     startKey,
-			})
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			return resp.Resources, resp.NextKey, nil
-		}))
+func listResource(ctx context.Context, lister resourcesLister, kind string, pageSize int, pageToken string) ([]types.ResourceWithLabels, string, error) {
+	resp, err := lister.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: kind,
+		Limit:        int32(pageSize),
+		StartKey:     pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.Resources, resp.NextKey, nil
+}
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        types.CertAuthType
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM = key.PrivateKeyPEM()
+	}
+
+	ca := &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		SubKind: string(config.Type),
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      config.ResourceName,
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+		},
+	}
+
+	// Add SSH keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.SubjectOrganization},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
+		}}
+	}
+
+	return ca
+}
+
+// NewServer creates a new server resource
+func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
+	return &types.ServerV2{
+		Kind:    kind,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: types.ServerSpecV2{
+			Addr: addr,
+		},
+	}
 }

@@ -90,12 +90,11 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
 	var ccf tctlcfg.GlobalCLIFlags
-	muApp := utils.InitCLIParser("tctl", GlobalHelpString)
+	muApp := utils.InitHiddenCLIParser()
 	muApp.Flag("auth-server",
 		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
 		Envar(authAddrEnvVar).
 		StringsVar(&ccf.AuthServerAddr)
-
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
@@ -103,9 +102,6 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
-
-	// app is the command line parser
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
@@ -123,6 +119,9 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// app is the command line parser
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// Each command will add itself to the CLI parser.
 	for i := range commands {

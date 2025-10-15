@@ -187,8 +187,23 @@ export class TdpClient extends EventEmitter<EventMap> {
       this.sendClientScreenSpec(options.screenSpec);
     }
 
-    if (options.keyboardLayout !== undefined) {
+    // 0 represents the default keyboard layout from the point of view of the
+    // remote desktop, so there is no need to send this message. Additionally,
+    // for clients (Connect) that don't support specifying a keyboard layout
+    // and WDS versions that don't support this feature (v17 and earlier), this
+    // avoids the connection crashing.
+    if (options.keyboardLayout !== undefined && options.keyboardLayout !== 0) {
       this.sendClientKeyboardLayout(options.keyboardLayout);
+    } else {
+      // The proxy expects two messasges (client screen spec and keyboard layout)
+      // before it will initialise the connection to WDS. If no keyboard layout
+      // is sent, the proxy will hang waiting for a second message that won't
+      // arrive. To get around this we send another client screen spec.
+      // TODO (danielashare): Remove this once proxy doesn't block on
+      // keyboardLayout.
+      if (options.screenSpec) {
+        this.sendClientScreenSpec(options.screenSpec);
+      }
     }
 
     let processingError: Error | undefined;

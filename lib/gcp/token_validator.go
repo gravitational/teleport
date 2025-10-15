@@ -24,6 +24,7 @@ import (
 	"regexp"
 
 	"github.com/gravitational/trace"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
 
 	"github.com/gravitational/teleport/lib/oidc"
 )
@@ -66,9 +67,15 @@ func (id *IDTokenValidator) issuerURL() string {
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
 	issuer := id.issuerURL()
 
-	// GCP does not set the authorized party to one of the listed audiences, so we must skip the optional azp check.
-	// TODO(Joerger): Use [rp.ValidateToken] once the authorized party check is made optional upstream, e.g. with an opt.
-	claims, err := oidc.ValidateTokenNoAuthorizedPartyCheck[*IDTokenClaims](ctx, issuer, audience, token)
+	// GCP issues service account IDTokens with the `azp` claim set to the same
+	// value as the `sub` claim, rather than the `aud` claim. The `azp` check is
+	// optional, so we skip it in this non-standard case.
+	// https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
+	withoutAZPVerifier := rp.WithAZPVerifier(func(string) error {
+		return nil
+	})
+
+	claims, err := oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token, withoutAZPVerifier)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating token")
 	}

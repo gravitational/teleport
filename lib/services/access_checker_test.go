@@ -19,9 +19,11 @@
 package services
 
 import (
+	"context"
 	"sort"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -599,6 +601,101 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 	require.Equal(t, expectedShell, hui.Shell)
 }
 
+func TestAccessCheckerDesktopGroups(t *testing.T) {
+	localCluster := "cluster"
+
+	allowCreateNoGroups := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true) })
+	denyUserCreation := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(false) })
+	allowGroupA := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"a"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupA"}
+	})
+	allowGroupB := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"b"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupB"}
+	})
+	allowABC := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupA", "groupB", "groupC"}
+	})
+	denyGroupB := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
+
+		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"b"}}
+		r.Spec.Deny.DesktopGroups = []string{"groupB"}
+	})
+	denyGroupC := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+
+		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"c"}}
+		r.Spec.Deny.DesktopGroups = []string{"groupC"}
+	})
+
+	for _, test := range []struct {
+		name          string
+		roles         RoleSet
+		desktopLabels map[string]string
+		wantGroups    []string
+		assert        require.ErrorAssertionFunc
+	}{
+		{
+			name:       "empty groups",
+			roles:      NewRoleSet(allowCreateNoGroups),
+			wantGroups: []string{},
+			assert:     require.NoError,
+		},
+		{
+			name:          "multiple groups",
+			roles:         NewRoleSet(allowABC),
+			desktopLabels: map[string]string{"group": "all"},
+			wantGroups:    []string{"groupA", "groupB", "groupC"},
+			assert:        require.NoError,
+		},
+		{
+			name:          "only considers matching labels",
+			roles:         NewRoleSet(allowGroupA, allowGroupB),
+			desktopLabels: map[string]string{"group": "a"},
+			wantGroups:    []string{"groupA"},
+			assert:        require.NoError,
+		},
+		{
+			name:          "denied groups are removed",
+			roles:         NewRoleSet(allowABC, denyGroupB, denyGroupC),
+			desktopLabels: map[string]string{"group": "all", "denygroup": "b"},
+			// B gets removed due to deny rule, but C doesn't since labels don't match
+			wantGroups: []string{"groupA", "groupC"},
+			assert:     require.NoError,
+		},
+		{
+			name:          "error if user creation is disabled",
+			roles:         NewRoleSet(allowCreateNoGroups, denyUserCreation),
+			desktopLabels: map[string]string{},
+			wantGroups:    nil,
+			assert:        require.Error,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			desktop, err := types.NewWindowsDesktopV3("test-desktop", test.desktopLabels, types.WindowsDesktopSpecV3{
+				Addr: "example.com:3389",
+			})
+			require.NoError(t, err)
+
+			ac := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, test.roles)
+			groups, err := ac.DesktopGroups(desktop)
+			require.ElementsMatch(t, test.wantGroups, groups)
+			test.assert(t, err)
+
+			if err == nil {
+				require.NotNil(t, groups, "desktop groups should never be nil, use an empty slice instead")
+			}
+		})
+	}
+}
+
 func TestSSHPortForwarding(t *testing.T) {
 	anyLabels := types.Labels{"*": {"*"}}
 	localCluster := "cluster"
@@ -1064,4 +1161,69 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 			))
 		})
 	}
+}
+
+// TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,
+func TestUserSessionRoleNotFoundError(t *testing.T) {
+	// Create a mock RoleGetter that returns "role not found" error for a specific role
+	mockRoleGetter := &mockRoleGetter{
+		roles: map[string]types.Role{
+			"existing-role": newRole(func(rv *types.RoleV6) { rv.SetName("existing-role") }),
+		},
+	}
+
+	t.Run("NewAccessChecker with missing role does not add UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"missing-role"},
+		}
+
+		_, err := NewAccessChecker(accessInfo, "cluster", mockRoleGetter)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		require.Contains(t, err.Error(), "role missing-role is not found")
+		require.NotContains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
+	})
+
+	t.Run("NewAccessCheckerForUserSession with missing role adds UserSessionRoleNotFoundErrorMsg", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"missing-role"},
+		}
+
+		_, err := NewAccessCheckerForUserSession(accessInfo, "cluster", mockRoleGetter)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+		require.Contains(t, err.Error(), "role missing-role is not found")
+		require.Contains(t, err.Error(), UserSessionRoleNotFoundErrorMsg)
+	})
+
+	t.Run("NewAccessCheckerForUserSession with existing role succeeds", func(t *testing.T) {
+		accessInfo := &AccessInfo{
+			Roles: []string{"existing-role"},
+		}
+
+		checker, err := NewAccessCheckerForUserSession(accessInfo, "cluster", mockRoleGetter)
+		require.NoError(t, err)
+		require.NotNil(t, checker)
+	})
+}
+
+// mockRoleGetter implements RoleGetter for testing
+type mockRoleGetter struct {
+	roles map[string]types.Role
+}
+
+func (m *mockRoleGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if role, exists := m.roles[name]; exists {
+		return role, nil
+	}
+	// Return the same error format as the real implementation
+	return nil, trace.NotFound("role %v is not found", name)
+}
+
+func (m *mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var roles []types.Role
+	for _, role := range m.roles {
+		roles = append(roles, role)
+	}
+	return roles, nil
 }

@@ -31,8 +31,8 @@ import (
 )
 
 // getConnectionDiagnostic returns a connection diagnostic connection diagnostics.
-func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -52,7 +52,7 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 }
 
 // diagnoseConnection executes and returns a connection diagnostic.
-func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	req := conntest.TestConnectionRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -62,7 +62,7 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	userClt, err := sctx.GetUserClient(r.Context(), site)
+	userClt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

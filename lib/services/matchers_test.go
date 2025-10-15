@@ -659,6 +659,26 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "MCP server with mcp kind filter",
+			resource: func() types.ResourceWithLabels {
+				return newAppServerFromApp(t, newMCPServerApp(t, "foo"))
+			},
+			filters: MatchResourceFilter{
+				Kinds:               []string{types.KindMCP},
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
+			name: "MCP server with app kind filter",
+			resource: func() types.ResourceWithLabels {
+				return newAppServerFromApp(t, newMCPServerApp(t, "foo"))
+			},
+			filters: MatchResourceFilter{
+				Kinds:               []string{types.KindApp},
+				PredicateExpression: filterExpression,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -727,4 +747,56 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			require.Equal(t, tt.out, ResourceMatchersToTypes(tt.in))
 		})
 	}
+}
+
+func TestMatchResourcesByFilters(t *testing.T) {
+	appServers := make(types.AppServers, 5)
+	oddOrEven := func(i int) string {
+		if i%2 == 1 {
+			return "odd"
+		}
+		return "even"
+	}
+	for i := range len(appServers) {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   fmt.Sprintf("app-%d", i),
+			Labels: map[string]string{"group": oddOrEven(i)},
+		}, types.AppSpecV3{
+			URI: "http://localhost:8888",
+		})
+		require.NoError(t, err)
+		appServers[i] = newAppServerFromApp(t, app)
+	}
+
+	evenAppServers, err := MatchResourcesByFilters(appServers, MatchResourceFilter{
+		ResourceKind: types.KindAppServer,
+		Labels:       map[string]string{"group": "even"},
+	})
+
+	require.NoError(t, err)
+	require.IsType(t, types.AppServers{}, evenAppServers)
+	require.Equal(t,
+		[]string{"app-0", "app-2", "app-4"},
+		slices.Collect(types.ResourceNames(evenAppServers)),
+	)
+}
+
+func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: name,
+	}, types.AppSpecV3{
+		MCP: &types.MCP{
+			Command:       "test",
+			RunAsHostUser: "test",
+		},
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func newAppServerFromApp(t *testing.T, app *types.AppV3) types.AppServer {
+	appServer, err := types.NewAppServerV3FromApp(app, "_", "_")
+	require.NoError(t, err)
+	return appServer
 }

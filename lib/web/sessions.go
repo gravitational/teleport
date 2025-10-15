@@ -78,7 +78,7 @@ type SessionContext struct {
 	// session.
 	remoteClientCache
 	// remoteClientGroup prevents duplicate requests to create remote clients
-	// for a given site
+	// for a given cluster
 	remoteClientGroup singleflight.Group
 
 	// mu guards kubeGRPCServiceConn.
@@ -116,8 +116,8 @@ type SessionContextConfig struct {
 	// Session refers the web session created for the user.
 	Session types.WebSession
 
-	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake sites
-	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error)
+	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake clusters
+	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error)
 }
 
 func (c *SessionContextConfig) CheckAndSetDefaults() error {
@@ -228,36 +228,36 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 }
 
 // GetUserClient will return an [authclient.ClientI]  with the role of the user at
-// the requested site. If the site is local a client with the users local role
-// is returned. If the site is remote a client with the users remote role is
+// the requested cluster. If the cluster is local a client with the users local role
+// is returned. If the cluster is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+func (c *SessionContext) GetUserClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 	// if we're trying to access the local cluster, pass back the local client.
-	if c.cfg.RootClusterName == site.GetName() {
+	if c.cfg.RootClusterName == cluster.GetName() {
 		return c.cfg.RootClient, nil
 	}
 
-	// return the client for the requested remote site
-	clt, err := c.remoteClient(ctx, site)
+	// return the client for the requested remote cluster
+	clt, err := c.remoteClient(ctx, cluster)
 	return clt, trace.Wrap(err)
 }
 
 // remoteClient returns an [authclient.ClientI]  with the role of the user at
-// the requested [site]. All remote clients are lazily created
+// the requested [cluster]. All remote clients are lazily created
 // when they are first requested and then cached. Subsequent requests
 // will return the previously created client to prevent having more than
-// a single [authclient.ClientI]  per site for a user.
+// a single [authclient.ClientI]  per cluster for a user.
 //
 // A [singleflight.Group] is leveraged to prevent duplicate requests for remote
 // clients at the same time to race.
-func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (any, error) {
+func (c *SessionContext) remoteClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
+	cltI, err, _ := c.remoteClientGroup.Do(cluster.GetName(), func() (any, error) {
 		// check if we already have a connection to this cluster
-		if clt, ok := c.remoteClientCache.getRemoteClient(site); ok {
+		if clt, ok := c.remoteClientCache.getRemoteClient(cluster); ok {
 			return clt, nil
 		}
 
-		rClt, err := c.cfg.newRemoteClient(ctx, c, site)
+		rClt, err := c.cfg.newRemoteClient(ctx, c, cluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -265,10 +265,10 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 		// we'll save the remote client in our session context so we don't have to
 		// build a new connection next time. all remote clients will be closed when
 		// the session context is closed.
-		err = c.remoteClientCache.addRemoteClient(site, rClt)
+		err = c.remoteClientCache.addRemoteClient(cluster, rClt)
 		if err != nil {
-			c.cfg.Log.InfoContext(ctx, "Failed closing stale remote client for site",
-				"remote_site", site.GetName(),
+			c.cfg.Log.InfoContext(ctx, "Failed closing stale remote client for cluster",
+				"remote_cluster", cluster.GetName(),
 				"error", err,
 			)
 		}
@@ -289,8 +289,8 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 }
 
 // newRemoteClient returns a client to a remote cluster with the role of current user.
-func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	clt, err := sctx.newRemoteTLSClient(ctx, site)
+func newRemoteClient(ctx context.Context, sctx *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
+	clt, err := sctx.newRemoteTLSClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -306,7 +306,7 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
+func clusterDialer(remoteCluster reversetunnelclient.Cluster, src, dst net.Addr) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		dialParams := reversetunnelclient.DialParams{
 			From:                  src,
@@ -400,7 +400,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	return tlsConfig, nil
 }
 
-func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 	tlsConfig, err := c.ClientTLSConfig(ctx, cluster.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -515,7 +515,7 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 
 	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
 
-	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	accessChecker, err := services.NewAccessCheckerForUserSession(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
 	return accessChecker, trace.Wrap(err)
 }
 
@@ -615,7 +615,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	// Give the session some time to linger so existing users of the context
 	// have successfully disposed of them.
 	// If we remove the session immediately, a stale copy might still use the
-	// cached site clients.
+	// cached cluster clients.
 	// This is a cheaper way to avoid race without introducing object
 	// reference counters.
 	return c.cfg.Parent.clock.Since(expiry) > c.cfg.Parent.sessionLingeringThreshold
@@ -959,6 +959,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 ) (*authclient.SSHLoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
+		Scope:          c.Scope,
 		ClientMetadata: clientMeta,
 		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
 		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
@@ -1276,43 +1277,43 @@ func sessionKey(user, sessionID string) string {
 	return user + sessionID
 }
 
-// remoteClientCache stores remote clients keyed by site name while also keeping
-// track of the actual remote site associated with the client (in case the
-// remote site has changed). Safe for concurrent access. Closes all clients and
+// remoteClientCache stores remote clients keyed by cluster name while also keeping
+// track of the actual remote cluster associated with the client (in case the
+// remote cluster has changed). Safe for concurrent access. Closes all clients and
 // wipes the cache on Close.
 type remoteClientCache struct {
 	sync.Mutex
 	clients map[string]struct {
 		authclient.ClientI
-		reversetunnelclient.RemoteSite
+		reversetunnelclient.Cluster
 	}
 }
 
-func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite, remoteClient authclient.ClientI) error {
+func (c *remoteClientCache) addRemoteClient(cluster reversetunnelclient.Cluster, remoteClient authclient.ClientI) error {
 	c.Lock()
 	defer c.Unlock()
 	if c.clients == nil {
 		c.clients = make(map[string]struct {
 			authclient.ClientI
-			reversetunnelclient.RemoteSite
+			reversetunnelclient.Cluster
 		})
 	}
 	var err error
-	if c.clients[site.GetName()].ClientI != nil {
-		err = c.clients[site.GetName()].ClientI.Close()
+	if c.clients[cluster.GetName()].ClientI != nil {
+		err = c.clients[cluster.GetName()].ClientI.Close()
 	}
-	c.clients[site.GetName()] = struct {
+	c.clients[cluster.GetName()] = struct {
 		authclient.ClientI
-		reversetunnelclient.RemoteSite
-	}{remoteClient, site}
+		reversetunnelclient.Cluster
+	}{remoteClient, cluster}
 	return err
 }
 
-func (c *remoteClientCache) getRemoteClient(site reversetunnelclient.RemoteSite) (authclient.ClientI, bool) {
+func (c *remoteClientCache) getRemoteClient(cluster reversetunnelclient.Cluster) (authclient.ClientI, bool) {
 	c.Lock()
 	defer c.Unlock()
-	remoteClt, ok := c.clients[site.GetName()]
-	return remoteClt.ClientI, ok && remoteClt.RemoteSite == site
+	remoteClt, ok := c.clients[cluster.GetName()]
+	return remoteClt.ClientI, ok && remoteClt.Cluster == cluster
 }
 
 func (c *remoteClientCache) Close() error {
@@ -1351,25 +1352,23 @@ func prepareToReceiveSessionID(ctx context.Context, log *slog.Logger, nc *client
 	// send the session ID received from the server
 	var gotSessionID atomic.Bool
 	sessionIDFromServer := make(chan session.ID, 1)
-	nc.TC.OnChannelRequest = func(req *ssh.Request) *ssh.Request {
-		// ignore unrelated requests and handle only the first session
-		// ID request
-		if req.Type != teleport.CurrentSessionIDRequest || gotSessionID.Load() {
-			return req
+
+	nc.Client.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+		// only handle the first session ID request
+		if gotSessionID.Load() {
+			return
 		}
 
 		sid, err := session.ParseID(string(req.Payload))
 		if err != nil {
 			log.WarnContext(ctx, "Unable to parse session ID", "error", err)
-			return nil
+			return
 		}
 
 		if gotSessionID.CompareAndSwap(false, true) {
 			sessionIDFromServer <- *sid
 		}
-
-		return nil
-	}
+	})
 
 	// If the session is about to close and we haven't received a session
 	// ID yet, ask if the server even supports sending one. Send the

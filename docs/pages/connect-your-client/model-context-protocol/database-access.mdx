@@ -1,16 +1,21 @@
 ---
 title: Database Access for MCP
 description: How to configure MCP clients to use Teleport databases as MCP servers.
+tags:
+ - mcp
+ - infrastructure-identity
+ - zero-trust
+ - how-to
 ---
 
 This guide explains how to connect to your **PostgreSQL** Teleport databases with MCP clients.
 
 ### Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 
 - Teleport Database Service with a PostgreSQL database enrolled. See our [guides](../../enroll-resources/database-access/database-access.mdx)
-  for options on how to set up Database Access for PostgreSQL databases, such as
+  for options on how to enroll PostgreSQL databases with Teleport, such as
   the [AWS RDS PostgreSQL](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx)
   and [self-hosted PostgreSQL](../../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) guides.
 
@@ -86,7 +91,7 @@ You may need to restart your client to reload these new configurations.
 
 You can also provide a custom path for your Claude Desktop MCPs configuration:
 ```code
-$ tsh mcp db config --db-user=postgres --db-name=employees --config-client=/path/to/config.json postgres-dev
+$ tsh mcp db config --db-user=postgres --db-name=employees --client-config=/path/to/config.json postgres-dev
 ```
 
 After updating the configuration, you need to restart the Claude Desktop app
@@ -131,14 +136,14 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
         "mcp",
         "db",
         "start",
-        "teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres"
+        "teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-dev?dbName=employees&dbUser=postgres"
       ]
     }
   }
 }
 
 If you already have an entry for "teleport-databases" server, add the following database resource URI to the command arguments list:
-teleport://clusters/teleport.example.com/databases/postgres-dev?dbName=employees&dbUser=postgres
+teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-dev?dbName=employees&dbUser=postgres
 ```
 </TabItem>
 </Tabs>

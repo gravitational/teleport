@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 // TestDatabaseCommand tests that the DatabaseCommand properly parses its
@@ -50,13 +51,13 @@ func TestDatabaseCommand(t *testing.T) {
 
 				// It must configure a database output with a directory destination.
 				svc := cfg.Services[0]
-				db, ok := svc.(*config.DatabaseOutput)
+				db, ok := svc.(*database.OutputConfig)
 				require.True(t, ok)
 
 				require.Equal(t, "foo", db.Service)
 				require.Equal(t, "bar", db.Username)
 				require.Equal(t, "baz", db.Database)
-				require.Equal(t, config.TLSDatabaseFormat, db.Format)
+				require.Equal(t, database.TLSDatabaseFormat, db.Format)
 
 				dir, ok := db.Destination.(*destination.Directory)
 				require.True(t, ok)

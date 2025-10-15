@@ -72,6 +72,10 @@ type Config struct {
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
 
+	// RelayServer is the optional address of the relay server that this agent
+	// should be opening tunnels to for supported services.
+	RelayServer string
+
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*state.Identity
@@ -83,6 +87,10 @@ type Config struct {
 	// CachePolicy sets caching policy for nodes and proxies
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
+
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay time.Duration
 
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
@@ -129,10 +137,6 @@ type Config struct {
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// HostUUID is a unique UUID of this host (it will be known via this UUID within
-	// a teleport cluster). It's automatically generated on 1st start
-	HostUUID string
 
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start

@@ -101,7 +101,7 @@ export function makeBot(bot: ApiBot): FlatBot {
   };
 }
 
-export function parseListBotInstancesResponse(
+export function validateListBotInstancesResponse(
   data: unknown
 ): data is ListBotInstancesResponse {
   if (typeof data !== 'object' || data === null) {
@@ -119,7 +119,7 @@ export function parseListBotInstancesResponse(
   return data.bot_instances.every(x => typeof x === 'object' || x !== null);
 }
 
-export function parseGetBotInstanceResponse(
+export function validateGetBotInstanceResponse(
   data: unknown
 ): data is GetBotInstanceResponse {
   if (typeof data !== 'object' || data === null) {
@@ -158,6 +158,15 @@ export const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';
 export function canUseV1Edit(req: EditBotRequest) {
   return Object.entries(req).every(([key, value]) => {
     if (key !== 'roles') {
+      return value === null || value === undefined;
+    }
+    return true;
+  });
+}
+
+export function canUseV2Edit(req: EditBotRequest) {
+  return Object.entries(req).every(([key, value]) => {
+    if (!['roles', 'traits', 'max_session_ttl'].includes(key)) {
       return value === null || value === undefined;
     }
     return true;

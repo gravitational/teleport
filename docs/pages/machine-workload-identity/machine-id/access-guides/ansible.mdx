@@ -1,10 +1,13 @@
 ---
 title: Machine ID with Ansible
 description: How to use Machine ID with Ansible
-labels:
+tags:
  - how-to
  - mwi
+ - infrastructure-identity
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 Ansible is a common tool for managing fleets of Linux hosts via SSH. In order to
 connect to the hosts, it requires a form of authentication. Machine ID can be
@@ -16,6 +19,11 @@ credentials and an OpenSSH configuration, and then configure Ansible to use
 these to connect to your SSH nodes through the Teleport Proxy Service.
 
 ## Prerequisites
+
+<Admonition type="tip" title="Using Ansible AWX?">
+If you're running your Ansible jobs under Ansible AWX or Ansible Automation
+Platform, consider reading our [dedicated guide](./ansible-awx.mdx).
+</Admonition>
 
 You will need the following tools to use Teleport with Ansible.
 
@@ -266,5 +274,7 @@ spec:
 
 ## Next steps
 
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available configuration options.
+- If you use Ansible AWX or Ansible Automation Platform, read our
+  [dedicated Ansible AWX Guide](./ansible-awx.mdx).

@@ -53,6 +53,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	setutils "github.com/gravitational/teleport/lib/utils/set"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -389,7 +390,12 @@ func validateRoleExpressions(r types.Role) error {
 // validateRule parses the where and action fields to validate the rule.
 func validateRule(r types.Rule) error {
 	if len(r.Where) != 0 {
-		parser, err := NewWhereParser(&Context{})
+		parser, err := NewWhereParser(&Context{},
+			ConditionalOption(
+				slices.Contains(r.Resources, types.KindSession),
+				WithCanViewFunction(),
+			),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -704,7 +710,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs, constants.TraitMCPTools:
+				constants.TraitGitHubOrgs, constants.TraitMCPTools,
+				constants.TraitDefaultRelayAddr:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -1437,8 +1444,8 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
 func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
-	groups := make(map[string]struct{})
-	users := make(map[string]struct{})
+	groups := setutils.New[string]()
+	users := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
@@ -1453,10 +1460,10 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, group := range role.GetKubeGroups(types.Allow) {
-				groups[group] = struct{}{}
+				groups.Add(group)
 			}
 			for _, user := range role.GetKubeUsers(types.Allow) {
-				users[user] = struct{}{}
+				users.Add(user)
 			}
 		}
 	}
@@ -1469,10 +1476,10 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 			continue
 		}
 		for _, group := range role.GetKubeGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 		for _, user := range role.GetKubeUsers(types.Deny) {
-			delete(users, user)
+			users.Remove(user)
 		}
 	}
 	if !matchedTTL {
@@ -1481,33 +1488,33 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 	if len(groups) == 0 && len(users) == 0 {
 		return nil, nil, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
-	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
+	return groups.Elements(), users.Elements(), nil
 }
 
 // CheckDatabaseNamesAndUsers checks if the role has any allowed database
 // names or users.
 func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
-	names := make(map[string]struct{})
-	users := make(map[string]struct{})
+	names := setutils.New[string]()
+	users := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, name := range role.GetDatabaseNames(types.Allow) {
-				names[name] = struct{}{}
+				names.Add(name)
 			}
 			for _, user := range role.GetDatabaseUsers(types.Allow) {
-				users[user] = struct{}{}
+				users.Add(user)
 			}
 		}
 	}
 	for _, role := range set {
 		for _, name := range role.GetDatabaseNames(types.Deny) {
-			delete(names, name)
+			names.Remove(name)
 		}
 		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			delete(users, user)
+			users.Remove(user)
 		}
 	}
 	if !matchedTTL {
@@ -1516,25 +1523,25 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 	if len(names) == 0 && len(users) == 0 {
 		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned database names or users")
 	}
-	return utils.StringsSliceFromSet(names), utils.StringsSliceFromSet(users), nil
+	return names.Elements(), users.Elements(), nil
 }
 
 // CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
 func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	arns := make(map[string]struct{})
+	arns := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, arn := range role.GetAWSRoleARNs(types.Allow) {
-				arns[arn] = struct{}{}
+				arns.Add(arn)
 			}
 		}
 	}
 	for _, role := range set {
 		for _, arn := range role.GetAWSRoleARNs(types.Deny) {
-			delete(arns, arn)
+			arns.Remove(arn)
 		}
 	}
 	if !matchedTTL {
@@ -1543,7 +1550,7 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 	if len(arns) == 0 {
 		return nil, trace.NotFound("this user cannot request AWS management console, has no assigned role ARNs")
 	}
-	return utils.StringsSliceFromSet(arns), nil
+	return arns.Elements(), nil
 }
 
 // CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
@@ -1586,14 +1593,14 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 
 // CheckGCPServiceAccounts returns a list of GCP service accounts this role set is allowed to assume.
 func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	accounts := make(map[string]struct{})
+	accounts := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, account := range role.GetGCPServiceAccounts(types.Allow) {
-				accounts[strings.ToLower(account)] = struct{}{}
+				accounts.Add(strings.ToLower(account))
 			}
 		}
 	}
@@ -1601,10 +1608,10 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		for _, account := range role.GetGCPServiceAccounts(types.Deny) {
 			// deny * removes all accounts
 			if account == types.Wildcard {
-				accounts = make(map[string]struct{})
+				accounts = setutils.New[string]()
 			}
 			// remove particular account
-			delete(accounts, strings.ToLower(account))
+			accounts.Remove(strings.ToLower(account))
 		}
 	}
 	if !matchedTTL {
@@ -1613,7 +1620,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	if len(accounts) == 0 {
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
-	return utils.StringsSliceFromSet(accounts), nil
+	return accounts.Elements(), nil
 }
 
 // checkAccessToSAMLIdPLegacy checks access to the SAML IdP based on
@@ -2686,7 +2693,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
-	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
+	deviceTrusted := !state.EnableDeviceVerification || state.DeviceVerified
 
 	var errs []error
 	allowed := false
@@ -2742,7 +2749,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaAllowed && deviceAllowed {
+		if mfaAllowed && deviceTrusted {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
 				slog.String("role", role.GetName()),
 			)
@@ -2758,7 +2765,19 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
+		var deviceVerificationPassed bool
+		switch role.GetOptions().DeviceTrustMode {
+		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional, "":
+			// OK, extensions not enforced.
+			deviceVerificationPassed = true
+		case constants.DeviceTrustModeRequiredForHumans:
+			// Humans must use trusted devices, bots can use untrusted devices.
+			deviceVerificationPassed = deviceTrusted || state.IsBot
+		case constants.DeviceTrustModeRequired:
+			// Only trusted devices allowed for bot human and bot users.
+			deviceVerificationPassed = deviceTrusted
+		}
+		if !deviceVerificationPassed {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
 				slog.String("role", role.GetName()),
 			)
@@ -3169,7 +3188,11 @@ func (p boolParser) Parse(string) (any, error) {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
-	whereParser, err := NewWhereParser(ctx)
+	whereParser, err := NewWhereParser(
+		ctx,
+		// register can_view function if the resource is a session.
+		ConditionalOption(resource == types.KindSession, WithCanViewFunction()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3208,12 +3231,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 }
 
 func deduplicateKubeResources(resources []types.KubernetesResource) []types.KubernetesResource {
-	allKeys := make(map[string]struct{})
+	allKeys := setutils.New[string]()
 	copy := make([]types.KubernetesResource, 0, len(resources))
 	for _, item := range resources {
 		key := item.String()
-		if _, value := allKeys[key]; !value {
-			allKeys[key] = struct{}{}
+		if !allKeys.Contains(key) {
+			allKeys.Add(key)
 			copy = append(copy, item)
 		}
 	}
@@ -3617,6 +3640,9 @@ type AccessState struct {
 	// It's recommended to set this in tandem with EnableDeviceVerification.
 	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
 	DeviceVerified bool
+	// IsBot determines whether the user certificate belongs to a bot. It's used
+	// when deciding whether to enforce device verification.
+	IsBot bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
@@ -3634,6 +3660,13 @@ const (
 	// provides access to the session in question.
 	MFARequiredPerRole MFARequired = "per-role"
 )
+
+// UserSessionRoleNotFoundErrorMsg is added to "role not found" errors when they occur
+// during user session roles validation. This allows the Web UI to distinguish between
+// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
+// failures.
+// Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
+const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
@@ -3718,6 +3751,7 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
+	state.IsBot = ident.IsBot()
 	return state, nil
 }
 

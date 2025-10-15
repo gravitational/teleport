@@ -45,9 +45,9 @@ func TestRemoteClientCache(t *testing.T) {
 	var openCount atomic.Int32
 	cache := remoteClientCache{}
 
-	sa1 := newMockRemoteSite("a")
-	sa2 := newMockRemoteSite("a")
-	sb := newMockRemoteSite("b")
+	sa1 := newMockCluster("a")
+	sa2 := newMockCluster("a")
+	sb := newMockCluster("b")
 
 	err1 := errors.New("c1")
 	err2 := errors.New("c2")
@@ -68,16 +68,16 @@ func TestRemoteClientCache(t *testing.T) {
 	require.Zero(t, openCount.Load())
 }
 
-func newMockRemoteSite(name string) reversetunnelclient.RemoteSite {
-	return &mockRemoteSite{name: name}
+func newMockCluster(name string) reversetunnelclient.Cluster {
+	return &mockCluster{name: name}
 }
 
-type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+type mockCluster struct {
+	reversetunnelclient.Cluster
 	name string
 }
 
-func (m *mockRemoteSite) GetName() string {
+func (m *mockCluster) GetName() string {
 	return m.name
 }
 
@@ -109,14 +109,14 @@ func TestGetUserClient(t *testing.T) {
 	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
-			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 				return newMockClientI(&openCount, nil), nil
 			},
 		},
 	}
 
-	localSite := &mockRemoteSite{name: "local"}
-	remoteSite := &mockRemoteSite{name: "remote"}
+	localSite := &mockCluster{name: "local"}
+	remoteSite := &mockCluster{name: "remote"}
 
 	// getting a client for the local site should return
 	// the RootClient from SessionContextConfig

@@ -30,22 +30,22 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 )
 
-var errNotIntegrationApp = errors.New("target resource is not an application with an associated integration")
+var errAppWithoutAWSClientSideCredentials = errors.New("target resource is not an application that sends credentials to the client")
 
-// generateAWSConfigCredentialProcessCredentials generates AWS Credentials for the given application.
-// If the target resource is not an application with an associated integration, it returns errNotIntegrationApp error,
-// which should be handled gracefully by the caller.
+// generateAWSClientSideCredentials generates AWS Credentials for the given application.
+// If the target resource is not an application with an associated AWS Roles Anywhere integration,
+// it returns errAppWithoutAWSClientSideCredentials error, which should be handled gracefully by the caller.
 //
 // The AWS Credentials returned are in the format expected by the AWS CLI/SDK config file `credential_process` (usually located at ~/.aws/config).
 // Expected format documentation: https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html
-func generateAWSConfigCredentialProcessCredentials(
+func generateAWSClientSideCredentials(
 	ctx context.Context,
 	a *Server,
 	req certRequest,
 	notAfter time.Time,
 ) (string, error) {
 	if req.appName == "" || req.awsRoleARN == "" {
-		return "", errNotIntegrationApp
+		return "", errAppWithoutAWSClientSideCredentials
 	}
 
 	appInfo, err := getAppServerByName(ctx, a, req.appName)
@@ -56,7 +56,7 @@ func generateAWSConfigCredentialProcessCredentials(
 	// Only integrations can generate credentials.
 	integrationName := appInfo.GetIntegration()
 	if integrationName == "" {
-		return "", errNotIntegrationApp
+		return "", errAppWithoutAWSClientSideCredentials
 	}
 
 	integration, err := a.GetIntegration(ctx, integrationName)
@@ -68,6 +68,10 @@ func generateAWSConfigCredentialProcessCredentials(
 	case types.IntegrationSubKindAWSRolesAnywhere:
 		// Only AWS Roles Anywhere integrations can generate credentials.
 		return generateAWSRolesAnywhereCredentials(ctx, a, req, appInfo, integration, notAfter)
+
+	case types.IntegrationSubKindAWSOIDC:
+		// AWS access using AWS OIDC integration will proxy requests, but will not send any credentials to the client.
+		return "", errAppWithoutAWSClientSideCredentials
 
 	default:
 		return "", trace.BadParameter("application %q is using integration %q for access, which does not support AWS credential generation", req.appName, integrationName)

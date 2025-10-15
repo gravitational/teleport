@@ -36,7 +36,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
 
@@ -49,7 +49,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
+	unauthorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -69,7 +69,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -118,8 +118,10 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 					Name: "example.com",
 				},
 				UserMetadata: events.UserMetadata{
-					User:     authorizedUser.GetName(),
-					UserKind: events.UserKind_USER_KIND_HUMAN,
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: "localhost",
 				},
 			},
 		},
@@ -172,7 +174,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			mockEmitter.Reset()
@@ -230,7 +232,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
+	unauthorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -250,7 +252,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -284,8 +286,10 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 					Name: name,
 				},
 				UserMetadata: events.UserMetadata{
-					User:     authorizedUser.GetName(),
-					UserKind: events.UserKind_USER_KIND_HUMAN,
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: "localhost",
 				},
 			},
 		},
@@ -311,7 +315,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			resource := &machineidv1pb.SPIFFEFederation{
@@ -382,7 +386,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -437,7 +441,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			got, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
@@ -476,7 +480,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -537,7 +541,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
 			fetched := []*machineidv1pb.SPIFFEFederation{}

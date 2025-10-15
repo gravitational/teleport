@@ -226,11 +226,24 @@ type ProfileStatus struct {
 	// ProxyURL is the URL the web client is accessible at.
 	ProxyURL url.URL
 
+	// RelayAddr is the address of the relay to use, if any.
+	RelayAddr string
+
+	// DefaultRelayAddr is the address of the relay to use specified by the
+	// cluster at login time, if any.
+	DefaultRelayAddr string
+
 	// Username is the Teleport username.
 	Username string
 
 	// Roles is a list of Teleport Roles this user has been assigned.
 	Roles []string
+
+	// Scope is the scope that this profile is pinned to.
+	Scope string
+
+	// ScopedRoles is a map of scopes to scoped role assignments.
+	ScopedRoles map[string][]string
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
@@ -322,6 +335,8 @@ type profileOptions struct {
 	ProfileName             string
 	ProfileDir              string
 	WebProxyAddr            string
+	RelayAddr               string
+	DefaultRelayAddr        string
 	Username                string
 	SiteName                string
 	KubeProxyAddr           string
@@ -350,6 +365,20 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	// this will be empty.
 	roles := slices.Clone(sshIdent.Roles)
 	sort.Strings(roles)
+
+	var scope string
+	var scopedRoles map[string][]string
+	if pin := sshIdent.ScopePin; pin != nil {
+		scope = pin.GetScope()
+		scopedRoles = make(map[string][]string)
+		for scope, assigned := range pin.GetAssignments() {
+			if len(assigned.GetRoles()) == 0 {
+				continue
+			}
+
+			scopedRoles[scope] = assigned.GetRoles()
+		}
+	}
 
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
@@ -411,12 +440,16 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
+		RelayAddr:               opts.RelayAddr,
+		DefaultRelayAddr:        opts.DefaultRelayAddr,
 		Username:                opts.Username,
 		Logins:                  sshCert.ValidPrincipals,
 		ValidUntil:              validUntil,
 		Extensions:              extensions,
 		CriticalOptions:         sshCert.CriticalOptions,
 		Roles:                   roles,
+		Scope:                   scope,
+		ScopedRoles:             scopedRoles,
 		Cluster:                 opts.SiteName,
 		Traits:                  sshIdent.Traits,
 		ActiveRequests:          sshIdent.ActiveRequests,

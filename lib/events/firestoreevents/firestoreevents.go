@@ -549,7 +549,7 @@ func (l *Log) query(
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
-		condFn, err := utils.ToFieldsCondition(req.Cond)
+		condFn, err := utils.ToFieldsCondition(*req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

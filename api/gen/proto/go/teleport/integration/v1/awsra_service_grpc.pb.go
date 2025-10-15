@@ -53,6 +53,9 @@ type AWSRolesAnywhereServiceClient interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListProfiles.html
 	// https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListTagsForResource.html
+	//
+	// The number of profiles returned is always between 0 and page_size.
+	// If the number of elements is 0, then there are no more profiles to return and the next page token is empty.
 	ListRolesAnywhereProfiles(ctx context.Context, in *ListRolesAnywhereProfilesRequest, opts ...grpc.CallOption) (*ListRolesAnywhereProfilesResponse, error)
 }
 
@@ -100,6 +103,9 @@ type AWSRolesAnywhereServiceServer interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListProfiles.html
 	// https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ListTagsForResource.html
+	//
+	// The number of profiles returned is always between 0 and page_size.
+	// If the number of elements is 0, then there are no more profiles to return and the next page token is empty.
 	ListRolesAnywhereProfiles(context.Context, *ListRolesAnywhereProfilesRequest) (*ListRolesAnywhereProfilesResponse, error)
 	mustEmbedUnimplementedAWSRolesAnywhereServiceServer()
 }

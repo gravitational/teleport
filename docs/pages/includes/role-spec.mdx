@@ -49,7 +49,7 @@ spec:
     # clients and servers through the proxy
     permit_x11_forwarding: true
     # device_trust_mode enforces authenticated device access for assigned user of this role.
-    device_trust_mode: optional|required|off
+    device_trust_mode: optional|required|required-for-humans|off
     # require_session_mfa require per-session MFA for any assigned user of this role
     require_session_mfa: true
     # mfa_verification_interval optionally defines the maximum duration that can elapse between successive MFA verifications.
@@ -231,17 +231,29 @@ spec:
         # - portforward - allows users to forward ports from a pod
         verbs: ['*']
 
-    # Functions transform variables.
+    # Database account names this role can connect as.
+    #
+    # Supports role templating with traits.
     db_users: ['{{email.local(external.email)}}']
+    # Database names this role will be able to connect to. Database names are
+    # only enforced for PostgreSQL, MongoDB, and Cloud Spanner databases.
+    #
+    # Supports role templating with traits.
     db_names: ['{{external.db_names}}']
+    # Label selectors for database instances this role has access to.
+    #
+    # Supports role templating with traits.
     db_labels:
       'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
-    # List of database roles to grant. Mutually exclusive with 'db_permissions'.
+    # List of database roles to grant to the auto-provisioned user. Mutually
+    # exclusive with 'db_permissions'.
+    #
+    # Supports role templating with traits.
     db_roles: ['{{external.db_roles}}']
 
-    # Grant all possible Postgres permissions for all tables.
-    # List of database permissions to grant. Mutually exclusive with 'db_roles'.
+    # List of database permissions to grant to the auto-provisioned user.
+    # Mutually exclusive with 'db_roles'.
     db_permissions:
     - match:
         object_kind: table
@@ -467,6 +479,22 @@ spec:
       # List of GitHub organizations the user has access to.
     - orgs:
       - my-org
+
+    # mcp: defines MCP servers related permissions.
+    mcp:
+      # tools: list of tools allowed for this role.
+      #
+      # No tools are allowed if not specified.
+      # Each entry can be a literal string, a glob pattern, or a regular
+      # expression (must start with '^' and end with '$'). A wildcard '*' allows
+      # all tools.
+      # This value field also supports variable interpolation.
+      tools:
+      - search-files
+      - slack_*
+      - ^(get|list|read).*$
+      - "{{internal.mcp_tools}}"
+      - "{{external.mcp_tools}}"
 
     # rules allow a user holding this role to modify other resources
     # matching the expressions below

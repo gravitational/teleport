@@ -32,6 +32,10 @@ import (
 // │            Hello   │
 // ╰────────────────────╯
 func boxedView(title string, content string, width int) string {
+	return boxedViewWithStyle(title, content, width, lipgloss.NewStyle().Faint(true))
+}
+
+func boxedViewWithStyle(title string, content string, width int, style lipgloss.Style) string {
 	rounderBorder := lipgloss.RoundedBorder()
 
 	const borderCorners = 2
@@ -55,11 +59,10 @@ func boxedView(title string, content string, width int) string {
 	rounderBorder.Top = ""
 	rounderBorder.TopRight = ""
 
-	contentStyle := lipgloss.NewStyle().
+	contentStyle := style.
 		BorderStyle(rounderBorder).
 		PaddingLeft(1).
 		PaddingRight(1).
-		Faint(true).
 		Width(width)
 
 	return renderedTitle + contentStyle.Render(content)

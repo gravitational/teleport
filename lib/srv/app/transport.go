@@ -51,6 +51,8 @@ type transportConfig struct {
 	jwt          string
 	traits       wrappers.Traits
 	log          *slog.Logger
+	// hostID is purely for troubleshooting purposes (put in the error messages)
+	hostID string
 }
 
 // Check validates configuration.
@@ -164,6 +166,10 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 				"raw_error", err, "human_error", strings.Join(strings.Fields(message), " "))
 		}
 
+		if t.hostID != "" {
+			message = message + "\n\nThe ID of the Teleport Application Service instance that generated this error is " + t.hostID + "."
+		}
+
 		code := trace.ErrorToCode(err)
 		return &http.Response{
 			StatusCode: code,
@@ -198,43 +204,12 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add headers from rewrite configuration.
-	rewriteHeaders(r, t.transportConfig)
-
-	return nil
-}
-
-// rewriteHeaders applies headers rewrites from the application configuration.
-func rewriteHeaders(r *http.Request, c *transportConfig) {
 	// Add in JWT headers.
-	r.Header.Set(teleport.AppJWTHeader, c.jwt)
-
-	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
-		return
-	}
-	for _, header := range c.app.GetRewrite().Headers {
-		if common.IsReservedHeader(header.Name) {
-			c.log.DebugContext(r.Context(), "Not rewriting Teleport reserved header", "header_name", header.Name)
-			continue
-		}
-		values, err := services.ApplyValueTraits(header.Value, c.traits)
-		if err != nil {
-			c.log.DebugContext(r.Context(), "Failed to apply traits",
-				"header_value", header.Value,
-				"error", err,
-			)
-			continue
-		}
-		r.Header.Del(header.Name)
-		for _, value := range values {
-			switch http.CanonicalHeaderKey(header.Name) {
-			case teleport.HostHeader:
-				r.Host = value
-			default:
-				r.Header.Add(header.Name, value)
-			}
-		}
-	}
+	r.Header.Set(teleport.AppJWTHeader, t.jwt)
+	// Add headers from rewrite configuration.
+	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traits, t.log)
+	return nil
 }
 
 // needsPathRedirect checks if the request should be redirected to a different path.

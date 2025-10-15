@@ -1,10 +1,12 @@
 ---
 title: Database Access with Amazon RDS Oracle with Kerberos Authentication
 sidebar_label: Amazon RDS Oracle
-description: How to configure Teleport Database Access with Amazon RDS Oracle with Kerberos authentication.
-labels:
+description: How to enroll Amazon RDS Oracle in your Teleport cluster with Kerberos authentication.
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon RDS for Oracle" dbConfigure="with Kerberos authentication"!)
@@ -20,7 +22,7 @@ Database Service forwards user traffic to the database.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v17.4.0 or higher)"!)
 
 - An Amazon RDS for Oracle database instance.
 - An AWS Directory Service Managed Microsoft AD.
@@ -397,24 +399,7 @@ This method also enables use of various graphical clients, as explained in [Orac
 
 ## Troubleshooting
 
-### Connection hangs or is refused
-
-The Teleport Database Service needs connectivity to your database endpoints. That may require enabling inbound traffic on the database from the Database Service on the same VPC or routing rules from another VPC. Verify the connection using `SQLcl` or another database client.
-
-```code
-$ sql -L test/test@oracle-instance.aabbccddeegg.eu-central-1.rds.amazonaws.com:2484
-```
-
-### Teleport can reach RDS Oracle instance, but TLS negotiation fails (handshake failure)
-
-Ensure that `SQLNET.SSL_VERSION` parameter enables `TLS 1.2` version. TLS 1.0 is rejected by Teleport due to known weaknesses. See [Amazon RDS Oracle SSL Setup documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html) for more information.
-
-Teleport also rejects the following weak cipher suites:
-- `SSL_RSA_WITH_AES_256_CBC_SHA`
-- `SSL_RSA_WITH_AES_256_CBC_SHA256`
-- `SSL_RSA_WITH_AES_256_GCM_SHA384`
-
-Ensure that `SQLNET.CIPHER_SUITE` parameter contains at least one supported cipher suite. We recommend using `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384` cipher suite. Note that this parameter can contain multiple suites separated by a comma, so the compatible cipher suite can always be appended to the list.
+(!docs/pages/includes/database-access/oracle-troubleshooting.mdx!)
 
 ### Username not recognized
 

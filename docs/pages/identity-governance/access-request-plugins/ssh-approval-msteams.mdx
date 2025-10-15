@@ -2,9 +2,11 @@
 title: Access Requests with Microsoft Teams
 sidebar_label: Microsoft Teams
 description: How to set up Teleport's Microsoft Teams plugin for privilege elevation approvals.
-labels:
+tags:
+ - access-requests
  - how-to
  - identity-governance
+ - privileged-access
 ---
 
 This guide will explain how to set up Microsoft Teams to receive Access Request messages
@@ -526,7 +528,7 @@ Web UI and either approve or deny the request.
 Once the request is resolved, the Microsoft Teams bot will update the Access Request message
 to reflect its new status.
 
-<Admonition title="Auditing Access Requests">
+<Admonition type="warning" title="Auditing Access Requests">
 
 When the Microsoft Teams plugin posts an Access Request notification to a channel, anyone
 with access to the channel can view the notification and follow the link. While

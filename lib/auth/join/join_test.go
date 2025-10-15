@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,8 +57,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
-	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})

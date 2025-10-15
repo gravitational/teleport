@@ -19,21 +19,21 @@
 package expression
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // Set is a map of type string key and struct values. Set is a thin wrapper over
-// the utils.Set[T] generic set type, allowing the Set to implement the
+// the set.Set[T] generic set type, allowing the Set to implement the
 // interface(s) required for use with the expression package.
 // The default value is an empty set and all methods are safe to call (even if
 // the underlying map is nil).
 type Set struct {
-	s utils.Set[string]
+	s set.Set[string]
 }
 
 // NewSet constructs a new set from an arbitrary collection of elements
 func NewSet(values ...string) Set {
-	return Set{utils.NewSet(values...)}
+	return Set{set.New(values...)}
 }
 
 // add creates a new Set containing all values in the receiver Set and adds
@@ -60,12 +60,12 @@ func (s Set) clone() Set {
 }
 
 func (s Set) items() []string {
-	return s.s.Elements()
+	return s.s.ElementsNotNil()
 }
 
 // union computes the union of multiple sets
 func union(sets ...Set) Set {
-	result := utils.NewSet[string]()
+	result := set.New[string]()
 	for _, set := range sets {
 		result.Union(set.s)
 	}

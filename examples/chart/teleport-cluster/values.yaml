@@ -121,7 +121,7 @@ authentication:
   connectorName: ""
 
   # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
-  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/.
+  # Disabling local auth is required for FedRAMP / FIPS; see https://goteleport.com/docs/zero-trust-access/compliance-frameworks/fedramp/#configure-the-teleport-auth-service
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
@@ -347,7 +347,7 @@ createProxyToken: true
 # This CRD is managed by the prometheus-operator and allows workload to
 # get monitored. To use this value, you need to run a `prometheus-operator`
 # in the cluster for this value to take effect.
-# See https://prometheus-operator.dev/docs/prologue/introduction/
+# See https://prometheus-operator.dev/docs/getting-started/introduction/
 podMonitor:
   # Whether the chart should deploy a PodMonitor.
   # Disabled by default as it requires the PodMonitor CRD to be installed.

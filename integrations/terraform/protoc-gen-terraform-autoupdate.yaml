@@ -42,17 +42,19 @@ exclude_fields:
     # Metadata (we id resources by name on our side)
     - "AutoUpdateConfig.metadata.id"
     - "AutoUpdateVersion.metadata.id"
+    - "AutoUpdateVersion.metadata.namespace"
+    - "AutoUpdateConfig.metadata.namespace"
+    - "AutoUpdateVersion.metadata.revision"
+    - "AutoUpdateConfig.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
     # Metadata
     - "AutoUpdateVersion.metadata"
     - "AutoUpdateVersion.metadata.name"
-    - "AutoUpdateVersion.metadata.namespace"
     - "AutoUpdateVersion.kind"
     - "AutoUpdateConfig.metadata"
     - "AutoUpdateConfig.metadata.name"
-    - "AutoUpdateConfig.metadata.namespace"
     - "AutoUpdateConfig.kind"
 
 # These fields will be marked as Required: true

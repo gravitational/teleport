@@ -52,7 +52,7 @@ func NewProcessStorage(ctx context.Context, path string) (*ProcessStorage, error
 	// the agent will automatically switch state storage from local
 	// sqlite into a Kubernetes Secret.
 	if kubernetes.InKubeCluster() {
-		kubeStorage, err := kubernetes.New()
+		kubeStorage, err := kubernetes.New(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

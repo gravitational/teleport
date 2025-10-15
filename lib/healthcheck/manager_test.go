@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -134,7 +135,7 @@ func TestManager(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	eventsCh := make(chan testEvent, 1024)
 	mgr, err := NewManager(ctx, ManagerConfig{
-		Component:               "test",
+		Component:               teleport.ComponentDatabase,
 		Events:                  local.NewEventsService(bk),
 		HealthCheckConfigReader: healthConfigSvc,
 		Clock:                   clock,
@@ -180,17 +181,19 @@ func TestManager(t *testing.T) {
 	var endpointMu sync.Mutex
 	prodDialer := fakeDialer{}
 	err = mgr.AddTarget(Target{
+		HealthChecker: &TargetDialer{
+			Resolver: func(ctx context.Context) ([]string, error) {
+				endpointMu.Lock()
+				defer endpointMu.Unlock()
+				return []string{prodDB.GetURI()}, nil
+			},
+			dial: prodDialer.DialContext,
+		},
 		GetResource: func() types.ResourceWithLabels {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
 			return prodDB
 		},
-		ResolverFn: func(ctx context.Context) ([]string, error) {
-			endpointMu.Lock()
-			defer endpointMu.Unlock()
-			return []string{prodDB.GetURI()}, nil
-		},
-		dialFn: prodDialer.DialContext,
 		onHealthCheck: func(lastResultErr error) {
 			eventsCh <- lastResultTestEvent(prodDB.GetName(), lastResultErr)
 		},
@@ -204,18 +207,20 @@ func TestManager(t *testing.T) {
 	require.NoError(t, err)
 
 	devDialer := fakeDialer{}
-	err = mgr.AddTarget(Target{
+	devTarget := Target{
+		HealthChecker: &TargetDialer{
+			Resolver: func(ctx context.Context) ([]string, error) {
+				endpointMu.Lock()
+				defer endpointMu.Unlock()
+				return []string{devDB.GetURI()}, nil
+			},
+			dial: devDialer.DialContext,
+		},
 		GetResource: func() types.ResourceWithLabels {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
 			return devDB
 		},
-		ResolverFn: func(ctx context.Context) ([]string, error) {
-			endpointMu.Lock()
-			defer endpointMu.Unlock()
-			return []string{devDB.GetURI()}, nil
-		},
-		dialFn: devDialer.DialContext,
 		onHealthCheck: func(lastResultErr error) {
 			eventsCh <- lastResultTestEvent(devDB.GetName(), lastResultErr)
 		},
@@ -225,24 +230,30 @@ func TestManager(t *testing.T) {
 		onClose: func() {
 			eventsCh <- closedTestEvent(devDB.GetName())
 		},
-	})
+	}
+	err = mgr.AddTarget(devTarget)
 	require.NoError(t, err)
 
 	t.Run("duplicate target is an error", func(t *testing.T) {
-		err = mgr.AddTarget(Target{
-			GetResource: func() types.ResourceWithLabels { return devDB },
-			ResolverFn:  func(ctx context.Context) ([]string, error) { return nil, nil },
-		})
+		err = mgr.AddTarget(devTarget)
 		require.Error(t, err)
-		require.IsType(t, trace.AlreadyExists(""), err)
+		require.ErrorIs(t, trace.AlreadyExists("target health checker \"name=devDB, kind=db\" already exists"), err)
 	})
 	t.Run("unsupported target resource is an error", func(t *testing.T) {
 		err = mgr.AddTarget(Target{
-			GetResource: func() types.ResourceWithLabels { return &fakeResource{kind: "node"} },
-			ResolverFn:  func(ctx context.Context) ([]string, error) { return nil, nil },
+			HealthChecker: &TargetDialer{
+				Resolver: func(ctx context.Context) ([]string, error) {
+					endpointMu.Lock()
+					defer endpointMu.Unlock()
+					return nil, nil
+				},
+			},
+			GetResource: func() types.ResourceWithLabels {
+				return &fakeResource{kind: "node"}
+			},
 		})
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorIs(t, trace.BadParameter("health check target resource kind \"node\" is not supported"), err)
 	})
 
 	requireTargetHealth := func(t *testing.T, r types.ResourceWithLabels, status types.TargetHealthStatus, reason types.TargetHealthTransitionReason) {
@@ -386,11 +397,11 @@ func TestManager(t *testing.T) {
 	// shouldn't be any target health after the target is removed
 	_, err = mgr.GetTargetHealth(devDB)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorIs(t, trace.NotFound("health checker \"name=devDB, kind=db\" not found"), err)
 
 	err = mgr.RemoveTarget(devDB)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorIs(t, trace.NotFound("health checker \"name=devDB, kind=db\" not found"), err)
 
 	// prodDB should still be disabled
 	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)

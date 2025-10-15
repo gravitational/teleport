@@ -100,6 +100,70 @@ func TestGenerateAWSRACredentials(t *testing.T) {
 	})
 }
 
+func TestAWSRolesAnywhereProfileSyncFilters(t *testing.T) {
+	t.Parallel()
+	clusterName := "test-cluster"
+	proxyPublicAddr := "example.com:443"
+
+	ca := newCertAuthority(t, types.AWSRACA, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
+
+	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+		Allow: types.RoleConditions{Rules: []types.Rule{
+			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbCreate, types.VerbUpdate}},
+		}},
+	}, localClient)
+
+	integrationWithFilters := func(t *testing.T, integrationName string, filters []string) *types.IntegrationV1 {
+		ig, err := types.NewIntegrationAWSRA(
+			types.Metadata{Name: integrationName},
+			&types.AWSRAIntegrationSpecV1{
+				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+					Enabled:            true,
+					ProfileARN:         "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+					RoleARN:            "arn:aws:iam::123456789012:role/SyncRole",
+					ProfileNameFilters: filters,
+				},
+			},
+		)
+		require.NoError(t, err)
+		return ig
+	}
+
+	t.Run("valid without filters", func(t *testing.T) {
+		ig := integrationWithFilters(t, "integration1", []string{})
+		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+			Integration: ig,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("valid with glob filter", func(t *testing.T) {
+		ig := integrationWithFilters(t, "integration2", []string{"MyTeam-*"})
+		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+			Integration: ig,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("valid with regex filter", func(t *testing.T) {
+		ig := integrationWithFilters(t, "integration3", []string{"^MyTeam-.*$"})
+		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+			Integration: ig,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid with invalid regex", func(t *testing.T) {
+		ig := integrationWithFilters(t, "integration5", []string{`^[invalid-regex{$`})
+		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+			Integration: ig,
+		})
+		require.Error(t, err)
+	})
+}
+
 func TestAWSRolesAnywherePing(t *testing.T) {
 	t.Parallel()
 	clusterName := "test-cluster"

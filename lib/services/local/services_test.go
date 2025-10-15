@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -39,7 +38,7 @@ func TestMain(m *testing.M) {
 
 type servicesContext struct {
 	bk    backend.Backend
-	suite *suite.ServicesTestSuite
+	suite *ServicesTestSuite
 }
 
 func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
@@ -65,7 +64,7 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 	identityService, err := NewTestIdentityService(tt.bk)
 	require.NoError(t, err)
 
-	tt.suite = &suite.ServicesTestSuite{
+	tt.suite = &ServicesTestSuite{
 		TrustS:         caService,
 		TrustInternalS: caService,
 		PresenceS:      presenceService,

@@ -42,7 +42,7 @@ type ClusterConfiguration interface {
 	ClusterNameGetter
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
-	GetStaticTokens() (types.StaticTokens, error)
+	GetStaticTokens(context.Context) (types.StaticTokens, error)
 	// SetStaticTokens sets services.StaticTokens on the backend.
 	SetStaticTokens(types.StaticTokens) error
 	// DeleteStaticTokens deletes static tokens resource

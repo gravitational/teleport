@@ -1,7 +1,8 @@
 ---
 title: Deploy Login Rules using Kubernetes Operator 
 description: Use Teleport's Kubernetes Operator to deploy Login Rules to your cluster
-labels:
+tags:
+ - infrastructure-as-code
  - how-to
  - zero-trust
 ---
@@ -13,6 +14,14 @@ This guide will explain how to:
 
 This guide is applicable if you self-host Teleport in Kubernetes using the
 `teleport-cluster` Helm chart.
+
+## How it works
+
+Login Rules are registered with the Teleport Auth Service as resources stored on
+the Auth Service backend. The Teleport Auth Service exposes a gRPC API that
+enables clients to create, delete, or modify backend resources, including Login
+Rules. The Teleport Kubernetes Operator can manage agentless SSH services by
+authenticating to the Teleport Auth Service and interacting with its gRPC API.
 
 ## Prerequisites
 

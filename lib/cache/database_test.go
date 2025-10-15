@@ -48,19 +48,27 @@ func TestDatabaseServices(t *testing.T) {
 			})
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
-		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService, apidefaults.DefaultChunkSize)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			return types.ResourcesWithLabels(resources).AsDatabaseServices()
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
 		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.cache, types.KindDatabaseService, pageSize)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.cache, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			return types.ResourcesWithLabels(resources).AsDatabaseServices()
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
 		},
 		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
 		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
@@ -84,14 +92,14 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create:   p.databases.CreateDatabase,
-		list:     p.databases.GetDatabases,
-		cacheGet: p.cache.GetDatabase,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Database, error) {
-			return p.cache.GetDatabases(ctx)
-		},
-		update:    p.databases.UpdateDatabase,
-		deleteAll: p.databases.DeleteAllDatabases,
+		create:     p.databases.CreateDatabase,
+		list:       p.databases.ListDatabases,
+		Range:      p.databases.RangeDatabases,
+		cacheGet:   p.cache.GetDatabase,
+		cacheList:  p.cache.ListDatabases,
+		cacheRange: p.cache.RangeDatabases,
+		update:     p.databases.UpdateDatabase,
+		deleteAll:  p.databases.DeleteAllDatabases,
 	})
 }
 
@@ -115,17 +123,17 @@ func TestDatabaseServers(t *testing.T) {
 				})
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			list: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
+			}),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
-			},
+			}),
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -140,19 +148,27 @@ func TestDatabaseServers(t *testing.T) {
 				})
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				resources, err := listAllResource(t, p.presenceS, types.KindDatabaseServer, apidefaults.DefaultChunkSize)
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseServer, string, error) {
+				resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseServer, pageSize, pageToken)
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, "", trace.Wrap(err)
 				}
-				return types.ResourcesWithLabels(resources).AsDatabaseServers()
+				dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return dbs, next, nil
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
-				resources, err := listAllResource(t, p.cache, types.KindDatabaseServer, pageSize)
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseServer, string, error) {
+				resources, next, err := listResource(ctx, p.cache, types.KindDatabaseServer, pageSize, pageToken)
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, "", trace.Wrap(err)
 				}
-				return types.ResourcesWithLabels(resources).AsDatabaseServers()
+				dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return dbs, next, nil
 			},
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			deleteAll: func(ctx context.Context) error {
@@ -168,7 +184,7 @@ func TestDatabaseObjects(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
+	testResources153(t, p, testFuncs[*dbobjectv1.DatabaseObject]{
 		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
 			return newDatabaseObject(t, name), nil
 		},
@@ -176,14 +192,8 @@ func TestDatabaseObjects(t *testing.T) {
 			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.databaseObjects.ListDatabaseObjects,
+		cacheList: p.databaseObjects.ListDatabaseObjects,
 		deleteAll: func(ctx context.Context) error {
 			token := ""
 			var objects []*dbobjectv1.DatabaseObject

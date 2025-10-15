@@ -1,0 +1,116 @@
+---
+title: MCP Access Controls
+description: Role-based access control (RBAC) for Teleport MCP access.
+tags:
+- conceptual
+- mcp
+- zero-trust
+---
+
+You can use Teleport's role-based access control (RBAC) system to set up
+granular permissions for authenticating to MCP servers connected to Teleport.
+
+## Role configuration
+
+Teleport's `role` resource provides the following options for controlling MCP
+access:
+```yaml
+kind: role
+version: v8
+metadata:
+  name: mcp-developer
+spec:
+  allow:
+    # app_labels: a user with this role will be allowed to connect to
+    # MCP servers with labels matching below.
+    app_labels:
+      "env": "dev"
+
+    # app_labels_expression: optional field which has the same purpose of the
+    # matching app_labels fields, but support predicate expressions instead of
+    # label matchers.
+    app_labels_expression: 'labels["env"] == "staging"'
+
+    # mcp: defines MCP servers related permissions.
+    mcp:
+      # tools: list of tools allowed for this role.
+      #
+      # No tools are allowed if not specified.
+      # Each entry can be a literal string, a glob pattern, or a regular
+      # expression (must start with '^' and end with '$'). A wildcard '*' allows
+      # all tools.
+      # This value field also supports variable interpolation.
+      tools:
+      - search-files
+      - slack_*
+      - ^(get|list|read).*$
+      - "{{internal.mcp_tools}}"
+      - "{{external.mcp_tools}}"
+
+  deny:
+    mcp:
+      # tools: list of tools denied for this role.
+      tools:
+      - slack_post_message
+```
+
+<Admonition
+  type="note"
+  title="Deny Rules"
+>
+  Deny rules will match greedily. In the example above, `slack_post_message` is
+  denied even `role.allow.mcp.tools` matches it.
+</Admonition>
+
+## Template variables
+
+Similar to other role fields, `app_labels` and `mcp` fields support templating
+variables.
+
+The `external.xyz` traits are replaced with values from external [single
+sign-on](../../zero-trust-access/sso/sso.mdx) providers. For OIDC,
+they will be replaced with the value of an "xyz" claim. For SAML, they are
+replaced with an "xyz" assertion value.
+
+For full details on how traits work in Teleport roles, see the [Access Controls
+Reference](../../reference/access-controls/roles.mdx).
+
+For example, here is what a role may look like if you want to assign allowed
+tools from the user's Okta `mcp_tools` assertion:
+
+```yaml
+spec:
+  allow:
+    mcp:
+      tools:
+      - "{{external.mcp_tools}}"
+```
+
+The `{{internal.mcp_tools}}` variables permit sharing allowed MCP tools with
+remote clusters. They will be replaced with the respective properties of a
+remote user connecting from a root cluster.
+
+For example, suppose a user in the root cluster has the following role:
+
+```yaml
+spec:
+  allow:
+    mcp:
+      tools:
+      - "slack_*"
+```
+
+The role on the leaf cluster can be set up to use the same tools allowed from
+the root cluster:
+
+```yaml
+spec:
+  allow:
+    mcp:
+      tools:
+      - "{{internal.mcp_tools}}"
+```
+
+For full details on how variable expansion works in Teleport roles, see the
+[Access Controls
+Reference](../../reference/access-controls/roles.mdx).

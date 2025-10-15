@@ -58,6 +58,9 @@ function createIconComponent(svgFilePath) {
       .replace(/fill="[^"]*"/g, '')
       .replace(/fill-rule/g, 'fillRule')
       .replace(/clip-rule/g, 'clipRule')
+      .replace(/stroke-linecap/g, 'strokeLinecap')
+      .replace(/stroke-linejoin/g, 'strokeLinejoin')
+      .replace(/stroke-width/g, 'strokeWidth')
   );
 
   const iconName = path.basename(svgFilePath, '.svg');

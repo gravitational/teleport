@@ -1,9 +1,11 @@
 ---
 title: Discover GitLab Access Patterns with Teleport Identity Security
-description: Describes how to synchronize GitLab access patterns using Identity Security and Access Graph.
-labels:
+sidebar_label: GitLab
+description: Describes how to synchronize GitLab access patterns using Identity Security.
+tags:
  - how-to
  - identity-security
+ - access-risks
 ---
 
 Gain insights into access patterns within your GitLab account using Identity Security with Access Graph. By scanning all
@@ -19,7 +21,7 @@ your GitLab environment. This functionality enables you to answer queries such a
 
 Access Graph synchronizes various GitLab resources, including users, projects and groups.
 These resources are then visualized using the graph representation detailed in the
-[Access Graph page](../teleport-policy.mdx).
+[Access Graph page](../identity-security.mdx).
 
 The importing process involves two primary steps:
 
@@ -43,13 +45,13 @@ graphical representation thereof.
 
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v14.3.20/v15.3.1/v16.0.0 or later.
+- A running Teleport Enterprise cluster v15.3.1 or later.
 - Identity Security enabled for your account.
 - A GitLab instance running GitLab v9.0 or later.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.21.4 or later.
-Check the [Identity Security page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../identity-security.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
@@ -83,7 +85,7 @@ The token will be used in the next step to configure the GitLab Sync integration
 ## Step 2/3. Set up Access Graph GitLab Sync
 
 To initiate the setup wizard for configuring Gitlab Sync, access the Teleport UI,
-click the Policy sidebar button, and then click Integrations.
+click the Identity Security sidebar button, and then click Integrations.
 
 Click the "Setup new integration" button, and then select "Gitlab". You'll be prompted
 to create a new Teleport Gitlab integration if you haven't configured one already.

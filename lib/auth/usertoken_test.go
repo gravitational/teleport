@@ -37,12 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	clientutils "github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -87,10 +89,10 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// previous token must be deleted
-	tokens, err := srv.Auth().GetUserTokens(ctx)
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListUserTokens))
 	require.NoError(t, err)
-	require.Len(t, tokens, 1)
-	require.Equal(t, tokens[0].GetName(), token.GetName())
+	require.Len(t, userTokens, 1)
+	require.Equal(t, userTokens[0].GetName(), token.GetName())
 }
 
 func TestCreateResetPasswordTokenErrors(t *testing.T) {

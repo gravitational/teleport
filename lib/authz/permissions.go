@@ -79,6 +79,7 @@ type AuthorizerOpts struct {
 	ClusterName         string
 	AccessPoint         AuthorizerAccessPoint
 	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
+	ScopedRoleReader    services.ScopedRoleReader
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
@@ -96,6 +97,10 @@ type AuthorizerOpts struct {
 
 // NewAuthorizer returns new authorizer using backends
 func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
+	return newAuthorizer(opts)
+}
+
+func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 	if opts.ClusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
@@ -126,6 +131,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
 		readOnlyAccessPoint:     opts.ReadOnlyAccessPoint,
+		scopedRoleReader:        opts.ScopedRoleReader,
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
@@ -174,12 +180,6 @@ type AuthorizerAccessPoint interface {
 	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
-	// GetCertAuthorities returns a list of cert authorities.
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 
@@ -223,6 +223,7 @@ type authorizer struct {
 	clusterName         string
 	accessPoint         AuthorizerAccessPoint
 	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
+	scopedRoleReader    services.ScopedRoleReader
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
@@ -365,6 +366,7 @@ func (c *Context) GetAccessState(authPref readonly.AuthPreference) services.Acce
 
 	state.EnableDeviceVerification = !c.disableDeviceRoleMode
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
+	state.IsBot = identity.IsBot()
 
 	return state
 }
@@ -401,6 +403,12 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 	return identity.Expires
 }
 
+// ErrScopedIdentity is returned by Authorize when it receives a scoped identity. Methods that implement
+// scoping support may check for this error and fallback to scoped authorization as appropriate.
+var ErrScopedIdentity = &trace.AccessDeniedError{
+	Message: "scoped certificates not supported",
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
@@ -416,6 +424,11 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, ErrScopedIdentity
+	}
+
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -613,6 +626,8 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
 		return trace.Wrap(err)
+	case errors.Is(err, ErrScopedIdentity):
+		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
 		a.logger.WarnContext(context.Background(), "access denied", "error", err)
 	case keys.IsPrivateKeyPolicyError(err):
@@ -758,6 +773,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		PinnedIP:          u.Identity.PinnedIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 		UserType:          u.Identity.UserType,
+		OriginClusterName: u.Identity.TeleportCluster,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -929,6 +945,8 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindGitServer, services.RO()),
 				types.NewRule(types.KindAccessGraphSettings, services.RO()),
 				types.NewRule(types.KindRelayServer, services.RO()),
+				types.NewRule(types.KindAccessList, services.RO()),
+				types.NewRule(types.KindHealthCheckConfig, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1102,8 +1120,36 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{
 						types.Wildcard,
 					},
+					NodeLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					AppLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					DatabaseLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					KubernetesLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+					WindowsDesktopLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
 					Rules: []types.Rule{
-						// TODO(espadolini): define permissions for relay role
+						types.NewRule(types.KindAppServer, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindDatabaseServer, services.RO()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindKubeServer, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindNode, services.RO()),
+						types.NewRule(types.KindRelayServer, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
 					},
 				},
 			},
@@ -1179,6 +1225,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
 					},
 				},
 			})
@@ -1360,7 +1407,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity, accessPoint)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

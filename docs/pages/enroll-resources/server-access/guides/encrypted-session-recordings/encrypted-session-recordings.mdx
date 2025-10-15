@@ -1,0 +1,160 @@
+---
+title: Encrypted Session Recordings
+description: How to enable encrypted session recordings using your CA key backend.
+tags:
+ - session-recording
+ - how-to
+ - zero-trust
+ - resiliency
+---
+
+Encrypted session recordings allow Teleport users to enable at-rest encryption
+of their session recording data. This guide explains how to setup encrypted
+session recordings.
+
+## How it works
+
+When encrypted recordings are enabled, Teleport will encrypt session recording
+data before saving it to disk or long-term storage. Encryption keys are
+provisioned using the same key storage backend configured for CAs defined by
+the `ca_key_params` section of the Teleport Auth Service configuration file. In
+`node-sync` and `proxy-sync` session recording modes, session recording events
+are sent directly to the Teleport Auth Service where they are encrypted prior
+to being written to long term storage. In `node` and `proxy` session recording
+modes, session recording events are encrypted locally at the Teleport-protected
+server or Proxy Service instance before being written to disk for future upload
+to the Auth Service.
+
+Decryption of session recordings for replay is always facilitated by the
+Teleport Auth Service regardless of the session recording mode. This means
+replays can be viewed using the Teleport Web UI, or by using `tsh play`
+with a valid session ID. Replaying session recording files directly using
+`tsh play` is not possible for encrypted files.
+
+## Step 1/2. Configure Teleport
+
+In this section, you will configure Teleport to encrypt session recordings
+using the configured key storage backend.
+
+### Enable recording encryption
+
+Encrypted session recordings can be enabled through the Teleport Auth
+Service configuration file.
+
+You can edit the Auth Service configuration file as follows:
+
+```yaml
+# snippet from teleport.yaml
+auth_service:
+  session_recording_config:
+    encryption:
+      enabled: yes
+```
+
+### Optional step: Configure key storage backend
+
+Session recording encryption keys are provisioned using the same key storage
+backend configured for CAs. Software keys stored in Teleport's backend storage
+are the default, but other backends can also be configured:
+
+- [AWS KMS](../../../../zero-trust-access/deploy-a-cluster/aws-kms.mdx)
+- [Google Cloud KMS](../../../../zero-trust-access/deploy-a-cluster/gcp-kms.mdx)
+- [HSM](../../../../zero-trust-access/deploy-a-cluster/hsm.mdx)
+
+If your cluster is already configured to use any of these backends, you should
+ensure Teleport has permission to use their decryption functions. For example,
+the AWS KMS backend will require adding the `kms:Decrypt` action to Teleport's
+role policy.
+
+It is required that all Teleport Auth Service instances have access to the
+exact same encryption keys in order to ensure all recorded sessions are always
+replayable. This means shared access to keys in AWS KMS and GCP KMS backends,
+or a shared, networked HSM for PKCS#11 backends.
+
+<Admonition type="note">
+Before enabling encrypted recordings with an HSM backend, make sure OAEP
+decryption is permitted for generated keys. For YubiHSM2, the authkey used
+should have `decrypt-oaep` included in both its capabilities and delegated
+capabilities. For other PKCS#11 HSMs, the `CKM_DECRYPT` mechanism must be
+enabled.
+</Admonition>
+
+## Step 2/2. Confirm new recordings are encrypted
+
+It is possible to confirm that session recordings are now encrypted by
+capturing a new recording and downloading the resulting `.tar` file from your
+[audit sessions backend](../../../../reference/architecture/session-recording.mdx#storage).
+Replaying the session file directly with `tsh play` should fail and replaying
+using the session ID should succeed.
+
+## Manual Encryption Key Management
+
+Encrypted session recordings require at least one active key which will be used
+during encryption at recording time and decryption at replay time. Once an
+active key has been rotated, meaning it is no longer used during encryption, it
+should become a rotated key. Rotated keys can only be used for decryption
+during replay in order to maintain access to historical recordings.
+
+By default, Teleport will automatically provision and manage these keys.
+However there may be cases where automatic management is not possible or
+desired, such as environments where Teleport lacks sufficient privileges to
+manage keys directly. For this reason, Teleport can be configured to use
+externally managed keys.
+
+Manual encryption key management enables explicit configuration of active
+and rotated keys by defining what type of key storage backend they are found in
+and the labels identifying the specific keys to be used.
+
+<Admonition type="warning">
+Manual encryption key management places all responsibility and complexity of
+managing keys on the administrator. This comes with much more risk of a
+misconfiguration impacting Teleport's ability to record or replay sessions.
+It's for this reason that Teleport Cloud does not allow use of manual
+encryption key management. Consider using the default automatic key management
+unless your usage explicitly requires manual key management.
+</Admonition>
+
+### Configuration
+
+This example enables `manual_key_management` with one active key and one
+rotated key configured. Both expect a PKCS#11 compliant HSM as the key storage
+backend and each have their own label used to identify the keys within the HSM.
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_002'
+    rotated_keys:
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+Teleport will search the HSM for the keys described in both `active_keys` and
+`rotated_keys`. The active keys will be used during encryption and replay of
+any new session recordings. The rotated keys will be used during replay of
+historical session recordings, but will not be used during any encryption
+operations. For PKCS#11 backends it is required that keys also have an ID
+assigned in addition to the label used during key lookup. The ID is not
+included in the `manual_key_management` configuration, but the private and
+public keys for a single pair must be assigned the same ID.
+
+As mentioned previously, it is important that all Teleport Auth Service
+instances have access to the same keys. Degraded availability of replays should
+be expected if unshared keys are used.
+
+<Admonition type="warning">
+Session recording encryption relies on a form of envelope encryption using OAEP
+with 4096-bit RSA key pairs. This means RSA 4096 is the only key type eligible
+for use with `manual_key_management`. It is also important that these keys are
+permitted to be used for decryption. What this means varies per key storage
+backend, but generally must be defined when the key is first provisioned.
+</Admonition>
+
+## Related reading
+
+- [Rotating Session Recording Encryption Keys](./rotating-keys.mdx)
+- [Rotating Manual Session Recording Encryption Keys](./rotating-manual-keys.mdx)

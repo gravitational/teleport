@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 
 export function getResourceType(type: string): AwsResource {
   switch (type) {

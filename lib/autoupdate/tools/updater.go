@@ -51,12 +51,17 @@ import (
 const (
 	// teleportToolsVersionEnv is environment name for requesting specific version for update.
 	teleportToolsVersionEnv = "TELEPORT_TOOLS_VERSION"
+	// teleportToolsVersionEnvDisabled is a special value that disables teleport tools updates
+	// when assigned to the teleportToolsVersionEnv environment variable.
+	teleportToolsVersionEnvDisabled = "off"
 	// teleportToolsVersionReExecEnv is internal environment name for transferring original
 	// version to re-executed ones.
 	teleportToolsVersionReExecEnv = "TELEPORT_TOOLS_VERSION_REEXEC"
 	// teleportToolsDirsEnv overrides Teleport tools directory for saving updated
 	// versions.
 	teleportToolsDirsEnv = "TELEPORT_TOOLS_DIR"
+	// teleportToolsPathReExecEnv is env used for passing original execution path to re-executed version.
+	teleportToolsPathReExecEnv = "TELEPORT_TOOLS_PATH_REEXEC"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -149,7 +154,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
-	case "off":
+	case teleportToolsVersionEnvDisabled:
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
@@ -198,7 +203,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		}
 	}
 
-	return &UpdateResponse{Version: toolsVersion, ReExec: true}, nil
+	return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil
 }
 
 // CheckRemote first checks the version set by the environment variable. If not set or disabled,
@@ -207,16 +212,18 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (response *UpdateResponse, err error) {
-	proxyHost, err := utils.Host(proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	proxyHost := utils.TryHost(proxyAddr)
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
+	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
+	// are disabling execution too aggressively and this causes stuck updates.
+	// If "off" was set by the user, we would not be re-executed.
+	if requestedVersion == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) != "" {
+		requestedVersion = ""
+	}
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
-	case "off":
+	case teleportToolsVersionEnvDisabled:
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
@@ -402,7 +409,7 @@ func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error
 }
 
 // Exec re-executes tool command with same arguments and environ variables.
-func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
+func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) (int, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -412,25 +419,32 @@ func (u *Updater) Exec(toolsVersion string, args []string) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	for _, unset := range []string{
+	env := filterEnvs(os.Environ(), []string{
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
-	} {
-		if err := os.Unsetenv(unset); err != nil {
-			return 0, trace.Wrap(err)
-		}
+		teleportToolsPathReExecEnv,
+	})
+	env = append(env, teleportToolsVersionReExecEnv+"="+u.localVersion)
+	env = append(env, teleportToolsDirsEnv+"="+u.toolsDir)
+	// If tsh or tctl has already been re-executed with the original path,
+	// we need to pass that path to the next re-execution.
+	if reExecPath := GetReExecPath(); reExecPath != "" {
+		env = append(env, teleportToolsPathReExecEnv+"="+reExecPath)
+	} else {
+		env = append(env, teleportToolsPathReExecEnv+"="+executablePath)
 	}
-	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
-	// by unsetting current tools version env variable and setting it to "off".
-	if path == executablePath {
-		if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
-			return 0, trace.Wrap(err)
-		}
-		env = append(env, teleportToolsVersionEnv+"=off")
+	// by unsetting current tools version env variable and setting it to "off"
+	// if same version is requested to be re-executed.
+	// We should also prevent further re-execution if the current version is run from
+	// the deprecated `~/.tsh/bin/tsh` path; otherwise, a downgrade could result in a loop.
+	if path == executablePath || executablePath == filepath.Join(u.toolsDir, filepath.Base(executablePath)) {
+		env = filterEnvs(env, []string{teleportToolsVersionEnv})
+		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabled)
+		slog.DebugContext(ctx, "Disable re-execution")
 	}
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 
+	slog.DebugContext(ctx, "Re-execute updated version", "execute", path, "from", executablePath)
 	if runtime.GOOS == constants.WindowsOS {
 		cmd := exec.Command(path, args...)
 		cmd.Env = env

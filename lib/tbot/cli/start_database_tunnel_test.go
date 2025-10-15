@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 // TestDatabaseTunnelCommand tests that the DatabaseTunnelCommand
@@ -48,7 +49,7 @@ func TestDatabaseTunnelCommand(t *testing.T) {
 
 				// It must configure a db tunnel service
 				svc := cfg.Services[0]
-				db, ok := svc.(*config.DatabaseTunnelService)
+				db, ok := svc.(*database.TunnelConfig)
 				require.True(t, ok)
 
 				require.Equal(t, "tcp://0.0.0.0:8000", db.Listen)

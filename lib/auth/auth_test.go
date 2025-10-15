@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -85,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -136,6 +136,7 @@ func newTestPack(
 		// This uses lower bcrypt costs for faster tests.
 		Identity:               identityService,
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	p.a, err = auth.NewServer(authConfig, opts...)
 	if err != nil {
@@ -205,13 +206,13 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -232,9 +233,13 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
-	cryptosuites.PrecomputeRSATestKeys(m)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 func TestSessions(t *testing.T) {
@@ -677,16 +682,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, gotTLSCert.PublicKey, inTLSPub)
 	wantID := tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		UserType:         "local",
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -720,6 +726,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -776,6 +783,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -802,16 +810,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		UserType:         "local",
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -843,6 +852,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 		UserType:          "local",
 	}
@@ -869,16 +879,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
 	wantID = tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		UserType:         "local",
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    s.clusterName.GetClusterName(),
+		TeleportCluster:   s.clusterName.GetClusterName(),
+		OriginClusterName: s.clusterName.GetClusterName(),
+		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -1201,7 +1212,7 @@ func TestUpdateConfig(t *testing.T) {
 	cn, err := s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
-	st, err := s.a.GetStaticTokens()
+	st, err := s.a.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, st.GetStaticTokens())
 
@@ -1218,6 +1229,7 @@ func TestUpdateConfig(t *testing.T) {
 		VersionStorage:         s.versionStorage,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -1241,7 +1253,7 @@ func TestUpdateConfig(t *testing.T) {
 	cn, err = s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
-	st, err = s.a.GetStaticTokens()
+	st, err = s.a.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
@@ -1250,7 +1262,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check second auth server and make sure it also has the correct values
 	// new static tokens
-	st, err = authServer.GetStaticTokens()
+	st, err = authServer.GetStaticTokens(ctx)
 	require.NoError(t, err)
 	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
@@ -1279,8 +1291,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "test")))
 
 	err = s.a.CreateReverseTunnel(ctx, tc)
 	require.NoError(t, err)
@@ -3033,13 +3045,11 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		gotNames := map[string]struct{}{}
 		for ks, err := range p.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 
 			gotNames[ks.GetCluster().GetName()] = struct{}{}
 		}
-		assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+		require.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
 	}, 15*time.Second, 100*time.Millisecond)
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
@@ -3109,7 +3119,7 @@ func TestNewWebSession(t *testing.T) {
 		LoginTime:  p.a.GetClock().Now().UTC(),
 		SessionTTL: apidefaults.CertDuration,
 	}
-	bearerTokenTTL := min(req.SessionTTL, defaults.BearerTokenTTL)
+	bearerTokenTTL := min(req.SessionTTL, duration)
 
 	ws, _, err := p.a.NewWebSession(ctx, req, nil /* opts */)
 	require.NoError(t, err)
@@ -4011,7 +4021,7 @@ func TestCAGeneration(t *testing.T) {
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{},
-		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+		RSAKeyPairSource: func(alg cryptosuites.Algorithm) (priv []byte, pub []byte, err error) {
 			return privKey, pubKey, nil
 		},
 	})
@@ -4019,7 +4029,7 @@ func TestCAGeneration(t *testing.T) {
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			testKeySet := authtest.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
 			keySet, err := auth.NewKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
@@ -4576,9 +4586,9 @@ func TestCleanupNotifications(t *testing.T) {
 		assert.Len(collectT, states, expectedStatesCount)
 	}
 
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Expect 8 user notifications, 4 global notifications, and 16 states.
-		verifyNotificationCounts(collectT, 8, 4, 16)
+		verifyNotificationCounts(t, 8, 4, 16)
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Advance clock to make half of the notifications expire.
@@ -4586,9 +4596,9 @@ func TestCleanupNotifications(t *testing.T) {
 	// Run CleanupNotifications.
 	srv.Auth().CleanupNotifications(ctx)
 
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Half of each should have been deleted.
-		verifyNotificationCounts(collectT, 4, 2, 8)
+		verifyNotificationCounts(t, 4, 2, 8)
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Advance clock to make the remaining notifications expire.
@@ -4596,9 +4606,9 @@ func TestCleanupNotifications(t *testing.T) {
 	// Run CleanupNotifications again.
 	srv.Auth().CleanupNotifications(ctx)
 
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// No notifications nor states should remain.
-		verifyNotificationCounts(collectT, 0, 0, 0)
+		verifyNotificationCounts(t, 0, 0, 0)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
@@ -4661,8 +4671,16 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	for _, al := range accessLists {
-		createAccessList(t, authServer, al.name+"-static", withType(accesslist.Static))
-		createAccessList(t, authServer, al.name+"-scim", withType(accesslist.SCIM))
+		createAccessList(t, authServer, al.name+"-static",
+			withType(accesslist.Static),
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
+		createAccessList(t, authServer, al.name+"-scim",
+			withType(accesslist.SCIM),
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
+		)
 		createAccessList(t, authServer, al.name,
 			withOwners([]accesslist.Owner{{Name: testUsername}}),
 			withNextAuditDate(authServer.GetClock().Now().Add(time.Duration(al.dueInDays)*24*time.Hour)),
@@ -5110,6 +5128,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				Emitter:                &eventstest.MockRecorderEmitter{},
 				ClusterConfiguration:   clusterConfigService,
 				SkipPeriodicOperations: true,
+				HostUUID:               uuid.NewString(),
 			})
 			require.NoError(t, err)
 

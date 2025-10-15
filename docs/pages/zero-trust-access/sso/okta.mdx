@@ -2,9 +2,11 @@
 title: Authentication With Okta as an SSO Provider
 description: How to configure Teleport access using Okta for SSO
 videoBanner: SM4Am-i8cj4
-labels:
+tags:
+ - sso
  - how-to
  - zero-trust
+ - privileged-access
 ---
 
 This guide covers how to configure [Okta](https://www.okta.com/) to provide
@@ -21,7 +23,7 @@ Teleport administrators to define policies like:
 
 In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can
 automatically configure an SSO connector for you when as part of [enrolling the
-hosted Okta integration](../../identity-governance/okta/okta.mdx).
+hosted Okta integration](../../identity-governance/integrations/okta/okta.mdx).
 
 You can enroll the Okta integration from the Teleport Web UI.
 
@@ -92,8 +94,11 @@ Provide the following values to their respective fields:
 
 #### General
 
-Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service or Enterprise
-Cloud account domain and port (`443` by default).
+Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service
+or Enterprise Cloud account domain and port (`443` by default). If you have a
+self-hosted cluster with multiple public addresses for the Teleport Proxy
+Service (the value of `proxy_service.public_addr` in the Teleport configuration
+file), ensure that this address points to the first one listed.
 
 - Single sign on URL:
 

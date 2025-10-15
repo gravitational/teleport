@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 func TestParseJoinURI(t *testing.T) {
@@ -36,7 +38,7 @@ func TestParseJoinURI(t *testing.T) {
 		{
 			uri: "tbot+proxy+token://asdf@example.com:1234",
 			expect: &JoinURIParams{
-				AddressKind:         AddressKindProxy,
+				AddressKind:         connection.AddressKindProxy,
 				Token:               "asdf",
 				JoinMethod:          types.JoinMethodToken,
 				Address:             "example.com:1234",
@@ -46,7 +48,7 @@ func TestParseJoinURI(t *testing.T) {
 		{
 			uri: "tbot+auth+bound-keypair://token:param@example.com",
 			expect: &JoinURIParams{
-				AddressKind:         AddressKindAuth,
+				AddressKind:         connection.AddressKindAuth,
 				Token:               "token",
 				JoinMethod:          types.JoinMethodBoundKeypair,
 				Address:             "example.com",
@@ -104,7 +106,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+proxy+token://asdf@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "asdf",
 					JoinMethod: types.JoinMethodToken,
 				},
@@ -115,11 +117,11 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+proxy+bound-keypair://some-token:secret@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodBoundKeypair,
-					BoundKeypair: BoundKeypairOnboardingConfig{
-						RegistrationSecret: "secret",
+					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+						RegistrationSecretValue: "secret",
 					},
 				},
 				ProxyServer: "example.com:1234",
@@ -129,10 +131,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+azure://some-token:client-id@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodAzure,
-					Azure: AzureOnboardingConfig{
+					Azure: onboarding.AzureOnboardingConfig{
 						ClientID: "client-id",
 					},
 				},
@@ -143,10 +145,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+gitlab://some-token:var-name@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodGitLab,
-					Gitlab: GitlabOnboardingConfig{
+					Gitlab: onboarding.GitlabOnboardingConfig{
 						TokenEnvVarName: "var-name",
 					},
 				},
@@ -157,7 +159,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+azure-devops://some-token@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodAzureDevops,
 				},
@@ -168,10 +170,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri:         "tbot+auth+terraform-cloud://some-token:tag@example.com:1234",
 			inputConfig: &BotConfig{},
 			expectConfig: &BotConfig{
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodTerraformCloud,
-					Terraform: TerraformOnboardingConfig{
+					Terraform: onboarding.TerraformOnboardingConfig{
 						AudienceTag: "tag",
 					},
 				},
@@ -200,17 +202,17 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			uri: "tbot+auth+bound-keypair://asdf:secret@example.com:1234",
 			inputConfig: &BotConfig{
 				ProxyServer: "example.com",
-				Onboarding: OnboardingConfig{
+				Onboarding: onboarding.Config{
 					TokenValue: "token",
 					JoinMethod: types.JoinMethodBoundKeypair,
-					BoundKeypair: BoundKeypairOnboardingConfig{
-						RegistrationSecret: "secret2",
+					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+						RegistrationSecretValue: "secret2",
 					},
 				},
 			},
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "field: onboarding.token")
-				require.ErrorContains(tt, err, "field: onboarding.bound_keypair.initial_join_secret")
+				require.ErrorContains(tt, err, "field: onboarding.bound_keypair.registration_secret")
 				require.ErrorContains(tt, err, "field: proxy_server")
 
 				// Note: join method is already bound_keypair so no error will

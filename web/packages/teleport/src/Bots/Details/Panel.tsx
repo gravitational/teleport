@@ -22,7 +22,6 @@ import styled from 'styled-components';
 import { ButtonText } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
 import Text from 'design/Text/Text';
-import { fontWeights } from 'design/theme/typography';
 
 export function Panel(
   props: PropsWithChildren & {
@@ -31,7 +30,8 @@ export function Panel(
     action?: {
       label: string;
       onClick: () => void;
-      icon?: ReactNode;
+      iconLeft?: ReactNode;
+      iconRight?: ReactNode;
       disabled?: boolean;
     };
     testId?: string;
@@ -42,17 +42,12 @@ export function Panel(
     <section>
       <Container data-testid={testId}>
         <TitleContainer>
-          <Text
-            as={isSubPanel ? 'h3' : 'h2'}
-            typography={isSubPanel ? 'body2' : 'h2'}
-            fontWeight={fontWeights.bold}
-          >
-            {title}
-          </Text>
+          <PanelTitleText $isSubPanel={isSubPanel}>{title}</PanelTitleText>
           {action ? (
             <ActionButton onClick={action.onClick} disabled={action.disabled}>
-              {action.icon}
+              {action.iconLeft}
               {action.label}
+              {action.iconRight}
             </ActionButton>
           ) : undefined}
         </TitleContainer>
@@ -64,15 +59,21 @@ export function Panel(
 
 const Container = styled(Flex)`
   flex-direction: column;
-  gap: 16px;
-  padding: 16px;
 `;
 
 const TitleContainer = styled(Flex)`
   align-items: center;
   justify-content: space-between;
+  padding: ${p => p.theme.space[3]}px;
   gap: 8px;
 `;
+
+export const PanelTitleText = styled(Text).attrs<{ $isSubPanel?: boolean }>(
+  ({ $isSubPanel = false }) => ({
+    as: $isSubPanel ? 'h3' : 'h2',
+    typography: $isSubPanel ? 'h3' : 'h2',
+  })
+)``;
 
 const ActionButton = styled(ButtonText)`
   padding-left: 8px;
