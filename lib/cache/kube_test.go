@@ -144,15 +144,14 @@ func TestKubernetesWaitingContainers(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*kubewaitingcontainerpb.KubernetesWaitingContainer]{
 		newResource: func(name string) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-			u := uuid.NewString()
 			waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
-				u,
+				name,
 				&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
 					Username:      "user",
 					Cluster:       "cluster",
 					Namespace:     "namespace",
 					PodName:       "pod",
-					ContainerName: u,
+					ContainerName: name,
 					Patch:         []byte("{}"),
 					PatchType:     "application/json-patch+json",
 				})
@@ -178,7 +177,15 @@ func TestKubernetesWaitingContainers(t *testing.T) {
 		cacheList: func(ctx context.Context, i int, s string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 			return p.cache.ListKubernetesWaitingContainers(ctx, i, s)
 		},
-
+		delete: func(ctx context.Context, s string) error {
+			return p.kubeWaitingContainers.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+				Username:      "user",
+				Cluster:       "cluster",
+				Namespace:     "namespace",
+				PodName:       "pod",
+				ContainerName: s,
+			})
+		},
 		deleteAll: func(ctx context.Context) error {
 			return p.kubeWaitingContainers.DeleteAllKubernetesWaitingContainers(ctx)
 		},
