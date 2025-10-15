@@ -36,14 +36,17 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -58,6 +61,14 @@ type AuthService interface {
 	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *BotCertsParams) (*proto.Certs, string, error)
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetReadOnlyAuthPreference(context.Context) (readonly.AuthPreference, error)
+	GetClusterName(context.Context) (types.ClusterName, error)
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
+	GetKeyStore() *keystore.Manager
+	PatchToken(context.Context, string, func(types.ProvisionToken) (types.ProvisionToken, error)) (types.ProvisionToken, error)
+	UpsertLock(context.Context, types.Lock) error
+	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
+	GetClock() clockwork.Clock
 }
 
 // ServerConfig holds configuration parameters for [Server].
@@ -99,7 +110,8 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	diag := stream.Diagnostic()
 	defer func() {
 		if err != nil {
-			s.handleJoinFailure(ctx, diag, err)
+			diag.Set(func(i *diagnostic.Info) { i.Error = err })
+			handleJoinFailure(ctx, s.cfg.AuthService, diag)
 		}
 	}()
 
@@ -134,7 +146,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
 		i.SafeTokenName = provisionToken.GetSafeName()
-		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
+		i.TokenJoinMethod = string(configuredJoinMethod(provisionToken))
 		i.TokenExpires = provisionToken.Expiry()
 		i.BotName = provisionToken.GetBotName()
 	})
@@ -187,6 +199,8 @@ func (s *Server) handleJoinMethod(
 	switch joinMethod {
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, provisionToken)
+	case types.JoinMethodBoundKeypair:
+		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, provisionToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
@@ -267,7 +281,7 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 }
 
 func checkJoinMethod(provisionToken types.ProvisionToken, requestedJoinMethod *string) (types.JoinMethod, error) {
-	tokenJoinMethod := provisionToken.GetJoinMethod()
+	tokenJoinMethod := configuredJoinMethod(provisionToken)
 	if requestedJoinMethod == nil {
 		// Auto join method mode, the client didn't specify so use whatever is on the token.
 		return tokenJoinMethod, nil
@@ -312,13 +326,15 @@ func (s *Server) makeResult(
 	authCtx *joinauthz.Context,
 	clientInit *messages.ClientInit,
 	clientParams *messages.ClientParams,
+	rawClaims any,
 	provisionToken types.ProvisionToken,
 ) (messages.Response, error) {
 	switch types.SystemRole(clientInit.SystemRole) {
 	case types.RoleInstance:
 		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, provisionToken)
 	case types.RoleBot:
-		return s.makeBotResult(ctx, diag, authCtx, clientParams.BotParams, provisionToken)
+		result, _, err := s.makeBotResult(ctx, diag, authCtx, clientParams.BotParams, rawClaims, provisionToken)
+		return result, trace.Wrap(err)
 	default:
 		return nil, trace.NotImplemented("new join service only supports Instance and Bot system roles, client requested %s", clientInit.SystemRole)
 	}
@@ -331,7 +347,7 @@ func (s *Server) makeHostResult(
 	hostParams *messages.HostParams,
 	provisionToken types.ProvisionToken,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, provisionToken.GetJoinMethod())
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(provisionToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -408,23 +424,24 @@ func (s *Server) makeBotResult(
 	diag *diagnostic.Diagnostic,
 	authCtx *joinauthz.Context,
 	botParams *messages.BotParams,
+	rawClaims any,
 	provisionToken types.ProvisionToken,
-) (*messages.BotResult, error) {
-	certsParams, err := makeBotCertsParams(diag, authCtx, botParams)
+) (*messages.BotResult, string, error) {
+	certsParams, err := makeBotCertsParams(diag, authCtx, botParams, rawClaims)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
-	certs, _, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, certsParams)
+	certs, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, certsParams)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	certificates, err := convertCerts(certs)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	return &messages.BotResult{
 		Certificates: *certificates,
-	}, nil
+	}, botInstanceID, nil
 }
 
 // makeBotCertsParams returns [BotCertsParams] populated by the
@@ -433,6 +450,7 @@ func makeBotCertsParams(
 	diag *diagnostic.Diagnostic,
 	authCtx *joinauthz.Context,
 	botParams *messages.BotParams,
+	rawClaims any,
 ) (*BotCertsParams, error) {
 	// GenerateBotCertsForJoin requires the TLS key to be PEM-encoded.
 	tlsPub, err := x509.ParsePKIXPublicKey(botParams.PublicKeys.PublicTLSKey)
@@ -458,6 +476,7 @@ func makeBotCertsParams(
 		BotGeneration: int32(authCtx.BotGeneration),
 		Expires:       botParams.Expires,
 		RemoteAddr:    diag.Get().RemoteAddr,
+		RawJoinClaims: rawClaims,
 	}, nil
 }
 
@@ -531,10 +550,9 @@ func setDiagnosticClientParams(diag *diagnostic.Diagnostic, clientParams *messag
 	}
 }
 
-func (s *Server) handleJoinFailure(ctx context.Context, diag *diagnostic.Diagnostic, err error) {
-	diag.Set(func(i *diagnostic.Info) { i.Error = err })
+func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *diagnostic.Diagnostic) {
 	log.LogAttrs(ctx, slog.LevelWarn, "Failure to join cluster occurred", diag.SlogAttrs()...)
-	if err := s.cfg.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diag)); err != nil {
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diag)); err != nil {
 		log.WarnContext(ctx, "Failed to emit failed join event", "error", err)
 	}
 }
@@ -582,4 +600,12 @@ func makeAuditEvent(d *diagnostic.Diagnostic) apievents.AuditEvent {
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 	}
+}
+
+func configuredJoinMethod(token types.ProvisionToken) types.JoinMethod {
+	method := token.GetJoinMethod()
+	if method == types.JoinMethodUnspecified {
+		return types.JoinMethodToken
+	}
+	return method
 }

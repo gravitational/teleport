@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -158,4 +159,68 @@ func (l *yamuxLogger) Println(args ...any) {
 	// doing that and just redirect to Print instead
 
 	l.Print(args...)
+}
+
+// yamuxStreamConn is a [net.Conn] that wraps a [*yamux.Stream] to have
+// different local and remote addresses and to return the correct error from
+// Read and Write upon hitting a deadline (which is required for a
+// net/http.Server to correctly handle websockets when using a TLS connection,
+// which will instead result in a killed connection when the TLS layer hits a
+// [yamux.ErrTimeout] from Read, see
+// https://github.com/hashicorp/yamux/issues/156).
+//
+// The implementation of *yamux.Stream and thus of this type (as well as most
+// other net.Conn implementations in the codebase, like *multiplexer.Conn) are
+// not actually fulfilling the (absolutely inane) net.Conn requirement that
+// every method must be safe to call concurrently in any combination;
+// specifically, there must not be multiple concurrent calls to Read or multiple
+// concurrent calls to Write; this is already a requirement for the behavior of
+// TCP-like net.Conns to make any sense, and does not cause issues when using
+// this as the underlying connection for TLS or SSH.
+type yamuxStreamConn struct {
+	*yamux.Stream
+	localAddr  net.Addr
+	remoteAddr net.Addr
+}
+
+// Read implements [net.Conn].
+func (c *yamuxStreamConn) Read(b []byte) (int, error) {
+	n, err := c.Stream.Read(b)
+	//nolint:errorlint // this workaround is specifically to work around bad
+	//practices around net.Conn and exact error values
+	if err == yamux.ErrTimeout {
+		// yamux.ErrTimeout.Temporary() returns false, which makes [*tls.Conn]
+		// kill the connection; the correct error to return from Read or Write
+		// in case of a deadline is os.ErrDeadlineExceeded, and seeing as most
+		// things in the stdlib check for methods implemented directly by
+		// errors, we must return it as is without any wrapping
+		err = os.ErrDeadlineExceeded
+	}
+	return n, err
+}
+
+// Write implements [net.Conn].
+func (c *yamuxStreamConn) Write(b []byte) (int, error) {
+	n, err := c.Stream.Write(b)
+	//nolint:errorlint // this workaround is specifically to work around bad
+	//practices around net.Conn and exact error values
+	if err == yamux.ErrTimeout {
+		// yamux.ErrTimeout.Temporary() returns false, which makes [*tls.Conn]
+		// kill the connection; the correct error to return from Read or Write
+		// in case of a deadline is os.ErrDeadlineExceeded, and seeing as most
+		// things in the stdlib check for methods implemented directly by
+		// errors, we must return it as is without any wrapping
+		err = os.ErrDeadlineExceeded
+	}
+	return n, err
+}
+
+// LocalAddr implements [net.Conn].
+func (c *yamuxStreamConn) LocalAddr() net.Addr {
+	return c.localAddr
+}
+
+// RemoteAddr implements [net.Conn].
+func (c *yamuxStreamConn) RemoteAddr() net.Addr {
+	return c.remoteAddr
 }

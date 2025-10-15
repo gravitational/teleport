@@ -31,7 +31,7 @@ func TestTrackingReaderEOF(t *testing.T) {
 	reader := bytes.NewReader([]byte{})
 
 	// Wrap the reader in a TrackingReader.
-	tr := NewTrackingReader(reader)
+	tr := &trackingReader{r: reader}
 
 	// Make sure it returns an EOF and not a wrapped exception.
 	buf := make([]byte, 64)

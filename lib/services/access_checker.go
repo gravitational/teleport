@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -303,6 +304,9 @@ type AccessChecker interface {
 // host SSH certificate, TLS certificate, or user information stored in the
 // backend.
 type AccessInfo struct {
+	// ScopePin is an optional pin that ties an identity to a specific scope and set of scoped roles. When
+	// set, the Roles field must not be set.
+	ScopePin *scopesv1.Pin
 	// Roles is the list of cluster local roles for the identity.
 	Roles []string
 	// Traits is the set of traits for the identity.
@@ -339,15 +343,15 @@ type accessChecker struct {
 //   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
 //     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	if info.ScopePin != nil {
+		return nil, trace.BadParameter("cannot create unscoped AccessChecker based on scoped identity")
+	}
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accessChecker{
-		info:         info,
-		localCluster: localCluster,
-		RoleSet:      roleSet,
-	}, nil
+
+	return newAccessChecker(info, localCluster, roleSet), nil
 }
 
 // NewAccessCheckerForUserSession is an alternative to NewAccessChecker that includes a UserSessionRoleNotFoundErrorMsg if
@@ -374,6 +378,10 @@ func NewAccessCheckerForUserSession(info *AccessInfo, localCluster string, acces
 // NewAccessCheckerWithRoleSet is similar to NewAccessChecker, but accepts the
 // full RoleSet rather than a RoleGetter.
 func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet RoleSet) AccessChecker {
+	return newAccessChecker(info, localCluster, roleSet)
+}
+
+func newAccessChecker(info *AccessInfo, localCluster string, roleSet RoleSet) *accessChecker {
 	return &accessChecker{
 		info:         info,
 		localCluster: localCluster,
@@ -395,6 +403,10 @@ type CurrentUserRoleGetter interface {
 // user's access to resources that may be located in remote/leaf Teleport
 // clusters.
 func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *AccessInfo, clusterName string, access CurrentUserRoleGetter) (AccessChecker, error) {
+	if localAccessInfo.ScopePin != nil {
+		return nil, trace.BadParameter("cannot create unscoped remote cluster AccessChecker based on scoped identity")
+	}
+
 	// Fetch the remote cluster's view of the current user's roles.
 	remoteRoles, err := access.GetCurrentUserRoles(ctx)
 	if err != nil {
@@ -1340,6 +1352,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 	return &AccessInfo{
 		Username:           ident.Username,
+		ScopePin:           ident.ScopePin,
 		Roles:              ident.Roles,
 		Traits:             ident.Traits,
 		AllowedResourceIDs: ident.AllowedResourceIDs,
@@ -1350,6 +1363,10 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 // given remote cluster user's ssh identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
+	if unmappedIdentity.ScopePin != nil {
+		return nil, trace.BadParameter("scope pinning is not supported for remote SSH identities")
+	}
+
 	// make a shallow copy of traits to avoid modifying the original
 	// (don't use maps.Clone, as we want to ensure the result is an empty, but not nil, map)
 	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
@@ -1387,12 +1404,13 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
 func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error) {
-	if len(identity.Groups) == 0 {
-		return nil, trace.BadParameter("tls identity %q does not encode any roles, this may indicate a malformed certificate or one that was issued by an incompatible teleport version", identity.Username)
+	if len(identity.Groups) == 0 && identity.ScopePin == nil {
+		return nil, trace.BadParameter("tls identity %q has no roles or scope pin, this may indicate a malformed certificate or one that was issued by an incompatible teleport version", identity.Username)
 	}
 
 	return &AccessInfo{
 		Username:           identity.Username,
+		ScopePin:           identity.ScopePin,
 		Roles:              identity.Groups,
 		Traits:             identity.Traits,
 		AllowedResourceIDs: identity.AllowedResourceIDs,
@@ -1403,6 +1421,10 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 // given remote cluster user's tlsca.Identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
+	if identity.ScopePin != nil {
+		return nil, trace.BadParameter("scope pinning is not supported for remote TLS identities")
+	}
+
 	// Set internal traits for the remote user. This allows Teleport to work by
 	// passing exact logins, Kubernetes users/groups, database users/names, and
 	// AWS Role ARNs to the remote cluster.
@@ -1483,11 +1505,21 @@ type UserState interface {
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
 func AccessInfoFromUserState(user UserState) *AccessInfo {
-	roles := user.GetRoles()
-	traits := user.GetTraits()
+	return accessInfoFromUserState(user, user.GetRoles(), nil)
+}
+
+// ScopePinnedAccessInfoFromUserState returns a new AccessInfo populated from the
+// traits held by the user and the provided scope pin. Population/verification of the
+// scope pin must be performed prior to calling this function.
+func ScopePinnedAccessInfoFromUserState(user UserState, pin *scopesv1.Pin) *AccessInfo {
+	return accessInfoFromUserState(user, nil, pin)
+}
+
+func accessInfoFromUserState(user UserState, roles []string, pin *scopesv1.Pin) *AccessInfo {
 	return &AccessInfo{
 		Username: user.GetName(),
 		Roles:    roles,
-		Traits:   traits,
+		ScopePin: pin,
+		Traits:   user.GetTraits(),
 	}
 }

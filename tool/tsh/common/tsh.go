@@ -90,10 +90,10 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -150,6 +150,8 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
+	// Scope constrains the current operation to a specific target scope
+	Scope string
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
@@ -1229,6 +1231,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information.").Short('v').BoolVar(&cf.Verbose)
@@ -1581,12 +1584,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	stopTracing := initializeTracing(&cf)
 	defer stopTracing()
 
-	// start the span for the command and update the config context so that all spans created
-	// in the future will be rooted at this span.
-	ctx, span := cf.tracer.Start(cf.Context, command)
-	cf.Context = ctx
-	defer span.End()
-
 	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1925,9 +1922,14 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
-	// flush ensures that the spans are all attempted to be written when tsh exits.
+	// flush ends the root span and ensures that the spans are all attempted to be written when tsh exits.
+	var rootSpan oteltrace.Span
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
+			if rootSpan != nil {
+				rootSpan.End()
+			}
+
 			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
@@ -1972,6 +1974,9 @@ func initializeTracing(cf *CLIConf) func() {
 
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
+		// Start the root span for the command and update the config context so
+		// that all spans created in the future will be rooted at this span.
+		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -1996,6 +2001,9 @@ func initializeTracing(cf *CLIConf) func() {
 	}
 	cf.TracingProvider = provider
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+	// Start the root span for the command and update the config context so
+	// that all spans created in the future will be rooted at this span.
+	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
@@ -2131,6 +2139,7 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
+	showAlerts := true
 	autoRequest := true
 	// special case: --request-roles=no disables auto-request behavior.
 	if cf.DesiredRoles == "no" {
@@ -2163,6 +2172,24 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+	}
+
+	if cf.Scope != "" {
+		// auto-request behavior is incompatible with scopes
+		autoRequest = false
+		// alerts don't support scoping yet, reduce log spam by disabling lookup attempts
+		showAlerts = false
+
+		// client-side validation of scopes isn't strictly necessary, but scope syntax is easy to mess
+		// up (especially accidentally omitting the leading slash), so its nice to find out if the scope
+		// is malformed before going through authentication.
+		if err := scopes.StrongValidate(cf.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(fspmarshall/scopes): this is a clunky way to handle the forced reauth on scope change,
+		// look into doing something smarter.
+		profile, profiles = nil, nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
@@ -2471,10 +2498,12 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
-	if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
-		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW); err != nil {
-		logger.WarnContext(cf.Context, "Failed to display cluster alerts", "error", err)
+	if showAlerts {
+		if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
+			types.AlertOnLogin: "yes",
+		}, types.AlertSeverity_LOW); err != nil {
+			logger.WarnContext(cf.Context, "Failed to display cluster alerts", "error", err)
+		}
 	}
 
 	return nil
@@ -3109,10 +3138,14 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
-		if n.GetUseTunnel() {
+		switch {
+		case n.GetUseTunnel() && n.GetRelayGroup() != "":
+			return "⟵ Tunnel (relay)"
+		case n.GetUseTunnel():
 			return "⟵ Tunnel"
+		default:
+			return n.GetAddr()
 		}
-		return n.GetAddr()
 	}
 
 	row := make([]string, 0)
@@ -3878,8 +3911,15 @@ func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requ
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
 	if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
-		req, err = clt.CreateAccessRequestV2(ctx, req)
-		return trace.Wrap(err)
+		dryRunReq, err := clt.CreateAccessRequestV2(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Copying the computed roles here is not strictly necessary but avoids requiring
+		// the server to recompute the roles when the real request is created, which can be
+		// an expensive operation.
+		req.SetRoles(dryRunReq.GetRoles())
+		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4416,18 +4456,17 @@ func onSCP(cf *CLIConf) error {
 		}
 	}
 
+	sftpReq := client.SFTPRequest{
+		Sources:       cf.CopySpec[:len(cf.CopySpec)-1],
+		Destination:   cf.CopySpec[len(cf.CopySpec)-1],
+		Recursive:     cf.RecursiveCopy,
+		PreserveAttrs: cf.PreserveAttrs,
+	}
+	if !cf.Quiet {
+		sftpReq.ProgressWriter = cf.Stdout()
+	}
 	err = executor(cf.Context, tc, func() error {
-		return trace.Wrap(tc.SFTP(
-			cf.Context,
-			cf.CopySpec[:len(cf.CopySpec)-1],
-			cf.CopySpec[len(cf.CopySpec)-1],
-			sftp.Options{
-				Recursive:      cf.RecursiveCopy,
-				PreserveAttrs:  cf.PreserveAttrs,
-				Quiet:          cf.Quiet,
-				ProgressWriter: cf.Stdout(),
-			},
-		))
+		return trace.Wrap(tc.SFTP(cf.Context, sftpReq))
 	})
 
 	// don't print context canceled errors to the user
@@ -4614,6 +4653,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
+	c.ProxyTemplates = cf.TSHConfig.ProxyTemplates
 	expanded, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
@@ -4749,6 +4789,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if len(rPorts) > 0 {
 		c.RemoteForwardPorts = rPorts
 	}
+
+	// TODO(fspmarshall/scopes): decide if we want some kind of persistence for the CLI arg.
+	c.Scope = cf.Scope
+
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
@@ -5188,19 +5232,26 @@ func onShow(cf *CLIConf) error {
 	return nil
 }
 
+func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock) string {
+	duration := clock.Until(validUntil)
+	switch {
+	case duration <= 0:
+		return "EXPIRED"
+	case duration < time.Minute:
+		return "valid for <1m"
+	default:
+		return fmt.Sprintf("valid for %s",
+			// Since duration is truncated to minute, duration.String() always
+			// ends with 0s.
+			strings.TrimRight(duration.Truncate(time.Minute).String(), "0s"),
+		)
+	}
+}
+
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+	clock := clockwork.NewRealClock()
 	var prefix string
-	humanDuration := "EXPIRED"
-	duration := time.Until(p.ValidUntil)
-	if duration.Nanoseconds() > 0 {
-		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
-		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
-		if duration < time.Minute {
-			humanDuration = "valid for <1m"
-		}
-	}
-
 	proxyURL := p.getProxyURLLine(isActive, env)
 	cluster := p.getClusterLine(isActive, env)
 	kubeCluster := p.getKubeClusterLine(isActive, env)
@@ -5233,10 +5284,24 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", cluster)
 	}
-	fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+	if p.Scope != "" {
+		fmt.Printf("  Scope:              %v\n", p.Scope)
+		fmt.Printf("  Scoped Roles:\n")
+
+		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
+		slices.Sort(assignedScopes)
+		for _, scope := range assignedScopes {
+			fmt.Printf("    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
+		}
+	} else {
+		fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+	}
 	if debug {
 		var count int
 		for k, v := range p.Traits {
+			if len(v) == 0 {
+				continue
+			}
 			if count == 0 {
 				fmt.Printf("  Traits:             %v: %v\n", k, v)
 			} else {
@@ -5276,7 +5341,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if p.GitHubIdentity != nil {
 		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
+	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {
@@ -5425,6 +5490,8 @@ type profileInfo struct {
 	ActiveRequests     []string               `json:"active_requests,omitempty"`
 	Cluster            string                 `json:"cluster"`
 	Roles              []string               `json:"roles,omitempty"`
+	Scope              string                 `json:"scope,omitempty"`
+	ScopedRoles        map[string][]string    `json:"scoped_roles,omitempty"`
 	Traits             wrappers.Traits        `json:"traits,omitempty"`
 	Logins             []string               `json:"logins,omitempty"`
 	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
@@ -5477,6 +5544,8 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
+		Scope:              p.Scope,
+		ScopedRoles:        p.ScopedRoles,
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,

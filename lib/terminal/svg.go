@@ -31,11 +31,11 @@ const (
 	charRatio  = 0.602 // Menlo mono font character width/height ratio
 )
 
-// VtStateToSvg converts a terminal state to an SVG representation
-func VtStateToSvg(state *vt10x.TerminalState) []byte {
+// VtToSvg converts a terminal state to an SVG representation
+func VtToSvg(terminal vt10x.Terminal) []byte {
 	var buf bytes.Buffer
 
-	cols, rows := state.Cols, state.Rows
+	cols, rows := terminal.Size()
 
 	charWidthPx := fontSize * charRatio
 	rowHeightPx := fontSize * lineHeight
@@ -45,12 +45,13 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 	closeHeader := writeSVGHeader(&buf, pixelWidth, pixelHeight)
 
 	var cursor *cursorPos
-	if state.CursorVisible {
-		cursor = &cursorPos{x: state.CursorX, y: state.CursorY}
+	if terminal.CursorVisible() {
+		c := terminal.Cursor()
+		cursor = &cursorPos{x: c.X, y: c.Y}
 	}
 
-	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidthPx, rowHeightPx, cursor)
-	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidthPx, rowHeightPx, cursor)
+	renderBackgrounds(&buf, terminal, charWidthPx, rowHeightPx, cursor)
+	renderText(&buf, terminal, charWidthPx, rowHeightPx, cursor)
 
 	buf.WriteString(closeHeader())
 
@@ -73,23 +74,20 @@ func writeSVGHeader(buf *bytes.Buffer, width, height int) func() string {
 	}
 }
 
-func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
+func renderBackgrounds(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
 	type bgRect struct {
 		x, y, w, h float64
 		color      vt10x.Color
 	}
 	var rects []bgRect
 
-	for y := 0; y < len(buffer); y++ {
-		if y >= len(buffer) {
-			continue
-		}
-
+	cols, rows := terminal.Size()
+	for y := range rows {
 		yPos := float64(y) * rowHeightPx
 		var currentRect *bgRect
 
-		for x := 0; x < len(buffer[y]); x++ {
-			glyph := buffer[y][x]
+		for x := range cols {
+			glyph := terminal.Cell(x, y)
 			attrs := getTextAttrs(glyph, cursor, x, y)
 
 			if attrs.background == vt10x.DefaultBG {
@@ -133,14 +131,15 @@ func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int
 	}
 }
 
-func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
+func renderText(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
 	buf.WriteString(`<text>`)
 
-	for y := 0; y < len(buffer); y++ {
+	cols, rows := terminal.Size()
+	for y := range rows {
 		// Check if the entire row has any non-space content
 		hasContent := false
-		for x := 0; x < len(buffer[y]); x++ {
-			glyph := buffer[y][x]
+		for x := range cols {
+			glyph := terminal.Cell(x, y)
 			isCursor := cursor != nil && cursor.x == x && cursor.y == y
 			if (glyph.Char != 0 && glyph.Char != ' ') || isCursor {
 				hasContent = true
@@ -156,8 +155,8 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 		fmt.Fprintf(buf, `<tspan y="%.1f" dy="1em">`, yPos)
 
 		col := 0
-		for col < len(buffer[y]) {
-			glyph := buffer[y][col]
+		for col < cols {
+			glyph := terminal.Cell(col, y)
 			isCursor := cursor != nil && cursor.x == col && cursor.y == y
 
 			// Skip spaces completely (unless it's the cursor position)
@@ -171,8 +170,8 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 			var text strings.Builder
 
 			// Collect consecutive non-space characters with same attributes
-			for col < len(buffer[y]) {
-				currentGlyph := buffer[y][col]
+			for col < cols {
+				currentGlyph := terminal.Cell(col, y)
 				currentIsCursor := cursor != nil && cursor.x == col && cursor.y == y
 
 				// Stop if we hit a space or null (unless cursor)

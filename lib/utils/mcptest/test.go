@@ -94,12 +94,19 @@ func InitializeClient(ctx context.Context, client *mcpclient.Client) (*mcp.Initi
 	return resp, trace.Wrap(err)
 }
 
+func MustInitializeClient(t *testing.T, client *mcpclient.Client) *mcp.InitializeResult {
+	t.Helper()
+	result, err := InitializeClient(t.Context(), client)
+	require.NoError(t, err)
+	return result
+}
+
 // MustCallServerTool calls the "hello-server" tool and verifies the result.
-func MustCallServerTool(t *testing.T, ctx context.Context, client *mcpclient.Client) {
+func MustCallServerTool(t *testing.T, client *mcpclient.Client) {
 	t.Helper()
 	callToolRequest := mcp.CallToolRequest{}
 	callToolRequest.Params.Name = "hello-server"
-	callToolResult, err := client.CallTool(ctx, callToolRequest)
+	callToolResult, err := client.CallTool(t.Context(), callToolRequest)
 	require.NoError(t, err)
 	require.NotNil(t, callToolResult)
 	require.Equal(t, []mcp.Content{

@@ -171,7 +171,6 @@ func TestPollAWSRDS(t *testing.T) {
 						return a.Key < b.Key
 					},
 				),
-				protocmp.IgnoreFields(&accessgraphv1alpha.AWSRDSDatabaseV1{}, "last_sync_time"),
 			),
 			)
 

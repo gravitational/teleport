@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
@@ -44,6 +45,7 @@ func (process *TeleportProcess) initKubernetes() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
+	process.ExpectService(teleport.ComponentKube)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		conn, err := process.WaitForConnector(KubeIdentityEvent, logger)
 		if conn == nil {
@@ -203,6 +205,22 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		return trace.Wrap(err)
 	}
 
+	// Create a health check manager.
+	healthCheckManager, err := healthcheck.NewManager(
+		process.ExitContext(),
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  accessPoint,
+			HealthCheckConfigReader: accessPoint,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var publicAddr string
 	if len(cfg.Kube.PublicAddrs) > 0 {
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
@@ -242,6 +260,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
+		HealthCheckManager:   healthCheckManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -283,6 +302,9 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		}
 		if asyncEmitter != nil {
 			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		}
+		if healthCheckManager != nil {
+			warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 		}
 		warnOnErr(process.ExitContext(), listener.Close(), logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)

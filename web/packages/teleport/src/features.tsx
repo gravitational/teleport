@@ -53,7 +53,6 @@ import { AccountPage } from './Account';
 import { AuditContainer as Audit } from './Audit';
 import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { BotInstances } from './BotInstances/BotInstances';
-import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { BotDetails } from './Bots/Details/BotDetails';
@@ -303,18 +302,11 @@ export class FeatureBotInstances implements TeleportFeature {
   }
 }
 
+// TODO(nicholasmarais1158) Remove this feature stub when teleport.e no longer
+// uses it.
 export class FeatureBotInstanceDetails implements TeleportFeature {
-  parent = FeatureBotInstances;
-
-  route = {
-    title: 'Bot instance details',
-    path: cfg.routes.botInstance,
-    exact: true,
-    component: BotInstanceDetails,
-  };
-
   hasAccess() {
-    return true;
+    return false;
   }
 }
 
@@ -505,7 +497,38 @@ export class FeatureDiscover implements TeleportFeature {
     getLink() {
       return cfg.routes.discover;
     },
-    searchableTags: ['new', 'add', 'enroll', 'resources'],
+    searchableTags: [
+      'new',
+      'add',
+      'enroll',
+      'resources',
+      'discover',
+      'saml',
+      'idp',
+      'grafana',
+      'entra',
+      'aws',
+      'kubernetes',
+      'node',
+      'ssh',
+      'linux',
+      'ubuntu',
+      'centos',
+      'debian',
+      'windows',
+      'desktop',
+      'ec2',
+      'eks',
+      'rds',
+      'mysql',
+      'postgresql',
+      'mariadb',
+      'dynamodb',
+      'cassandra',
+      'azure',
+      'cockroachdb',
+      'mongodb',
+    ],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -810,7 +833,14 @@ export class FeatureHelpAndSupport implements TeleportFeature {
     getLink() {
       return cfg.routes.support;
     },
-    searchableTags: ['help', 'support', NavTitle.HelpAndSupport],
+    searchableTags: [
+      'help',
+      'support',
+      'contacts',
+      'security',
+      'business',
+      'version',
+    ],
   };
 }
 
@@ -829,7 +859,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureBots(),
     new FeatureBotDetails(),
     new FeatureBotInstances(),
-    new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),

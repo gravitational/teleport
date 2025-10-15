@@ -1553,7 +1553,9 @@ func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, u
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
+// Deprecated: Prefer paginated variant such as [ListSnowflakeSessions]
 func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetSnowflakeSessions(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1564,6 +1566,27 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (c *Client) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSnowflakeSessions(ctx, &proto.ListSnowflakeSessionsRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	sessions := make([]types.WebSession, len(resp.Sessions))
+	for i := range resp.Sessions {
+		sessions[i] = resp.Sessions[i]
+	}
+	return sessions, resp.NextPageToken, nil
+}
+
+// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+func (c *Client) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListSnowflakeSessions, types.WebSession.GetName)
 }
 
 // CreateAppSession creates an application web session. Application web
@@ -3149,6 +3172,23 @@ func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoup
 	return resp, nil
 }
 
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (c *Client) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotInstanceReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.GetAutoUpdateBotInstanceReportRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+func (c *Client) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.DeleteAutoUpdateBotInstanceReportRequest{})
+	return trace.Wrap(err)
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -3462,7 +3502,9 @@ func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.K
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
+// Deprecated: Prefer paginated variant such as [ListKubernetesClusters] or [RangeKubernetesClusters]
 func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	items, err := c.grpc.GetKubernetesClusters(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3472,6 +3514,27 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 		clusters[i] = items.KubernetesClusters[i]
 	}
 	return clusters, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
+	for i := range resp.KubernetesClusters {
+		kubeClusters[i] = resp.KubernetesClusters[i]
+	}
+	return kubeClusters, resp.NextPageToken, nil
+}
+
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListKubernetesClusters, types.KubeCluster.GetName)
 }
 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
