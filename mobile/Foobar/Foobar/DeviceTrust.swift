@@ -11,6 +11,11 @@ import os
 import SwiftProtobuf
 import SwiftUI
 
+private let logger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "Foobar",
+  category: "devicetrust"
+)
+
 protocol DeviceTrustP {
   func getSerialNumber() -> String
   func deleteDeviceKey() async -> Result<Bool, SecOSStatusError>
@@ -41,10 +46,10 @@ final class DeviceTrust: DeviceTrustP {
     )
     let client = Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: protocolClient)
     let cd = collectDeviceData()
-    print("\(cd)")
+    logger.debug("Collected device data: \(cd.debugDescription, privacy: .public)")
 
     let cred = try DeviceKey.getOrCreate()
-    print("\(cred)")
+    logger.debug("Got device key: \(cred.debugDescription, privacy: .public)")
 
     let createTokenResponse = await client
       .createDeviceEnrollToken(request: Teleport_Devicetrust_V1_CreateDeviceEnrollTokenRequest
@@ -61,7 +66,6 @@ final class DeviceTrust: DeviceTrustP {
 //    print("Got ping response: \(response)")
 //    return
 
-    print("Starting a stream")
     let stream = client.enrollDevice()
 
     try stream.send(Teleport_Devicetrust_V1_EnrollDeviceRequest
@@ -73,11 +77,13 @@ final class DeviceTrust: DeviceTrustP {
           $0.publicKeyDer = cred.publicKeyDer
         }
       } })
+    logger.debug("Sent init request")
 
     let response1 = try await (getSingleMessage(stream)).get()
     guard case let .macosChallenge(challenge) = response1.payload else {
       throw UnexpectedPayload(expected: "macosChallenge", actual: response1.payload)
     }
+    logger.debug("Got challenge")
 
     let signature = try DeviceKey.sign(challenge.challenge)
 
@@ -88,9 +94,13 @@ final class DeviceTrust: DeviceTrustP {
             $0.signature = signature
           }
         })
+    logger.debug("Sent signed challenge")
 
     let response2 = try await (getSingleMessage(stream)).get()
-    print("Got response: \(response2)")
+    guard case .success = response2.payload else {
+      throw UnexpectedPayload(expected: "success", actual: response2.payload)
+    }
+    logger.debug("Successfully enrolled device")
   }
 }
 
@@ -217,10 +227,10 @@ struct SecOSStatusError: Error & Equatable & CustomStringConvertible {
 class DeviceKey {
   static func getOrCreate() throws -> Teleport_Devicetrust_V1_DeviceCredential {
     if let existingKey = try get() {
-      print("Got existing key")
+      logger.debug("Got existing key")
       return existingKey
     }
-    print("Creating new key")
+    logger.debug("Creating new key")
     return try create()
   }
 
