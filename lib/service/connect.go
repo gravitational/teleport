@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const updateClientsJoinWarning = "This agent joined the cluster during the update_clients phase of a host CA rotation, so its services might not be usable by clients that haven't logged in recently."
@@ -226,6 +227,19 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		return nil, trace.Wrap(err)
 	}
 
+	if role == types.RoleInstance {
+		// If necessary, heal the instance identity by rejoining to get a new
+		// identity with all required system roles. This is best-effort, any
+		// error will be logged and the current identity will continue to be
+		// used.
+		newIdentity, err := process.healInstanceIdentity(identity)
+		if err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Failed to heal instance identity", "error", err)
+		} else {
+			identity = newIdentity
+		}
+	}
+
 	rotation := processState.Spec.Rotation
 
 	switch rotation.State {
@@ -307,6 +321,98 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 	default:
 		return nil, trace.BadParameter("unsupported rotation state: %q", rotation.State)
 	}
+}
+
+func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Identity) (*state.Identity, error) {
+	currentSystemRoles := set.New(currentIdentity.SystemRoles...)
+	wantSystemRoles := set.NewWithCapacity[string](len(process.instanceRoles))
+	for role := range process.instanceRoles {
+		wantSystemRoles.Add(string(role))
+	}
+
+	missingSystemRoles := wantSystemRoles.Clone().Subtract(currentSystemRoles)
+	if len(missingSystemRoles) == 0 {
+		// The current instance identity contains all required roles, nothing to do.
+		return currentIdentity, nil
+	}
+
+	process.logger.InfoContext(process.ExitContext(), "Instance identity is missing required system roles, will attempt to self-heal", "missing_roles", missingSystemRoles.Elements())
+	additionalPrincipals, dnsNames := process.instanceAdditionalPrincipals()
+	var (
+		newIdentity *state.Identity
+		err         error
+	)
+	if server := process.getLocalAuth(); server != nil {
+		process.logger.InfoContext(process.ExitContext(), "Generating new Instance identity with local auth service")
+		newIdentity, err = auth.GenerateIdentity(server, currentIdentity.ID, additionalPrincipals, dnsNames)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate new instance identity with local auth service")
+		}
+	} else {
+		process.logger.InfoContext(process.ExitContext(), "Must rejoin to get a new Instance identity")
+		if !process.Config.HasToken() {
+			return nil, trace.Errorf("must rejoin to obtain missing system roles but no join token is configured")
+		}
+
+		// Make an auth client authenticated with the current instance identity to use for the rejoin.
+		currentConnector, err := process.getConnector(currentIdentity, currentIdentity)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to make connector with current instance identity")
+		}
+		currentAuthClient := currentConnector.Client
+
+		// Rejoin.
+		joinParams, err := process.makeJoinParams(
+			currentIdentity.ID,
+			additionalPrincipals,
+			dnsNames,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to make join params")
+		}
+		joinParams.AuthClient = currentAuthClient
+		rejoinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to rejoin")
+		}
+		privateKeyPEM, err := keys.MarshalPrivateKey(rejoinResult.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to marshal private key")
+		}
+		newIdentity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, rejoinResult.Certs)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse new identity")
+		}
+	}
+
+	newSystemRoles := set.New(newIdentity.SystemRoles...)
+
+	// Sanity check we didn't lose any system roles.
+	if lostRoles := currentSystemRoles.Clone().Subtract(newSystemRoles); len(lostRoles) > 0 {
+		return nil, trace.Errorf("new Instance identity is missing the following system roles from the current identity (this is a bug): %v", lostRoles.Elements())
+	}
+
+	gainedSystemRoles := newSystemRoles.Clone().Subtract(currentSystemRoles)
+	if len(gainedSystemRoles) == 0 {
+		process.logger.WarnContext(process.ExitContext(), "Did not gain any system roles")
+		// Don't bother saving or returning the new identity if no system roles were gained.
+		return currentIdentity, nil
+	}
+
+	if rolesStillMissing := missingSystemRoles.Clone().Subtract(newSystemRoles); len(rolesStillMissing) > 0 {
+		process.logger.WarnContext(process.ExitContext(), "Partially healed instance identity but some required system roles are still missing",
+			"gained_roles", gainedSystemRoles.Elements(),
+			"missing_roles", rolesStillMissing.Elements())
+	} else {
+		process.logger.InfoContext(process.ExitContext(), "Obtained new instance identity with all required system roles",
+			"gained_roles", gainedSystemRoles.Elements(),
+		)
+	}
+
+	if err := process.storage.WriteIdentity(state.IdentityCurrent, *newIdentity); err != nil {
+		return nil, trace.Wrap(err, "failed to write new identity to storage")
+	}
+	return newIdentity, nil
 }
 
 // newWatcher returns a new watcher,
@@ -495,6 +601,8 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		// reach this point if the Instance identity couldn't get a certificate
 		// with this requested role, which should only happen if the new join
 		// service with auth-assigned host UUIDs is not available.
+		//
+		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
 		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
 	}
@@ -974,6 +1082,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		for _, baseRole := range clientIdentity.SystemRoles {
 			baseSystemRoles = append(baseSystemRoles, types.SystemRole(baseRole))
 		}
+		// Dangling system roles here should only be possible if
+		// healInstanceIdentity failed to get the necessary roles by rejoining
+		// via the new join service, this should only be necessary until the
+		// new join service supports all join methods.
+		//
+		// TODO(nklaassen): DELETE IN 20
 		var danglingSystemRoles []types.SystemRole
 		for _, activeRole := range process.getInstanceRoles() {
 			if slices.Contains(baseSystemRoles, activeRole) {
