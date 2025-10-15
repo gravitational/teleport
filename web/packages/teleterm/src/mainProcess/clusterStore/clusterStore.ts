@@ -97,8 +97,8 @@ export class ClusterStore {
   }
 
   /**
-   * Synchronizes the root cluster.
-   * Makes a network call to get cluster details and its leaf clusters.
+   * Synchronizes a root cluster.
+   * Makes network calls to get cluster details and its leaf clusters.
    */
   async sync(uri: RootClusterUri): Promise<void> {
     try {
