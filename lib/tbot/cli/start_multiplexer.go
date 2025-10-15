@@ -23,9 +23,10 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
-	"github.com/gravitational/trace"
 )
 
 // SSHMultiplexerCommand implements `tbot start ssh-multiplexer` and

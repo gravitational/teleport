@@ -21,10 +21,11 @@ package cli
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSSHMultiplexerCommand(t *testing.T) {
