@@ -21,6 +21,7 @@ package accesslists
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -305,9 +306,12 @@ func IsAccessListOwner(
 				continue
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
+			membershipType, reason, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
 			if err != nil {
-				ownershipErr = trace.Wrap(err)
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
+			}
+			if reason != "" {
+				ownershipErr = trace.AccessDenied("%s", reason)
 				continue
 			}
 			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
@@ -323,6 +327,11 @@ func IsAccessListOwner(
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(ownershipErr)
 }
 
+const (
+	filteredOutReasonExpired           = "expired"
+	filteredOutReasonUnmetRequirements = "does not meet the membership requirements"
+)
+
 // IsAccessListMember checks if the given user is the Access List member. It returns an error
 // matched by [IsUserLocked] if the user is locked.
 func IsAccessListMember(
@@ -332,25 +341,25 @@ func IsAccessListMember(
 	g AccessListAndMembersGetter,
 	lockGetter services.LockGetter,
 	clock clockwork.Clock,
-) (accesslistv1.AccessListUserAssignmentType, error) {
+) (accesslistv1.AccessListUserAssignmentType, string, error) {
 	if lockGetter != nil {
 		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
 			User: user.GetName(),
 		})
 		if err != nil {
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, "", trace.Wrap(err)
 		}
 		if len(locks) > 0 {
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, newUserLockedError(user.GetName())
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, fmt.Sprintf("User %q is currently locked", user), nil
 		}
 	}
 
 	members, err := fetchMembers(ctx, accessList.GetName(), g)
 	if err != nil {
-		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, "", trace.Wrap(err)
 	}
 
-	var membershipErr error
+	var lastReason string
 
 	for _, member := range members {
 		// Is user an explicit member?
@@ -358,43 +367,48 @@ func IsAccessListMember(
 			if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
 				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
 				// through all members to make sure there isn't a valid match later on.
-				membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+				lastReason = fmt.Sprintf("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 				continue
 			}
 			if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
-				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
+				lastReason = fmt.Sprintf("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 				continue
 			}
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, "", nil
 		}
 		// Is user an inherited member through any potential member AccessLists?
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
 			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
 			if err != nil {
-				membershipErr = trace.Wrap(err)
-				continue
+				if trace.IsNotFound(err) {
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, "", trace.Wrap(err, "getting access list %q", member.GetName())
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
+			membershipType, reason, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
 			if err != nil {
-				membershipErr = trace.Wrap(err)
-				continue
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, "", trace.Wrap(err)
 			}
 			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
-					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+					lastReason = fmt.Sprintf("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 					continue
 				}
 				if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
-					membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
+					lastReason = fmt.Sprintf("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 					continue
 				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, "", nil
+			}
+			// The user is not assigned, if we have a reason we store it.
+			if reason != "" {
+				lastReason = reason
 			}
 		}
 	}
 
-	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
+	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, lastReason, nil
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
