@@ -1572,6 +1572,27 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 	return out, nil
 }
 
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (c *Client) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSnowflakeSessions(ctx, &proto.ListSnowflakeSessionsRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	sessions := make([]types.WebSession, len(resp.Sessions))
+	for i := range resp.Sessions {
+		sessions[i] = resp.Sessions[i]
+	}
+	return sessions, resp.NextPageToken, nil
+}
+
+// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+func (c *Client) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListSnowflakeSessions, types.WebSession.GetName)
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
