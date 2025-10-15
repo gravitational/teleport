@@ -906,7 +906,16 @@ func onConfigDump(flags dumpFlags) error {
 			os.Stderr, "%s Could not check the contents of %s: %s\n         The data directory may contain existing cluster state.\n", utils.Color(utils.Yellow, "WARNING:"), flags.DataDir, err.Error())
 	}
 
-	if err == nil && len(entries) != 0 {
+	// Filter out the default directory /var/lib/teleport/bot used by `tbot` to
+	// avoid throwing a scary warning if `tbot` was installed prior to
+	// configuring teleport.
+	filteredEntries := make([]os.DirEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Name() != "bot" {
+			filteredEntries = append(filteredEntries, entry)
+		}
+	}
+	if err == nil && len(filteredEntries) != 0 {
 		fmt.Fprintf(
 			os.Stderr,
 			"%s The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
