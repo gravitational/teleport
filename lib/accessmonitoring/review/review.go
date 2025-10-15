@@ -252,6 +252,8 @@ func (handler *Handler) getMatchingRule(
 			continue
 		}
 		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
+			handler.Logger.DebugContext(ctx, "Access request does not satisfy schedule condition",
+				"rule", rule.GetMetadata().GetName())
 			continue
 		}
 
