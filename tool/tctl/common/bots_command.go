@@ -550,16 +550,16 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.Client) error {
 	var instances []*machineidv1pb.BotInstance
-	req := &machineidv1pb.ListBotInstancesRequest{}
+	req := &machineidv1pb.ListBotInstancesV2Request{
+		Filter:    &machineidv1pb.ListBotInstancesV2Request_Filters{},
+	}
 
 	if c.botName != "" {
-		req.FilterBotName = c.botName
+		req.Filter.BotName = c.botName
 	}
 
 	for {
-		// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
-		//nolint:staticcheck // SA1019
-		resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, req)
+		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
