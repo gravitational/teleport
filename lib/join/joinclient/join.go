@@ -50,7 +50,10 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if params.ID.HostUUID != "" {
+	if params.AuthClient == nil && params.ID.HostUUID != "" {
+		// This check is skipped if AuthClient is provided because this is a
+		// re-join with an existing identity and the HostUUID will be
+		// maintained.
 		return nil, trace.BadParameter("HostUUID must not be provided to Join, it will be assigned by the Auth server")
 	}
 	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
