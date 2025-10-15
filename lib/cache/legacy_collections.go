@@ -1875,19 +1875,19 @@ var _ executor[types.WebSession, webSessionGetter] = webSessionExecutor{}
 type webTokenExecutor struct{}
 
 func (webTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebToken, error) {
-	return cache.WebToken.List(ctx)
+	return cache.WebToken.GetWebTokens(ctx)
 }
 
 func (webTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebToken) error {
-	return cache.webTokenCache.Upsert(ctx, resource)
+	return cache.webTokenCache.UpsertWebToken(ctx, resource)
 }
 
 func (webTokenExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.webTokenCache.DeleteAll(ctx)
+	return cache.webTokenCache.DeleteAllWebTokens(ctx)
 }
 
 func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
+	return cache.webTokenCache.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 		Token: resource.GetName(),
 	})
 }
@@ -1902,7 +1902,7 @@ func (webTokenExecutor) getReader(cache *Cache, cacheOK bool) webTokenGetter {
 }
 
 type webTokenGetter interface {
-	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }
 
 var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
@@ -2396,7 +2396,7 @@ var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dyna
 type kubeClusterExecutor struct{}
 
 func (kubeClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeCluster, error) {
-	return cache.Kubernetes.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, cache.Kubernetes.ListKubernetesClusters, cache.Kubernetes.GetKubernetesClusters)
 }
 
 func (kubeClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.KubeCluster) error {
@@ -2427,8 +2427,11 @@ func (kubeClusterExecutor) getReader(cache *Cache, cacheOK bool) kubernetesClust
 	return cache.Config.Kubernetes
 }
 
+var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
+
 type kubernetesClusterGetter interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 

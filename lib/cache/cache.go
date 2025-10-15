@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
@@ -561,7 +562,7 @@ type Cache struct {
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	webSessionCache              types.WebSessionInterface
-	webTokenCache                types.WebTokenInterface
+	webTokenCache                services.WebToken
 	windowsDesktopsCache         services.WindowsDesktops
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
@@ -790,7 +791,7 @@ type Config struct {
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
-	WebToken types.WebTokenInterface
+	WebToken services.WebToken
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
@@ -1175,7 +1176,7 @@ func New(config Config) (*Cache, error) {
 		snowflakeSessionCache:        identityService,
 		samlIdPSessionCache:          identityService,
 		webSessionCache:              identityService.WebSessions(),
-		webTokenCache:                identityService.WebTokens(),
+		webTokenCache:                identityService,
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
@@ -2598,7 +2599,20 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, rg.reader.ListKubernetesClusters, rg.reader.GetKubernetesClusters)
+}
+
+// ListKubernetesClusters returns all kubernetes cluster resources.
+func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesClusters")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeClusters)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListKubernetesClusters(ctx, limit, start)
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
@@ -2856,7 +2870,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.Get(ctx, req)
+	return rg.reader.GetWebToken(ctx, req)
 }
 
 // GetAuthPreference gets the cluster authentication config.

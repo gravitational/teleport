@@ -238,7 +238,9 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleInstance.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
-	connectionProblem := func(t require.TestingT, err error, i ...interface{}) {
+	require.NoError(t, teleInstance.WaitForNodeCount(t.Context(), helpers.Site, 1))
+
+	connectionProblem := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err, i...)
 		require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got: %v", err)
 	}
@@ -1130,7 +1132,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -2290,7 +2292,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd)
-	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tlooking up remote cluster \"wrong-site\"\n\t\tnot found"))
+	require.ErrorContains(t, err, "failed connecting to host localhost: looking up remote cluster \"wrong-site\"\n\tnot found")
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -7921,7 +7923,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	conn, details, err := modClusterClient.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
 	require.NoError(t, err)
 	sshConfig := modClusterClient.ProxyClient.SSHConfig(username)
-	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConn(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
+	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
 	require.NoError(t, err)
 
 	// We pass an empty channel which we close right away to ssh.NewClient

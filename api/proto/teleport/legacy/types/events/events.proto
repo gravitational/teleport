@@ -1815,6 +1815,7 @@ message Exec {
 }
 
 // SCP is emitted when data transfer has occurred between server and client
+// Deprecated: use SFTP
 message SCP {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [

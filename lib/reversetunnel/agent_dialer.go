@@ -94,7 +94,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 
 	// Build a new client connection. This is done to get access to incoming
 	// global requests which dialer.Dial would not provide.
-	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, pconn, addr.Addr, &ssh.ClientConfig{
 		User:            d.username,
 		Auth:            d.authMethods,
 		HostKeyCallback: callback,

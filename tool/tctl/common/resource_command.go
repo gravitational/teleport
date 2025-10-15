@@ -1909,7 +1909,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindKubernetesCluster:
-		clusters, err := client.GetKubernetesClusters(ctx)
+		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2735,7 +2736,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &databaseCollection{databases: databases}, nil
 	case types.KindKubernetesCluster:
-		clusters, err := client.GetKubernetesClusters(ctx)
+		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
