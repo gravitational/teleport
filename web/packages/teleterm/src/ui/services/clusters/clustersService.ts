@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createDraft } from 'immer';
+import { applyPatches, castDraft, enablePatches } from 'immer';
 
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
@@ -50,6 +50,8 @@ type ClustersServiceState = {
   gateways: Map<uri.GatewayUri, Gateway>;
 };
 
+enablePatches();
+
 export function createClusterServiceState(): ClustersServiceState {
   return {
     clusters: new Map(),
@@ -67,15 +69,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     private usageService: UsageService
   ) {
     super();
-    mainProcessClient.subscribeToClusterStore(e => {
-      if (e.kind === 'patches') {
-        this.setStateFromPatches('clusters', e.value);
-      } else {
-        this.setState(c => {
-          c.clusters = createDraft(e.value);
-        });
-      }
-    });
+    this.subscribeToClusterStore();
   }
 
   async addRootCluster(proxyAddress: string) {
@@ -483,5 +477,17 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
   useState() {
     return useStore(this).state;
+  }
+
+  private subscribeToClusterStore(): void {
+    this.mainProcessClient.subscribeToClusterStore(e => {
+      this.setState(c => {
+        if (e.kind === 'state') {
+          c.clusters = castDraft(e.value);
+          return;
+        }
+        applyPatches(c.clusters, e.value);
+      });
+    });
   }
 }
