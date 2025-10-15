@@ -59,6 +59,9 @@ test('adding a cluster does not overwrite an existing one', async () => {
   const clusterStore = new ClusterStore(mockClient);
 
   await clusterStore.sync(cluster.uri);
+  // addCluster call returns fewer details than getCluster,
+  // so clusterStore.add shouldn't overwrite details already acquired
+  // by clusterStore.sync.
   await clusterStore.add(cluster.uri);
 
   const state = clusterStore.getState();
