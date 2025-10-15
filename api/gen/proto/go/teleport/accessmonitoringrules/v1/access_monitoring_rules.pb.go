@@ -148,6 +148,8 @@ type AccessMonitoringRuleSpec struct {
 	DesiredState string `protobuf:"bytes,7,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
 	// schedules specifies a map of schedules that can be used to configure the
 	// access monitoring rule conditions.
+	//
+	// Available in Teleport v18.2.8 or higher.
 	Schedules     map[string]*Schedule `protobuf:"bytes,8,rep,name=schedules,proto3" json:"schedules,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
