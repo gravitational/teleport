@@ -1,5 +1,27 @@
 # Changelog
 
+## 17.7.8 (10/15/25)
+
+* Updated error messages displayed by `tsh ssh` when access to hosts is denied and when attempting to connect to a host that is offline or not enrolled in the cluster. [#60226](https://github.com/gravitational/teleport/pull/60226)
+* Fixed an issue in Teleport Connect where Ctrl+D would sometimes not close a terminal tab. [#60222](https://github.com/gravitational/teleport/pull/60222)
+* Added support for PodSecurityContext to `tbot` helm chart. [#60207](https://github.com/gravitational/teleport/pull/60207)
+* MWI: Add `teleport_bot_instances` metric. [#60205](https://github.com/gravitational/teleport/pull/60205)
+* The `tbot` Workload API now logs errors encountered when handling requests. [#60192](https://github.com/gravitational/teleport/pull/60192)
+* Added explicit timeout to tbot when the Trust Bundle Cache is establishing an event watch. [#60187](https://github.com/gravitational/teleport/pull/60187)
+* Fixed a bug where OpenSSH EICE node connections would fail. [#60125](https://github.com/gravitational/teleport/pull/60125)
+* Updated Go to 1.24.9. [#60114](https://github.com/gravitational/teleport/pull/60114)
+* Fixed SFTP audit events breaking the audit log. [#60070](https://github.com/gravitational/teleport/pull/60070)
+* Fixed excessive memory usage on Teleport Proxy Service instances when using the the Teleport Web UI PostgreSQL REPL. [#60001](https://github.com/gravitational/teleport/pull/60001)
+* Fixed `tsh scp` getting stuck in symlink loops. [#59995](https://github.com/gravitational/teleport/pull/59995)
+* Fixed handling of local `tsh scp` targets that contain a colon. [#59982](https://github.com/gravitational/teleport/pull/59982)
+* Fixed issue where temporarily unreachable app servers were permanently removed from session cache, causing persistent connection failures: `no application servers remaining to connect`. [#59955](https://github.com/gravitational/teleport/pull/59955)
+* Fixed the issue with automatic access requests for `tsh ssh` when `spec.allow.request.max_duration` is set on the requester role. [#59925](https://github.com/gravitational/teleport/pull/59925)
+* Fixes a bug with the check for a running Teleport process in the install-node.sh script. [#59888](https://github.com/gravitational/teleport/pull/59888)
+* MWI: The `kubernetes/v2` output now supports customizing context names with a template. [#59740](https://github.com/gravitational/teleport/pull/59740)
+* Updated mongo-driver to v1.17.4 to include fixes for possible connection leaks that could affect Teleport Database Service instances. [#59733](https://github.com/gravitational/teleport/pull/59733)
+* The event-handler plugin will now skip over Windows desktop session recording events by default. [#59682](https://github.com/gravitational/teleport/pull/59682)
+* MWI: The `kubernetes/argo-cd` output now supports customizing cluster names with a template. [#59576](https://github.com/gravitational/teleport/pull/59576)
+
 ## 17.7.7 (09/29/25)
 
 * Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59669](https://github.com/gravitational/teleport/pull/59669)
