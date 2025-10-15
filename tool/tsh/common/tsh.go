@@ -5068,7 +5068,7 @@ func onShow(cf *CLIConf) error {
 }
 
 func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock) string {
-	duration := clock.Until(validUntil)
+	duration := validUntil.Sub(clock.Now())
 	switch {
 	case duration <= 0:
 		return "EXPIRED"
