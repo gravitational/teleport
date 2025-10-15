@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -464,6 +465,39 @@ func (r *IdentityService) GetWebTokens(ctx context.Context) (out []types.WebToke
 		out = append(out, token)
 	}
 	return out, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (r *IdentityService) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(webPrefix, tokensPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, tokensPrefix))
+
+	var out []types.WebToken
+	result, err := r.Backend.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, item := range result.Items {
+		token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
+
+		if err != nil {
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, token.GetToken(), nil
+		}
+
+		out = append(out, token)
+	}
+
+	return out, "", nil
 }
 
 // UpsertWebToken updates the existing or inserts a new web token.

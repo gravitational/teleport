@@ -2795,6 +2795,34 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	return rg.reader.GetWebToken(ctx, req)
 }
 
+func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWebTokens")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.webTokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer rg.Release()
+	return rg.reader.GetWebTokens(ctx)
+}
+
+// ListWebTokens returns a page of web tokens
+func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWebTokens")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.webTokens)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	defer rg.Release()
+	return rg.reader.ListWebTokens(ctx, limit, start)
+
+}
+
 // GetAuthPreference gets the cluster authentication config.
 func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
