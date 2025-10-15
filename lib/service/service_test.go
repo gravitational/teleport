@@ -1057,13 +1057,6 @@ func TestInstanceSelfRepair(t *testing.T) {
 	// the previous Instance and Proxy certs, but enable the SSH service and
 	// provide the token that allows only role Node.
 	process = newStartedProcess(sshToken.GetName(), true)
-	// Wait for the TeleportCredentialsUpdatedEvent which will be emitted after
-	// the rotation logic detects the dangling system role and repairs the
-	// Instance identity.
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-	defer cancel()
-	_, err = process.WaitForEvent(ctx, TeleportCredentialsUpdatedEvent)
-	require.NoError(t, err)
 	// Get the new Instance identity and make sure it includes both the Proxy
 	// and Node system roles.
 	instanceConnector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
@@ -1072,6 +1065,12 @@ func TestInstanceSelfRepair(t *testing.T) {
 	instanceID := instanceConnector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, instanceID.ID.Role)
 	assert.ElementsMatch(t, []string{types.RoleProxy.String(), types.RoleNode.String()}, instanceID.SystemRoles)
+	// Make sure the SSH identity becomes available.
+	sshConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
+	require.NoError(t, err)
+	require.NotNil(t, sshConnector)
+	sshID := sshConnector.clientState.Load().identity
+	require.Equal(t, types.RoleNode, sshID.ID.Role)
 	// Close the process to clean up.
 	require.NoError(t, process.Close())
 	require.NoError(t, process.Wait())
