@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -57,7 +58,7 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	}
 	slog.InfoContext(ctx, "Trying to join with the new join service")
 	result, err := joinNew(ctx, params)
-	if trace.IsNotImplemented(err) {
+	if trace.IsNotImplemented(err) || errors.As(err, new(*connectionError)) {
 		// Fall back to joining via legacy service.
 		slog.InfoContext(ctx, "Falling back to joining via the legacy join service", "error", err)
 		// Non-bots must generate their own host UUID when joining via legacy service.
@@ -129,7 +130,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, &connectionError{trace.Wrap(err, "building proxy client")}
 	}
 	defer conn.Close()
 	return joinWithClient(ctx, params, joinv1.NewClientFromConn(conn))
@@ -138,7 +139,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 func joinViaAuth(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	authClient, err := authjoin.NewAuthClient(ctx, params)
 	if err != nil {
-		return nil, trace.Wrap(err, "building auth client")
+		return nil, &connectionError{trace.Wrap(err, "building auth client")}
 	}
 	defer authClient.Close()
 	return joinViaAuthClient(ctx, params, authClient)
@@ -168,7 +169,10 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer cancel()
 	stream, err := client.Join(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Connection errors are usually delayed until the first request is
+		// attempted, wrap with a connectionError here to allow a fallback to
+		// the legacy join method.
+		return nil, &connectionError{trace.Wrap(err, "initiating join stream")}
 	}
 	defer stream.CloseSend()
 
@@ -362,4 +366,16 @@ func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (cry
 		PublicTLSKey: tlsPub,
 		PublicSSHKey: sshPub.Marshal(),
 	}, nil
+}
+
+type connectionError struct {
+	wrapped error
+}
+
+func (e *connectionError) Error() string {
+	return e.wrapped.Error()
+}
+
+func (e *connectionError) Unwrap() error {
+	return e.wrapped
 }
