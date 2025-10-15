@@ -707,6 +707,10 @@ export default class MainProcess {
       this.clusterStore.sync(args.clusterUri)
     );
 
+    ipcMain.handle(MainProcessIpc.Logout, (_, args) =>
+      this.clusterStore.logout(args.clusterUri)
+    );
+
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
       const port = ev.ports[0];
       this.clusterStore.registerSender(new AwaitableSender(port));
