@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/utils/batcher"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -135,7 +136,27 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 		}
 	}
 
-	go r.runTriggerLoop(ctx, queueReconcileFn)
+	sm, err := batcher.NewStateMonitor(batcher.StateConfig{
+		Threshold:             maxBatchQueueSize,
+		OverloadedIdleTimeout: 2 * batchWindow,
+		Clock:                 r.clock,
+		OnExitOverloaded: func() {
+			r.logger.InfoContext(ctx, "IneligibleStatusReconciler has exited overloaded mode. Resuming event-based reconciliation.")
+			queueReconcileFn()
+		},
+		OnEnterOverloaded: func() {
+			r.logger.WarnContext(ctx,
+				"IneligibleStatusReconciler has entered overloaded mode due to high event volume. "+
+					"Event-driven reconciliations will be delayed, but periodic reconciliations will continue to ensure eventual consistency.",
+			)
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sm.Stop()
+
+	go r.runTriggerLoop(ctx, queueReconcileFn, sm)
 	for {
 		select {
 		case <-ctx.Done():
@@ -163,18 +184,60 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 	}
 }
 
-func (r *IneligibleStatusReconciler) runTriggerLoop(ctx context.Context, queueReconcile func()) {
+func (r *IneligibleStatusReconciler) runTriggerLoop(ctx context.Context, queueReconcile func(), sm *batcher.StateMonitor) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	batchedEventsC := r.startBatchingEvents(ctx, r.watcher, sm)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-r.watcher.Done():
 			return
-		case <-r.watcher.Events():
-			// Got an Access List/Membership/User event.
+		case batch, ok := <-batchedEventsC:
+			if !ok {
+				return
+			}
+			if batch.State == batcher.StateOverloaded {
+				// In overloaded state we skip reconciliation till we exit overloaded state.
+				// This means we will reconcile when receiving less than 5 events per 20 seconds.
+				// This is done because IneligibleStatus reconciliation is not time-critical, and
+				// we want to avoid excessive load on CPU during actions like EntraID group imports
+				// where many access list members can be updated is a short period of time.
+				continue
+			}
+			queueReconcile()
 		}
-		queueReconcile()
 	}
+}
+
+const (
+	maxBatchQueueSize = 10
+	batchWindow       = 20 * time.Second
+)
+
+type batchWithState struct {
+	events []types.Event
+	batcher.State
+}
+
+func (r *IneligibleStatusReconciler) startBatchingEvents(ctx context.Context, w types.Watcher, sm *batcher.StateMonitor) chan batchWithState {
+	batchedEventsC := make(chan batchWithState)
+	go func() {
+		defer close(batchedEventsC)
+		if err := batcher.RunWithState(ctx, w.Events(), func(batch []types.Event, state batcher.State) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case batchedEventsC <- batchWithState{events: batch, State: state}:
+				return nil
+			}
+		}, sm, batcher.WithWindow(batchWindow), batcher.WithThreshold(maxBatchQueueSize), batcher.WithClock(r.clock)); err != nil {
+			r.logger.ErrorContext(ctx, "Event batching failed", "error", err)
+		}
+	}()
+	return batchedEventsC
 }
 
 // Close closes the reconciler.

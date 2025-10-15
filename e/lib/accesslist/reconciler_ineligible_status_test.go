@@ -6,15 +6,19 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
 func TestNewIneligibleStatusReconciler(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		waitForBatchWindow := func() {
+			time.Sleep(batchWindow)
+			synctest.Wait()
+		}
 		clock := clockwork.NewRealClock()
 		c := initSvc(t, withClock(clock))
 		synctest.Wait()
@@ -38,21 +42,20 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 			[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2, externalMemberWithIdentityCenterOrigin})
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
-			require.NoError(t, err)
-			for _, member := range members {
-				require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
-			}
-		}, 5*time.Second, 100*time.Millisecond)
+		waitForBatchWindow()
+		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		require.NoError(t, err)
+		for _, member := range members {
+			require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
+		}
 
 		// Update the access list member with non-existent account and without identity center origin label.
 		externalMemberWithoutOrigin := newAccessListMember(t, a3.GetName(), externalMember2, accesslist.MembershipKindUser, c.clock)
 		createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 			[]*accesslist.AccessList{}, []*accesslist.AccessListMember{externalMemberWithoutOrigin})
 
-		synctest.Wait()
-		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		waitForBatchWindow()
+		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
 		for _, member := range members {
 			switch member.Spec.Name {
@@ -71,8 +74,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		_, err = c.testEnv.identity.UpdateUser(c.userCtx, user)
 		require.NoError(t, err)
 
-		// Wait for the reconciler to update the status.
-		synctest.Wait()
+		waitForBatchWindow()
 		// Check that the access list member is now ineligible.
 		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
@@ -91,7 +93,8 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		user.GetTraits()["mtrait1"] = []string{"mvalue1", "mvalue2"}
 		_, err = c.testEnv.identity.UpdateUser(c.userCtx, user)
 		require.NoError(t, err)
-		synctest.Wait()
+
+		waitForBatchWindow()
 		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
 		for _, member := range members {
@@ -104,8 +107,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		_, err = c.testEnv.accessLists.UpsertAccessList(c.userCtx, a1)
 		require.NoError(t, err)
 
-		// Wait for the reconciler to update the status.
-		synctest.Wait()
+		waitForBatchWindow()
 		// Check that the access list member is now ineligible.
 		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
 		require.NoError(t, err)
@@ -125,7 +127,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		_, err = c.testEnv.accessLists.UpsertAccessList(c.userCtx, a1)
 		require.NoError(t, err)
 
-		synctest.Wait()
+		waitForBatchWindow()
 		al, err := c.testEnv.accessLists.GetAccessList(c.userCtx, a1.GetName())
 		require.NoError(t, err)
 		require.Len(t, al.Spec.Owners, 4)
@@ -145,5 +147,78 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 				require.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
 			}
 		}
+	})
+}
+
+// TestIneligibleStatusReconcilerBatcher triggers multiple changes within the batch window
+// and test the StateOverloaded state where no reconciliation action taken till the events thought settle down.
+func TestIneligibleStatusReconcilerBatcher(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := clockwork.NewRealClock()
+		c := initSvc(t, withClock(clock))
+
+		userService := c.testEnv.identity
+		synctest.Wait()
+
+		a1 := newAccessList(t, "1", c.clock)
+		a1.Spec.MembershipRequires = accesslist.Requires{
+			Traits: map[string][]string{"want_trait": {}},
+		}
+		a1m1 := newAccessListMember(t, a1.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+
+		createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+			[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1})
+
+		assertMemberIllegalityStatus := func(wantStatus string) {
+			m, err := c.testEnv.accessLists.GetAccessListMember(t.Context(), a1.GetName(), member1)
+			require.NoError(t, err)
+			require.Equal(t, wantStatus, m.Spec.IneligibleStatus)
+		}
+
+		emitUserChange := func(changeFn func(u types.User)) {
+			u, err := userService.GetUser(t.Context(), member1, false)
+			require.NoError(t, err)
+			if changeFn != nil {
+				changeFn(u)
+			}
+			_, err = userService.UpsertUser(t.Context(), u)
+			require.NoError(t, err)
+		}
+
+		// Eligibility reconsider haven't run yet, status should be empty.
+		assertMemberIllegalityStatus("")
+
+		// Trigger an eligibility by string time exceeding batch window.
+		// All changes to user within the batch window should be coalesced
+		// and only one reconciliation should be performed
+		time.Sleep(batchWindow)
+		synctest.Wait()
+		assertMemberIllegalityStatus("INELIGIBLE_STATUS_MISSING_REQUIREMENTS")
+
+		// Triggers multiple changes to the user within the batch window.
+		// No action should be taken yet since many changes triggers height load mode
+		// that waits will events to settle down.
+		for range maxBatchQueueSize {
+			emitUserChange(func(u types.User) {
+				u.SetTraits(nil)
+			})
+		}
+		time.Sleep(batchWindow)
+		synctest.Wait()
+		assertMemberIllegalityStatus("INELIGIBLE_STATUS_MISSING_REQUIREMENTS")
+
+		// The events thought settled down and is below the HighLoadThreshold.
+		// This should trigger the eligibility reconciliation.
+		for range maxBatchQueueSize / 3 {
+			emitUserChange(func(u types.User) {
+				u.SetTraits(map[string][]string{
+					"want_trait": {"some_value"},
+				})
+			})
+		}
+
+		time.Sleep(batchWindow)
+		synctest.Wait()
+		assertMemberIllegalityStatus("INELIGIBLE_STATUS_ELIGIBLE")
 	})
 }
