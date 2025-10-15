@@ -47,7 +47,14 @@ func inSchedule(schedule *accessmonitoringrulesv1.Schedule, timestamp time.Time)
 		return false, nil
 	}
 
+	loc, err := time.LoadLocation(schedule.GetTime().GetTimezone())
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	timestamp = timestamp.In(loc)
 	weekday := timestamp.Weekday().String()
+
 	for _, shift := range schedule.GetTime().GetShifts() {
 		if weekday != shift.Weekday {
 			continue
