@@ -19,7 +19,8 @@ RUN tar -xzvf /plugin.tar.gz && \
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
-FROM --platform=${TARGETPLATFORM} ${BASE_IMAGE}
+# --platform=${TARGETPLATFORM} is set by default and the docker linter complains if we set it.
+FROM ${BASE_IMAGE}
 WORKDIR /
 COPY --from=extractor /teleport-plugin /usr/local/bin/teleport-plugin
 
