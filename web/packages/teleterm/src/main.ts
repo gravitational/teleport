@@ -95,7 +95,7 @@ async function initializeApp(): Promise<void> {
 
   let mainProcess: MainProcess;
   try {
-    mainProcess = MainProcess.create({
+    mainProcess = new MainProcess({
       settings,
       logger,
       configService,

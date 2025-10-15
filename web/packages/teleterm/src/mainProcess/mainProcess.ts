@@ -132,7 +132,14 @@ export default class MainProcess {
   private readonly appUpdater: AppUpdater;
   public clusterStore: ClusterStore;
 
-  private constructor(opts: Options) {
+  /**
+   * Starts necessary child processes such as tsh daemon and the shared process. It also sets
+   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
+   * servers.
+   *
+   * Might throw an error if spawning a child process fails, see initTshd for more details.
+   */
+  constructor(opts: Options) {
     enablePatches();
     enableMapSet();
     this.settings = opts.settings;
@@ -194,17 +201,6 @@ export default class MainProcess {
     this.getTshdClients().then(clients => {
       this.clusterStore = new ClusterStore(clients.terminalService);
     });
-  }
-
-  /**
-   * create starts necessary child processes such as tsh daemon and the shared process. It also sets
-   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
-   * servers.
-   *
-   * create might throw an error if spawning a child process fails, see initTshd for more details.
-   */
-  static create(opts: Options) {
-    return new MainProcess(opts);
   }
 
   async dispose(): Promise<void> {
