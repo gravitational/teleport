@@ -7696,7 +7696,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 	srv := newTestTLSServer(t)
 	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
 
-	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	client, err := srv.NewClient(TestBuiltin(types.RoleDatabase))
 	require.NoError(t, err)
 	ctx := t.Context()
 	opts := []cmp.Option{
