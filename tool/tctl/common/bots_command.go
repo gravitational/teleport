@@ -617,15 +617,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		return nil
 	}
 
-	t := asciitable.MakeTable([]string{"ID", "Join Method", "Hostname", "Joined", "Last Seen", "Generation"})
+	t := asciitable.MakeTable([]string{"ID", "Join Method", "Version (tbot)", "Hostname", "Last Seen"})
 	for _, i := range instances {
 		var (
 			joinMethod string
 			hostname   string
-			generation string
+			version    string
 		)
 
-		joined := i.Status.InitialAuthentication.AuthenticatedAt.AsTime().Format(time.RFC3339)
 		initialJoinMethod := cmp.Or(
 			i.Status.InitialAuthentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
 			i.Status.InitialAuthentication.JoinMethod,
@@ -633,12 +632,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 
 		lastSeen := i.Status.InitialAuthentication.AuthenticatedAt.AsTime()
 
-		if len(i.Status.LatestAuthentications) == 0 {
-			generation = "n/a"
-		} else {
+		if len(i.Status.LatestAuthentications) > 0 {
 			auth := i.Status.LatestAuthentications[len(i.Status.LatestAuthentications)-1]
-
-			generation = fmt.Sprint(auth.Generation)
 
 			authJM := cmp.Or(
 				auth.GetJoinAttrs().GetMeta().GetJoinMethod(),
@@ -657,11 +652,13 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		}
 
 		if len(i.Status.LatestHeartbeats) == 0 {
-			hostname = "n/a"
+			hostname = "-"
+			version = "-"
 		} else {
 			hb := i.Status.LatestHeartbeats[len(i.Status.LatestHeartbeats)-1]
 
 			hostname = hb.Hostname
+			version = hb.Version
 
 			if hb.RecordedAt.AsTime().After(lastSeen) {
 				lastSeen = hb.RecordedAt.AsTime()
@@ -670,7 +667,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 
 		t.AddRow([]string{
 			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
-			hostname, joined, lastSeen.Format(time.RFC3339), generation,
+			version, hostname, lastSeen.Format(time.RFC3339),
 		})
 	}
 	fmt.Fprintln(c.stdout, t.AsBuffer().String())
