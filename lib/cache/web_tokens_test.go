@@ -30,29 +30,58 @@ func TestWebTokens(t *testing.T) {
 	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	testResources(t, p, testFuncs[types.WebToken]{
-		newResource: func(name string) (types.WebToken, error) {
-			return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
-				Token: name,
-				User:  "llama",
-			})
-		},
-		create: p.webTokenS.UpsertWebToken,
-		update: p.webTokenS.UpsertWebToken,
-		cacheGet: func(ctx context.Context, token string) (types.WebToken, error) {
-			return p.cache.GetWebToken(ctx, types.GetWebTokenRequest{
-				Token: token,
-				User:  "llama",
-			})
-		},
-		list:      getAllAdapter(p.webTokenS.GetWebTokens),
-		cacheList: getAllAdapter(p.cache.GetWebTokens),
-		deleteAll: p.webTokenS.DeleteAllWebTokens,
-		delete: func(ctx context.Context, token string) error {
-			return p.webTokenS.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
-				Token: token,
-				User:  "llama",
-			})
-		},
-	}, withSkipPaginationTest())
+	t.Run("GetWebTokens", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.WebToken]{
+			newResource: func(name string) (types.WebToken, error) {
+				return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
+					Token: name,
+					User:  "llama",
+				})
+			},
+			create: p.webTokenS.UpsertWebToken,
+			update: p.webTokenS.UpsertWebToken,
+			cacheGet: func(ctx context.Context, token string) (types.WebToken, error) {
+				return p.cache.GetWebToken(ctx, types.GetWebTokenRequest{
+					Token: token,
+					User:  "llama",
+				})
+			},
+			list:      getAllAdapter(p.webTokenS.GetWebTokens),
+			cacheList: getAllAdapter(p.cache.GetWebTokens),
+			deleteAll: p.webTokenS.DeleteAllWebTokens,
+			delete: func(ctx context.Context, token string) error {
+				return p.webTokenS.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
+					Token: token,
+					User:  "llama",
+				})
+			},
+		}, withSkipPaginationTest())
+	})
+	t.Run("ListWebTokens", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.WebToken]{
+			newResource: func(name string) (types.WebToken, error) {
+				return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
+					Token: name,
+					User:  "llama",
+				})
+			},
+			create: p.webTokenS.UpsertWebToken,
+			update: p.webTokenS.UpsertWebToken,
+			cacheGet: func(ctx context.Context, token string) (types.WebToken, error) {
+				return p.cache.GetWebToken(ctx, types.GetWebTokenRequest{
+					Token: token,
+					User:  "llama",
+				})
+			},
+			list:      p.webTokenS.ListWebTokens,
+			cacheList: p.cache.ListWebTokens,
+			deleteAll: p.webTokenS.DeleteAllWebTokens,
+			delete: func(ctx context.Context, token string) error {
+				return p.webTokenS.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
+					Token: token,
+					User:  "llama",
+				})
+			},
+		})
+	})
 }
