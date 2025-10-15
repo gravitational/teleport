@@ -135,6 +135,7 @@ func newTestPack(
 		// This uses lower bcrypt costs for faster tests.
 		Identity:               identityService,
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	p.a, err = auth.NewServer(authConfig, opts...)
 	if err != nil {
@@ -1226,6 +1227,7 @@ func TestUpdateConfig(t *testing.T) {
 		VersionStorage:         s.versionStorage,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -5086,6 +5088,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				Emitter:                &eventstest.MockRecorderEmitter{},
 				ClusterConfiguration:   clusterConfigService,
 				SkipPeriodicOperations: true,
+				HostUUID:               uuid.NewString(),
 			})
 			require.NoError(t, err)
 

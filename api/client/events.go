@@ -128,6 +128,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_AutoUpdateAgentReport{
 				AutoUpdateAgentReport: r,
 			}
+		case *autoupdate.AutoUpdateBotInstanceReport:
+			out.Resource = &proto.Event_AutoUpdateBotInstanceReport{
+				AutoUpdateBotInstanceReport: r,
+			}
 		case *identitycenterv1.Account:
 			out.Resource = &proto.Event_IdentityCenterAccount{
 				IdentityCenterAccount: r,
@@ -617,6 +621,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateAgentReport(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateBotInstanceReport(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {
