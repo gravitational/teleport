@@ -732,9 +732,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			teleport.ComponentKey,
 			teleport.Component(teleport.ComponentAuth, "bot-version-reporter"),
 		),
-		Semaphores: as,
+		Semaphores: &as,
 		HostUUID:   cfg.HostUUID,
-		Store:      as,
+		Store:      &as,
 		Cache:      as.Cache,
 	})
 	if err != nil {
