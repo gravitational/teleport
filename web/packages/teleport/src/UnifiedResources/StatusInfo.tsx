@@ -18,6 +18,7 @@
 
 import {
   DatabaseServer,
+  KubeServer,
   SharedResourceServer,
   UnifiedResourceDefinition,
   useResourceServersFetch,
@@ -25,6 +26,7 @@ import {
 import { UnhealthyStatusInfo } from 'shared/components/UnifiedResources/shared/StatusInfo';
 
 import { fetchDatabaseServers } from 'teleport/services/databases/databases';
+import { fetchKubeServers } from 'teleport/services/kube/kube';
 
 export function StatusInfo({
   resource,
@@ -42,24 +44,45 @@ export function StatusInfo({
     attempt: fetchResourceServersAttempt,
   } = useResourceServersFetch<SharedResourceServer>({
     fetchFunc: async (params, signal) => {
-      if (resource.kind === 'db') {
-        const response = await fetchDatabaseServers({
-          clusterId,
-          params: {
-            ...params,
-            query: `name == "${resource.name}"`,
-            searchAsRoles: resource.requiresRequest ? 'yes' : '',
-          },
-          signal,
-        });
-        const servers: DatabaseServer[] = response.agents.map(d => ({
-          kind: 'db_server',
-          ...d,
-        }));
-        return {
-          agents: servers,
-          startKey: response.startKey,
-        };
+      switch (resource.kind) {
+        case 'db': {
+          const response = await fetchDatabaseServers({
+            clusterId,
+            params: {
+              ...params,
+              query: `name == "${resource.name}"`,
+              searchAsRoles: resource.requiresRequest ? 'yes' : '',
+            },
+            signal,
+          });
+          const servers: DatabaseServer[] = response.agents.map(d => ({
+            kind: 'db_server',
+            ...d,
+          }));
+          return {
+            agents: servers,
+            startKey: response.startKey,
+          };
+        }
+        case 'kube_cluster': {
+          const response = await fetchKubeServers({
+            clusterId,
+            params: {
+              ...params,
+              query: `name == "${resource.name}"`,
+              searchAsRoles: resource.requiresRequest ? 'yes' : '',
+            },
+            signal,
+          });
+          const servers: KubeServer[] = response.agents.map(d => ({
+            kind: 'kube_server',
+            ...d,
+          }));
+          return {
+            agents: servers,
+            startKey: response.startKey,
+          };
+        }
       }
     },
   });

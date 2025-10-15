@@ -1206,6 +1206,9 @@ func mustMakeDiscoveryConfig(t *testing.T, ig types.Integration) *discoveryconfi
 					Types:       []string{"ec2"},
 					Regions:     []string{"us-west-2"},
 					Integration: ig.GetName(),
+					Params: &types.InstallerParams{
+						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					},
 				},
 			},
 		},

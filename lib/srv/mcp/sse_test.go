@@ -75,12 +75,11 @@ func Test_handleStdioToSSE(t *testing.T) {
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 	require.NotEmpty(t, startEvent.McpSessionId)
 
-	resp, err := mcptest.InitializeClient(ctx, stdioClient)
-	require.NoError(t, err)
+	resp := mcptest.MustInitializeClient(t, stdioClient)
 	require.Equal(t, "test-server", resp.ServerInfo.Name)
 
 	// Make a tools call.
-	mcptest.MustCallServerTool(t, ctx, stdioClient)
+	mcptest.MustCallServerTool(t, stdioClient)
 
 	// Now close the client.
 	stdioClient.Close()
