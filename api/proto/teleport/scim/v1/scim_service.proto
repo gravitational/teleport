@@ -44,7 +44,7 @@ service SCIMService {
 
 // ListSCIMResourcesRequest represents a request to fetch multiple resources
 message ListSCIMResourcesRequest {
-  // Target describes the set of requested by the client, vy integration and
+  // Target describes the set of requested by the client, by integration and
   // resource type.
   RequestTarget target = 1;
 
@@ -82,7 +82,7 @@ message UpdateSCIMResourceRequest {
   Resource resource = 2;
 }
 
-// DeleteSCIMResourceRequest describes a request to delete a SCIM-mamanged
+// DeleteSCIMResourceRequest describes a request to delete a SCIM-mananged
 // resource
 message DeleteSCIMResourceRequest {
   // Target is the owner, type and ID if the resource targeted by the request.
