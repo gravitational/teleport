@@ -261,12 +261,10 @@ export default function createMainProcessClient(): MainProcessClient {
           ),
       };
     },
-    subscribeToClusterStore(listener) {
-      const { port, close } = makeAwaitableReceiver(listener);
-      ipcRenderer.postMessage(
+    subscribeToClusterStore: listener => {
+      const { close } = startAwaitableSenderListener(
         MainProcessIpc.InitClusterStoreSubscription,
-        undefined,
-        [port]
+        listener
       );
 
       return {
