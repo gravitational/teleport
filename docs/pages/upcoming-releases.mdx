@@ -37,9 +37,9 @@ Teleport's web UI will list all workload identity resources registered in the cl
 #### Relay Service
 
 Teleport will ship with a new relay service that acts as a lightweight proxy service,
-receiving connections from both clients and agents. 
+receiving connections from both SSH clients and agents. 
 
-The relay service can be used to avoid routing connections through the broader Teleport
+The relay service can be used to avoid routing SSH connections through the broader Teleport
 control plane, providing the ability to optimize network flows in large or complex deployments.
 
 #### Multi-cluster Discovery
@@ -64,7 +64,7 @@ overview of the versions of all bot instances in the cluster.
 
 #### Kubernetes support for Relay Service
 
-TODO(rosstimothy)
+The relay service will be extended to facilitate Kubernetes connections.
 
 ## Teleport Cloud
 
