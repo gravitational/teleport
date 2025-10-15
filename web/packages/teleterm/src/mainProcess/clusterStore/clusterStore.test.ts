@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { enableMapSet, enablePatches } from 'immer';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockTshClient } from 'teleterm/services/tshd/fixtures/mocks';
 import {
@@ -24,6 +26,9 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ClusterStore } from './clusterStore';
+
+enablePatches();
+enableMapSet();
 
 const cluster = makeRootCluster({ connected: false });
 const clusterWithDetails = makeRootCluster({
