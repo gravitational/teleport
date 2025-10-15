@@ -32,6 +32,7 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
+import { enableMapSet, enablePatches } from 'immer';
 
 import { AbortError } from 'shared/utils/error';
 
@@ -132,6 +133,8 @@ export default class MainProcess {
   public clusterStore: ClusterStore;
 
   private constructor(opts: Options) {
+    enablePatches();
+    enableMapSet();
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;

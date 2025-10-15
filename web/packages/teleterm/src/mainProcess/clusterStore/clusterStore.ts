@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { enablePatches, Patch, Producer, produceWithPatches } from 'immer';
+import { Patch, Producer, produceWithPatches } from 'immer';
 
 import {
   Cluster,
@@ -39,8 +39,6 @@ export type ClusterStoreUpdate =
   | { kind: 'patches'; value: Patch[] }
   /** The full state, useful to get the initial state on the other side. */
   | { kind: 'state'; value: State };
-
-enablePatches();
 
 export class ClusterStore {
   private senders = new Set<AwaitableSender<ClusterStoreUpdate>>();
