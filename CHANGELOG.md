@@ -22,9 +22,6 @@
 * The event-handler plugin will now skip over Windows desktop session recording events by default. [#59682](https://github.com/gravitational/teleport/pull/59682)
 * MWI: The `kubernetes/argo-cd` output now supports customizing cluster names with a template. [#59576](https://github.com/gravitational/teleport/pull/59576)
 
-Enterprise:
-
-
 ## 17.7.7 (09/29/25)
 
 * Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59669](https://github.com/gravitational/teleport/pull/59669)
