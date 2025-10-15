@@ -24,6 +24,12 @@ certificates, the certificate written by `tctl auth sign` includes the names of
 a Teleport user and that user's roles. TLS or SSH clients can then load the
 certificate in order to authenticate to Teleport as the impersonated user.
 
+<Admonition type="note" title="Machine & Workload Identity Advisory">
+  [Machine & Workload Identity](../../machine-workload-identity/machine-workload-identity.mdx) is the recommended best practice for issuing
+  Non-Human Identities (NHI) over impersonation. Multiple deployment options (GitHub Actions, Kubernetes,...) are 
+  supported and controls on verifying the machine for the identity issuance.
+</Admonition>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
