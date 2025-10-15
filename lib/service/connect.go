@@ -496,7 +496,7 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	id := state.IdentityID{
 		Role:     role,
 		HostUUID: instanceIdentity.ID.HostUUID,
-		NodeName: instanceIdentity.ID.NodeName,
+		NodeName: process.Config.Hostname,
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, id.HostID())
 	if err != nil {
