@@ -5783,6 +5783,27 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 	return sessions, nil
 }
 
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	sessions, nextKey, err := a.authServer.ListSnowflakeSessions(ctx, limit, startKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return sessions, nextKey, nil
+
+}
+
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
 // TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {

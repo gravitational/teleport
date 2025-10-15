@@ -1836,7 +1836,8 @@ var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
 type snowflakeSessionExecutor struct{}
 
 func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	webSessions, err := cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	webSessions, err := clientutils.CollectWithFallback(ctx, cache.SnowflakeSession.ListSnowflakeSessions, cache.SnowflakeSession.GetSnowflakeSessions)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1875,6 +1876,8 @@ func (snowflakeSessionExecutor) getReader(cache *Cache, cacheOK bool) snowflakeS
 
 type snowflakeSessionGetter interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
+	GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error)
 }
 
 var _ executor[types.WebSession, snowflakeSessionGetter] = snowflakeSessionExecutor{}
