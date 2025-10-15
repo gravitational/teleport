@@ -8,7 +8,7 @@
 import os
 import SwiftUI
 
-let logger = Logger(
+private let logger = Logger(
   subsystem: Bundle.main.bundleIdentifier ?? "Foobar",
   category: String(describing: ContentView.self)
 )
