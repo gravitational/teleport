@@ -67,19 +67,29 @@ type TypeInfo struct {
 	Name string `yaml:"name"`
 }
 
+// ResourceConfig describes a resource type to include in the reference.
+type ResourceConfig struct {
+	// The name of the struct type as declared in the Go source, e.g.,
+	// RoleV6.
+	TypeName string
+	// The name of the resource to include in the docs, e.g., Role v6.
+	FriendlyName string
+	// The value of the "kind" field within a YAML manifest for this
+	// resource, e.g., "role".
+	KindValue string
+	// The value of the "version" field within a YAML manifest for this
+	// resource, e.g., "v6".
+	VersionValue string
+}
+
 // GeneratorConfig is the user-facing configuration for the resource reference
 // generator.
 type GeneratorConfig struct {
-	// Field types that a type must have to be included in the reference. A
-	// type must have one of these field types to be included in the
-	// reference. The fields named here can be embedded fields.
-	RequiredFieldTypes []TypeInfo `yaml:"required_field_types"`
+	Resources []ResourceConfig
 	// Path to the root of the Go project directory.
 	SourcePath string `yaml:"source"`
 	// Directory where the generator writes reference pages.
 	DestinationDirectory string `yaml:"destination"`
-	// Struct types to exclude from the reference.
-	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
 }
 
 // UnmarshalYAML checks that the GeneratorConfig includes all required fields and, if
@@ -92,8 +102,6 @@ func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
 	switch {
 	case c.DestinationDirectory == "":
 		return errors.New("no destination path provided")
-	case len(c.RequiredFieldTypes) == 0:
-		return errors.New("must provide a list of required field types")
 	case c.SourcePath == "":
 		return errors.New("must provide a source path")
 	default:
@@ -130,11 +138,9 @@ func getPackageInfoFromExpr(expr ast.Expr) resource.PackageInfo {
 
 // shouldProcess indicates whether we should generate reference entries from the
 // type declaration represented in d (i.e., whether this is a dynamic resource
-// type). To do so, it checks whether d:
-//   - is a struct type
-//   - has fields with the required types
-//   - does not belong to the list of excluded resources
-func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources []TypeInfo) bool {
+// type). To do so, it checks whether d has one of the resource types specified
+// in resourceTypeNames.
+func shouldProcess(d resource.DeclarationInfo, resourceTypeNames map[string]struct{}) bool {
 	// We expect the declaration to be a type declaration with one spec.
 	gendecl, ok := d.Decl.(*ast.GenDecl)
 	if !ok {
@@ -156,58 +162,17 @@ func shouldProcess(d resource.DeclarationInfo, requiredTypes, excludedResources 
 
 	// If the declaration type is not a struct, we can't process it as a
 	// root resource entry.
-	str, ok := t.Type.(*ast.StructType)
+	_, ok = t.Type.(*ast.StructType)
 	if !ok {
 		return false
 	}
 
-	// If the configured excluded resources include this type declaration,
-	// don't process it.
-	for _, r := range excludedResources {
-		if t.Name.Name == r.Name && d.PackageName == r.Package {
-			return false
-		}
-	}
-	// Use only the final segment of each desired package path
-	// in the comparison, since that is what is preserved in the
-	// AST.
-	finalTypes := make([]TypeInfo, len(requiredTypes))
-	for i, t := range requiredTypes {
-		segs := strings.Split(t.Package, "/")
-		finalTypes[i] = TypeInfo{
-			Package: segs[len(segs)-1],
-			Name:    t.Name,
-		}
+	// We have not configured the generator to use this resource type.
+	if _, ok = resourceTypeNames[t.Name.Name]; !ok {
+		return false
 	}
 
-	// Compare the types of fields in the struct type with the required
-	// fields types. Only one required field type must be present.
-	var m bool
-	for _, fld := range str.Fields.List {
-		if len(fld.Names) != 1 {
-			continue
-		}
-
-		// Identify a package for the field type so we can check it
-		// against the required field list. Begin by assuming the field
-		// comes from the same package as the outer struct type, then
-		// assign a package name depending on the expression used to
-		// declare the field type.
-		gopkg := d.PackageName
-		pi := getPackageInfoFromExpr(fld.Type)
-		if pi.PackageName != "" {
-			gopkg = pi.PackageName
-		}
-
-		for _, ti := range finalTypes {
-			if gopkg == ti.Package && pi.DeclName == ti.Name {
-				m = true
-				break
-			}
-		}
-	}
-
-	return m
+	return true
 }
 
 type GenerationError struct {
@@ -232,11 +197,16 @@ func Generate(conf GeneratorConfig) error {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
+	allowedResourceTypes := make(map[string]struct{})
+	for _, r := range conf.Resources {
+		allowedResourceTypes[r.TypeName] = struct{}{}
+	}
+
 	// Extract data from a declaration to transform it into a reference
 	// entry later
 	errs := GenerationError{messages: []error{}}
 	for k, decl := range sourceData.TypeDecls {
-		if !shouldProcess(decl, conf.RequiredFieldTypes, conf.ExcludedResourceTypes) {
+		if !shouldProcess(decl, allowedResourceTypes) {
 			continue
 		}
 

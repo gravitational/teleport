@@ -33,11 +33,10 @@ import (
 
 func TestShouldProcess(t *testing.T) {
 	cases := []struct {
-		description       string
-		src               string
-		requiredFields    []TypeInfo
-		excludedResources []TypeInfo
-		expected          bool
+		description      string
+		src              string
+		allowedResources map[string]struct{}
+		expected         bool
 	}{
 		{
 			description: "one required type from a separate package",
@@ -48,12 +47,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "types",
-					Name:    "Metadata",
-				},
-			},
 			expected: true,
 		},
 		{
@@ -65,12 +58,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "types",
-					Name:    "Metadata",
-				},
-			},
 			expected: true,
 		},
 		{
@@ -82,16 +69,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "types",
-					Name:    "Metadata",
-				},
-				{
-					Package: "otherpkg",
-					Name:    "TypeName",
-				},
-			},
 			expected: true,
 		},
 		{
@@ -103,12 +80,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "types",
-					Name:    "AbsentType",
-				},
-			},
 			expected: false,
 		},
 		{
@@ -120,12 +91,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "testpkg",
-					Name:    "Metadata",
-				},
-			},
 			expected: true,
 		},
 		{
@@ -137,12 +102,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "long/package/path/types",
-					Name:    "Metadata",
-				},
-			},
 			expected: true,
 		},
 		{
@@ -154,12 +113,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "long/package/path/testpkg",
-					Name:    "Metadata",
-				},
-			},
 			expected: true,
 		},
 		{
@@ -171,18 +124,6 @@ type MyStruct struct{
   Name           otherpkg.TypeName
 }
 `,
-			requiredFields: []TypeInfo{
-				{
-					Package: "testpkg",
-					Name:    "Metadata",
-				},
-			},
-			excludedResources: []TypeInfo{
-				{
-					Package: "testpkg",
-					Name:    "MyStruct",
-				},
-			},
 			expected: false,
 		},
 	}
@@ -215,7 +156,7 @@ type MyStruct struct{
 				FilePath:    "myfile.go",
 				Decl:        l,
 				PackageName: "testpkg",
-			}, c.requiredFields, c.excludedResources))
+			}, c.allowedResources))
 		})
 	}
 }
@@ -227,30 +168,42 @@ type MyStruct struct{
 func TestGenerate(t *testing.T) {
 	tdPath := "testdata"
 	baseConf := GeneratorConfig{
-		RequiredFieldTypes: []TypeInfo{
+		Resources: []ResourceConfig{
 			{
-				Name:    "ResourceHeader",
-				Package: "typestest",
+				TypeName: "CommandLabelV2",
 			},
 			{
-				Name:    "Metadata",
-				Package: "typestest",
+				TypeName: "DatabaseSpecV3",
 			},
 			{
-				Name:    "Metadata",
-				Package: "v1",
+				TypeName: "DatabaseV3",
+			},
+			{
+				TypeName: "DatabaseServerV3",
+			},
+			{
+				TypeName: "DatabaseServerSpecV3",
+			},
+			{
+				TypeName: "DatabaseStatusV3",
+			},
+			{
+				TypeName: "AppServerV3",
+			},
+			{
+				TypeName: "AppServerSpecV3",
+			},
+			{
+				TypeName: "AppV3",
+			},
+			{
+				TypeName: "AppSpecV3",
 			},
 		},
 		SourcePath: filepath.Join(
 			tdPath, "src",
 		),
 		DestinationDirectory: "dest",
-		ExcludedResourceTypes: []TypeInfo{
-			{
-				Name:    "ResourceHeader",
-				Package: "typestest",
-			},
-		},
 	}
 
 	goldenConf := baseConf
