@@ -120,8 +120,8 @@ message ListInstancesRequest {
   int32 page_size = 1;
   // page_token is the next_page_token value returned from a previous ListInstances request, if any.
   string page_token = 2;
-  // filters specify search criteria to limit which instances should be returned.
-  ListInstancesFilters filters = 3;
+  // filters specify optional search criteria to limit which instances should be returned.
+  ListInstancesFilter filter = 3;
 }
 
 // ListInstancesResponse is the response from listing instances.
@@ -134,8 +134,8 @@ message ListInstancesResponse {
   int32 total_count = 3;
 }
 
-// ListInstancesFilters provides a mechanism to refine ListInstances results.
-message ListInstancesFilters {
+// ListInstancesFilter provides a mechanism to refine ListInstances results.
+message ListInstancesFilter {
   // search is a basic string search query which will filter results by `Instance.Spec.Name`.
   string search = 1;
   // advanced_search is an advanced search query using predicate language.
