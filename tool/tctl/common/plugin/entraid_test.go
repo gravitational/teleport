@@ -35,7 +35,7 @@ import (
 func TestEntraIDGroupFilters(t *testing.T) {
 	testCases := []struct {
 		name            string
-		groupFilters    filter.FilterInputs
+		groupFilters    filter.Inputs
 		expectedFilters []*types.PluginSyncFilter
 		errorAssertion  require.ErrorAssertionFunc
 	}{
@@ -46,7 +46,7 @@ func TestEntraIDGroupFilters(t *testing.T) {
 		},
 		{
 			name: "valid filters",
-			groupFilters: filter.FilterInputs{
+			groupFilters: filter.Inputs{
 				ID:               []string{"id1"},
 				NameRegex:        []string{"a*"},
 				ExcludeID:        []string{"id2"},
@@ -62,7 +62,7 @@ func TestEntraIDGroupFilters(t *testing.T) {
 		},
 		{
 			name: "valid multiple filters",
-			groupFilters: filter.FilterInputs{
+			groupFilters: filter.Inputs{
 				ID:               []string{"id1", "id2"},
 				NameRegex:        []string{"a*", "b*"},
 				ExcludeID:        []string{"id3", "id4"},
@@ -82,28 +82,28 @@ func TestEntraIDGroupFilters(t *testing.T) {
 		},
 		{
 			name: "empty include id string",
-			groupFilters: filter.FilterInputs{
+			groupFilters: filter.Inputs{
 				ID: []string{""},
 			},
 			errorAssertion: require.Error,
 		},
 		{
 			name: "bad regex",
-			groupFilters: filter.FilterInputs{
+			groupFilters: filter.Inputs{
 				NameRegex: []string{"^[)$"},
 			},
 			errorAssertion: require.Error,
 		},
 		{
 			name: "bad exclude regex",
-			groupFilters: filter.FilterInputs{
+			groupFilters: filter.Inputs{
 				ExcludeNameRegex: []string{"^[)$"},
 			},
 			errorAssertion: require.Error,
 		},
 		{
 			name: "empty exclude id string",
-			groupFilters: filter.FilterInputs{
+			groupFilters: filter.Inputs{
 				ExcludeID: []string{""},
 			},
 			errorAssertion: require.Error,

@@ -94,7 +94,7 @@ type entraArgs struct {
 	force                bool
 	manualEntraIDSetup   bool
 
-	groupFilters filter.FilterInputs
+	groupFilters filter.Inputs
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -349,7 +349,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		credentialsSource = types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
 	}
 
-	groupFilters, err := filter.New(filter.BuildFilters(inputs.entraID.groupFilters))
+	groupFilters, err := filter.NewFromInputs(inputs.entraID.groupFilters)
 	if err != nil {
 		return trace.Wrap(err, "failed to read filters")
 	}
