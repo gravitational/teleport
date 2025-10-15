@@ -164,6 +164,8 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 			continue
 		}
 		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
+			log.DebugContext(ctx, "Access request does not satisfy schedule condition",
+				"rule", rule.GetMetadata().GetName())
 			continue
 		}
 
@@ -212,6 +214,8 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 			continue
 		}
 		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
+			log.DebugContext(ctx, "Access request does not satisfy schedule condition",
+				"rule", rule.GetMetadata().GetName())
 			continue
 		}
 
