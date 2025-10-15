@@ -29,8 +29,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 // PackageInfo is used to look up a Go declaration in a map of declaration names
@@ -87,12 +85,6 @@ type SourceData struct {
 	// TypeDecls maps package and declaration names to data that the generator
 	// uses to format documentation for dynamic resource fields.
 	TypeDecls map[PackageInfo]DeclarationInfo
-	// PossibleFuncDecls are declarations that are not import, constant,
-	// type or variable declarations.
-	PossibleFuncDecls []DeclarationInfo
-	// StringAssignments is used to look up the values of constants declared
-	// in the source tree.
-	StringAssignments map[PackageInfo]string
 }
 
 func NewSourceData(rootPath string) (SourceData, error) {
@@ -101,7 +93,6 @@ func NewSourceData(rootPath string) (SourceData, error) {
 	// package and declaration name.
 	typeDecls := make(map[PackageInfo]DeclarationInfo)
 	possibleFuncDecls := []DeclarationInfo{}
-	stringAssignments := make(map[PackageInfo]string)
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
@@ -131,15 +122,6 @@ func NewSourceData(rootPath string) (SourceData, error) {
 		file, err := parser.ParseFile(fset, currentPath, f, parser.ParseComments)
 		if err != nil {
 			return err
-		}
-
-		str, err := GetTopLevelStringAssignments(file.Decls, file.Name.Name)
-		if err != nil {
-			return err
-		}
-
-		for k, v := range str {
-			stringAssignments[k] = v
 		}
 
 		// Use a relative path from the source directory for cleaner
@@ -191,9 +173,7 @@ func NewSourceData(rootPath string) (SourceData, error) {
 		return SourceData{}, fmt.Errorf("loading Go source files: %w", err)
 	}
 	return SourceData{
-		TypeDecls:         typeDecls,
-		PossibleFuncDecls: possibleFuncDecls,
-		StringAssignments: stringAssignments,
+		TypeDecls: typeDecls,
 	}, nil
 }
 
@@ -943,214 +923,4 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		}
 	}
 	return refs, nil
-}
-
-// GetTopLevelStringAssignments collects all declarations of a var or a const
-// within decls that assign a string value. Used to look up the values of these
-// declarations.
-func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo]string, error) {
-	result := make(map[PackageInfo]string)
-
-	// var and const assignments are GenDecls, so ignore any input Decls that
-	// don't meet this criterion by making a slice of GenDecls.
-	gd := []*ast.GenDecl{}
-	for _, d := range decls {
-		g, ok := d.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-		gd = append(gd, g)
-	}
-
-	// Whether in the "var =" format or "var (" format, each assignment is
-	// an *ast.ValueSpec. Collect all ValueSpecs within a GenDecl that
-	// declares a var or a const.
-	vs := []*ast.ValueSpec{}
-	for _, g := range gd {
-		if g.Tok != token.VAR && g.Tok != token.CONST {
-			continue
-		}
-		for _, s := range g.Specs {
-			s, ok := s.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			vs = append(vs, s)
-		}
-	}
-
-	// Add the name and value of each var/const to the return as long as
-	// there is one name and the value is a string literal.
-	for _, v := range vs {
-		if len(v.Names) != 1 {
-			continue
-		}
-		if len(v.Values) != 1 {
-			continue
-		}
-
-		l, ok := v.Values[0].(*ast.BasicLit)
-		if !ok {
-			continue
-		}
-		if l.Kind != token.STRING {
-			continue
-		}
-		// String literal values are quoted. Remove the quotes so we can
-		// compare values downstream.
-		result[PackageInfo{
-			DeclName:    v.Names[0].Name,
-			PackageName: pkg,
-		}] = strings.Trim(l.Value, "\"")
-
-	}
-	return result, nil
-}
-
-func getReceiverName(exp ast.Expr) (string, error) {
-	switch t := exp.(type) {
-	case *ast.IndexExpr:
-		return getReceiverName(t.X)
-	case *ast.IndexListExpr:
-		return getReceiverName(t.X)
-	case *ast.StarExpr:
-		return getReceiverName(t.X)
-	case *ast.Ident:
-		return t.Name, nil
-	default:
-		return "", errors.New("method has an unexpected receiver type")
-	}
-}
-
-// getAssignments collects all of the assignments made to fields of a method
-// receiver. Assumes that n is the function body of the method. In the resulting
-// map, each key is a field name and each value is the assignment value.
-func getAssignments(receiver string, n ast.Node) map[string]string {
-	result := make(map[string]string)
-	astutil.Apply(n, func(c *astutil.Cursor) bool {
-		n, ok := c.Node().(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		// Do not collect assignments with more than one value.
-		// These are done done in the relevant parts of the Teleport
-		// source, and handling them complicates things.
-		if len(n.Rhs) != 1 || len(n.Lhs) != 1 {
-			return true
-		}
-
-		// We don't need to process non-identifier expressions,
-		// such as selector expressions, on the right hand side
-		// yet. See if there is an identifier on the right hand
-		// side.
-		nt, ok := n.Rhs[0].(*ast.Ident)
-		if !ok {
-			return true
-		}
-		rhs := nt.Name
-
-		// We expect the left hand side to be a selector expression,
-		// since it assigns one of the receiver's fields.
-		sel, ok := n.Lhs[0].(*ast.SelectorExpr)
-		// Does not assign one of the method receiver's
-		// fields, since it's not a selector expression.
-		if !ok {
-			return true
-		}
-
-		id, ok := sel.X.(*ast.Ident)
-		if !ok {
-			return true
-		}
-
-		// This is not an assignment of a field within
-		// the method receiver.
-		if id.Name != receiver {
-			return true
-		}
-
-		result[sel.Sel.Name] = rhs
-
-		return true
-	}, nil)
-	return result
-}
-
-type VersionKindAssignment struct {
-	Version string
-	Kind    string
-}
-
-const versionField = "Version"
-const kindField = "Kind"
-
-// VersionKindAssignments finds all methods with methodName, which we expect to
-// assign the version and kind fields within the receiver, and returns a map of
-// receiver PackageInfos to the version and kind fields they assign.
-func VersionKindAssignments(decls []DeclarationInfo, methodName string) (map[PackageInfo]VersionKindAssignment, error) {
-	if len(decls) == 0 {
-		return map[PackageInfo]VersionKindAssignment{}, nil
-	}
-
-	result := make(map[PackageInfo]VersionKindAssignment)
-
-	for _, decl := range decls {
-		f, ok := decl.Decl.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-
-		if f.Name.Name != methodName {
-			continue
-		}
-
-		// Not a method
-		if f.Recv == nil {
-			continue
-		}
-
-		if len(f.Recv.List) != 1 {
-			return nil, fmt.Errorf("%v: method %v.%v has an unexpected number of receivers",
-				decl.FilePath,
-				decl.PackageName,
-				f.Name.Name,
-			)
-		}
-		receiver := f.Recv.List[0]
-
-		// There is no method receiver name to assign to, so we
-		// won't track assignments made in this method.
-		if len(receiver.Names) != 1 {
-			continue
-		}
-
-		recName, err := getReceiverName(receiver.Type)
-		if err != nil {
-			return nil, fmt.Errorf("%v: method %v.%v has an unexpected receiver type",
-				decl.FilePath,
-				decl.PackageName,
-				f.Name.Name,
-			)
-		}
-
-		pi := PackageInfo{
-			PackageName: decl.PackageName,
-			DeclName:    recName,
-		}
-
-		_, ok = result[pi]
-		if ok {
-			continue
-		}
-
-		// Not all resource types have a version and a kind. If these
-		// are empty, handle this downstream.
-		s := getAssignments(receiver.Names[0].Name, f)
-		result[pi] = VersionKindAssignment{
-			Version: s[versionField],
-			Kind:    s[kindField],
-		}
-	}
-
-	return result, nil
 }

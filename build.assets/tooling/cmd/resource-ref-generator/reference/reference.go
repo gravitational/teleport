@@ -238,11 +238,6 @@ func Generate(conf GeneratorConfig) error {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	versionKindAssignments, err := resource.VersionKindAssignments(sourceData.PossibleFuncDecls, conf.FieldAssignmentMethodName)
-	if err != nil {
-		return err
-	}
-
 	// Extract data from a declaration to transform it into a reference
 	// entry later
 	errs := GenerationError{messages: []error{}}
@@ -266,25 +261,6 @@ func Generate(conf GeneratorConfig) error {
 		pc.Resource.ReferenceEntry = entries[k]
 		delete(entries, k)
 		pc.Fields = entries
-
-		vk, ok := versionKindAssignments[k]
-		var verName, kindName string
-		if ok {
-			// So far, all values of "Kind" and "Version"
-			// are declared in the same package as the types
-			// that include these fields.
-			verName = sourceData.StringAssignments[resource.PackageInfo{
-				DeclName:    vk.Version,
-				PackageName: k.PackageName,
-			}]
-
-			kindName = sourceData.StringAssignments[resource.PackageInfo{
-				DeclName:    vk.Kind,
-				PackageName: k.PackageName,
-			}]
-		}
-		pc.Resource.Kind = kindName
-		pc.Resource.Version = verName
 
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
 		docpath := filepath.Join(conf.DestinationDirectory, filename+".mdx")
