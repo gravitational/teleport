@@ -235,7 +235,7 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 			proto.CloneOf[*kubewaitingcontainerv1.KubernetesWaitingContainer],
 			map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
 				kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
-					return u.GetMetadata().GetName()
+					return u.GetSpec().GetUsername() + "/" + u.GetSpec().GetCluster() + "/" + u.GetSpec().GetNamespace() + "/" + u.GetSpec().GetPodName() + "/" + u.GetMetadata().GetName()
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
