@@ -87,8 +87,9 @@ export function AppGateway(props: {
   const handleTargetPortChange =
     useDebouncedPortChangeHandler(changeTargetPort);
 
+  const isMCP = gateway.protocol === 'MCP';
   let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (gateway.protocol === 'HTTP') {
+  if (gateway.protocol === 'HTTP' || isMCP) {
     address = `http://${address}`;
   }
 
@@ -147,6 +148,7 @@ export function AppGateway(props: {
     setUpAppGateway(ctx, targetUri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
+      targetProtocol: gateway.protocol,
     });
   };
 
@@ -162,7 +164,7 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>App Connection</H1>
+          <H1>{isMCP ? 'MCP Server Connection' : 'App Connection'}</H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -219,7 +221,11 @@ export function AppGateway(props: {
 
       <Flex flexDirection="column" gap={2}>
         <div>
-          <Text>Access the app at:</Text>
+          <Text>
+            {isMCP
+              ? 'Access the MCP server with a streamable HTTP compatible client like "mcp-remote" at:'
+              : 'Access the app at:'}
+          </Text>
           <TextSelectCopy mt={1} text={address} bash={false} />
         </div>
 
