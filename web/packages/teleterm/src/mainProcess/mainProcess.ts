@@ -713,7 +713,7 @@ export default class MainProcess {
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
       const port = ev.ports[0];
-      void this.clusterStore.useSender(new AwaitableSender(port));
+      this.clusterStore.registerSender(new AwaitableSender(port));
     });
 
     subscribeToTerminalContextMenuEvent(this.configService);

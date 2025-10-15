@@ -137,17 +137,28 @@ export class ClusterStore {
   }
 
   /**
-   * Registers a sender.
-   * Sends the full current state as the initial message, and then patches.
-   * This method blocks until the sender is disposed.
+   * Registers an `AwaitableSender` to send updates and automatically unregisters
+   * it when disposed.
+   *
+   * Upon registration, the current state is sent immediately as the initial
+   * message to the sender.
    */
-  async useSender(sender: AwaitableSender<ClusterStoreUpdate>): Promise<void> {
-    this.logger.info('Sender added');
+  registerSender(sender: AwaitableSender<ClusterStoreUpdate>): void {
+    this.logger.info('Sender registered');
     this.senders.add(sender);
-    await sender.send({ kind: 'state', value: this.state });
-    await sender.whenDisposed();
-    this.senders.delete(sender);
-    this.logger.info('Sender removed');
+    sender
+      .send({
+        kind: 'state',
+        value: this.state,
+      })
+      .then(() => {})
+      .catch(error => {
+        this.logger.error('Failed to sending initial state', error);
+      });
+    sender.whenDisposed().then(() => {
+      this.senders.delete(sender);
+      this.logger.info('Sender unregistered');
+    });
   }
 
   private async update(producer: Producer<State>): Promise<void> {
