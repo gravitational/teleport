@@ -64,30 +64,33 @@ final class DeviceTrust: DeviceTrustP {
     print("Starting a stream")
     let stream = client.enrollDevice()
 
-    do {
-      print("Sending a message over the stream")
-      try stream
-        .send(Teleport_Devicetrust_V1_EnrollDeviceRequest
-          .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit.with {
-            $0.deviceData = cd
-            $0.credentialID = cred.id
-            $0.token = deviceEnrollToken.token
-            $0.macos = Teleport_Devicetrust_V1_MacOSEnrollPayload.with {
-              $0.publicKeyDer = cred.publicKeyDer
-            }
-          } })
-      print("Sent a message over the stream")
-    } catch {
-      print("Failed to send a message over the stream: \(error)")
-      return
+    try stream.send(Teleport_Devicetrust_V1_EnrollDeviceRequest
+      .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit.with {
+        $0.deviceData = cd
+        $0.credentialID = cred.id
+        $0.token = deviceEnrollToken.token
+        $0.macos = Teleport_Devicetrust_V1_MacOSEnrollPayload.with {
+          $0.publicKeyDer = cred.publicKeyDer
+        }
+      } })
+
+    let response1 = try await (getSingleMessage(stream)).get()
+    guard case let .macosChallenge(challenge) = response1.payload else {
+      throw UnexpectedPayload(expected: "macosChallenge", actual: response1.payload)
     }
 
-    let response = try await (getSingleMessage(stream)).get()
-    guard case let .macosChallenge(challenge) = response.payload else {
-      throw UnexpectedPayload(expected: "macosChallenge", actual: response.payload)
-    }
-    print("Got message: \(response)")
-    // TODO: Process challenge.
+    let signature = try DeviceKey.sign(challenge.challenge)
+
+    try stream
+      .send(Teleport_Devicetrust_V1_EnrollDeviceRequest
+        .with {
+          $0.macosChallengeResponse = Teleport_Devicetrust_V1_MacOSEnrollChallengeResponse.with {
+            $0.signature = signature
+          }
+        })
+
+    let response2 = try await (getSingleMessage(stream)).get()
+    print("Got response: \(response2)")
   }
 }
 
@@ -197,6 +200,10 @@ enum DeviceKeyError: Error {
   case copyFailed
 }
 
+enum DeviceKeySignError: Error {
+  case noDeviceKey
+}
+
 /// SecOSStatusError wraps OSStatus values returned by functions from the Security framework.
 struct SecOSStatusError: Error & Equatable & CustomStringConvertible {
   // TODO: Make SecOSStatusError be LocalizedError too.
@@ -218,21 +225,8 @@ class DeviceKey {
   }
 
   static func get() throws -> Teleport_Devicetrust_V1_DeviceCredential? {
-    let query: NSDictionary = [
-      kSecClass: kSecClassKey,
-      kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
-      kSecMatchLimit: kSecMatchLimitOne,
-      kSecReturnRef: true,
-      kSecReturnAttributes: true,
-      kSecAttrApplicationLabel: Data(deviceKeyLabel.utf8),
-    ]
-    var item: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &item)
-    guard status == errSecSuccess else {
-      if status == errSecItemNotFound {
-        return nil
-      }
-      throw SecOSStatusError(status: status)
+    guard let item = try find(returnAttrs: true) else {
+      return nil
     }
     guard let existingItem = item as? [String: Any],
           let appTagData = existingItem[kSecAttrApplicationTag as String] as? Data,
@@ -257,6 +251,49 @@ class DeviceKey {
       $0.id = appTag
       $0.publicKeyDer = Data(p256.derRepresentation)
     }
+  }
+
+  /// sign signs the challenge with the device key and returns the resulting signature.
+  static func sign(_ challenge: Data) throws -> Data {
+    guard let item = try find(returnAttrs: false) else {
+      throw DeviceKeySignError.noDeviceKey
+    }
+    let digest = SHA256.hash(data: challenge)
+    var error: Unmanaged<CFError>?
+    guard let signature = SecKeyCreateSignature(
+      // swiftlint:disable:next force_cast
+      item as! SecKey,
+      SecKeyAlgorithm.ecdsaSignatureDigestX962SHA256,
+      Data(digest) as CFData,
+      &error
+    ) as Data? else {
+      throw error!.takeRetainedValue() as Error
+    }
+    return signature
+  }
+
+  /// find returns the result of querying for the device key with SecItemCopyMatching.
+  /// If returnAttrs is true, the returned value is a dictionary where the SecKey is available under
+  /// the kSecValueRef field.
+  /// If returnAttrs is false, the returned value can itself be cast to SecKey.
+  private static func find(returnAttrs: Bool) throws(SecOSStatusError) -> CFTypeRef? {
+    let query: NSDictionary = [
+      kSecClass: kSecClassKey,
+      kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
+      kSecMatchLimit: kSecMatchLimitOne,
+      kSecReturnRef: true,
+      kSecReturnAttributes: returnAttrs,
+      kSecAttrApplicationLabel: Data(deviceKeyLabel.utf8),
+    ]
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    guard status == errSecSuccess else {
+      if status == errSecItemNotFound {
+        return nil
+      }
+      throw SecOSStatusError(status: status)
+    }
+    return item
   }
 
   static func delete() -> Result<Bool, SecOSStatusError> {

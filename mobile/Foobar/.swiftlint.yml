@@ -8,3 +8,4 @@ disabled_rules:
   - opening_brace
   - trailing_comma
   - line_length
+  - function_body_length
