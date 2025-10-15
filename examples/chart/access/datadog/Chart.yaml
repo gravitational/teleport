@@ -1,4 +1,4 @@
-.version: &version "16.5.15-dev.nrel.1"
+.version: &version "16.5.18"
 
 apiVersion: v2
 name: teleport-plugin-datadog
