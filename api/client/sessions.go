@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // GetWebSession returns the web session for the specified request.
@@ -141,6 +143,24 @@ func (c *Client) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
 	return out, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (c *Client) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	resp, err := c.grpc.ListWebTokens(ctx, &proto.ListWebTokensRequest{
+		PageToken: start,
+		PageSize:  int32(limit),
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tokens := make([]types.WebToken, 0, len(resp.Tokens))
+	for _, token := range resp.Tokens {
+		tokens = append(tokens, token)
+	}
+
+	return tokens, resp.NextPageToken, nil
+}
+
 // UpsertWebToken not implemented: can only be called locally.
 func (c *Client) UpsertWebToken(ctx context.Context, token types.WebToken) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -176,7 +196,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 
 // List returns the list of all web tokens
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
-	return r.c.GetWebTokens(ctx)
+	return clientutils.CollectWithFallback(ctx, r.c.ListWebTokens, r.c.GetWebTokens)
 }
 
 // Upsert not implemented: can only be called locally.

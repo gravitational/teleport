@@ -90,6 +90,8 @@ type WebToken interface {
 	GetWebToken(context.Context, types.GetWebTokenRequest) (types.WebToken, error)
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(context.Context) ([]types.WebToken, error)
+	// ListWebTokens returns a page of web tokens
+	ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error)
 	// UpsertWebToken updates the existing or inserts a new web token.
 	UpsertWebToken(context.Context, types.WebToken) error
 	// DeleteWebToken deletes a web token.
