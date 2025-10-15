@@ -1012,6 +1012,12 @@ func onConfigDump(flags dumpFlags) error {
 			os.Stderr, "%s Could not check the contents of %s: %s\n         The data directory may contain existing cluster state.\n", utils.Color(utils.Yellow, "WARNING:"), flags.DataDir, err.Error())
 	}
 
+	// Filter out the default directory /var/lib/teleport/bot used by `tbot` to
+	// avoid throwing a scary warning if `tbot` was installed prior to
+	// configuring teleport.
+	entries = slices.DeleteFunc(entries, func(entry os.DirEntry) bool {
+		return entry.Name() == "bot"
+	})
 	if err == nil && len(entries) != 0 {
 		fmt.Fprintf(
 			os.Stderr,
