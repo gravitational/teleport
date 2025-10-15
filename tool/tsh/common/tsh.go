@@ -1632,6 +1632,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		defer runtimetrace.Stop()
 	}
 
+	// print tsh version when --debug flag is set
+	// to diagnose potential client version mismatch
+	if cf.Debug && command != ver.FullCommand() {
+		modules.GetModules().PrintVersion()
+	}
+
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
