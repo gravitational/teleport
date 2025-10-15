@@ -2719,6 +2719,21 @@ func (a *ServerWithRoles) GetWebTokens(ctx context.Context) ([]types.WebToken, e
 	return tokens, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tokens, next, err := a.authServer.ListWebTokens(ctx, limit, start)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return tokens, next, nil
+
+}
+
 // DeleteWebToken removes the web token specified with req.
 func (a *ServerWithRoles) DeleteWebToken(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	if err := a.currentUserAction(req.User); err != nil {
