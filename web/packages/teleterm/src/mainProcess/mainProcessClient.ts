@@ -267,31 +267,43 @@ export default function createMainProcessClient(): MainProcessClient {
   };
 }
 
-/** Receives and confirms messages sent through `AwaitableSender`.*/
-function makeAwaitableReceiver<T>(listener: (value: T) => void): {
-  port: MessagePort;
+/**
+ * Sets up a `MessagePort` listener in the renderer process and transfers
+ * the port to the main process via the specified IPC `channel`.
+ *
+ * The main process is expected to create an `AwaitableSender` using the received port,
+ * enabling it to send messages that require acknowledgments from the renderer.
+ */
+function startAwaitableSenderListener<T>(
+  channel: string,
+  listener: (value: T) => void
+): {
   close: () => void;
 } {
-  // The order of ports doesn't matter.
-  const { port1, port2 } = new MessageChannel();
+  const { port1: localPort, port2: transferablePort } = new MessageChannel();
 
-  port1.onmessage = (event: MessageEvent<Message>) => {
+  localPort.onmessage = (event: MessageEvent<Message>) => {
     const msg = event.data;
     if (msg.type !== 'data') {
       return;
     }
-    listener(msg.payload as T);
     const ack: MessageAck = { type: 'ack', id: msg.id };
-    port1.postMessage(ack);
+    try {
+      listener(msg.payload as T);
+    } catch (e) {
+      ack.error = e;
+    }
+    localPort.postMessage(ack);
   };
 
-  port1.start();
+  localPort.start();
+  ipcRenderer.postMessage(channel, undefined, [transferablePort]);
 
   return {
-    port: port2,
     close: () => {
-      port1.close();
-      port2.close();
+      localPort.onmessage = undefined;
+      localPort.close();
+      transferablePort.close();
     },
   };
 }

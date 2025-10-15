@@ -18,8 +18,6 @@
 
 import { MessageEvent, MessagePortMain } from 'electron';
 
-import Logger from 'teleterm/logger';
-
 export type Message = MessageData | MessageAck;
 
 export interface MessageData {
@@ -31,6 +29,11 @@ export interface MessageData {
 export interface MessageAck {
   id: string;
   type: 'ack';
+  /**
+   * Optional error.
+   * Present when the renderer received the message, but failed to process it.
+   */
+  error?: unknown;
 }
 
 function isMessageAck(v: unknown): v is MessageAck {
@@ -46,8 +49,10 @@ function isMessageAck(v: unknown): v is MessageAck {
  * to receive messages.
  */
 export class AwaitableSender<T> {
-  private logger = new Logger('AwaitableSender');
-  private messages = new Map<string, { resolve: () => void }>();
+  private messages = new Map<
+    string,
+    { resolve(): void; reject(reason: unknown): void }
+  >();
   private disposeSignal = Promise.withResolvers<void>();
 
   constructor(private port: MessagePortMain) {
@@ -56,12 +61,51 @@ export class AwaitableSender<T> {
     this.port.on('close', this.dispose);
   }
 
-  /** Sends a message and awaits delivery confirmation. */
-  send(payload: T): Promise<void> {
+  /**
+   * Sends a message and awaits delivery confirmation from the receiver.
+   *
+   * This method returns a promise that resolves once the other side
+   * acknowledges receiving and processing the message.
+   * If the acknowledgment is not received within the specified timeout
+   * (default 10 seconds), the promise rejects with a `MessageAcknowledgementError`.
+   *
+   * If the renderer received the message, but failed to process it, the promise
+   * is also rejected.
+   */
+  send(
+    payload: T,
+    { signal = AbortSignal.timeout(10_000) }: { signal?: AbortSignal } = {}
+  ): Promise<void> {
     const id = crypto.randomUUID();
 
-    return new Promise(resolve => {
-      this.messages.set(id, { resolve });
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        this.messages.delete(id);
+        signal.removeEventListener('abort', abort);
+      };
+
+      const abort = () => {
+        cleanup();
+        reject(new MessageAcknowledgementError(signal.reason));
+      };
+
+      if (signal.aborted) {
+        return abort();
+      }
+
+      signal.addEventListener('abort', abort, { once: true });
+
+      this.messages.set(id, {
+        resolve: () => {
+          cleanup();
+          resolve();
+        },
+        reject: reason => {
+          cleanup();
+          reject(reason);
+        },
+      });
+
       const message: MessageData = { type: 'data', id, payload };
       this.port.postMessage(message);
     });
@@ -74,28 +118,38 @@ export class AwaitableSender<T> {
 
   private processMessage = (event: MessageEvent): void => {
     const message = event.data;
+    // Only to satisfy TypeScript.
+    // We don't expect non-ack messages to be received on this port.
     if (!isMessageAck(message)) {
       return;
     }
     const item = this.messages.get(message.id);
-    if (item) {
-      item.resolve();
-      this.messages.delete(message.id);
+    if (!item) {
+      return;
     }
+    if (message.error) {
+      item.reject(message.error);
+      return;
+    }
+    item.resolve();
   };
 
   private dispose = (): void => {
     this.port.off('message', this.processMessage);
     this.port.off('close', this.dispose);
 
-    if (this.messages.size) {
-      this.logger.warn(
-        `Sender was disposed before confirming delivery of ${this.messages.size} message(s).`
-      );
-    }
-    for (const q of this.messages.values()) {
-      q.resolve();
+    for (const { reject } of this.messages.values()) {
+      reject(new MessageAcknowledgementError(new Error('Sender was disposed')));
     }
     this.disposeSignal.resolve();
   };
+}
+
+/** Error thrown when waiting for message acknowledgement confirmation was abandoned. */
+export class MessageAcknowledgementError extends Error {
+  constructor(cause?: unknown) {
+    super('Stopped waiting for message acknowledgment from renderer', {
+      cause,
+    });
+  }
 }
