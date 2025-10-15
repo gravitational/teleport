@@ -1311,6 +1311,9 @@ type Cache interface {
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 
+	// PluginGetter defines methods for fetching plugins.
+	services.PluginGetter
+
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
 
