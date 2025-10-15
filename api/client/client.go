@@ -498,6 +498,13 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
+var serviceConfig = `{
+	"loadBalancingConfig": [{"teleport_pick_healthy":{}}],
+	"healthCheckConfig": {
+		"serviceName": ""
+	}
+}`
+
 // dialGRPC dials a connection between server and client.
 func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
@@ -511,6 +518,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithDefaultServiceConfig(serviceConfig),
 		grpc.WithChainUnaryInterceptor(
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
