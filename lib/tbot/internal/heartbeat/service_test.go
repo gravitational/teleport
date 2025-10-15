@@ -76,6 +76,7 @@ func TestHeartbeatService(t *testing.T) {
 		StartedAt:  time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
 		Logger:     log,
 		JoinMethod: types.JoinMethodGitHub,
+		BotKind:    machineidv1pb.BotKind_BOT_KIND_TBOT,
 	})
 	require.NoError(t, err)
 
@@ -99,6 +100,7 @@ func TestHeartbeatService(t *testing.T) {
 			Architecture: runtime.GOARCH,
 			Os:           runtime.GOOS,
 			JoinMethod:   string(types.JoinMethodGitHub),
+			Kind:         machineidv1pb.BotKind_BOT_KIND_TBOT,
 		},
 	}
 	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
