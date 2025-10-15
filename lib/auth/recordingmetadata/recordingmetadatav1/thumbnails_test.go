@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +31,7 @@ func TestThumbnailBucketSampler_ShouldCapture(t *testing.T) {
 
 	require.True(t, sampler.shouldCapture(baseTime))
 
-	sampler.add(&vt10x.TerminalState{}, baseTime)
+	sampler.add(&thumbnailState{}, baseTime)
 
 	require.False(t, sampler.shouldCapture(baseTime.Add(500*time.Millisecond)))
 	require.False(t, sampler.shouldCapture(baseTime.Add(999*time.Millisecond)))
@@ -44,9 +43,9 @@ func TestThumbnailBucketSampler_BasicAdd(t *testing.T) {
 	sampler := newThumbnailBucketSampler(10, time.Second)
 	baseTime := time.Now()
 
-	sampler.add(&vt10x.TerminalState{}, baseTime)
-	sampler.add(&vt10x.TerminalState{}, baseTime.Add(time.Second))
-	sampler.add(&vt10x.TerminalState{}, baseTime.Add(2*time.Second))
+	sampler.add(&thumbnailState{}, baseTime)
+	sampler.add(&thumbnailState{}, baseTime.Add(time.Second))
+	sampler.add(&thumbnailState{}, baseTime.Add(2*time.Second))
 
 	result := sampler.result()
 	require.Len(t, result, 3)
@@ -69,13 +68,13 @@ func TestThumbnailBucketSampler_AdaptInterval(t *testing.T) {
 	baseTime := time.Now()
 
 	for i := 0; i < 4; i++ {
-		sampler.add(&vt10x.TerminalState{}, baseTime.Add(time.Duration(i)*time.Second))
+		sampler.add(&thumbnailState{}, baseTime.Add(time.Duration(i)*time.Second))
 	}
 
 	require.Len(t, sampler.entries, 4)
 	require.Equal(t, time.Second, sampler.interval)
 
-	sampler.add(&vt10x.TerminalState{}, baseTime.Add(4*time.Second))
+	sampler.add(&thumbnailState{}, baseTime.Add(4*time.Second))
 
 	require.Len(t, sampler.entries, 3)
 	require.Equal(t, 2*time.Second, sampler.interval)
@@ -115,7 +114,7 @@ func TestThumbnailBucketSampler_MultipleAdaptations(t *testing.T) {
 	// Add 1500ms (4 entries)
 
 	for i := 0; i < 16; i++ {
-		sampler.add(&vt10x.TerminalState{}, baseTime.Add(time.Duration(i)*100*time.Millisecond))
+		sampler.add(&thumbnailState{}, baseTime.Add(time.Duration(i)*100*time.Millisecond))
 	}
 
 	require.Equal(t, 6400*time.Millisecond, sampler.interval)
