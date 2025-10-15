@@ -77,6 +77,9 @@ type BotsCommand struct {
 	search string
 	query  string
 
+	sortIndex string
+	sortOrder string
+
 	botsList          *kingpin.CmdClause
 	botsAdd           *kingpin.CmdClause
 	botsRemove        *kingpin.CmdClause
@@ -133,6 +136,8 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
+	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
+	c.botsInstancesList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("ascending").StringVar(&c.sortOrder)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
 	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
@@ -557,6 +562,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	var instances []*machineidv1pb.BotInstance
 	req := &machineidv1pb.ListBotInstancesV2Request{
 		Filter:    &machineidv1pb.ListBotInstancesV2Request_Filters{},
+		SortField: c.sortIndex,
+		SortDesc:  c.sortOrder == "descending",
 	}
 
 	if c.botName != "" {
