@@ -25,10 +25,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -40,13 +41,6 @@ const (
 // when traversing the accesslist graph. When returning false, a reason can be
 // optionally specified. This helps troubleshooting access issues.
 type accessFilterFunc func(leg accessLeg) (bool, string)
-
-// everythingFilter considers every access list and every membership, even
-// if they are expired or if the user does not meet the list requirements.
-// This must not be used to check access.
-func everythingFilter(_ accessLeg) (bool, string) {
-	return true, ""
-}
 
 // validForUserFilter returns an accessFilterFunc that filters out every invalid
 // accessLeg. Invalid access legs are:
