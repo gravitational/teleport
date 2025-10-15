@@ -35,9 +35,6 @@ export function makeRootClusterProxyHostAllowList(
   return new Set(
     clusters
       .flatMap(c => {
-        if (!c.proxyHost) {
-          return;
-        }
         let browserProxyHost: string;
         if (c.proxyHost) {
           try {
