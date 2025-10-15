@@ -232,6 +232,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		return events.numWatchers() == 1
 	}, time.Second, time.Second/100)
 
+	// fake initialized watcher
+	events.send(types.Event{Type: types.OpInit})
+
 	testLog.InfoContext(context.Background(), "Sending plugin start event")
 	// 1) Create plugin: start
 	events.send(types.Event{
@@ -314,6 +317,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		return events.numWatchers() == 1
 	}, time.Second, 10*time.Millisecond)
 	testLog.InfoContext(managerCtx, "Plugin monitor has restarted")
+
+	// fake initialized watcher
+	events.send(types.Event{Type: types.OpInit})
 
 	assertStartStop(1, 1, "Expected the recovered plugin manager to restart plugins")
 

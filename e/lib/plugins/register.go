@@ -16,14 +16,13 @@ import (
 func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, process *service.TeleportProcess) error {
 	// Start plugin manager
 	authorizers := NewAuthorizerSetFromConfig(oauthProviders)
-	pluginsService := local.NewPluginsService(process.GetBackend())
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(process.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	pluginManager, err := NewManager(ManagerConfig{
 		Authorizers:             authorizers,
-		Plugins:                 pluginsService,
+		Plugins:                 process.GetAuthServer().Services,
 		PluginStaticCredentials: pluginStaticCredentialsService,
 		Events:                  process.GetAuthServer().Services,
 		TeleportClient:          process.GetAuthServer(),

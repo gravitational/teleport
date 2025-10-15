@@ -45,7 +45,6 @@ func (rm *resourceMonitor) watch(ctx context.Context) {
 		select {
 		case <-rm.svc.clock.After(userMonitorRetryPeriod):
 		case <-ctx.Done():
-			close(rm.svc.fullRefreshSignal)
 			return
 		}
 	}

@@ -16,7 +16,10 @@ import (
 
 // Dependencies is a container for dependencies of a plugin instance.
 type Dependencies struct {
-	Authorizer        oauth.Authorizer
+	Authorizer oauth.Authorizer
+	// Client is a cached Teleport client (for resources that support it).
+	// If used in conjunction with an event watcher, the watcher must also
+	// feed from cache (as opposed to the auth.Services backend changefeed).
 	Client            teleport.Client
 	Store             storage.Store
 	StatusSink        common.StatusSink

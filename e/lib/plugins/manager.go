@@ -27,12 +27,17 @@ type HeartbeatCreator func(string) func(error)
 
 // ManagerConfig contains parameters and dependencies for Manager
 type ManagerConfig struct {
-	Authorizers             *AuthorizerSet
+	Authorizers *AuthorizerSet
+	// Plugins is the uncached plugin service.
 	Plugins                 services.Plugins
 	PluginStaticCredentials services.PluginStaticCredentials
-	Events                  types.Events
-	Factories               map[types.PluginType]factory.Factory
-	// TeleportClient is the Teleport API client passed to plugins
+	// Events can create an event watcher from the backend changefeed.
+	// This MUST NOT be used with a cached client.
+	Events    types.Events
+	Factories map[types.PluginType]factory.Factory
+	// TeleportClient is the Teleport API client passed to plugins.
+	// This client will hit the cache when possible, else it will feed from the
+	// backend directly.
 	TeleportClient teleclient.Client
 	// RetryConfig defines the backoff settings for retrying the inner event loop
 	RetryConfig *retryutils.RetryV2Config
@@ -77,14 +82,14 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeJira:              factory.Jira,
 			types.PluginTypeMattermost:        factory.Mattermost,
 			types.PluginTypeGitlab:            factory.GitLab,
-			types.PluginTypeEntraID:           factory.EntraID,
+			types.PluginTypeEntraID:           afterCacheReady(factory.EntraID),
 			types.PluginTypeDatadog:           factory.Datadog,
-			types.PluginTypeAWSIdentityCenter: withLeaderLock(factory.AWSIC),
+			types.PluginTypeAWSIdentityCenter: afterCacheReady(withLeaderLock(factory.AWSIC)),
 			types.PluginTypeGithub:            factory.GitHub,
 			types.PluginTypeMSTeams:           factory.MSTeams,
 			types.PluginTypeEmail:             factory.Email,
 			types.PluginTypeNetIQ:             factory.NetIQ,
-			types.PluginTypeSCIM:              factory.SCIM,
+			types.PluginTypeSCIM:              afterCacheReady(factory.SCIM),
 		}
 	}
 	if cfg.Clock == nil {
@@ -229,6 +234,20 @@ func (m *Manager) runInner(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// This watcher is uncached, by waiting its init, we are not waiting
+	// for the cache to be filled, only for the services to be started.
+	m.log.DebugContext(ctx, "Initial plugin startup complete, watching for new plugin events")
+	select {
+	case evt := <-m.watcher.Events():
+		if evt.Type != types.OpInit {
+			return trace.BadParameter("unexpected event type %q, was expecting OpInit", evt.Type)
+		}
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-m.watcher.Done():
+		return trace.Wrap(ctx.Err())
+	}
+
 	resources, err := m.plugins.GetPlugins(ctx, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -244,6 +263,7 @@ func (m *Manager) runInner(ctx context.Context) error {
 		}
 	}
 
+	// now we are up-to-date, we can process watcher events
 	for {
 		select {
 		case <-ctx.Done():
@@ -253,7 +273,6 @@ func (m *Manager) runInner(ctx context.Context) error {
 		case <-m.watcher.Done():
 			return trace.Wrap(m.watcher.Error())
 		case event := <-m.watcher.Events():
-
 			if err := m.dispatchEvent(ctx, event); err != nil {
 				m.log.ErrorContext(ctx, "failed to dispatch event", "event", event, "error", err)
 			}
