@@ -355,13 +355,6 @@ func (s *RecordingMetadataService) startUpload(ctx context.Context, sessionID se
 	go func() {
 		defer r.Close()
 
-		select {
-		case <-uploadCtx.Done():
-			errs <- uploadCtx.Err()
-			return
-		default:
-		}
-
 		path, err := s.uploadHandler.UploadMetadata(uploadCtx, sessionID, r)
 		if err != nil {
 			errs <- trace.Wrap(err)

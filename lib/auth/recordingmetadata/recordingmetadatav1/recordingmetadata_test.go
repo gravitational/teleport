@@ -811,6 +811,12 @@ func (m *mockUploadHandler) UploadMetadata(ctx context.Context, sessionID sessio
 		return "", err
 	}
 
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -828,6 +834,12 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
+	}
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
 	}
 
 	m.mu.Lock()
