@@ -109,6 +109,9 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	}
 	defer s.concurrencyLimiter.Release(1)
 
+	sessionsProcessingMetric.Inc()
+	defer sessionsProcessingMetric.Dec()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -298,7 +301,15 @@ loop:
 
 	thumbnails := sampler.result()
 
-	return s.upload(ctx, sessionID, metadata, thumbnails)
+	if err := s.upload(ctx, sessionID, metadata, thumbnails); err != nil {
+		sessionsProcessedMetric.WithLabelValues( /* success */ "false").Inc()
+
+		return trace.Wrap(err)
+	}
+
+	sessionsProcessedMetric.WithLabelValues( /* success */ "true").Inc()
+
+	return nil
 }
 
 func (s *RecordingMetadataService) upload(ctx context.Context, sessionID session.ID, metadata *pb.SessionRecordingMetadata, thumbnails []*thumbnailEntry) error {
