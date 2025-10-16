@@ -29,40 +29,45 @@ import (
 // This test reads the golden files at the destination directory and compares
 // the generated resource reference docs with them. To regenerate the golden
 // files, delete the destination directory (reference/testdata/dest) and run the
-// test again.
+// test again. (You must delete the directory itself, not just its contents.)
 func TestGenerate(t *testing.T) {
 	tdPath := "testdata"
 	baseConf := GeneratorConfig{
 		Resources: []ResourceConfig{
 			{
-				TypeName:    "DatabaseV3",
-				PackageName: "typestest",
-				NameInDocs:  "Database v3",
-				KindValue:   "database",
+				TypeName:     "DatabaseV3",
+				PackageName:  "typestest",
+				NameInDocs:   "Database v3",
+				KindValue:    "database",
+				VersionValue: "v3",
 			},
 			{
-				TypeName:    "DatabaseServerV3",
-				PackageName: "typestest",
-				NameInDocs:  "Database Server v3",
-				KindValue:   "db_server",
+				TypeName:     "DatabaseServerV3",
+				PackageName:  "typestest",
+				NameInDocs:   "Database Server v3",
+				KindValue:    "db_server",
+				VersionValue: "v3",
 			},
 			{
-				TypeName:    "AppV3",
-				PackageName: "typestest",
-				NameInDocs:  "Application v3",
-				KindValue:   "application",
+				TypeName:     "AppV3",
+				PackageName:  "typestest",
+				NameInDocs:   "Application v3",
+				KindValue:    "application",
+				VersionValue: "v3",
 			},
 			{
-				TypeName:    "AppServerV3",
-				PackageName: "typestest",
-				NameInDocs:  "App Server v3",
-				KindValue:   "app_server",
+				TypeName:     "AppServerV3",
+				PackageName:  "typestest",
+				NameInDocs:   "App Server v3",
+				KindValue:    "app_server",
+				VersionValue: "v3",
 			},
 			{
-				TypeName:    "Bot",
-				PackageName: "machineidv1",
-				NameInDocs:  "Bot v1",
-				KindValue:   "bot",
+				TypeName:     "Bot",
+				PackageName:  "machineidv1",
+				NameInDocs:   "Bot v1",
+				KindValue:    "bot",
+				VersionValue: "v1",
 			},
 		},
 		SourcePath: filepath.Join(
