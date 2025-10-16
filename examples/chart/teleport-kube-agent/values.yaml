@@ -503,6 +503,12 @@ jamfCredentialsSecret:
 # </Admonition>
 teleportVersionOverride: ""
 
+# releaseNameOverwrite(string) -- sets a custom string to replace the default
+# release name.
+# This is useful if you want to deploy multiple instances of the
+# teleport-kube-agent in one cluster or even in one namespace.
+releaseNameOverwrite: ""
+
 # caPin(list) -- is a list of CA pins the agent must validate when joining
 # the Teleport cluster to ensure it is connecting to the correct Auth Service.
 #

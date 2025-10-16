@@ -1,7 +1,7 @@
 {{- define "teleport.kube.agent.isUpgrade" -}}
 {{- /* Checks if action is an upgrade from an old release that didn't support Secret storage */}}
 {{- if .Release.IsUpgrade }}
-  {{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace .Release.Name ) -}}
+  {{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace ( include "teleport-kube-agent.releaseName" . ) ) -}}
   {{- if ($deployment) }}
 true
   {{- else if .Values.unitTestUpgrade }}
@@ -11,15 +11,15 @@ true
 {{- end -}}
 {{/*
 Create the name of the service account to use
-if serviceAccount is not defined or serviceAccount.name is empty, use .Release.Name
+if serviceAccount is not defined or serviceAccount.name is empty, use teleport-kube-agent.releaseName
 */}}
 {{- define "teleport-kube-agent.serviceAccountName" -}}
-{{- coalesce .Values.serviceAccount.name .Values.serviceAccountName .Release.Name -}}
+{{- coalesce .Values.serviceAccount.name .Values.serviceAccountName ( include "teleport-kube-agent.releaseName" . ) -}}
 {{- end -}}
 
 {{/*
 Create the name of the service account to use for the post-delete hook
-if serviceAccount is not defined or serviceAccount.name is empty, use .Release.Name-delete-hook
+if serviceAccount is not defined or serviceAccount.name is empty, use teleport-kube-agent.releaseName-delete-hook
 */}}
 {{- define "teleport-kube-agent.deleteHookServiceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
@@ -47,4 +47,12 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 
 {{- define "teleport-kube-agent.image" -}}
 {{ include "teleport-kube-agent.baseImage" . }}:{{ include "teleport-kube-agent.version" . }}
+{{- end -}}
+
+{{- define "teleport-kube-agent.releaseName" -}}
+{{- if .Values.releaseNameOverwrite -}}
+  {{- .Values.releaseNameOverwrite -}}
+{{- else -}}
+  {{- .Release.Name -}}
+{{- end -}}
 {{- end -}}
