@@ -36,7 +36,8 @@ type lockCollection struct {
 	locks []types.Lock
 }
 
-func (c *lockCollection) Resources() (r []types.Resource) {
+func (c *lockCollection) Resources() ([]types.Resource) {
+	r := make([]types.Resource, 0, len(c.locks))
 	for _, resource := range c.locks {
 		r = append(r, resource)
 	}
