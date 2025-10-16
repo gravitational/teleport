@@ -84,14 +84,9 @@ active: true
 `,
 					Fields: []Field{
 						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
-						Field{
-							Name:        "description",
-							Description: "The resource's description.",
-							Type:        "string",
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
 						},
 						Field{
 							Name:        "age",
@@ -99,9 +94,14 @@ active: true
 							Type:        "number",
 						},
 						Field{
-							Name:        "active",
-							Description: "Indicates whether the resource is currently in use.",
-							Type:        "Boolean",
+							Name:        "description",
+							Description: "The resource's description.",
+							Type:        "string",
+						},
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 				},
@@ -243,14 +243,14 @@ type Server struct {
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "",
-						},
-						{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
+						},
+						{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "",
 						},
 					},
 					YAMLExample: "name: \"string\"\nspec: # See description\n",
@@ -291,20 +291,19 @@ type Labels []string
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "",
+							Name:        "labels",
+							Description: "Specifies labels for the server.",
+							Type:        "[Labels](#labels)",
 						},
-
 						{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
 						},
 						{
-							Name:        "labels",
-							Description: "Specifies labels for the server.",
-							Type:        "[Labels](#labels)",
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "",
 						},
 					},
 					YAMLExample: "name: \"string\"\nspec: # See description\nlabels: # [...]\n",
@@ -356,14 +355,14 @@ func (s *Server) UnmarshalJSON (b []byte) error {
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "",
-						},
-						{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
+						},
+						{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "",
 						},
 					},
 					YAMLExample: "name: \"string\"\nspec: # See description\n",
@@ -405,14 +404,14 @@ func (a *Application) UnmarshalYAML(value *yaml.Node) error {
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "spec",
-							Description: "Contains information about the application.",
-							Type:        "",
-						},
-						{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
+						},
+						{
+							Name:        "spec",
+							Description: "Contains information about the application.",
+							Type:        "",
 						},
 					},
 					YAMLExample: "name: \"string\"\nspec: # See description\n",
@@ -460,14 +459,14 @@ spec: # [...]
 `,
 					Fields: []Field{
 						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)",
-						},
-						Field{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
+						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)",
 						},
 					},
 				},
@@ -629,14 +628,14 @@ type ServerImplementation interface{
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "name",
-							Description: "The name of the server.",
-							Type:        "string",
-						},
-						{
 							Name:        "impl",
 							Description: "The implementation of the server.",
 							Type:        "[Server Implementation](#server-implementation)",
+						},
+						{
+							Name:        "name",
+							Description: "The name of the server.",
+							Type:        "string",
 						},
 					},
 					YAMLExample: `name: "string"
@@ -690,11 +689,10 @@ type Metadata struct {
 					Description: "A resource declared for testing.",
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
-
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
 						},
 						{
 							Name:        "alias",
@@ -702,9 +700,9 @@ type Metadata struct {
 							Type:        "string",
 						},
 						{
-							Name:        "active",
-							Description: "Indicates whether the resource is currently in use.",
-							Type:        "Boolean",
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 					YAMLExample: `alias: "string"
@@ -749,11 +747,10 @@ type Metadata struct {
 					Description: "A resource declared for testing.",
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
-
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
 						},
 						{
 							Name:        "alias",
@@ -761,9 +758,9 @@ type Metadata struct {
 							Type:        "string",
 						},
 						{
-							Name:        "active",
-							Description: "Indicates whether the resource is currently in use.",
-							Type:        "Boolean",
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 					YAMLExample: `alias: "string"
@@ -815,9 +812,9 @@ type ActivityStatus struct{
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
 						},
 						{
 							Name:        "alias",
@@ -825,9 +822,9 @@ type ActivityStatus struct{
 							Type:        "string",
 						},
 						{
-							Name:        "active",
-							Description: "Indicates whether the resource is currently in use.",
-							Type:        "Boolean",
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 					YAMLExample: `alias: "string"
@@ -879,9 +876,9 @@ type ActivityStatus struct{
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
 						},
 						{
 							Name:        "alias",
@@ -889,9 +886,9 @@ type ActivityStatus struct{
 							Type:        "string",
 						},
 						{
-							Name:        "active",
-							Description: "Indicates whether the resource is currently in use.",
-							Type:        "Boolean",
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 					YAMLExample: `alias: "string"
@@ -1126,14 +1123,14 @@ label_maps:
 `,
 					Fields: []Field{
 						Field{
-							Name:        "name",
-							Description: "The name of the server.",
-							Type:        "string"},
-						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
 							Type:        "[]map[string]",
 						},
+						Field{
+							Name:        "name",
+							Description: "The name of the server.",
+							Type:        "string"},
 					},
 				},
 			},
@@ -1466,13 +1463,13 @@ description: "string"
 `,
 					Fields: []Field{
 						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
+							Name:        "description",
+							Description: "The resource's description.",
 							Type:        "string",
 						},
 						Field{
-							Name:        "description",
-							Description: "The resource's description.",
+							Name:        "name",
+							Description: "The name of the resource.",
 							Type:        "string",
 						},
 					},

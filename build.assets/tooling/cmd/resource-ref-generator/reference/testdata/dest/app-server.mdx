@@ -22,11 +22,11 @@ spec: # [...]
 ```
 |Field Name|Description|Type|
 |---|---|---|
-|version|The resource version.|string|
-|sub_kind|An optional resource subkind.|string|
-|spec|The app server spec.|[App Server Spec](#app-server-spec)|
-|metadata|The app server metadata.|[Metadata](#metadata)|
 |kind|The app server resource kind. Always "app_server".|string|
+|metadata|The app server metadata.|[Metadata](#metadata)|
+|spec|The app server spec.|[App Server Spec](#app-server-spec)|
+|sub_kind|An optional resource subkind.|string|
+|version|The resource version.|string|
 
 ## App AWS
 
@@ -64,12 +64,12 @@ proxy_ids:
 
 |Field Name|Description|Type|
 |---|---|---|
-|version|The Teleport version that the server is running.|string|
-|rotation|Contains the app server CA rotation information.|[Rotation](#rotation)|
-|proxy_ids|A list of proxy IDs this server is expected to be connected to.|[]string|
-|hostname|The app server hostname.|string|
-|host_id|The app server host uuid.|string|
 |app|The app proxied by this app server.|[App](#app)|
+|host_id|The app server host uuid.|string|
+|hostname|The app server hostname.|string|
+|proxy_ids|A list of proxy IDs this server is expected to be connected to.|[]string|
+|rotation|Contains the app server CA rotation information.|[Rotation](#rotation)|
+|version|The Teleport version that the server is running.|string|
 
 ## App Spec
 
@@ -97,14 +97,14 @@ UserGroups:
 
 |Field Name|Description|Type|
 |---|---|---|
-|uri|The web app endpoint.|string|
-|rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
-|public_addr|The public address the application is accessible at.|string|
-|insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
-|dynamic_labels|The app's command labels.|map[string][Command Label](#command-label)|
-|cloud|Identifies the cloud instance the app represents.|string|
-|aws|Contains additional options for AWS applications.|[App AWS](#app-aws)|
 |UserGroups|A list of user group IDs that this app is associated with.|[]string|
+|aws|Contains additional options for AWS applications.|[App AWS](#app-aws)|
+|cloud|Identifies the cloud instance the app represents.|string|
+|dynamic_labels|The app's command labels.|map[string][Command Label](#command-label)|
+|insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
+|public_addr|The public address the application is accessible at.|string|
+|rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
+|uri|The web app endpoint.|string|
 
 ## App
 
@@ -123,11 +123,11 @@ spec: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|version|The resource version.|string|
-|sub_kind|An optional resource subkind.|string|
-|spec|The app resource spec.|[App Spec](#app-spec)|
-|metadata|The app resource metadata.|[Metadata](#metadata)|
 |kind|The app resource kind. Always "app".|string|
+|metadata|The app resource metadata.|[Metadata](#metadata)|
+|spec|The app resource spec.|[App Spec](#app-spec)|
+|sub_kind|An optional resource subkind.|string|
+|version|The resource version.|string|
 
 ## Command Label
 
@@ -147,9 +147,9 @@ result: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|result|Captures standard output|string|
-|period|A time between command runs||
 |command|A command to run|[]string|
+|period|A time between command runs||
+|result|Captures standard output|string|
 
 ## Header
 
@@ -165,8 +165,8 @@ value: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|value|The http header value.|string|
 |name|The http header name.|string|
+|value|The http header value.|string|
 
 ## Metadata
 
@@ -189,12 +189,12 @@ revision: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
-|name|An object name|string|
-|labels|A set of labels|map[string]string|
-|id|A record ID. Deprecated: Use revision instead.|number|
-|expires|A global expiry time header can be set on any resource in the system.||
 |description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|id|A record ID. Deprecated: Use revision instead.|number|
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
 ## Rewrite
 
@@ -217,9 +217,9 @@ jwt_claims: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|redirect|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|[]string|
-|jwt_claims|Configures whether roles/traits are included in the JWT token.|string|
 |headers|A list of headers to inject when passing the request over to the application.|[][Header](#header)|
+|jwt_claims|Configures whether roles/traits are included in the JWT token.|string|
+|redirect|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|[]string|
 
 ## Rotation
 
@@ -241,14 +241,14 @@ schedule: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|state|Could be one of "init" or "in_progress".|string|
-|started|Set to the time when rotation has been started in case if the state of the rotation is "in_progress".||
-|schedule|A rotation schedule - used in automatic mode to switch between phases.|[Rotation Schedule](#rotation-schedule)|
-|phase|The current rotation phase.|string|
-|mode|Sets manual or automatic rotation mode.|string|
-|last_rotated|Specifies the last time of the completed rotation.||
-|grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.||
 |current_id|The ID of the rotation operation to differentiate between rotation attempts.|string|
+|grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.||
+|last_rotated|Specifies the last time of the completed rotation.||
+|mode|Sets manual or automatic rotation mode.|string|
+|phase|The current rotation phase.|string|
+|schedule|A rotation schedule - used in automatic mode to switch between phases.|[Rotation Schedule](#rotation-schedule)|
+|started|Set to the time when rotation has been started in case if the state of the rotation is "in_progress".||
+|state|Could be one of "init" or "in_progress".|string|
 
 ## Rotation Schedule
 
@@ -265,7 +265,7 @@ standby: # See description
 
 |Field Name|Description|Type|
 |---|---|---|
-|update_servers|Specifies time to switch to the "Update servers" phase.||
-|update_clients|Specifies time to switch to the "Update clients" phase||
 |standby|Specifies time to switch to the "Standby" phase.||
+|update_clients|Specifies time to switch to the "Update clients" phase||
+|update_servers|Specifies time to switch to the "Update servers" phase.||
 

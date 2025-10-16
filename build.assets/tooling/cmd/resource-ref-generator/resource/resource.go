@@ -54,7 +54,7 @@ func (re ReferenceEntry) Len() int {
 
 // Less compares field names in order to sort them.
 func (re ReferenceEntry) Less(i, j int) bool {
-	return re.Fields[j].Name < re.Fields[i].Name
+	return re.Fields[i].Name < re.Fields[j].Name
 }
 
 // Swap swaps the order of reference fields in order to sort them.

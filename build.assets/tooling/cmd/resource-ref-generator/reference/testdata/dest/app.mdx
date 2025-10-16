@@ -22,11 +22,11 @@ spec: # [...]
 ```
 |Field Name|Description|Type|
 |---|---|---|
-|version|The resource version.|string|
-|sub_kind|An optional resource subkind.|string|
-|spec|The app resource spec.|[App Spec](#app-spec)|
-|metadata|The app resource metadata.|[Metadata](#metadata)|
 |kind|The app resource kind. Always "app".|string|
+|metadata|The app resource metadata.|[Metadata](#metadata)|
+|spec|The app resource spec.|[App Spec](#app-spec)|
+|sub_kind|An optional resource subkind.|string|
+|version|The resource version.|string|
 
 ## App AWS
 
@@ -69,14 +69,14 @@ UserGroups:
 
 |Field Name|Description|Type|
 |---|---|---|
-|uri|The web app endpoint.|string|
-|rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
-|public_addr|The public address the application is accessible at.|string|
-|insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
-|dynamic_labels|The app's command labels.|map[string][Command Label](#command-label)|
-|cloud|Identifies the cloud instance the app represents.|string|
-|aws|Contains additional options for AWS applications.|[App AWS](#app-aws)|
 |UserGroups|A list of user group IDs that this app is associated with.|[]string|
+|aws|Contains additional options for AWS applications.|[App AWS](#app-aws)|
+|cloud|Identifies the cloud instance the app represents.|string|
+|dynamic_labels|The app's command labels.|map[string][Command Label](#command-label)|
+|insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
+|public_addr|The public address the application is accessible at.|string|
+|rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
+|uri|The web app endpoint.|string|
 
 ## Command Label
 
@@ -96,9 +96,9 @@ result: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|result|Captures standard output|string|
-|period|A time between command runs||
 |command|A command to run|[]string|
+|period|A time between command runs||
+|result|Captures standard output|string|
 
 ## Header
 
@@ -114,8 +114,8 @@ value: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|value|The http header value.|string|
 |name|The http header name.|string|
+|value|The http header value.|string|
 
 ## Metadata
 
@@ -138,12 +138,12 @@ revision: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
-|name|An object name|string|
-|labels|A set of labels|map[string]string|
-|id|A record ID. Deprecated: Use revision instead.|number|
-|expires|A global expiry time header can be set on any resource in the system.||
 |description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|id|A record ID. Deprecated: Use revision instead.|number|
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
 ## Rewrite
 
@@ -166,7 +166,7 @@ jwt_claims: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|redirect|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|[]string|
-|jwt_claims|Configures whether roles/traits are included in the JWT token.|string|
 |headers|A list of headers to inject when passing the request over to the application.|[][Header](#header)|
+|jwt_claims|Configures whether roles/traits are included in the JWT token.|string|
+|redirect|Defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header.|[]string|
 

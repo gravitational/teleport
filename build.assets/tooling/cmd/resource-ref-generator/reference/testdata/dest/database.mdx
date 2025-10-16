@@ -23,12 +23,12 @@ status: # [...]
 ```
 |Field Name|Description|Type|
 |---|---|---|
-|version|The resource version.|string|
-|sub_kind|An optional resource subkind.|string|
-|status|The database runtime information.|[Database Status](#database-status)|
-|spec|The database spec.|[Database Spec](#database-spec)|
-|metadata|The database metadata.|[Metadata](#metadata)|
 |kind|The database resource kind.|string|
+|metadata|The database metadata.|[Metadata](#metadata)|
+|spec|The database spec.|[Database Spec](#database-spec)|
+|status|The database runtime information.|[Database Status](#database-status)|
+|sub_kind|An optional resource subkind.|string|
+|version|The resource version.|string|
 
 ## AD
 
@@ -48,12 +48,12 @@ kdc_host_name: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|spn|The service principal name for the database.|string|
-|ldap_cert|A certificate from Windows LDAP/AD, optional; only for x509 Authentication.|string|
-|krb5_file|The path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|string|
-|keytab_file|The path to the Kerberos keytab file.|string|
-|kdc_host_name|The host name for a KDC for x509 Authentication.|string|
 |domain|The Active Directory domain the database resides in.|string|
+|kdc_host_name|The host name for a KDC for x509 Authentication.|string|
+|keytab_file|The path to the Kerberos keytab file.|string|
+|krb5_file|The path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|string|
+|ldap_cert|A certificate from Windows LDAP/AD, optional; only for x509 Authentication.|string|
+|spn|The service principal name for the database.|string|
 
 ## AWS
 
@@ -80,19 +80,19 @@ iam_policy_status: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|secret_store|Contains secret store configurations.|[Secret Store](#secret-store)|
-|region|A AWS cloud region.|string|
-|redshift_serverless|Contains AWS Redshift Serverless specific metadata.|[Redshift Serverless](#redshift-serverless)|
-|redshift|Contains Redshift specific metadata.|[Redshift](#redshift)|
-|rdsproxy|Contains AWS Proxy specific metadata.|[RDSProxy](#rdsproxy)|
-|rds|Contains RDS specific metadata.|[RDS](#rds)|
-|opensearch|Contains AWS OpenSearch specific metadata.|[Open Search](#open-search)|
-|memorydb|Contains AWS MemoryDB specific metadata.|[Memory DB](#memory-db)|
-|iam_policy_status|Indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.|[IAMPolicy Status](#iampolicy-status)|
-|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
-|elasticache|Contains AWS ElastiCache Redis specific metadata.|[Elasti Cache](#elasti-cache)|
-|assume_role_arn|An optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|string|
 |account_id|The AWS account ID this database belongs to.|string|
+|assume_role_arn|An optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|string|
+|elasticache|Contains AWS ElastiCache Redis specific metadata.|[Elasti Cache](#elasti-cache)|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
+|iam_policy_status|Indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.|[IAMPolicy Status](#iampolicy-status)|
+|memorydb|Contains AWS MemoryDB specific metadata.|[Memory DB](#memory-db)|
+|opensearch|Contains AWS OpenSearch specific metadata.|[Open Search](#open-search)|
+|rds|Contains RDS specific metadata.|[RDS](#rds)|
+|rdsproxy|Contains AWS Proxy specific metadata.|[RDSProxy](#rdsproxy)|
+|redshift|Contains Redshift specific metadata.|[Redshift](#redshift)|
+|redshift_serverless|Contains AWS Redshift Serverless specific metadata.|[Redshift Serverless](#redshift-serverless)|
+|region|A AWS cloud region.|string|
+|secret_store|Contains secret store configurations.|[Secret Store](#secret-store)|
 
 ## Azure
 
@@ -110,10 +110,10 @@ is_flexi_server: true
 
 |Field Name|Description|Type|
 |---|---|---|
-|resource_id|The Azure fully qualified ID for the resource.|string|
-|redis|Contains Azure Cache for Redis specific database metadata.|[Azure Redis](#azure-redis)|
-|name|The Azure database server name.|string|
 |is_flexi_server|True if the database is an Azure Flexible server.|Boolean|
+|name|The Azure database server name.|string|
+|redis|Contains Azure Cache for Redis specific database metadata.|[Azure Redis](#azure-redis)|
+|resource_id|The Azure fully qualified ID for the resource.|string|
 
 ## Azure Redis
 
@@ -148,9 +148,9 @@ result: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|result|Captures standard output|string|
-|period|A time between command runs||
 |command|A command to run|[]string|
+|period|A time between command runs||
+|result|Captures standard output|string|
 
 ## Database Admin User
 
@@ -195,19 +195,19 @@ oracle: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|uri|The database connection endpoint.|string|
-|tls|The TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|[Database TLS](#database-tls)|
-|protocol|The database protocol: postgres, mysql, mongodb, etc.|string|
-|oracle|An additional Oracle configuration options.|[Oracle Options](#oracle-options)|
-|mysql|An additional section with MySQL database options.|[My SQLOptions](#my-sqloptions)|
-|mongo_atlas|Contains Atlas metadata about the database.|[Mongo Atlas](#mongo-atlas)|
-|gcp|Contains parameters specific to GCP Cloud SQL databases.|[GCPCloud SQL](#gcpcloud-sql)|
-|dynamic_labels|The database dynamic labels.|map[string][Command Label](#command-label)|
-|ca_cert|The PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.|string|
-|azure|Contains Azure specific database metadata.|[Azure](#azure)|
-|aws|Contains AWS specific settings for RDS/Aurora/Redshift databases.|[AWS](#aws)|
-|admin_user|The database admin user for automatic user provisioning.|[Database Admin User](#database-admin-user)|
 |ad|The Active Directory configuration for the database.|[AD](#ad)|
+|admin_user|The database admin user for automatic user provisioning.|[Database Admin User](#database-admin-user)|
+|aws|Contains AWS specific settings for RDS/Aurora/Redshift databases.|[AWS](#aws)|
+|azure|Contains Azure specific database metadata.|[Azure](#azure)|
+|ca_cert|The PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.|string|
+|dynamic_labels|The database dynamic labels.|map[string][Command Label](#command-label)|
+|gcp|Contains parameters specific to GCP Cloud SQL databases.|[GCPCloud SQL](#gcpcloud-sql)|
+|mongo_atlas|Contains Atlas metadata about the database.|[Mongo Atlas](#mongo-atlas)|
+|mysql|An additional section with MySQL database options.|[My SQLOptions](#my-sqloptions)|
+|oracle|An additional Oracle configuration options.|[Oracle Options](#oracle-options)|
+|protocol|The database protocol: postgres, mysql, mongodb, etc.|string|
+|tls|The TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|[Database TLS](#database-tls)|
+|uri|The database connection endpoint.|string|
 
 ## Database Status
 
@@ -229,11 +229,11 @@ azure: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|mysql|An additional section with MySQL runtime database information.|[My SQLOptions](#my-sqloptions)|
-|managed_users|A list of database users that are managed by Teleport.|[]string|
-|ca_cert|The auto-downloaded cloud database CA certificate.|string|
-|azure|The auto-discovered Azure cloud database metadata.|[Azure](#azure)|
 |aws|The auto-discovered AWS cloud database metadata.|[AWS](#aws)|
+|azure|The auto-discovered Azure cloud database metadata.|[Azure](#azure)|
+|ca_cert|The auto-downloaded cloud database CA certificate.|string|
+|managed_users|A list of database users that are managed by Teleport.|[]string|
+|mysql|An additional section with MySQL runtime database information.|[My SQLOptions](#my-sqloptions)|
 
 ## Database TLS
 
@@ -250,9 +250,9 @@ server_name: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|server_name|Allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.|string|
-|mode|A TLS connection mode. See DatabaseTLSMode for details.|[Database TLSMode](#database-tlsmode)|
 |ca_cert|An optional user provided CA certificate used for verifying database TLS connection.|string|
+|mode|A TLS connection mode. See DatabaseTLSMode for details.|[Database TLSMode](#database-tlsmode)|
+|server_name|Allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.|string|
 
 ## Database TLSMode
 
@@ -278,10 +278,10 @@ endpoint_type: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|user_group_ids|A list of user group IDs.|[]string|
-|transit_encryption_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
-|replication_group_id|The Redis replication group ID.|string|
 |endpoint_type|The type of the endpoint.|string|
+|replication_group_id|The Redis replication group ID.|string|
+|transit_encryption_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
+|user_group_ids|A list of user group IDs.|[]string|
 
 ## GCPCloud SQL
 
@@ -297,8 +297,8 @@ instance_id: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|project_id|The GCP project ID the Cloud SQL instance resides in.|string|
 |instance_id|The Cloud SQL instance ID.|string|
+|project_id|The GCP project ID the Cloud SQL instance resides in.|string|
 
 ## IAMPolicy Status
 
@@ -321,10 +321,10 @@ endpoint_type: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|tls_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
-|endpoint_type|The type of the endpoint.|string|
-|cluster_name|The name of the MemoryDB cluster.|string|
 |acl_name|The name of the ACL associated with the cluster.|string|
+|cluster_name|The name of the MemoryDB cluster.|string|
+|endpoint_type|The type of the endpoint.|string|
+|tls_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
 
 ## Metadata
 
@@ -347,12 +347,12 @@ revision: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
-|name|An object name|string|
-|labels|A set of labels|map[string]string|
-|id|A record ID. Deprecated: Use revision instead.|number|
-|expires|A global expiry time header can be set on any resource in the system.||
 |description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|id|A record ID. Deprecated: Use revision instead.|number|
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
 ## Mongo Atlas
 
@@ -399,9 +399,9 @@ endpoint_type: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|endpoint_type|The type of the endpoint.|string|
-|domain_name|The name of the domain.|string|
 |domain_id|The ID of the domain.|string|
+|domain_name|The name of the domain.|string|
+|endpoint_type|The type of the endpoint.|string|
 
 ## Oracle Options
 
@@ -439,12 +439,12 @@ vpc_id: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|vpc_id|The VPC where the RDS is running.|string|
-|subnets|A list of subnets for the RDS instance.|[]string|
-|resource_id|The RDS instance resource identifier (db-xxx).|string|
-|instance_id|The RDS instance identifier.|string|
-|iam_auth|Indicates whether database IAM authentication is enabled.|Boolean|
 |cluster_id|The RDS cluster (Aurora) identifier.|string|
+|iam_auth|Indicates whether database IAM authentication is enabled.|Boolean|
+|instance_id|The RDS instance identifier.|string|
+|resource_id|The RDS instance resource identifier (db-xxx).|string|
+|subnets|A list of subnets for the RDS instance.|[]string|
+|vpc_id|The VPC where the RDS is running.|string|
 
 ## RDSProxy
 
@@ -461,9 +461,9 @@ resource_id: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|resource_id|The RDS instance resource identifier (prx-xxx).|string|
-|name|The identifier of an RDS Proxy.|string|
 |custom_endpoint_name|The identifier of an RDS Proxy custom endpoint.|string|
+|name|The identifier of an RDS Proxy.|string|
+|resource_id|The RDS instance resource identifier (prx-xxx).|string|
 
 ## Redshift
 
@@ -495,9 +495,9 @@ workgroup_id: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|workgroup_name|The workgroup name.|string|
-|workgroup_id|The workgroup ID.|string|
 |endpoint_name|The VPC endpoint name.|string|
+|workgroup_id|The workgroup ID.|string|
+|workgroup_name|The workgroup name.|string|
 
 ## Secret Store
 
@@ -513,6 +513,6 @@ kms_key_id: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|kms_key_id|Specifies the AWS KMS key for encryption.|string|
 |key_prefix|Specifies the secret key prefix.|string|
+|kms_key_id|Specifies the AWS KMS key for encryption.|string|
 

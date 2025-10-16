@@ -23,12 +23,12 @@ status: # [...]
 ```
 |Field Name|Description|Type|
 |---|---|---|
-|version|The version of the resource being represented.|string|
-|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
-|status|Fields that are set by the server as results of operations. These should not be modified by users.|[Bot Status](#bot-status)|
-|spec|The configured properties of a Bot.|[Bot Spec](#bot-spec)|
-|metadata|Common metadata that all resources share.||
 |kind|The kind of resource represented.|string|
+|metadata|Common metadata that all resources share.||
+|spec|The configured properties of a Bot.|[Bot Spec](#bot-spec)|
+|status|Fields that are set by the server as results of operations. These should not be modified by users.|[Bot Status](#bot-status)|
+|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
+|version|The version of the resource being represented.|string|
 
 ## Bot Spec
 
@@ -50,8 +50,8 @@ traits:
 
 |Field Name|Description|Type|
 |---|---|---|
-|traits|The traits that will be associated with the bot for the purposes of role templating.  Where multiple specified with the same name, these will be merged by the server.|[][Trait](#trait)|
 |roles|The roles that the bot should be able to impersonate.|[]string|
+|traits|The traits that will be associated with the bot for the purposes of role templating.  Where multiple specified with the same name, these will be merged by the server.|[][Trait](#trait)|
 
 ## Bot Status
 
@@ -67,8 +67,8 @@ role_name: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|user_name|The name of the user associated with the bot.|string|
 |role_name|The name of the role associated with the bot.|string|
+|user_name|The name of the user associated with the bot.|string|
 
 ## Trait
 
@@ -87,6 +87,6 @@ values:
 
 |Field Name|Description|Type|
 |---|---|---|
-|values|The values associated with the named trait.|[]string|
 |name|The name of the trait. This is what allows the trait to be queried in role templates.|string|
+|values|The values associated with the named trait.|[]string|
 
