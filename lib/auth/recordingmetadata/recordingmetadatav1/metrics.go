@@ -21,6 +21,13 @@ var sessionsProcessingMetric = prometheus.NewGauge(prometheus.GaugeOpts{
 	Help:      "Number of session recordings being processed",
 })
 
+var sessionsPendingMetric = prometheus.NewGauge(prometheus.GaugeOpts{
+	Namespace: teleport.MetricNamespace,
+	Subsystem: "recording_metadata",
+	Name:      "sessions_pending_total",
+	Help:      "Number of sessions waiting to be processed",
+})
+
 func init() {
 	metrics.RegisterPrometheusCollectors(
 		sessionsProcessedMetric,
