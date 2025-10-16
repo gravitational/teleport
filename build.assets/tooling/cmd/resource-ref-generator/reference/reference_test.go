@@ -35,34 +35,34 @@ func TestGenerate(t *testing.T) {
 	baseConf := GeneratorConfig{
 		Resources: []ResourceConfig{
 			{
-				TypeName: "CommandLabelV2",
+				TypeName:    "DatabaseV3",
+				PackageName: "typestest",
+				NameInDocs:  "Database v3",
+				KindValue:   "database",
 			},
 			{
-				TypeName: "DatabaseSpecV3",
+				TypeName:    "DatabaseServerV3",
+				PackageName: "typestest",
+				NameInDocs:  "Database Server v3",
+				KindValue:   "db_server",
 			},
 			{
-				TypeName: "DatabaseV3",
+				TypeName:    "AppV3",
+				PackageName: "typestest",
+				NameInDocs:  "Application v3",
+				KindValue:   "application",
 			},
 			{
-				TypeName: "DatabaseServerV3",
+				TypeName:    "AppServerV3",
+				PackageName: "typestest",
+				NameInDocs:  "App Server v3",
+				KindValue:   "app_server",
 			},
 			{
-				TypeName: "DatabaseServerSpecV3",
-			},
-			{
-				TypeName: "DatabaseStatusV3",
-			},
-			{
-				TypeName: "AppServerV3",
-			},
-			{
-				TypeName: "AppServerSpecV3",
-			},
-			{
-				TypeName: "AppV3",
-			},
-			{
-				TypeName: "AppSpecV3",
+				TypeName:    "Bot",
+				PackageName: "machineidv1",
+				NameInDocs:  "Bot v1",
+				KindValue:   "bot",
 			},
 		},
 		SourcePath: filepath.Join(
