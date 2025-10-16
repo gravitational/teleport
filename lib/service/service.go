@@ -2751,8 +2751,10 @@ func (process *TeleportProcess) initAuthService() error {
 			case e := <-eventCh:
 				switch e.Name {
 				case TeleportDegradedEvent:
+					logger.InfoContext(process.ExitContext(), "setting health status to not serving")
 					tlsServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 				case TeleportOKEvent:
+					logger.InfoContext(process.ExitContext(), "setting health status to serving")
 					tlsServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 				}
 			case <-ctx.Done():
