@@ -226,6 +226,11 @@ func Generate(conf GeneratorConfig) error {
 		delete(entries, k)
 		pc.Fields = entries
 
+		// TODO: Figure out how to use the config to assign kind and
+		// version.
+		pc.Resource.Kind = "blah"
+		pc.Resource.Version = "blah"
+
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
 		docpath := filepath.Join(conf.DestinationDirectory, filename+".mdx")
 		doc, err := os.Create(docpath)
