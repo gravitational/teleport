@@ -13,45 +13,42 @@ state: draft
 
 ## What
 
-This RFD proposes integrating in-band multi-factor authentication (MFA) into session establishment at the Proxy/Relay
-services. The Proxy/Relay will leverage the [Access Control Decision API (RFD
-0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), a v2
-`TransportService` and a new [MFA service](#mfa-service) to consistently enforce policy decisions and MFA requirements
-for all SSH sessions.
-
-> **Note:** For clarity and brevity, this RFD uses "Proxy" to refer collectively to both Proxy and Relay services, since
-> all described changes apply equally to both components.
+This RFD proposes integrating in-band multi-factor authentication (MFA) into SSH session establishment with the Teleport
+SSH service. This change aims to enhance security by ensuring that MFA checks are tightly coupled with session creation,
+reducing client complexity, and eliminating the need for per-session MFA SSH certificates.
 
 ## Why
 
-Teleport’s current approach to SSH session MFA enforcement has several architectural and security shortcomings that this
-proposal aims to address:
+Teleport’s current approach to per-session MFA enforcement for SSH access has several architectural and security
+shortcomings that this proposal aims to address:
 
 1. Per-session MFA enforcement flow is performed separately from session creation (i.e., out-of-band), which can
    introduce security gaps. For example, in
    [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc), the MFA
    enforcement policy can be bypassed since an attacker had the ability to forge a certificate attesting that they had
    completed MFA and there was no proper binding between the certificate and the session.
-1. Clients are responsible for determining MFA requirements and establishing a separate connection to the Auth service
-   to complete the MFA ceremony, increasing implementation complexity and the risk of errors.
-1. Decentralized access control logic in clients makes policy management and auditing more complex, requiring Teleport
-   Agent updates for new changes to the access control policies.
+1. MFA complexity is concentrated on the client versus the server. The client is responsible for determining MFA
+   requirements, generating an MFA challenge, requesting a per-session MFA certificate and finally dialing a target host
+   with the per-session MFA certificate. This complexity increases the risk of implementation errors and inconsistencies
+   across different clients (e.g., `tsh`, web terminal, Teleport Connect, etc.).
+1. A per-session MFA certificate is a single credential, representing multiple factors of authentication for a user. If
+   an attacker were to gain possession, it could be used to bypass all forms of authentication checks, including MFA.
 
-By centralizing these responsibilities at the Proxy, the new design directly addresses the above issues:
+By moving MFA enforcement to the SSH service during session establishment, this new design directly addresses the above
+issues by:
 
-1. In-band MFA enforcement is tightly integrated with session creation, ensuring that authentication factors are
+1. MFA enforcement is tightly integrated with session creation (i.e., in-band), ensuring that authentication factors are
    directly bound to each session and mitigating the risk of bypasses like those seen in
    [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc).
-1. MFA complexity is moved from clients to the Proxy, so clients only need to connect to the Proxy and
+1. MFA complexity is moved from clients to the SSH service, so clients only need to connect to the SSH service and
    resolve an MFA challenge only if required, streamlining the session establishment process and reducing the risk of
    implementation errors.
-1. Centralized access control simplifies and strengthens policy enforcement, removing the need to update the Teleport
-   client for policy changes.
+1. Per-session MFA certificates can be completely removed, eliminating a single credential representing multiple factors
+   of authentication.
 
-In summary, centralizing authentication, authorization, and MFA enforcement at the Proxy eliminates critical
-security gaps, reduces client-side complexity, and enables more robust, auditable, and maintainable access control. This
-approach ensures that every SSH session is consistently protected by the latest policies and MFA requirements, improving
-both security and operational efficiency across the Teleport platform.
+In summary, this RFD proposes a more secure and streamlined approach to MFA enforcement for SSH sessions by integrating
+MFA checks directly into the session establishment process, reducing client complexity, and eliminating the need for
+per-session MFA certificates.
 
 ## Details
 
@@ -61,86 +58,57 @@ No changes to the UX as all changes are internal to the architecture.
 
 ### High-Level Flow
 
-The client first invokes the `ProxySSH` RPC in the [TransportService](#transport-service-v2) to establish an SSH session
-with the Proxy. The client sends the target host as the first message in the stream. The Proxy evaluates if MFA is
-required for the session by invoking the `EvaluateSSHAccess` RPC in the Decision service.
+The client will first dial its target SSH host using the Proxy address and its standard Teleport client certificate. The
+Proxy will then resolve the target cluster and host, and open a connection to the target host's respective cluster
+hosting the SSH service.
 
-For sessions where MFA is required, the server begins by sending an MFA challenge ID as the initial message. The
-`ProxySSH` stream is then paused, and the client must invoke the [MFA service's](#mfa-service)
-`CompleteAuthenticateChallenge` RPC with the challenge ID and complete the challenge. Once the client completes the MFA
-challenge, the `TransportService` will receive the pass/fail result and `ProxySSH` will unblock and proceed accordingly.
+The SSH service will authenticate the client using the provided client certificate and evaluate if MFA is required for
+the session by invoking the `EvaluateSSHAccess` RPC of the Decision service. If MFA is not required, the
+`EvaluateSSHAccess` RPC will return a permit and the SSH service can then proceed to establish the SSH session.
 
-If MFA verification fails, or if the client does not complete the challenge within the specified time frame (e.g., 5
-minutes), the stream is terminated and an `AccessDeniedError` is returned. If there are connectivity issues with Proxy
-or Auth, an `InternalServerError` is returned. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for details.
+If MFA is required, the Decision service will respond with an error indicating that MFA is needed. The SSH service will
+then respond via the keyboard-interactive SSH channel to inform the client that MFA is needed. The first question will
+be a protobuf encoded message containing a unique action ID and other relevant metadata. The client must then invoke the
+`CreateAuthenticateChallenge` RPC in the new `MFAService`, providing the action ID along with existing request metadata.
+The client must solve the MFA challenge and respond to the SSH service with a `MFAAuthenticateResponse` message via the
+kept open keyboard-interactive channel to proceed with the SSH session establishment.
 
-In cases where MFA is not required, or after successful MFA verification, the server sends `ClusterDetails` to the
-client. The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to
-the target host, and the target host's responses are relayed back to the client.
+Once the MFA challenge response is received, the SSH service will invoke the `EvaluateSSHAccess` RPC again with the
+action ID and the MFA challenge response. If the second `EvaluateSSHAccess` RPC confirms that MFA has been satisfied, a
+permit is returned and the SSH service will proceed to establish the SSH session with the target host.
 
 ```mermaid
 sequenceDiagram
   autoNumber
 
   participant Client
-  participant Proxy
-  participant Auth
-  participant Node
+  participant Proxy as Proxy Service
+  participant MFA Service as Auth Service
+  participant Decision Service
+  participant SSH as SSH Service
+  participant Host as Target SSH Host
 
-  Client->>Proxy: Open stream (ProxySSH)
-  Client->>Proxy: Send target host (dial_target )
+  Client->>Proxy: Dial SSH (client cert)
+  Proxy->>SSH: Proxy SSH connection
+  SSH->>Decision Service: EvaluateSSHAccess(client cert)
 
-  Proxy->>Proxy: Check MFA Requirement (EvaluateSSHAccess)
-  Note over Proxy: Using local Decision service
-
-  alt MFA Required
-    Proxy->>Auth: Initiate MFA challenge (StartAuthenticateChallenge)
-    Auth->>Proxy: Send MFA challenge ID
-    Proxy->>Client: Send MFA challenge ID
-
-    Client->>Auth: Begin MFA challenge (CompleteAuthenticateChallenge)
-    Auth->>Client: Send MFA challenge
-    Client->>Auth: Send MFA response
-    Auth->>Auth: Validate MFA response
-
-    break MFA Failure
-      Auth->>Client: MFA Failure
-      Auth->>Proxy: MFA Failure
-      Note over Client,Proxy: Session terminated
-    end
-
-    Auth->>Client: Result of MFA challenge
-    Auth->>Proxy: Result of MFA challenge
+  alt MFA required
+    Decision Service-->>SSH: Error MFA required
+    SSH->>Client: Keyboard-interactive (MFA required, action ID)
+    Client->>MFA Service: CreateAuthenticateChallenge (action ID)
+    MFA Service-->>Client: MFA challenge
+    Client->>Client: Solve MFA challenge
+    Client->>SSH: Keyboard-interactive (MFA response)
+    SSH->>Decision Service: EvaluateSSHAccess (client cert, action ID, MFA response)
+    Decision Service-->>MFA Service: ValidateAuthenticateChallenge (action ID, MFA response)
+    MFA Service-->>Decision Service: MFA valid
   end
 
-  Proxy->>Node: Dial target host with stapled permit
-
-  Node->>Proxy: Dial response
-
-  Proxy->>Client: Send ClusterDetails
-
-  Client->>Proxy: Establish SSH connection
-  Proxy->>Node: Establish SSH connection
-
-  break SSH Connection Failure
-    Proxy->>Client: SSH Connection Failure
-    Note over Client,Proxy: Session terminated
-  end
-
-  Node->>Proxy: SSH Connection Established
-  Proxy->>Client: SSH Connection Established
-
-  loop Proxy SSH Frames
-    Client->>Proxy: SSH Frames
-    Proxy->>Node: Forward SSH Frames
-    Node->>Proxy: SSH Frames
-    Proxy->>Client: Forward SSH Frames
-
-    break SSH Connection Failure
-      Proxy->>Client: SSH Connection Failure
-      Note over Client,Proxy: Session terminated
-    end
-  end
+  Decision Service->>SSH: Permit
+  SSH->>Host: Establish SSH connection
+  Host-->>SSH: SSH connection established
+  SSH-->>Proxy: SSH connection established
+  Proxy-->>Client: SSH session established
 ```
 
 ### Security
@@ -149,42 +117,17 @@ In addition to the risks raised in [Access Control Decision API (RFD
 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), there are a
 few risks specific to this RFD.
 
-Since new RPCs are being introduced, there are a few new risks:
+#### Replay Attacks
 
-1. Unauthorized access to the new RPCs could allow attackers to bypass MFA enforcement or impersonate users.
-1. An attacker could exploit an unfinished MFA challenge, potentially allowing unauthorized access.
-1. An attacker could attempt to flood the system with MFA challenge requests, leading to denial-of-service conditions.
-1. An attacker could attempt to downgrade the connection to use the legacy v1 `TransportService` RPCs, which may have
-   weaker security controls.
+MFA challenge responses could potentially be captured and replayed by an attacker to gain unauthorized access. Although
+this risk has already existed with the previous design using per-session MFA SSH certificates, it is important to
+address it in the new design as well.
 
-To mitigate these risks, the following measures will be implemented.
+To mitigate this risk, the following measures will be implemented:
 
-#### Unauthorized Access Mitigation
-
-Each RPC introduced in this RFD will enforce strict authorization:
-
-- `ProxySSH` (v2): Maintains the same authentication and authorization checks as the existing v1 RPC. Only authenticated
-  clients with valid credentials and appropriate permissions can initiate SSH sessions.
-- `StartAuthenticateChallenge`: Only the Proxy and Relay service are permitted to invoke this RPC, allowing them to
-  initiate MFA challenges on behalf of users. Direct user access to this RPC will be denied.
-- `CompleteAuthenticateChallenge`: Only the user for whom the MFA challenge was created is authorized to complete it.
-  The service verifies the user's identity and ensures that only the intended recipient can respond to the challenge.
-
-#### Unfinished MFA Challenge Mitigation
-
-MFA challenges initiated by the Proxy and Relay must be completed within a specified time frame (e.g., 5 minutes). If
-the client fails to do so, the session will be terminated. This limits the window of opportunity for an attacker to
-exploit an unfinished MFA challenge.
-
-#### Denial-of-Service Mitigation
-
-MFA challenge creation will be rate-limited per user to prevent abuse. This limits the ability of an attacker to flood
-the system with MFA challenge requests.
-
-#### Connection Downgrade Mitigation
-
-System administrators will have the ability to disable support for the legacy v1 `TransportService` RPCs on the Proxy
-and Relay. This prevents clients from downgrading to the older protocol with weaker security controls.
+1. Each MFA challenge will include a unique action identifier that ties the challenge to a specific user action.
+1. The Auth service will maintain a record of issued challenges and their associated action IDs. Once a challenge has
+   been successfully completed or expired, it will be invalidated and cannot be reused.
 
 ### Privacy
 
@@ -192,176 +135,99 @@ No changes to privacy are expected.
 
 ### Proto Specification
 
-#### Transport Service v2
+#### Decision Service
 
-A new version of `TransportService` will be introduced. `TransportService` v2 will replace the existing
-`TransportService` in the v1 package. The `ProxySSH` RPC of the v1 `TransportService` will be deprecated in favor of the
-v2 package's `TransportService`'s `ProxySSH` RPC, which provides in-band MFA enforcement during SSH session
-establishment. The new RPC supports both MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA
-challenges as needed.
+The Decision service will be updated to support evaluating SSH access requests with MFA challenge responses. This
+follows the existing pattern in Teleport where RPCs accept MFA challenge responses as part of a request to indicate that
+MFA has been satisfied and the RPC service must validate the response before granting access.
 
-During the [transition period](#transition-period), clients can fallback to the v1 `TransportService` if the v2 service
-is not available or if the client does not yet support the v2 service.
+If the `mfa_response` field is not present, the Decision service will evaluate if MFA is required for the request based
+on the user's MFA configuration and the access control policies. If MFA is required, an error indicating that MFA is
+required will be returned (e.g., `services.ErrSessionMFARequired`) and access will be denied.
 
 ```proto
-// TransportService provides methods to proxy connections to various Teleport instances.
-//
-// All connections operate on top of a bidirectional stream which transports raw payloads from higher level protocols
-// (i.e. SSH). All RPCs support both MFA-required and MFA-optional flows.
-service TransportService {
-  // ProxySSH establishes an SSH connection to the target host over a bidirectional stream. Upon stream establishment,
-  // the client must send a TargetHost (dial_target) as the first message. The server will then evaluate if MFA is
-  // required for the requested target. If MFA is required, the server will send a challenge ID as the next message.
-  // The client must then complete the MFA challenge with the MFA service in order to continue. If MFA is not required,
-  // the server will send ClusterDetails and the client can proceed to send SSH frames. All SSH and
-  // are sent as raw bytes and are not interpreted by the server.
-  rpc ProxySSH(stream ProxySSHRequest) returns (stream ProxySSHResponse);
-}
+// EvaluateSSHAccessRequest describes a request to evaluate whether or not a
+// given ssh access attempt should be permitted.
+message EvaluateSSHAccessRequest {
+  // ... existing fields ...
 
-message ProxySSHRequest {
-  // Only one of these fields should be set per message:
-  // - Client must send dial_target as the first message.
-  // - Once ClusterDetails are received by the client, the client can send SSH frames.
-  oneof payload {
-    // Sent by client as the first message
-    TargetHost dial_target = 1;
-    // SSH payload
-    Frame ssh = 2;
-  }
-}
-
-message ProxySSHResponse {
-  // Only one of these fields will be set per message:
-  // The first message from the server will be:
-  // - challenge_id if MFA is required.
-  // - ClusterDetails if the MFA challenge is not required.
-  // After MFA (or if not required), server sends ClusterDetails and then SSH frames.
-  oneof payload {
-    // Sent by server if MFA is required
-    string challenge_id = 1;
-    // Sent by server if MFA is not required, and after MFA if required
-    ClusterDetails details = 2;
-    // SSH payload
-    Frame ssh = 3;
-  }
+  // MFAAuthenticateResponse is an optional field that contains the MFA challenge response
+  // provided by the user. If present, the service must validate the response
+  // before granting access.
+  MFAAuthenticateResponse mfa_response = 6;
 }
 ```
 
-#### MFA Service
+#### Auth Service
 
-A new MFA service will be introduced to handle MFA challenges and responses instead of continuing to introduce new RPCs
-to the legacy AuthService. Existing MFA related RPCs in the Auth service can eventually be migrated to this new MFA
-service in a future effort.
+TODO: Add new `MFAService` instead of extending legacy `AuthService`?
+
+The messages for `CreateAuthenticateChallenge` will be updated to include an optional `action_id` field to associate the
+MFA challenge with a specific user action. The `action_id` can be used for other Teleport features, not just SSH access.
+The service must store the `action_id` along with the MFA challenge so that when the client responds with the MFA
+challenge response, it can be correlated with the original challenge.
+
+A new RPC `ValidateAuthenticateChallenge` will be added to validate the MFA challenge response provided by the user.
+This RPC will accept the `action_id` and the `MFAAuthenticateResponse` as parameters. The service must verify that the
+response matches the original challenge associated with the `action_id` and that the challenge has not expired or been
+previously used.
 
 ```proto
-// MFAService is responsible for handling MFA challenges and responses.
-service MFAService {
-  // StartAuthenticateChallenge initiates an MFA challenge for a user and blocks until the challenge is resolved.
-  // The first message from the server will always be a unique challenge ID that the client must use to complete the
-  // challenge. Once the MFA challenge is successfully resolved, a response is returned with the result. If the
-  // challenge fails, an error is returned.
-  rpc StartAuthenticateChallenge(StartAuthenticateChallengeRequest) returns (stream StartAuthenticateChallengeResponse);
+// ChallengeScope is a scope authorized by an MFA challenge resolution.
+enum ChallengeScope {
+  // ... existing fields ...
 
-  // CompleteAuthenticateChallenge is invoked by the user's client to complete the MFA challenge using the challenge ID
-  // provided by StartAuthenticateChallenge. The client must first send the challenge ID and then the server will
-  // respond with the MFA challenge. The client must send the MFA response and the server will validate it. The caller
-  // of StartAuthenticateChallenge is notified of the result of the MFA challenge.
-  rpc CompleteAuthenticateChallenge(stream CompleteAuthenticateChallengeRequest) returns (stream CompleteAuthenticateChallengeResponse);
+  // CHALLENGE_SCOPE_ACTION indicates that the challenge is tied to a specific user action.
+  // The action must be satisfied to proceed with the action.
+  CHALLENGE_SCOPE_ACTION = 9;
 }
 
-// Request to start an MFA challenge.
-message StartAuthenticateChallengeRequest {
-  // User for whom the challenge is being initiated.
-  string user = 1;
-  // challenge_extensions are extensions that will be applied to the issued MFA challenge.
-  ChallengeExtensions challenge_extensions = 2;
-  // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
-  // return non-SSO challenges.
-  string sso_client_redirect_url = 3;
-  // proxy_address is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
-  // is required to determine which URL to redirect the user to when there are multiple options.
-  string proxy_address = 4;
+// ChallengeExtensions contains MFA challenge extensions used by Teleport
+// during MFA authentication.
+message ChallengeExtensions {
+  // ... existing fields ...
+
+  // action_id is an optional field that associates the MFA challenge with a specific user action.
+  // If provided, the challenge will be tied to the action and must be satisfied to proceed with the action.
+  string action_id = 4;
 }
 
-// Response containing the details of the MFA challenge.
-message StartAuthenticateChallengeResponse {
-  one of data {
-    // Unique challenge ID for the MFA challenge.
-    string challenge_id = 1;
-    // Final response containing the result of an MFA challenge after it has been completed.
-    AuthenticateChallengeResult result = 2;
-  }
+// AuthService is authentication/authorization service implementation
+service AuthService {
+  // ... existing RPCs ...
+
+  // ValidateAuthenticateChallenge validates the MFA challenge response provided by the user.
+  rpc ValidateAuthenticateChallenge(ValidateAuthenticateChallengeRequest) returns (ValidateAuthenticateChallengeResponse);
 }
 
-// AuthenticateChallengeResult contains the result of a MFA challenge.
-message AuthenticateChallengeResult {
-  // Success is true when the MFA challenge was completed successfully by the user.
-  bool success = 1;
-  // Error contains the error message if the MFA challenge failed or could not be completed.
-  optional string error = 2;
+message ValidateAuthenticateChallengeRequest {
+  // mfa_response contains the MFA challenge response provided by the user.
+  MFAAuthenticateResponse mfa_response = 1;
+
+  // user is the username of the user attempting to authenticate.
+  string user = 2;
+
+  // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
+  // Required, except for v15 clients and older.
+  teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 3;
+
+    // action_id is an optional unique identifier associated with the MFA challenge.
+  // If provided, it ties the response to a specific user action.
+  string action_id = 4;
 }
 
-// Request to complete an MFA challenge.
-message CompleteAuthenticateChallengeRequest {
-  one of data {
-    // Unique identifier for the MFA challenge session.
-    string challenge_id = 1;
-    // MFA response from the client (e.g., OTP, WebAuthn assertion).
-    MFAAuthenticateResponse response = 2;
-  }
-}
-
-// Response indicating the result of the MFA challenge.
-message CompleteAuthenticateChallengeResponse {
-  one of data {
-    // The MFA challenge to be presented to the user.
-    MFAAuthenticateChallenge challenge = 1;
-  }
+message ValidateAuthenticateChallengeResponse {
+  // valid indicates whether the MFA challenge response is valid.
+  bool valid = 1;
 }
 ```
-
-### Teleport Connect and VNet
-
-Since Teleport Connect and the VNet implementation uses the same client libraries as `tsh`, it will be updated to use
-the new v2 `TransportService` and `MFAService` for SSH sessions. The per-session MFA SSH certificate generation will be
-removed, and the standard client certificate will be used when dialing. Teleport Connect and VNet will fallback to the
-v1 `TransportService` if the v2 service is not available.
-
-### Web Terminal
-
-The web terminal does not use the `TransportService` and establishes SSH connections via a different mechanism so it
-does not need to be updated to use the new v2 `TransportService`. Instead, it relies on web-based authentication flows
-and the Teleport API to manage user sessions and MFA challenges.
-
-However, the web terminal client will be updated to use the `MFAService` for completing MFA challenges as part of the
-SSH session establishment process. The per-session MFA SSH certificate generation will be removed, and the standard
-client certificate will be used when dialing.
 
 ### Per-session MFA SSH Certificates
 
 Per-session MFA SSH certificates are not required in the new design except for backwards compatibility with legacy
-clients and agents. They were previously used to convey session metadata and enforce MFA at the agents. With the new
-architecture, the Proxy and Auth service handle these responsibilities directly. Support for per-session MFA SSH
-certificates via `ProxySSH` RPC will initially be retained during the transition period to ensure backwards compatibility
-with existing clients and agents (see [Backwards Compatibility](#backwards-compatibility)).
-
-### Session Enforcement at the Control Plane
-
-The implementation of this RFD will leverage work done in the [Relocate Phase of the Access Control Decision API (RFD
-0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md#relocate-phase)
-(see [dependencies](#dependencies)).
-
-The reverse tunnel and proxy peering protocols will have to be updated to include the `Permit` from the Decision API
-response, which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming
-dial. The target agent will parse the permit and validate the session context before allowing access to the underlying
-resource (i.e., access-control decisions will be made at the control plane before establishing the connection). For
-backward compatibility, if a legacy v1 client is detected, the agent will continue to validate the SSH certificate.
-
-### Relay Service
-
-The Relay will be updated to support the v2 `TransportService` and invoke the MFA service as needed, similar to the
-Proxy. Additionally, it would need to be authorized to invoke the Decision service's `EvaluateSSHAccess` RPC and MFA
-service's `StartAuthenticateChallenge` RPC.
+clients and agents. They were previously used to convey session metadata and enforce MFA at the agents. Support for
+per-session MFA SSH certificates will initially be retained during the transition period to ensure backwards
+compatibility with existing clients and agents (see [Backwards Compatibility](#backwards-compatibility)).
 
 ### Backwards Compatibility
 
@@ -369,37 +235,23 @@ service's `StartAuthenticateChallenge` RPC.
 
 The transition period will last at least 2 major releases to allow clients sufficient time for migration.
 
-#### ProxySSH RPC Deprecation
+#### SSH Service
 
-The `ProxySSH` RPC in the v1 `TransportService` will be deprecated but remain available during the transition period to
-ensure backward compatibility. Clients using the deprecated `ProxySSH` RPC will receive a warning message indicating
-that this RPC is deprecated and will be removed in a future release. Users will be advised to upgrade their clients to
-use the new v2 `TransportService` RPCs to maintain access to SSH features.
-
-After the transition period, support for the deprecated `ProxySSH` RPC will be removed, and only the new v2
-`TransportService` RPCs will be supported.
-
-#### Agents
-
-Agents will continue to support per-session MFA SSH certificate verification during the transition period to ensure
-compatibility with clients that have not yet migrated to the new v2 `TransportService`.
+The SSH service will continue to support per-session MFA SSH certificate verification during the transition period to
+ensure compatibility with clients that have not yet migrated. The SSH service will check for the presence of a
+per-session MFA SSH certificate. If present, it will validate the certificate as before. If not present, it will proceed
+with the in-band MFA flow as described in this RFD.
 
 After the transition period, the per-session MFA SSH certificate verification logic will be removed and agents will no
 longer accept per-session MFA SSH certificates.
 
 ### Audit Events
 
-All MFA challenge initiations, completions, failures, and session establishments will be logged with metadata, including
-fields such as `SessionMetadata.WithMFA` to indicate whether MFA was enforced for the session, `user`, `device UUID`,
-`challenge ID`, and timestamps. This logging approach follows the conventions established in [RFD 0014 - Session
-2FA](0014-session-2FA.md) and [RFD 0024e - Access Control Decision
-API](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md).
+No changes to audit events are needed.
 
 ### Observability
 
-The `TransportService` in the v2 package and the `MFAService` will follow the established convention of using
-OpenTelemetry's auto-instrumentation, as this is already implemented for the v1 `TransportService`. No changes to
-observability patterns are needed.
+No changes to observability patterns are needed.
 
 ### Product Usage
 
@@ -407,17 +259,8 @@ No changes in product usage are expected since this is an internal change.
 
 ### Test Plan
 
-#### Existing Tests
-
 No changes are needed for existing SSH access tests. Since this RFD does not change the UX, existing end-to-end tests
-for `tsh ssh`, `tsh vnet`, and web terminal will continue to function as before.
-
-#### New Tests
-
-1. Add tests to check backward compatibility: verify that clients using the old `ProxySSH` RPC can still connect during
-   the transition period and receive deprecation warnings.
-1. Add an integration test to confirm that if a user does not finish the MFA challenge within the allowed time (for
-   example, 5 minutes), the session is closed automatically.
+for `tsh ssh`, `tsh vnet`, and web terminal will continue to provide coverage.
 
 ### Implementation
 
@@ -430,43 +273,16 @@ The following are assumed to be completed before starting work on this RFD:
    and relocate implementation
    1. Decision service has a way for deriving user/session metadata from incoming requests without relying on client
       certificates.
-   1. Proxy/Relay is able to evaluate SSH access requests using the Decision service.
-   1. Reverse tunnel and proxy peering protocols are updated to include the `Permit` from the Decision API response to
-      be forwarded from Proxy/Relay to agent as part of an incoming dial.
-   1. There exists a structured way for the Proxy/Relay to determine if MFA is required for a given SSH session based on
-      the Decision API response.
-   1. The Proxy/Relay has a way to tell Decision service that MFA has been satisfied for a session.
+   1. There exists a structured way to determine if MFA is required for a given SSH session based on the Decision API
+      response.
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
-1. Create `TransportService` in `api/proto/teleport/transport/v2/transport_service.proto`.
-1. Generate `TransportService` Go code using `protoc`.
-1. Implement the v2 `TransportService` in `lib/srv/transport/transportv2/`.
-1. Deprecate the v1 `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
-1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new v2
-   `TransportService` RPCs.
-1. Add new `MFAService` in `api/proto/teleport/mfa/v1/mfa_service.proto` and implement the service in `lib/auth/mfa/`.
-1. Ensure Proxy/Relay is authorized to invoke the new `MFAService` RPCs and the `EvaluateSSHAccess` RPC.
-1. Update `tsh ssh` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
-   generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
-   the v2 service is not available.
-1. Update `tsh vnet` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
-   generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
-   the v2 service is not available.
-1. Update web terminal client to use the `MFAService`. Remove per-session MFA certificate generation and use standard
-   client certificate when dialing. Client should fallback to the v1 `TransportService` if the v2 service is not
-   available.
-1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
-1. Update documentation to reflect the new architecture.
-1. Implement `TransportService` v2 support in the Relay service.
+TODO
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
-1. Remove v1 `TransportService`'s `ProxySSH` RPC. Remove all related backward compatibility code.
-1. Remove per-session MFA SSH certificate verification logic.
-1. Remove per-session MFA SSH certificate generation.
-1. Update test plan to remove backward compatibility tests for the deprecated `TransportService` and SSH certificate
-   handling.
+TODO
 
 ## Alternatives Considered
 
@@ -474,13 +290,12 @@ The following are assumed to be completed before starting work on this RFD:
    including creating the MFA challenge and validating the response. While this would still simplify the client-side
    implementation, it would potentially introduce security risks by giving Proxy/Relay access to operations that are out
    of its domain scope.
+1. A new version of `TransportService` is introduced to handle in-band MFA: This approach would involve creating a new
+   service specifically for handling in-band MFA at the control plane level. While this would separate concerns and keep
+   the MFA logic isolated, it would add complexity to the architecture and require significant changes to existing
+   services.
 
 ## Future Considerations
 
 1. Extend in-band MFA enforcement to additional protocols e.g., Kubernetes API requests, database connections, desktop
    access, etc.
-1. Migrate MFA related RPCs in the Auth service to the new `MFAService`.
-1. Unify all clients (tsh, web, etc.) to use the same `MFAService` RPCs for MFA enforcement, reducing code duplication
-   and simplifying maintenance. For example, we can follow the pattern as established by [Headless
-   Authentication](/rfd/0105-headless-authentication.md) and replace all client-specific MFA handling with the Web UI +
-   `MFAService` integration i.e., users will complete all MFA challenges through the Web UI.
