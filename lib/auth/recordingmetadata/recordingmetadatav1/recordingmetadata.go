@@ -80,8 +80,8 @@ const (
 	// maxThumbnails is the maximum number of thumbnails to store in the session metadata.
 	maxThumbnails = 1000
 
-	// concurrencyLimit limits the number of concurrent processing operations.
-	concurrencyLimit = 20
+	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
+	concurrencyLimit = 150
 )
 
 // NewRecordingMetadataService creates a new instance of RecordingMetadataService with the provided configuration.
