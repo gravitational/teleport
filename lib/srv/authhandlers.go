@@ -577,15 +577,19 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 
 	if err != nil {
 		// If MFA is required, perform MFA verification with the client.
-		// TODO(cthach): Legacy clients must have provided a valid session MFA certificate. They do not understand
-		// in-band MFA challenges and should be rejected. Newer clients can handle in-band MFA challenges.
-		// We can detect legacy clients because they will have a session MFA certificate if their
-		// roles require per-session MFA.
 		if errors.Is(err, services.ErrSessionMFARequired) {
 			return nil, &ssh.PartialSuccessError{
 				Next: ssh.ServerAuthCallbacks{
-					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-						return h.mfaChallengeHandlerFunc(ctx, ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), outputPermissions, conn, client)
+					PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+						// If the client does not support keyboard-interactive, it means it is a legacy client. Reject
+						// the connection because legacy clients must provide a valid session MFA certificate during
+						// initial authentication.
+						// TODO(cthach): Remove this restriction when legacy clients are no longer supported.
+						return nil, trace.AccessDenied("MFA required but not completed (legacy clients must provide a valid session MFA certificate)")
+					},
+					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+						// Dealing with a client that supports keyboard-interactive, so we can proceed with MFA verification.
+						return h.mfaChallengeHandlerFunc(ctx, ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), outputPermissions, conn, challenge)
 					},
 				},
 			}
