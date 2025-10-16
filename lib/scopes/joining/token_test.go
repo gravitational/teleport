@@ -28,11 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
-func TestStrongValidateScopedToken(t *testing.T) {
+func TestValidateScopedToken(t *testing.T) {
 	cases := []struct {
-		name        string
-		token       *joiningv1.ScopedToken
-		expectedErr string
+		name              string
+		token             *joiningv1.ScopedToken
+		expectedStrongErr string
+		expectedWeakErr   string
 	}{
 		{
 			name: "invalid kind",
@@ -47,7 +48,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: fmt.Sprintf("expected kind %v, got %q", types.KindScopedToken, ""),
+			expectedStrongErr: fmt.Sprintf("expected kind %v, got %q", types.KindScopedToken, ""),
 		},
 		{
 			name: "invalid version",
@@ -62,7 +63,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: fmt.Sprintf("expected version %v, got %q", types.V1, ""),
+			expectedStrongErr: fmt.Sprintf("expected version %v, got %q", types.V1, ""),
 		},
 		{
 			name: "invalid subkind",
@@ -79,7 +80,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: fmt.Sprintf("expected sub_kind %v, got %q", "", "subkind"),
+			expectedStrongErr: fmt.Sprintf("expected sub_kind %v, got %q", "", "subkind"),
 		},
 		{
 			name: "missing name",
@@ -88,10 +89,11 @@ func TestStrongValidateScopedToken(t *testing.T) {
 				Version: types.V1,
 				Scope:   "/aa",
 				Spec: &joiningv1.ScopedTokenSpec{
-					Roles: []string{types.RoleNode.String()},
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: "missing name",
+			expectedStrongErr: "missing name",
 		},
 		{
 			name: "missing spec",
@@ -103,7 +105,8 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Name: "testtoken",
 				},
 			},
-			expectedErr: "spec must not be nil",
+			expectedStrongErr: "spec must not be nil",
+			expectedWeakErr:   "validating scoped token assigned scope",
 		},
 		{
 			name: "missing scope",
@@ -118,10 +121,11 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: "scoped token must have a scope assigned",
+			expectedStrongErr: "scoped token must have a scope assigned",
+			expectedWeakErr:   "validating scoped token resource scope",
 		},
 		{
-			name: "invalid scope",
+			name: "non-absolute scope",
 			token: &joiningv1.ScopedToken{
 				Kind:    types.KindScopedToken,
 				Scope:   "aa/bb",
@@ -134,7 +138,24 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: "validating scoped token resource scope",
+			expectedStrongErr: "validating scoped token resource scope",
+		},
+		{
+			name: "scope with invalid characters",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb}",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+				},
+			},
+			expectedStrongErr: "validating scoped token resource scope",
+			expectedWeakErr:   "validating scoped token resource scope",
 		},
 		{
 			name: "missing assigned scope",
@@ -149,10 +170,11 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles: []string{types.RoleNode.String()},
 				},
 			},
-			expectedErr: "validating scoped token assigned scope",
+			expectedStrongErr: "validating scoped token assigned scope",
+			expectedWeakErr:   "validating scoped token assigned scope",
 		},
 		{
-			name: "invalid assigned scope",
+			name: "non-absolute assigned scope",
 			token: &joiningv1.ScopedToken{
 				Kind:    types.KindScopedToken,
 				Scope:   "/aa/bb",
@@ -165,7 +187,24 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					AssignedScope: "aa/bb",
 				},
 			},
-			expectedErr: "validating scoped token assigned scope",
+			expectedStrongErr: "validating scoped token assigned scope",
+		},
+		{
+			name: "assigned scope with invalid character",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         []string{types.RoleNode.String()},
+					AssignedScope: "aa/bb}",
+				},
+			},
+			expectedStrongErr: "validating scoped token assigned scope",
+			expectedWeakErr:   "validating scoped token assigned scope",
 		},
 		{
 			name: "assigned scope is not descendant of token scope",
@@ -181,7 +220,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					AssignedScope: "/bb/aa",
 				},
 			},
-			expectedErr: "scoped token assigned scope must be descendant of its resource scope",
+			expectedStrongErr: "scoped token assigned scope must be descendant of its resource scope",
 		},
 		{
 			name: "missing roles",
@@ -196,7 +235,8 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 				},
 			},
-			expectedErr: "scoped token must have at least one role",
+			expectedStrongErr: "scoped token must have at least one role",
+			expectedWeakErr:   "scoped token must have at least one role",
 		},
 		{
 			name: "invalid roles",
@@ -212,7 +252,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{"random_role"},
 				},
 			},
-			expectedErr: "validating scoped token roles",
+			expectedStrongErr: "validating scoped token roles",
 		},
 		{
 			name: "unsupported roles",
@@ -228,7 +268,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String(), types.RoleInstance.String()},
 				},
 			},
-			expectedErr: fmt.Sprintf("role %q does not support scoping", types.RoleInstance),
+			expectedStrongErr: fmt.Sprintf("role %q does not support scoping", types.RoleInstance),
 		},
 		{
 			// TODO (eriktate): remove this when scoped tokens support bot joins
@@ -246,7 +286,7 @@ func TestStrongValidateScopedToken(t *testing.T) {
 					BotName:       "test_bot",
 				},
 			},
-			expectedErr: "scoped tokens do not support the bot role or bot names",
+			expectedStrongErr: "scoped tokens do not support the bot role or bot names",
 		},
 		{
 			name: "valid scoped token",
@@ -268,92 +308,17 @@ func TestStrongValidateScopedToken(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			err := joining.StrongValidateToken(c.token)
-			if c.expectedErr != "" {
-				assert.ErrorContains(t, err, c.expectedErr)
+			if c.expectedStrongErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, c.expectedStrongErr)
 			}
-		})
-	}
-}
 
-func TestWeakValidateScopedToken(t *testing.T) {
-	cases := []struct {
-		name        string
-		token       *joiningv1.ScopedToken
-		expectedErr string
-	}{
-		{
-			name:        "nil token",
-			expectedErr: "missing scoped token",
-		},
-		{
-			name: "missing scope",
-			token: &joiningv1.ScopedToken{
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-				},
-			},
-			expectedErr: "validating scoped token resource scope",
-		},
-		{
-			name: "invalid scope",
-			token: &joiningv1.ScopedToken{
-				Scope: "/aa/bb}",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-				},
-			},
-			expectedErr: "validating scoped token resource scope",
-		},
-		{
-			name: "missing assigned scope",
-			token: &joiningv1.ScopedToken{
-				Scope: "/aa",
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles: []string{types.RoleNode.String()},
-				},
-			},
-			expectedErr: "validating scoped token assigned scope",
-		},
-		{
-			name: "invalid assigned scope",
-			token: &joiningv1.ScopedToken{
-				Scope: "/aa/bb",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb}",
-					Roles:         []string{types.RoleNode.String()},
-				},
-			},
-			expectedErr: "validating scoped token assigned scope",
-		},
-		{
-			name: "missing roles",
-			token: &joiningv1.ScopedToken{
-				Scope: "/aa",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-				},
-			},
-			expectedErr: "scoped token must have at least one role",
-		},
-		{
-			name: "valid scoped tokens",
-			token: &joiningv1.ScopedToken{
-				Scope: "/aa",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-				},
-			},
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			err := joining.WeakValidateToken(c.token)
-			if c.expectedErr != "" {
-				assert.ErrorContains(t, err, c.expectedErr)
+			err = joining.WeakValidateToken(c.token)
+			if c.expectedWeakErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, c.expectedWeakErr)
 			}
 		})
 	}
