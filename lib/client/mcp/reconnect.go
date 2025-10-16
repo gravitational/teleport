@@ -51,6 +51,8 @@ type ProxyStdioConnConfig struct {
 	// AutoReconnect attempts to re-establish new MCP sessions with the remote
 	// server when encounter connection issues.
 	AutoReconnect bool
+	// HTTPHeaders defines extra custom headers for HTTP transports.
+	HTTPHeaders map[string]string
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -216,6 +218,7 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 				Transport: transport,
 			}),
 			mcpclienttransport.WithContinuousListening(),
+			mcpclienttransport.WithHTTPHeaders(r.HTTPHeaders),
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

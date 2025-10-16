@@ -203,9 +203,13 @@ func Test_mcpConfigCommand(t *testing.T) {
 	devMCPApp1 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev1", devLabels), "host")
 	devMCPApp2 := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "dev2", devLabels), "host")
 	prodMCPApp := mustMakeNewAppServer(t, mustMakeMCPAppWithNameAndLabels(t, "prod", prodLabels), "host")
+	httpMCPApp := mustMakeNewAppServer(t, mustMakeNewAppV3(t,
+		types.Metadata{Name: "streamable-http"},
+		types.AppSpecV3{URI: "mcp+https://localhost:12345/mcp"},
+	), "host")
 	fakeClient := &fakeResourcesClient{
 		resources: []types.ResourceWithLabels{
-			devMCPApp1, devMCPApp2, prodMCPApp,
+			devMCPApp1, devMCPApp2, prodMCPApp, httpMCPApp,
 		},
 	}
 
@@ -214,6 +218,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		cf                 *CLIConf
 		checkError         require.ErrorAssertionFunc
 		disableConfigFile  bool
+		inputHeaderArgs    []string
 		wantNamesInConfig  []string
 		wantOutputContains string
 	}{
@@ -223,9 +228,9 @@ func Test_mcpConfigCommand(t *testing.T) {
 				AppName: "not found",
 			},
 			checkError: require.Error,
-			// "local-everything" was already in the config. Double-check we
+			// "local-not-teleport" was already in the config. Double-check we
 			// didn't screw it up.
-			wantNamesInConfig: []string{"local-everything"},
+			wantNamesInConfig: []string{"local-not-teleport"},
 		},
 		{
 			name: "single",
@@ -233,7 +238,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 				AppName: "dev2",
 			},
 			checkError:         require.NoError,
-			wantNamesInConfig:  []string{"teleport-mcp-dev2", "local-everything"},
+			wantNamesInConfig:  []string{"teleport-mcp-dev2", "local-not-teleport"},
 			wantOutputContains: "Updated client configuration",
 		},
 		{
@@ -242,7 +247,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 				ListAll: true,
 			},
 			checkError:         require.NoError,
-			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "teleport-mcp-prod", "local-everything"},
+			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "teleport-mcp-prod", "teleport-mcp-streamable-http", "local-not-teleport"},
 			wantOutputContains: "Updated client configuration",
 		},
 		{
@@ -251,14 +256,14 @@ func Test_mcpConfigCommand(t *testing.T) {
 				Labels: "env=dev",
 			},
 			checkError:         require.NoError,
-			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "local-everything"},
+			wantNamesInConfig:  []string{"teleport-mcp-dev1", "teleport-mcp-dev2", "local-not-teleport"},
 			wantOutputContains: "Updated client configuration",
 		},
 		{
 			name:              "no selector",
 			cf:                &CLIConf{},
 			checkError:        require.Error,
-			wantNamesInConfig: []string{"local-everything"},
+			wantNamesInConfig: []string{"local-not-teleport"},
 		},
 		{
 			name: "too many selectors",
@@ -267,7 +272,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 				AppName: "dev2",
 			},
 			checkError:        require.Error,
-			wantNamesInConfig: []string{"local-everything"},
+			wantNamesInConfig: []string{"local-not-teleport"},
 		},
 		{
 			name: "print json",
@@ -278,7 +283,36 @@ func Test_mcpConfigCommand(t *testing.T) {
 			checkError:        require.NoError,
 			// Hints for config file flags.
 			wantOutputContains: "Tip:",
-			wantNamesInConfig:  []string{"local-everything"},
+			wantNamesInConfig:  []string{"local-not-teleport"},
+		},
+		{
+			name: "custom headers",
+			cf: &CLIConf{
+				AppName: "streamable-http",
+			},
+			inputHeaderArgs: []string{
+				"H1: v1",
+				"H2:v2",
+			},
+			disableConfigFile: true,
+			checkError:        require.NoError,
+			wantOutputContains: `"-H",
+        "H1: v1",
+        "-H",
+        "H2:v2"`,
+			wantNamesInConfig: []string{"local-not-teleport"},
+		},
+		{
+			name: "invalid header",
+			cf: &CLIConf{
+				AppName: "streamable-http",
+			},
+			inputHeaderArgs: []string{
+				"H1=v1",
+			},
+			disableConfigFile: true,
+			checkError:        require.Error,
+			wantNamesInConfig: []string{"local-not-teleport"},
 		},
 	}
 
@@ -301,6 +335,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 				fetchFunc: func(ctx context.Context, tc *client.TeleportClient, _ apiclient.GetResourcesClient) ([]types.Application, error) {
 					return fetchMCPServers(ctx, tc, fakeClient)
 				},
+				httpHeaders: tt.inputHeaderArgs,
 			}
 
 			if tt.disableConfigFile {
@@ -311,6 +346,46 @@ func Test_mcpConfigCommand(t *testing.T) {
 			tt.checkError(t, err)
 			mustHaveMCPServerNamesInConfig(t, configPath, tt.wantNamesInConfig)
 			require.Contains(t, buf.String(), tt.wantOutputContains)
+		})
+	}
+}
+
+func Test_parseHTTPHeaders(t *testing.T) {
+	tests := []struct {
+		name       string
+		inputArgs  []string
+		checkError require.ErrorAssertionFunc
+		expected   map[string]string
+	}{
+		{
+			name:       "no headers",
+			checkError: require.NoError,
+		},
+		{
+			name: "multiple headers",
+			inputArgs: []string{
+				"a:b",
+				"c: d",
+			},
+			checkError: require.NoError,
+			expected: map[string]string{
+				"a": "b",
+				"c": "d",
+			},
+		},
+		{
+			name: "invalid",
+			inputArgs: []string{
+				"a=b",
+			},
+			checkError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := parseHTTPHeaders(tt.inputArgs)
+			tt.checkError(t, err)
+			require.Equal(t, tt.expected, actual)
 		})
 	}
 }
@@ -385,7 +460,7 @@ func setupMockMCPConfig(t *testing.T) string {
 	configPath := filepath.Join(dir, "config.json")
 	config, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
-	require.NoError(t, config.PutMCPServer("local-everything", mcpconfig.MCPServer{
+	require.NoError(t, config.PutMCPServer("local-not-teleport", mcpconfig.MCPServer{
 		Command: "npx",
 		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
 	}))
