@@ -2009,8 +2009,15 @@ type DatabaseMySQL struct {
 
 // DatabaseOracle are an additional Oracle database options.
 type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32 `yaml:"retry_count,omitempty"`
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool `yaml:"shuffle_hostnames,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.

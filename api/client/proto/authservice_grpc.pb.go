@@ -107,6 +107,7 @@ const (
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
+	AuthService_ListSnowflakeSessions_FullMethodName               = "/proto.AuthService/ListSnowflakeSessions"
 	AuthService_DeleteSnowflakeSession_FullMethodName              = "/proto.AuthService/DeleteSnowflakeSession"
 	AuthService_DeleteAllSnowflakeSessions_FullMethodName          = "/proto.AuthService/DeleteAllSnowflakeSessions"
 	AuthService_CreateSAMLIdPSession_FullMethodName                = "/proto.AuthService/CreateSAMLIdPSession"
@@ -122,6 +123,7 @@ const (
 	AuthService_DeleteAllWebSessions_FullMethodName                = "/proto.AuthService/DeleteAllWebSessions"
 	AuthService_GetWebToken_FullMethodName                         = "/proto.AuthService/GetWebToken"
 	AuthService_GetWebTokens_FullMethodName                        = "/proto.AuthService/GetWebTokens"
+	AuthService_ListWebTokens_FullMethodName                       = "/proto.AuthService/ListWebTokens"
 	AuthService_DeleteWebToken_FullMethodName                      = "/proto.AuthService/DeleteWebToken"
 	AuthService_DeleteAllWebTokens_FullMethodName                  = "/proto.AuthService/DeleteAllWebTokens"
 	AuthService_UpdateRemoteCluster_FullMethodName                 = "/proto.AuthService/UpdateRemoteCluster"
@@ -484,8 +486,13 @@ type AuthServiceClient interface {
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
+	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
+	// Deprecated: Use [ListSnowflakeSessions] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -521,8 +528,11 @@ type AuthServiceClient interface {
 	DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(ctx context.Context, in *types.GetWebTokenRequest, opts ...grpc.CallOption) (*GetWebTokenResponse, error)
+	// Deprecated: Do not use.
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
+	// ListWebTokens returns a page of web tokens.
+	ListWebTokens(ctx context.Context, in *ListWebTokensRequest, opts ...grpc.CallOption) (*ListWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
 	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
@@ -1829,10 +1839,21 @@ func (c *authServiceClient) GetSnowflakeSession(ctx context.Context, in *GetSnow
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSnowflakeSessionsResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetSnowflakeSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSnowflakeSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSnowflakeSessions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1995,10 +2016,21 @@ func (c *authServiceClient) GetWebToken(ctx context.Context, in *types.GetWebTok
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWebTokensResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWebTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListWebTokens(ctx context.Context, in *ListWebTokensRequest, opts ...grpc.CallOption) (*ListWebTokensResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWebTokensResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListWebTokens_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4048,8 +4080,13 @@ type AuthServiceServer interface {
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
+	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
+	// Deprecated: Use [ListSnowflakeSessions] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -4085,8 +4122,11 @@ type AuthServiceServer interface {
 	DeleteAllWebSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(context.Context, *types.GetWebTokenRequest) (*GetWebTokenResponse, error)
+	// Deprecated: Do not use.
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error)
+	// ListWebTokens returns a page of web tokens.
+	ListWebTokens(context.Context, *ListWebTokensRequest) (*ListWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
 	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
@@ -4820,6 +4860,9 @@ func (UnimplementedAuthServiceServer) GetSnowflakeSession(context.Context, *GetS
 func (UnimplementedAuthServiceServer) GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSessions not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSnowflakeSessions not implemented")
+}
 func (UnimplementedAuthServiceServer) DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnowflakeSession not implemented")
 }
@@ -4864,6 +4907,9 @@ func (UnimplementedAuthServiceServer) GetWebToken(context.Context, *types.GetWeb
 }
 func (UnimplementedAuthServiceServer) GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebTokens not implemented")
+}
+func (UnimplementedAuthServiceServer) ListWebTokens(context.Context, *ListWebTokensRequest) (*ListWebTokensResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWebTokens not implemented")
 }
 func (UnimplementedAuthServiceServer) DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebToken not implemented")
@@ -6602,6 +6648,24 @@ func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSnowflakeSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSnowflakeSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, req.(*ListSnowflakeSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_DeleteSnowflakeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteSnowflakeSessionRequest)
 	if err := dec(in); err != nil {
@@ -6861,6 +6925,24 @@ func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWebTokensRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListWebTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListWebTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListWebTokens(ctx, req.(*ListWebTokensRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10324,6 +10406,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSnowflakeSessions_Handler,
 		},
 		{
+			MethodName: "ListSnowflakeSessions",
+			Handler:    _AuthService_ListSnowflakeSessions_Handler,
+		},
+		{
 			MethodName: "DeleteSnowflakeSession",
 			Handler:    _AuthService_DeleteSnowflakeSession_Handler,
 		},
@@ -10378,6 +10464,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWebTokens",
 			Handler:    _AuthService_GetWebTokens_Handler,
+		},
+		{
+			MethodName: "ListWebTokens",
+			Handler:    _AuthService_ListWebTokens_Handler,
 		},
 		{
 			MethodName: "DeleteWebToken",

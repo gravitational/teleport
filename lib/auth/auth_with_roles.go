@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -2674,6 +2675,21 @@ func (a *ServerWithRoles) GetWebTokens(ctx context.Context) ([]types.WebToken, e
 	}
 
 	return tokens, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	if err := a.authorizeAction(types.KindWebToken, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tokens, next, err := a.authServer.ListWebTokens(ctx, limit, start)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return tokens, next, nil
+
 }
 
 // DeleteWebToken removes the web token specified with req.
@@ -5775,6 +5791,7 @@ func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pag
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
+// Deprecated: Prefer paginated variant such as [ListSnowflakeSessions]
 func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
 	// Check if this a database service.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
@@ -5783,11 +5800,27 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		}
 	}
 
-	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
+	out, err := iterstream.Collect(a.authServer.RangeSnowflakeSessions(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sessions, nil
+
+	return out, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.authorizeAction(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return generic.CollectPageAndCursor(
+		a.authServer.RangeSnowflakeSessions(ctx, start, ""),
+		limit,
+		types.WebSession.GetName,
+	)
 }
 
 // CreateAppSession creates an application web session. Application web
@@ -6510,40 +6543,20 @@ func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int,
 		return nil, "", trace.Wrap(err)
 	}
 
-	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := iterstream.Collect(
-		iterstream.TakeWhile(
-			iterstream.FilterMap(
-				a.authServer.RangeKubernetesClusters(ctx, start, ""),
-				func(cluster types.KubeCluster) (types.KubeCluster, bool) {
-					// Filter out kube clusters user doesn't have access to.
-					if a.checkAccessToKubeCluster(cluster) == nil {
-						return cluster, true
-					}
-					return nil, false
-				},
-			),
-			func(cluster types.KubeCluster) bool {
-				if seen < limit {
-					seen++
-					return true
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeKubernetesClusters(ctx, start, ""),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if a.checkAccessToKubeCluster(cluster) == nil {
+					return cluster, true
 				}
-				next = cluster.GetName()
-				return false
+				return nil, false
 			},
 		),
+		limit,
+		types.KubeCluster.GetName,
 	)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return out, next, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
@@ -6691,34 +6704,19 @@ func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey
 		return nil, "", trace.Wrap(err)
 	}
 
-	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := iterstream.Collect(
-		iterstream.TakeWhile(
-			iterstream.FilterMap(
-				a.authServer.RangeDatabases(ctx, startKey, ""),
-				func(db types.Database) (types.Database, bool) {
-					if a.checkAccessToDatabase(db) == nil {
-						return db, true
-					}
-					return nil, false
-				},
-			),
-			func(db types.Database) bool {
-				if seen < limit {
-					seen++
-					return true
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeDatabases(ctx, startKey, ""),
+			func(db types.Database) (types.Database, bool) {
+				if a.checkAccessToDatabase(db) == nil {
+					return db, true
 				}
-				next = db.GetName()
-				return false
+				return nil, false
 			},
 		),
+		limit,
+		types.Database.GetName,
 	)
-	return out, next, trace.Wrap(err)
 }
 
 // DeleteDatabase removes the specified database resource.

@@ -33,8 +33,6 @@ services:
     destination:
       type: directory
       path: /bot/output
-    enable_resumption: null
-    proxy_templates_path: ""
     credential_ttl: 30s
     renewal_interval: 15s
   - type: application-tunnel

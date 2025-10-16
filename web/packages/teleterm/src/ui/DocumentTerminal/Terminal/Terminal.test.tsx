@@ -122,12 +122,13 @@ function ConfiguredTerminal(props: {
   const emitter = new EventEmitter();
   const writeFn = jest.fn().mockImplementation(a => {
     emitter.emit('', a);
+    return Promise.resolve();
   });
   return (
     <Terminal
       docKind="doc.terminal_shell"
       ptyProcess={{
-        start: () => '',
+        start: async () => {},
         write: writeFn,
         getPtyId: () => '',
         dispose: async () => {},
@@ -140,7 +141,7 @@ function ConfiguredTerminal(props: {
         onExit: () => () => {},
         onOpen: () => () => {},
         onStartError: () => () => {},
-        resize: () => {},
+        resize: async () => {},
       }}
       reconnect={() => {}}
       visible={true}
