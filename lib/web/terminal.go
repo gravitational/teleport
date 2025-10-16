@@ -519,7 +519,6 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	clientConfig.ClientAddr = clientAddr
 	clientConfig.Tracer = t.tracer
 	clientConfig.SSHDialTimeout = t.sshDialTimeout
-	clientConfig.AddKeysToAgent = client.AddKeysToAgentNo
 
 	if len(t.interactiveCommand) > 0 {
 		clientConfig.InteractiveCommand = true
