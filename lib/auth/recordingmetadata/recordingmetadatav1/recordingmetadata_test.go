@@ -157,8 +157,7 @@ func TestProcessSessionRecording(t *testing.T) {
 
 			lastEventTime := tt.events[len(tt.events)-1].GetTime()
 
-			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID, lastEventTime.Sub(startTime))
+			err = service.ProcessSessionRecording(t.Context(), sessionID, lastEventTime.Sub(startTime))
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -206,8 +205,7 @@ func TestProcessSessionRecording_StreamError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream error")
 }
@@ -229,8 +227,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
 }
@@ -238,7 +235,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 	sessionID := session.NewID()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	streamer := newMockStreamerNeverSends()
@@ -315,8 +312,7 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
+			err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
 
 			require.NoError(t, err)
 
