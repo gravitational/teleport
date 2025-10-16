@@ -6,14 +6,8 @@ sidebar_title: {{ .Resource.SectionName }}
 {/* Automatically generated from: {{ .Resource.SourcePath}} */}
 {/* DO NOT EDIT */}
 
-{{- if ne .Resource.Kind "" }}
-
-**Kind**: {{ .Resource.Kind }}
-{{- end }}
-
-{{- if ne .Resource.Version "" }}
-**Version**: {{ .Resource.Version }}
-{{- end }}
+**Kind**: `{{ .Resource.Kind }}`<br/>
+**Version**: `{{ .Resource.Version }}`
 
 {{ .Resource.Description }}
 
