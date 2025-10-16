@@ -133,7 +133,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
-	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
 	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
