@@ -8,7 +8,7 @@ state: draft
 #### Required Approvers
 
 # Required Approvers
-* Engineering: @zmb3 && @russjones && r0mant
+* Engineering: @zmb3 && @russjones && @r0mant
 * Product: @klizhentas
 
 ## What
