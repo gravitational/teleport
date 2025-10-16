@@ -508,7 +508,7 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 		if authentication != nil {
 			uiInstance.JoinMethodLatest = cmp.Or(
 				authentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
-				authentication.JoinMethod,
+				authentication.GetJoinMethod(),
 			)
 		}
 
