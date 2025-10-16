@@ -3322,6 +3322,29 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 
 	hostKeyCallback := tc.HostKeyCallback
 	authMethods := slices.Clone(tc.Config.AuthMethods)
+
+	// Add MFA challenge handler.
+	authMethods = append(
+		authMethods,
+		ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) (answers []string, err error) {
+			// TODO(cthach): Properly do MFA challenges here.
+			for _, q := range questions {
+				fmt.Fprintf(tc.Stderr, "%s\n", q)
+
+				var answer string
+
+				_, err := fmt.Fscanln(tc.Stdin, &answer)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				answers = append(answers, answer)
+			}
+
+			return answers, nil
+		}),
+	)
+
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))

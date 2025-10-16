@@ -564,13 +564,13 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	case teleport.ComponentForwardingNode:
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User(), false)
 		} else {
 			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
-		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
+		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), false)
 	default:
 		return nil, trace.BadParameter("cannot determine appropriate authorization checks for unknown component %q (this is a bug)", h.c.Component)
 	}
@@ -585,7 +585,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 			return nil, &ssh.PartialSuccessError{
 				Next: ssh.ServerAuthCallbacks{
 					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, client ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-						return h.mfaChallengeHandlerFunc(ctx, outputPermissions, conn, client)
+						return h.mfaChallengeHandlerFunc(ctx, ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), outputPermissions, conn, client)
 					},
 				},
 			}
@@ -761,10 +761,11 @@ type GitForwardingPermit struct {
 // loginChecker checks if the Teleport user should be able to login to
 // a target.
 type loginChecker interface {
-	// evaluateSSHAccess checks the given certificate (supplied by a connected
-	// client) to see if this certificate can be allowed to login as user:login
-	// pair to requested server and if RBAC rules allow login.
-	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error)
+	// evaluateSSHAccess checks the given certificate (supplied by a connected client) to see if this certificate can be
+	// allowed to login as user:login pair to requested server and if RBAC rules allow login.
+	// XXX: mfaVerified is a PoC hack and should be replaced with the MFA challenge response so that the Decision
+	// service can evaluate the MFA response as part of the access evaluation in production.
+	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, mfaVerified bool) (*decisionpb.SSHAccessPermit, error)
 }
 
 type proxyingChecker interface {
@@ -897,7 +898,7 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 // evaluateSSHAccess checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error) {
+func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, mfaVerified bool) (*decisionpb.SSHAccessPermit, error) {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -930,7 +931,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		}
 	}
 
-	if !isModeratedSessionJoin {
+	if !isModeratedSessionJoin && !mfaVerified {
 		// perform the primary node access check in all cases except for moderated session join
 		if err := accessChecker.CheckAccess(
 			target,
@@ -1093,7 +1094,7 @@ func timestampFromGoTime(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)
 }
 
-func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.Permissions, conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, perms *ssh.Permissions, conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 	log := h.log.With(
 		"local_addr", conn.LocalAddr(),
 		"remote_addr", conn.RemoteAddr(),
@@ -1105,7 +1106,7 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 	log.DebugContext(ctx, "MFA challenge requested by client")
 
 	// TODO(cthach): Properly generate and verify an MFA challenge.
-	answers, err := challenge(conn.User(), "MFA required, please enter the secret phrase to continue", []string{"Secret Phrase: "}, []bool{false})
+	answers, err := challenge(conn.User(), "MFA required", []string{"MFA required, please enter the secret phrase to continue: "}, []bool{false})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1118,6 +1119,20 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 	}
 
 	log.DebugContext(ctx, "MFA challenge succeeded")
+
+	permit, err := h.evaluateSSHAccess(ident, ca, clusterName, target, osUser, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.DebugContext(ctx, "SSH access permit granted after successful MFA challenge", "permit", permit)
+
+	encodedPermit, err := protojson.Marshal(permit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	perms.Extensions[utils.ExtIntSSHAccessPermit] = string(encodedPermit)
 
 	// Return the original permissions on success.
 	return perms, nil
