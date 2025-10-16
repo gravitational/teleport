@@ -11,4 +11,9 @@ resources:
     name: "OIDC Connector v3"
     yaml_kind: "oidc"
     yaml_version: "v3"
+  - type: SAMLConnectorV2
+    package: types
+    name: "SAML Connector V2"
+    yaml_kind: "saml"
+    yaml_version: "v2"
 

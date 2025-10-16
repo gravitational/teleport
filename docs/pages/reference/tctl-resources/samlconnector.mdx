@@ -1,0 +1,209 @@
+---
+title: SAMLConnector Reference
+description: Provides a reference of fields within the SAMLConnector resource, which you can manage with tctl.
+sidebar_title: SAMLConnector
+---
+{/* Automatically generated from: types/types.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `saml`<br/>
+**Version**: `v2`
+
+Represents a SAML connector.
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v2`.|string|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|spec|An SAML connector specification.|[SAMLConnector Spec](#samlconnector-spec)|
+|metadata|Holds resource metadata.|[Metadata](#metadata)|
+|kind|A resource kind.|string|
+
+## Asymmetric Key Pair
+
+A combination of a public certificate and private key that can be used for encryption and signing.
+
+
+Example:
+
+```yaml
+private_key: "string"
+cert: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|private_key|A PEM encoded x509 private key.|string|
+|cert|A PEM-encoded x509 certificate.|string|
+
+## Attribute Mapping
+
+Maps a SAML attribute statement to teleport roles.
+
+
+Example:
+
+```yaml
+name: "string"
+value: "string"
+roles: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|value|An attribute statement value to match.|string|
+|roles|A list of static teleport roles to map to.|[]string|
+|name|An attribute statement name.|string|
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## SAMLConnector MFASettings
+
+Contains SAML MFA settings.
+
+
+Example:
+
+```yaml
+enabled: true
+entity_descriptor: "string"
+entity_descriptor_url: "string"
+force_authn: # [...]
+issuer: "string"
+sso: "string"
+cert: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|sso|SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.|string|
+|issuer|The identity provider issuer. Usually set from EntityDescriptor.|string|
+|force_authn|Specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.|[SAMLForce Authn](#samlforce-authn)|
+|entity_descriptor_url|A URL that supplies a configuration XML.|string|
+|entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl.|string|
+|enabled|Specified whether this SAML connector supports MFA checks. Defaults to false.|Boolean|
+|cert|The identity provider certificate PEM. IDP signs `\<Response\>` responses using this certificate.|string|
+
+## SAMLConnector Spec
+
+A SAML connector specification.
+
+
+Example:
+
+```yaml
+issuer: "string"
+sso: "string"
+cert: "string"
+display: "string"
+acs: "string"
+audience: "string"
+service_provider_issuer: "string"
+entity_descriptor: "string"
+entity_descriptor_url: "string"
+attributes_to_roles: 
+  - # [...]
+  - # [...]
+  - # [...]
+signing_key_pair: # [...]
+provider: "string"
+assertion_key_pair: # [...]
+allow_idp_initiated: true
+client_redirect_settings: # [...]
+single_logout_url: "string"
+mfa: # [...]
+force_authn: # [...]
+preferred_request_binding: "string"
+user_matchers: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|user_matchers|A set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|[]string|
+|sso|The URL of the identity provider's SSO service.|string|
+|single_logout_url|The SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.|string|
+|signing_key_pair|An x509 key pair used to sign AuthnRequest.|[Asymmetric Key Pair](#asymmetric-key-pair)|
+|service_provider_issuer|The issuer of the service provider (Teleport).|string|
+|provider|The external identity provider.|string|
+|preferred_request_binding|A preferred SAML request binding method. Value must be either "http-post" or "http-redirect". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.|string|
+|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[SAMLConnector MFASettings](#samlconnector-mfasettings)|
+|issuer|The identity provider issuer.|string|
+|force_authn|Specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.|[SAMLForce Authn](#samlforce-authn)|
+|entity_descriptor_url|A URL that supplies a configuration XML.|string|
+|entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|string|
+|display|Controls how this connector is displayed.|string|
+|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSOClient Redirect Settings](#ssoclient-redirect-settings)|
+|cert|The identity provider certificate PEM. IDP signs `\<Response\>` responses using this certificate.|string|
+|audience|Uniquely identifies our service provider.|string|
+|attributes_to_roles|A list of mappings of attribute statements to roles.|[][Attribute Mapping](#attribute-mapping)|
+|assertion_key_pair|A key pair used for decrypting SAML assertions.|[Asymmetric Key Pair](#asymmetric-key-pair)|
+|allow_idp_initiated|A flag that indicates if the connector can be used for IdP-initiated logins.|Boolean|
+|acs|A URL for assertion consumer service on the service provider (Teleport's side).|string|
+
+## SAMLForce Authn
+
+Specified whether existing SAML sessions should be accepted or re-authentication should be forced.
+
+
+## SSOClient Redirect Settings
+
+Contains settings to define which additional client redirect URLs should be allowed for non-browser SSO logins.
+
+
+Example:
+
+```yaml
+allowed_https_hostnames: 
+  - "string"
+  - "string"
+  - "string"
+insecure_allowed_cidr_ranges: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|insecure_allowed_cidr_ranges|A list of CIDRs allowed for HTTP or HTTPS client redirect URLs|[]string|
+|allowed_https_hostnames|A list of hostnames allowed for https client redirect URLs|[]string|
+
