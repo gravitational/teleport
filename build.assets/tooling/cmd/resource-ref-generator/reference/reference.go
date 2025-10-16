@@ -26,8 +26,6 @@ import (
 	"strings"
 	"text/template"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )
 
@@ -93,23 +91,6 @@ type GeneratorConfig struct {
 	SourcePath string `yaml:"source"`
 	// Directory where the generator writes reference pages.
 	DestinationDirectory string `yaml:"destination"`
-}
-
-// UnmarshalYAML checks that the GeneratorConfig includes all required fields and, if
-// not, returns the first error it encounters.
-func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
-	if err := value.Decode(&c); err != nil {
-		return fmt.Errorf("parsing the configuration file as YAML: %w", err)
-	}
-
-	switch {
-	case c.DestinationDirectory == "":
-		return errors.New("no destination path provided")
-	case c.SourcePath == "":
-		return errors.New("must provide a source path")
-	default:
-		return nil
-	}
 }
 
 // getPackageInfoFromExpr extracts a package name and declaration name from an
