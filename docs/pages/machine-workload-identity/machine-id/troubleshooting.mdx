@@ -324,7 +324,7 @@ the use of the `exec` plugin by adding `disable_exec_plugin: true` to the output
 a static `kubeconfig` file with embedded short-lived credentials is written instead:
 
 ```yaml
-outputs:
+services:
   - type: kubernetes
     # Specify the name of the Kubernetes cluster you wish the credentials to
     # grant access to.

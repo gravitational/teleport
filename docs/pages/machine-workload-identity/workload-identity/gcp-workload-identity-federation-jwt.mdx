@@ -320,7 +320,7 @@ Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
 by adding the following to the `tbot` configuration file:
 
 ```yaml
-outputs:
+services:
   - type: workload-identity-jwt
     destination:
       type: directory
