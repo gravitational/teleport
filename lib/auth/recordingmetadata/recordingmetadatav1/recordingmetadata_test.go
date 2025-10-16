@@ -453,6 +453,14 @@ type mockUploadHandlerFailAfterRead struct {
 func (m *mockUploadHandlerFailAfterRead) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	buf := make([]byte, 1024)
 	for {
+		select {
+		case <-ctx.Done():
+			// Drain the reader and return the context error
+			_, _ = io.Copy(io.Discard, reader)
+			return "", ctx.Err()
+		default:
+		}
+
 		n, err := reader.Read(buf)
 		if n > 0 {
 			m.mu.Lock()
@@ -461,6 +469,7 @@ func (m *mockUploadHandlerFailAfterRead) UploadMetadata(ctx context.Context, ses
 			m.mu.Unlock()
 
 			if shouldFail {
+				_, _ = io.Copy(io.Discard, reader)
 				return "", errors.New("simulated upload failure")
 			}
 		}
