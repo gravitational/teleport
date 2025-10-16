@@ -264,7 +264,7 @@ func IsUserLocked(err error) bool {
 
 // IsAccessListOwner checks if the given user is the Access List owner.
 // It returns an error matched by [IsUserLocked] if the user is locked.
-// If the user is not am owner, it returns a trace.AccessDenied error.
+// If the user is not an owner, it returns a trace.AccessDenied error.
 func IsAccessListOwner(
 	ctx context.Context,
 	user types.User,
@@ -305,8 +305,7 @@ func IsAccessListOwner(
 				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
-			_, err = IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
-			if err != nil {
+			if _, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock); err != nil {
 				if trace.IsAccessDenied(err) {
 					ownershipErr = trace.Wrap(err)
 					continue

@@ -275,7 +275,7 @@ func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
 
 func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 	locks := &mockLocksGetter{}
 
 	t.Run("nested lists with requirements at multiple levels", func(t *testing.T) {
