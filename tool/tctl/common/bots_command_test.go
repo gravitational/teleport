@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
@@ -303,4 +304,108 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	buf.Reset()
+}
+
+func TestAggregateServiceHealth(t *testing.T) {
+	t.Parallel()
+
+	healthy := machineidv1pb.BotInstanceServiceHealth{
+		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+	}
+	unhealthy := machineidv1pb.BotInstanceServiceHealth{
+		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+	}
+	initializing := machineidv1pb.BotInstanceServiceHealth{
+		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
+	}
+	unknown := machineidv1pb.BotInstanceServiceHealth{
+		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
+	}
+
+	tcs := []struct {
+		name     string
+		services []*machineidv1pb.BotInstanceServiceHealth
+		status   machineidv1pb.BotInstanceHealthStatus
+	}{
+		{
+			name:     "nil",
+			services: nil,
+			status:   machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+		},
+		{
+			name:     "empty",
+			services: []*machineidv1pb.BotInstanceServiceHealth{},
+			status:   machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+		},
+		{
+			name: "one item - healthy",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&healthy,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+		},
+		{
+			name: "one item - unhealthy",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&unhealthy,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+		},
+		{
+			name: "one item - initializing",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&initializing,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
+		},
+		{
+			name: "one item - unknown",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&unknown,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
+		},
+		{
+			name: "multiple items - healthy",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&healthy,
+				&healthy,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+		},
+		{
+			name: "multiple items - unhealthy",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&unhealthy,
+				&healthy,
+				&initializing,
+				&unknown,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+		},
+		{
+			name: "multiple items - unknown",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&healthy,
+				&initializing,
+				&unknown,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
+		},
+		{
+			name: "multiple items - initializing",
+			services: []*machineidv1pb.BotInstanceServiceHealth{
+				&healthy,
+				&initializing,
+			},
+			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := aggregateServiceHealth(tc.services)
+			assert.Equal(t, tc.status, actual)
+		})
+	}
 }
