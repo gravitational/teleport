@@ -143,9 +143,13 @@ func (t *streamableHTTPTransport) RoundTrip(r *http.Request) (*http.Response, er
 
 	default:
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
+
+		statusText := http.StatusText(http.StatusMethodNotAllowed)
 		return &http.Response{
 			Request:    r,
+			Status:     statusText,
 			StatusCode: http.StatusMethodNotAllowed,
+			Body:       io.NopCloser(bytes.NewReader(nil)), // Body must not be nil.
 		}, nil
 	}
 }
