@@ -320,8 +320,13 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 
 			require.NoError(t, err)
 
-			require.Empty(t, uploadHandler.metadata)
-			require.Empty(t, uploadHandler.thumbnails)
+			uploadHandler.mu.Lock()
+			metadataLen := len(uploadHandler.metadata)
+			thumbnailsLen := len(uploadHandler.thumbnails)
+			uploadHandler.mu.Unlock()
+
+			require.Equal(t, 0, metadataLen, "metadata should be empty")
+			require.Equal(t, 0, thumbnailsLen, "thumbnails should be empty")
 		})
 	}
 }
