@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -31,22 +32,88 @@ func TestLocks(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources(t, p, testFuncs[types.Lock]{
-		newResource: func(name string) (types.Lock, error) {
-			return types.NewLock(
-				name,
-				types.LockSpecV2{
-					Target: types.LockTarget{
-						Role: "target-role",
+	t.Run("GetLocks", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.Lock]{
+			newResource: func(name string) (types.Lock, error) {
+				return types.NewLock(
+					name,
+					types.LockSpecV2{
+						Target: types.LockTarget{
+							Role: "target-role",
+						},
 					},
-				},
-			)
-		},
-		create:    p.accessS.UpsertLock,
-		list:      getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.accessS.GetLocks(ctx, false) }),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.cache.GetLocks(ctx, false) }),
-		cacheGet:  p.cache.GetLock,
-		update:    p.accessS.UpsertLock,
-		deleteAll: p.accessS.DeleteAllLocks,
-	}, withSkipPaginationTest())
+				)
+			},
+			create:    p.accessS.UpsertLock,
+			list:      getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.accessS.GetLocks(ctx, false) }),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.cache.GetLocks(ctx, false) }),
+			cacheGet:  p.cache.GetLock,
+			update:    p.accessS.UpsertLock,
+			deleteAll: p.accessS.DeleteAllLocks,
+		}, withSkipPaginationTest())
+	})
+
+	t.Run("ListLocks", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.Lock]{
+			newResource: func(name string) (types.Lock, error) {
+				return types.NewLock(
+					name,
+					types.LockSpecV2{
+						Target: types.LockTarget{
+							Role: "target-role",
+						},
+					},
+				)
+			},
+			create: p.accessS.UpsertLock,
+			list: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return p.accessS.ListLocks(ctx, limit, start, nil)
+			},
+			cacheList: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return p.cache.ListLocks(ctx, limit, start, nil)
+			},
+			cacheGet:  p.cache.GetLock,
+			update:    p.accessS.UpsertLock,
+			deleteAll: p.accessS.DeleteAllLocks,
+			Range: func(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+				return p.accessS.RangeLocks(ctx, start, end, nil)
+			},
+			cacheRange: func(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+				return p.cache.RangeLocks(ctx, start, end, nil)
+			},
+		})
+	})
+
+	t.Run("ListLocksWithFilter", func(t *testing.T) {
+		filter := types.NewLockFilter(false, types.LockTarget{Role: "target-role"})
+
+		testResources(t, p, testFuncs[types.Lock]{
+			newResource: func(name string) (types.Lock, error) {
+				return types.NewLock(
+					name,
+					types.LockSpecV2{
+						Target: types.LockTarget{
+							Role: "target-role",
+						},
+					},
+				)
+			},
+			create: p.accessS.UpsertLock,
+			list: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return p.accessS.ListLocks(ctx, limit, start, filter)
+			},
+			cacheList: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return p.cache.ListLocks(ctx, limit, start, filter)
+			},
+			cacheGet:  p.cache.GetLock,
+			update:    p.accessS.UpsertLock,
+			deleteAll: p.accessS.DeleteAllLocks,
+			Range: func(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+				return p.accessS.RangeLocks(ctx, start, end, filter)
+			},
+			cacheRange: func(ctx context.Context, start, end string) iter.Seq2[types.Lock, error] {
+				return p.cache.RangeLocks(ctx, start, end, filter)
+			},
+		})
+	})
 }
