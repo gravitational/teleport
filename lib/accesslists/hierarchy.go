@@ -305,7 +305,7 @@ func IsAccessListOwner(
 				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
+			_, err = IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
 			if err != nil {
 				if trace.IsAccessDenied(err) {
 					ownershipErr = trace.Wrap(err)
@@ -313,13 +313,11 @@ func IsAccessListOwner(
 				}
 				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
-			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
-					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+			if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
+				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+				continue
 			}
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 		}
 	}
 
