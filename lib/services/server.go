@@ -225,6 +225,9 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+	if a.GetTargetHealthStatus() != b.GetTargetHealthStatus() {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
