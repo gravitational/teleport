@@ -192,6 +192,7 @@ loop:
 			case *apievents.Resize:
 				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
+					cancelUpload()
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
