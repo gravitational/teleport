@@ -14,14 +14,40 @@ issues flexible short-lived identities to workloads in your infrastructure.
 - [Introduction to SPIFFE](./spiffe.mdx): Learn about Secure Production Identity Framework For Everyone (SPIFFE) and how it is implemented by Teleport Workload Identity
 - [Getting Started with Workload Identity](./getting-started.mdx): Getting started with Teleport Workload Identity for SPIFFE and Machine ID
 
-## Guides
-- [Configuring Workload Identity and AWS OIDC Federation](./aws-oidc-federation.mdx): Configuring AWS to accept Workload Identity JWTs as authentication using OIDC Federation
-- [Configuring Workload Identity and AWS Roles Anywhere](./aws-roles-anywhere.mdx): Configuring AWS to accept Workload Identity certificates as authentication using AWS Roles Anywhere
-- [Configuring Workload Identity and Azure Federated Credentials](./azure-federated-credentials.mdx): Configuring Azure to accept Workload Identity JWTs as authentication using Azure Federated Credentials
-- [Configuring Workload Identity and GCP Workload Identity Federation with JWTs](./gcp-workload-identity-federation-jwt.mdx): Configuring GCP to accept Workload Identity JWTs as authentication using Workload Identity Federation
-- [Workload Identity and tsh](./tsh.mdx): Issuing SPIFFE SVIDs using Workload Identity and tsh
+## Configuration Guides
 
-## Configuration & management
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="aws" size="xl" />,
+      to: "./aws-oidc-federation",
+      name: "AWS OIDC Federation",
+    },
+    {
+      icon: <Icon name="awsIdentity" size="xl" />,
+      to: "./aws-roles-anywhere",
+      name: "AWS Roles Anywhere",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "./azure-federated-credentials",
+      name: "Azure Federated Credentials",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "./gcp-workload-identity-federation-jwt",
+      name: "GCP Workload Identity Federation",
+    },
+    {
+      icon: <Icon name="code" size="xl" />,
+      to: "./tsh",
+      name: "Manually issue SPIFFE SVIDs with Teleport CLI tool tsh",
+    }
+  ]}
+/>
+
+
+## Configuration management
 - [Best Practices for Teleport Workload Identity](./best-practices.mdx): Answers common questions and describes best practices for using Teleport Workload Identity in production.
 - [JWT SVIDs](./jwt-svids.mdx): An overview of the JWT SVIDs issued by Teleport Workload Identity
 - [SPIFFE Federation](./federation.mdx): An overview of the Teleport Workload Identity SPIFFE Federation feature.
