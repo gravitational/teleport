@@ -142,27 +142,34 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 				},
 				"schedules": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"time": {
-						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"shifts": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"end": {
-									Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-								"start": {
-									Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-								"weekday": {
-									Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-								},
-							}),
-							Description: "Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC.",
-							Optional:    true,
-						}}),
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							"shifts": {
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"end": {
+										Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+									"start": {
+										Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+									"weekday": {
+										Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									},
+								}),
+								Description: "Shifts contains a set of shifts that make up the schedule.",
+								Optional:    true,
+							},
+							"timezone": {
+								Description: "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
+						}),
 						Description: "TimeSchedule specifies an in-line schedule.",
 						Optional:    true,
 					}}),
@@ -698,6 +705,23 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																					}
 																				}
 																			}
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["timezone"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.timezone"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Timezone = t
 																		}
 																	}
 																}
@@ -1522,6 +1546,28 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																		c.Unknown = false
 																		tf.Attrs["shifts"] = c
 																	}
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["timezone"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.timezone"})
+																} else {
+																	v, ok := tf.Attrs["timezone"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.timezone", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Timezone) == ""
+																	}
+																	v.Value = string(obj.Timezone)
+																	v.Unknown = false
+																	tf.Attrs["timezone"] = v
 																}
 															}
 														}
