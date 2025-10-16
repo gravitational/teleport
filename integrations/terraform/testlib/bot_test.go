@@ -19,9 +19,12 @@ package testlib
 import (
 	"context"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/require"
 )
 
 func (s *TerraformSuiteOSS) TestBot() {
@@ -95,4 +98,122 @@ func (s *TerraformSuiteOSS) TestBot() {
 		},
 	})
 
+}
+
+func (s *TerraformSuiteOSS) TestBotV2() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkResourcesDestroyed := func(state *terraform.State) error {
+		var errs []error
+		if _, err := s.client.GetToken(ctx, "bot-test"); err != nil {
+			if !trace.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+
+		if _, err := s.client.GetUser(ctx, "bot-test", false); err != nil {
+			if !trace.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+
+		return trace.NewAggregate(errs...)
+	}
+
+	tokenName := "teleport_provision_token.bot_test"
+	botName := "teleport_bot_v2.test"
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkResourcesDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("bot_v2_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(tokenName, "kind", "token"),
+					resource.TestCheckResourceAttr(tokenName, "metadata.name", "bot-test"),
+					resource.TestCheckResourceAttr(tokenName, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(botName, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(botName, "status.user_name", "bot-test"),
+					resource.TestCheckResourceAttr(botName, "status.role_name", "bot-test"),
+					resource.TestCheckResourceAttr(botName, "spec.roles.0", "terraform"),
+					resource.TestCheckNoResourceAttr(botName, "spec.traits.logins1"),
+				),
+			},
+			{
+				Config:   s.getFixture("bot_v2_0_create.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("bot_v2_1_update.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(tokenName, "kind", "token"),
+					resource.TestCheckResourceAttr(tokenName, "metadata.name", "bot-test"),
+					resource.TestCheckResourceAttr(tokenName, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(botName, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(botName, "status.user_name", "bot-test"),
+					resource.TestCheckResourceAttr(botName, "status.role_name", "bot-test"),
+					resource.TestCheckResourceAttr(botName, "spec.roles.0", "terraform"),
+					resource.TestCheckResourceAttr(botName, "spec.traits.logins1.0", "a"),
+					resource.TestCheckResourceAttr(botName, "spec.traits.logins1.1", "b"),
+					resource.TestCheckResourceAttr(botName, "spec.traits.logins2.0", "c"),
+					resource.TestCheckResourceAttr(botName, "spec.traits.logins2.1", "d"),
+				),
+			},
+			{
+				Config:   s.getFixture("bot_v2_1_update.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestImportBotV2() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	resourceType := "teleport_bot_v2"
+	botName := "test"
+	name := resourceType + "." + botName
+
+	bot := &machineidv1.Bot{
+		Metadata: &headerv1.Metadata{
+			Name: botName,
+		},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{"terraform"},
+			Traits: []*machineidv1.Trait{
+				{
+					Name:   "logins1",
+					Values: []string{"a", "b"},
+				},
+				{
+					Name:   "logins2",
+					Values: []string{"c", "d"},
+				},
+			},
+		},
+	}
+
+	_, err := s.client.UpsertBot(ctx, bot)
+	require.NoError(s.T(), err)
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		Steps: []resource.TestStep{
+			{
+				Config:        s.terraformConfig + "\n" + `resource "` + resourceType + `" "` + botName + `" { }`,
+				ResourceName:  name,
+				ImportState:   true,
+				ImportStateId: botName,
+				ImportStateCheck: func(state []*terraform.InstanceState) error {
+					require.Equal(s.T(), "bot", state[0].Attributes["kind"])
+					require.Equal(s.T(), botName, state[0].Attributes["metadata.name"])
+
+					return nil
+				},
+			},
+		},
+	})
 }

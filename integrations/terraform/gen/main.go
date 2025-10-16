@@ -665,6 +665,31 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindHealthCheckConfig",
 	}
+
+	bot = payload{
+		Name:                  "Bot",
+		TypeName:              "Bot",
+		VarName:               "bot",
+		GetMethod:             "GetBot",
+		CreateMethod:          "CreateBot",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertBot",
+		DeleteMethod:          "DeleteBot",
+		ID:                    "bot.Metadata.Name",
+		Kind:                  "bot",
+		HasStaticID:           false,
+		ProtoPackage:          "machineidv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/machineid/v1",
+		TerraformResourceType: "teleport_bot_v2",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ForceSetKind: `"bot"`,
+	}
 )
 
 func main() {
@@ -726,6 +751,8 @@ func genTFSchema() {
 	generateDataSource(autoUpdateConfig, singularDataSource)
 	generateResource(healthCheckConfig, pluralResource)
 	generateDataSource(healthCheckConfig, pluralDataSource)
+	generateResource(bot, pluralResource)
+	generateDataSource(bot, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
