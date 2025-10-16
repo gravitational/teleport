@@ -41,30 +41,68 @@ func parseDeepLink(_ url: URL) -> DeepLinkParseResult {
   let path = url.path(percentEncoded: false)
   switch path {
   case "/enroll_mobile_device":
-    let maybeParts = URLComponents(string: url.absoluteString)
-    guard let parts = maybeParts else {
-      return .failure(.urlComponentsFailed)
+    // Make sure to first switch on the path and only then attempt to parse out individual fields
+    // out of
+    // the URL. This way this function always returns the most important error first, which is the
+    // error
+    // about the unsupported path.
+    return parseDeepURL(url) { deepURL, parts in
+      guard let userToken = getQueryParam(parts, "user_token") else {
+        return .failure(.missingPart("user token"))
+      }
+      return .success(.enrollMobileDevice(EnrollMobileDeviceDeepURL(
+        url: deepURL,
+        userToken: userToken
+      )))
     }
-    guard let hostname = parts.host, hostname != "" else {
-      return .failure(.missingPart("hostname"))
+  case "/authenticate_web_device":
+    return parseDeepURL(url) { deepURL, parts in
+      guard let id = getQueryParam(parts, "id") else {
+        return .failure(.missingPart("id"))
+      }
+      guard let token = getQueryParam(parts, "token") else {
+        return .failure(.missingPart("token"))
+      }
+      guard let redirectURI = getQueryParam(parts, "redirect_uri") else {
+        return .failure(.missingPart("redirect URI"))
+      }
+      return .success(.authenticateWebDevice(AuthenticateWebDeviceDeepURL(
+        url: deepURL,
+        id: id,
+        token: token,
+        redirectURI: redirectURI
+      )))
     }
-    guard let user = parts.user, user != "" else {
-      return .failure(.missingPart("user"))
-    }
-    guard let userToken = parts.queryItems?
-      .first(where: { $0.name == "user_token" && $0.value != nil && $0.value != "" })?.value
-    else {
-      return .failure(.missingPart("user token"))
-    }
-    let port = parts.port
-    return .success(.enrollMobileDevice(EnrollMobileDeviceDeepURL(
-      url: DeepURL(hostname: hostname, port: port, user: user),
-      userToken: userToken
-    )))
   default:
     logger.warning("Unsupported path: \(path, privacy: .public)")
     return .failure(.unsupportedPath)
   }
+}
+
+// parseDeepURL could return Result<(DeepURL, URLComponents), DeepLinkParseError> instead, but
+// there's no
+// convienient way to unwrap it, that's why it accepts a trailing closure instead.
+func parseDeepURL(
+  _ url: URL,
+  toParsedDeepLink: (_ deepURL: DeepURL, _ parts: URLComponents) -> DeepLinkParseResult
+) -> DeepLinkParseResult {
+  guard let parts = URLComponents(string: url.absoluteString) else {
+    return .failure(.urlComponentsFailed)
+  }
+  guard let hostname = parts.host, hostname != "" else {
+    return .failure(.missingPart("hostname"))
+  }
+  guard let user = parts.user, user != "" else {
+    return .failure(.missingPart("user"))
+  }
+  let port = parts.port
+
+  return toParsedDeepLink(DeepURL(hostname: hostname, port: port, user: user), parts)
+}
+
+func getQueryParam(_ parts: URLComponents, _ param: String) -> String? {
+  parts.queryItems?
+    .first(where: { $0.name == param && $0.value != nil && $0.value != "" })?.value
 }
 
 struct DeepURL {
@@ -82,8 +120,18 @@ struct EnrollMobileDeviceDeepURL {
   var userToken: String
 }
 
+struct AuthenticateWebDeviceDeepURL {
+  var url: DeepURL
+  /// id is the ID of the device web token.
+  var id: String
+  /// token is the device web token.
+  var token: String
+  var redirectURI: String
+}
+
 enum ParsedDeepLink {
   case enrollMobileDevice(EnrollMobileDeviceDeepURL)
+  case authenticateWebDevice(AuthenticateWebDeviceDeepURL)
 }
 
 enum DeepLinkParseError: Error {
@@ -115,7 +163,7 @@ struct ScannedURLView: View {
   @State var showDeleteDeviceKeyAlert: Bool = false
   let deviceTrust: DeviceTrustP
 
-  private var maybeDeepURL: EnrollMobileDeviceDeepURL? {
+  private var maybeEnrollMobileDeviceURL: EnrollMobileDeviceDeepURL? {
     if case let .success(parsedDeepLink) = openedURL,
        case let .enrollMobileDevice(deepURL) = parsedDeepLink
     {
@@ -125,7 +173,7 @@ struct ScannedURLView: View {
   }
 
   private var isConfirmingEnrollment: Bool {
-    maybeDeepURL != nil
+    maybeEnrollMobileDeviceURL != nil
   }
 
   private var hasDeepLinkParseError: Bool {
@@ -215,7 +263,7 @@ struct ScannedURLView: View {
             }.glassButton().labelStyle(.iconOnly)
             Spacer()
             Button(action: {
-              guard let deepURL = maybeDeepURL else {
+              guard let deepURL = maybeEnrollMobileDeviceURL else {
                 return
               }
               if enrollAttempt.didSucceed {
@@ -268,8 +316,8 @@ struct ScannedURLView: View {
           } else {
             Text("Do you want to enroll this device?").font(.headline)
             Text("""
-            This will enable \(maybeDeepURL!.url.user) to authorize Device Trust web sessions \
-            in \(maybeDeepURL!.url.hostname) with this device.
+            This will enable \(maybeEnrollMobileDeviceURL!.url.user) to authorize Device Trust web sessions \
+            in \(maybeEnrollMobileDeviceURL!.url.hostname) with this device.
             """)
           }
           Spacer()
