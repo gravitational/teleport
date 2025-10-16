@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/token"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleBoundKeypairJoin takes over the join process after the ClientInit
@@ -37,7 +37,7 @@ func (s *Server) handleBoundKeypairJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisioner token.Provisioner,
+	token provision.Token,
 ) (*messages.BotResult, error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -75,7 +75,7 @@ func (s *Server) handleBoundKeypairJoin(
 			return nil, "", trace.Wrap(err)
 		}
 		botCertsParams.PreviousBotInstanceID = previousBotInstanceID
-		protoCerts, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisioner, botCertsParams)
+		protoCerts, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, token, botCertsParams)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -89,7 +89,7 @@ func (s *Server) handleBoundKeypairJoin(
 		AuthService:          s.cfg.AuthService,
 		AuthCtx:              authCtx,
 		Diag:                 diag,
-		ProvisionToken:       provisioner,
+		ProvisionToken:       token,
 		ClientInit:           clientInit,
 		BoundKeypairInit:     boundKeypairInit,
 		IssueChallenge:       issueChallenge,

@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join"
-	"github.com/gravitational/teleport/lib/join/token"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -345,13 +345,13 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 // of a cluster join attempt.
 func (a *Server) GenerateBotCertsForJoin(
 	ctx context.Context,
-	provisioner token.Provisioner,
+	token provision.Token,
 	params *join.BotCertsParams,
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := provisioner.GetBotName()
-	joinMethod := provisioner.GetJoinMethod()
+	botName := token.GetBotName()
+	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
 	if !slices.Contains(machineidv1.SupportedJoinMethods, joinMethod) {
@@ -388,7 +388,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		},
 		BotName:   botName,
 		Method:    string(joinMethod),
-		TokenName: provisioner.GetSafeName(),
+		TokenName: token.GetSafeName(),
 		UserName:  machineidv1.BotResourceName(botName),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
@@ -413,7 +413,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		JoinMethod: string(joinMethod),
 	}
 	if joinMethod != types.JoinMethodToken {
-		params.Attrs.Meta.JoinTokenName = provisioner.GetName()
+		params.Attrs.Meta.JoinTokenName = token.GetName()
 	}
 
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
@@ -421,8 +421,8 @@ func (a *Server) GenerateBotCertsForJoin(
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
 		// secrets. Should we hash it?
-		JoinToken:  provisioner.GetSafeName(),
-		JoinMethod: string(provisioner.GetJoinMethod()),
+		JoinToken:  token.GetSafeName(),
+		JoinMethod: string(token.GetJoinMethod()),
 		PublicKey:  params.PublicTLSKey,
 		JoinAttrs:  params.Attrs,
 	}
@@ -455,9 +455,9 @@ func (a *Server) GenerateBotCertsForJoin(
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
-		if err := a.DeleteToken(ctx, provisioner.GetName()); err != nil {
+		if err := a.DeleteToken(ctx, token.GetName()); err != nil {
 			a.logger.WarnContext(ctx, "Could not delete bot provision token after generating certs",
-				"provision_token", provisioner.GetSafeName(),
+				"provision_token", token.GetSafeName(),
 				"error", err,
 			)
 		}
@@ -478,7 +478,7 @@ func (a *Server) GenerateBotCertsForJoin(
 // result of a cluster join attempt.
 func (a *Server) GenerateHostCertsForJoin(
 	ctx context.Context,
-	provisioner token.Provisioner,
+	token provision.Token,
 	params *join.HostCertsParams,
 ) (*proto.Certs, error) {
 	// instance certs include an additional field that specifies the list of
@@ -486,7 +486,7 @@ func (a *Server) GenerateHostCertsForJoin(
 	var systemRoles types.SystemRoles
 	if params.SystemRole == types.RoleInstance {
 		systemRolesSet := make(map[types.SystemRole]struct{})
-		for _, r := range provisioner.GetRoles() {
+		for _, r := range token.GetRoles() {
 			if r.IsLocalService() {
 				systemRolesSet[r] = struct{}{}
 			} else {
@@ -515,7 +515,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr:           params.RemoteAddr,
 			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
-			AgentScope:           provisioner.GetAssignedScope(),
+			AgentScope:           token.GetAssignedScope(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -546,9 +546,9 @@ func (a *Server) GenerateHostCertsForJoin(
 		},
 		NodeName:     params.HostName,
 		Role:         string(params.SystemRole),
-		Method:       string(provisioner.GetJoinMethod()),
-		TokenName:    provisioner.GetSafeName(),
-		TokenExpires: provisioner.Expiry(),
+		Method:       string(token.GetJoinMethod()),
+		TokenName:    token.GetSafeName(),
+		TokenExpires: token.Expiry(),
 		HostID:       params.HostID,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
