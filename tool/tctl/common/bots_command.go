@@ -617,7 +617,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		return nil
 	}
 
-	t := asciitable.MakeTable([]string{"ID", "Join Method", "Version (tbot)", "Hostname", "Last Seen"})
+	t := asciitable.MakeTable([]string{"ID", "Join Method", "Version", "Hostname", "Last Seen"})
 	for _, i := range instances {
 		var (
 			joinMethod string
