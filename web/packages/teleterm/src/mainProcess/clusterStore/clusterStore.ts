@@ -28,6 +28,7 @@ import { TshdClient } from 'teleterm/services/tshd';
 import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { AwaitableSender } from '../awaitableSender';
+import type { WindowsManager } from '../windowsManager';
 
 export type State = ReadonlyMap<ClusterUri, Cluster>;
 
@@ -45,7 +46,10 @@ export class ClusterStore {
   private state: State = new Map();
   private logger = new Logger('ClusterStore');
 
-  constructor(private readonly tshdClient: TshdClient) {}
+  constructor(
+    private readonly tshdClient: TshdClient,
+    private readonly windowsManager: Pick<WindowsManager, 'crashWindow'>
+  ) {}
 
   /** Adds a cluster. */
   async add(proxyAddress: string): Promise<Cluster> {
@@ -150,15 +154,11 @@ export class ClusterStore {
   registerSender(sender: AwaitableSender<ClusterStoreUpdate>): void {
     this.logger.info('Sender registered');
     this.senders.add(sender);
-    sender
-      .send({
-        kind: 'state',
-        value: this.state,
-      })
-      .then(() => {})
-      .catch(error => {
-        this.logger.error('Failed to sending initial state', error);
-      });
+    const send = this.withErrorHandling(update => sender.send(update));
+    void send({
+      kind: 'state',
+      value: this.state,
+    });
     sender.whenDisposed().then(() => {
       this.senders.delete(sender);
       this.logger.info('Sender unregistered');
@@ -169,10 +169,33 @@ export class ClusterStore {
     const [state, patches] = produceWithPatches(this.state, producer);
     this.state = state;
     await Promise.all(
-      this.senders
-        .values()
-        .map(sender => sender.send({ kind: 'patches', value: patches }))
+      this.senders.values().map(sender => {
+        const send = this.withErrorHandling(update => sender.send(update));
+        return send({
+          kind: 'patches',
+          value: patches,
+        });
+      })
     );
+  }
+
+  /**
+   * Wraps a cluster store update sender function with error handling.
+   *
+   * Any error indicates that the renderer state may be out of sync with the cluster store.
+   * Applying further updates may fail.
+   * Prompt the user to reload the window or quit the app.
+   */
+  private withErrorHandling(
+    sender: (update: ClusterStoreUpdate) => Promise<void>
+  ): (update: ClusterStoreUpdate) => Promise<void> {
+    return async update => {
+      try {
+        await sender(update);
+      } catch (e) {
+        await this.windowsManager.crashWindow(e);
+      }
+    };
   }
 }
 
