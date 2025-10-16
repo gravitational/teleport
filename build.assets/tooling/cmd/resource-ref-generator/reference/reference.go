@@ -69,18 +69,18 @@ type TypeInfo struct {
 type ResourceConfig struct {
 	// The name of the struct type as declared in the Go source, e.g.,
 	// RoleV6.
-	TypeName string
+	TypeName string `yaml:"type"`
 	// The final path segment in the name of the Go package containing this
 	// type declaration, e.g., "api".
-	PackageName string
+	PackageName string `yaml:"package"`
 	// The name of the resource to include in the docs, e.g., Role v6.
-	NameInDocs string
+	NameInDocs string `yaml:"name"`
 	// The value of the "kind" field within a YAML manifest for this
 	// resource, e.g., "role".
-	KindValue string
+	KindValue string `yaml:"yaml_kind"`
 	// The value of the "version" field within a YAML manifest for this
 	// resource, e.g., "v6".
-	VersionValue string
+	VersionValue string `yaml:"yaml_version"`
 }
 
 // GeneratorConfig is the user-facing configuration for the resource reference
