@@ -353,6 +353,12 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 	return trace.Wrap(err)
 }
 
+// UpdateAccessListWithMembers performs a conditional update on an Access List
+// and its members
+func (c *Client) UpdateAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	return nil, nil, trace.NotImplemented("UpdateAccessListWithMembers not available in remote clients")
+}
+
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
 func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accesslist.AccessList, members []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{

@@ -41,9 +41,11 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -635,7 +637,11 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	require.Len(t, accessList.Spec.Owners, 2)
 }
 
-func TestAccessListUpsertWithMembers(t *testing.T) {
+// TestAccessListUpdateWithMembers asserts the behavior of both UpdateAccessListWithMembers()
+// and UpsertAccessListWithMembers], which is mostly the same. They only differ
+// in how they handle creating a new access list and dealing with conditional
+// updates.
+func TestAccessListUpdateWithMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -647,66 +653,249 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
-	// Create a couple access lists.
-	accessList1 := newAccessList(t, "accessList1", clock)
+	deleteAccessLists := func(t *testing.T) func() {
+		return func() {
+			require.NoError(t, service.DeleteAllAccessLists(ctx))
+		}
+	}
 
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
 	}
 
-	t.Run("create access list", func(t *testing.T) {
-		// Create both access lists.
-		accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
-	})
+	byName := func(a, b *accesslist.AccessListMember) int {
+		switch {
+		case a.Spec.Name > b.Spec.Name:
+			return 1
 
-	accessList1Member1 := newAccessListMember(t, accessList1.GetName(), "alice")
+		case a.Spec.Name < b.Spec.Name:
+			return -1
+		}
+		return 0
+	}
 
-	t.Run("add member to the access list", func(t *testing.T) {
-		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1})
-		require.NoError(t, err)
-		// Assert that access list is returned.
-		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
-		// Assert that the member is returned.
-		require.Len(t, updatedMembers, 1)
-		require.Empty(t, cmp.Diff(updatedMembers[0], accessList1Member1, cmpOpts...))
+	for _, op := range []opType{opTypeUpsert, opTypeUpdate} {
+		t.Run(op.String(), func(t *testing.T) {
+			var fnUnderTest func(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+			switch op {
+			case opTypeUpsert:
+				fnUnderTest = service.UpsertAccessListWithMembers
+			case opTypeUpdate:
+				fnUnderTest = service.UpdateAccessListWithMembers
+			default:
+				require.FailNow(t, "unsupported op type")
+			}
 
-		listMembers, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(listMembers, accessList1Member1, cmpOpts...))
-	})
+			t.Run("create", func(t *testing.T) {
+				const listName = "test-create-acl-list"
+				t.Cleanup(deleteAccessLists(t))
 
-	accessList1Member2 := newAccessListMember(t, accessList1.GetName(), "bob")
+				acl := newAccessList(t, listName, clock)
+				createdACL, createdMembers, err := fnUnderTest(ctx, acl, []*accesslist.AccessListMember{})
 
-	t.Run("add another member to the access list", func(t *testing.T) {
-		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2})
-		require.NoError(t, err)
-		// Assert that access list is returned.
-		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
-		// Assert that the member is returned.
-		require.Len(t, updatedMembers, 2)
-		require.Empty(t, cmp.Diff(updatedMembers, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2}, cmpOpts...))
+				switch op {
+				case opTypeUpsert:
+					require.NoError(t, err)
+					require.Empty(t, createdMembers)
+					require.Empty(t, cmp.Diff(createdACL, acl, cmpOpts...))
 
-		listMembers, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(listMembers, accessList1Member1, cmpOpts...))
+				case opTypeUpdate:
+					var NotFound *trace.NotFoundError
+					require.ErrorAs(t, err, &NotFound)
+				}
+			})
 
-		listMembers, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member2.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(listMembers, accessList1Member2, cmpOpts...))
-	})
+			t.Run("create with members", func(t *testing.T) {
+				const listName = "test-create-with-members-list"
+				t.Cleanup(deleteAccessLists(t))
 
-	t.Run("empty members removes all members", func(t *testing.T) {
-		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
-		require.NoError(t, err)
+				acl := newAccessList(t, listName, clock)
+				members := []*accesslist.AccessListMember{newAccessListMember(t, listName, "alice")}
+				createdACL, createdMembers, err := fnUnderTest(ctx, acl, members)
 
-		members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
-		require.NoError(t, err)
-		require.Empty(t, members)
-	})
+				switch op {
+				case opTypeUpsert:
+					require.NoError(t, err)
+					require.Empty(t, cmp.Diff(acl, createdACL, cmpOpts...))
+					require.Len(t, createdMembers, 1)
+					require.Empty(t, cmp.Diff(members, createdMembers, cmpOpts...))
+
+				case opTypeUpdate:
+					var NotFound *trace.NotFoundError
+					require.ErrorAs(t, err, &NotFound)
+				}
+			})
+
+			t.Run("add and remove members", func(t *testing.T) {
+				const listName = "test-add-members-list"
+				t.Cleanup(deleteAccessLists(t))
+
+				toAccessListMember := func(name string) *accesslist.AccessListMember {
+					return newAccessListMember(t, listName, name)
+				}
+
+				// GIVEN an existing Access List (note that we're deliberately
+				// using UpsertAccessListWithMembers rather than fnUnderTest,
+				// because this is part of the test setup rather than the test
+				// action itself.)
+				acl, _, err := service.UpsertAccessListWithMembers(ctx, newAccessList(t, listName, clock), nil)
+				require.NoError(t, err)
+
+				var expectedMemberNames []string
+				for _, memberName := range []string{"alice", "bob", "carol", "dave"} {
+					expectedMemberNames = append(expectedMemberNames, memberName)
+					members := sliceutils.Map(expectedMemberNames, toAccessListMember)
+
+					// WHEN I update the Access List to have one or more users,
+					// EXPECT that the operation succeeds and all member are present
+					// in both the returned member list and in the backend service
+					updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+					require.NoError(t, err)
+					require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
+					require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
+
+					backendMembers, err := stream.Collect(service.StreamAccessListMembers(ctx, listName))
+					require.NoError(t, err)
+					slices.SortFunc(backendMembers, byName)
+					require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
+				}
+
+				for len(expectedMemberNames) > 0 {
+					expectedMemberNames = expectedMemberNames[1:]
+					members := sliceutils.Map(expectedMemberNames, toAccessListMember)
+
+					// WHEN I update the Access List to remove a user, EXPECT that
+					// the operation succeeds and that only the expected members
+					// are present in the returned member list and in the backend
+					// service
+					updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+					require.NoError(t, err)
+					require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
+					require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
+
+					backendMembers, err := stream.Collect(service.StreamAccessListMembers(ctx, listName))
+					require.NoError(t, err)
+					slices.SortFunc(backendMembers, byName)
+					require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
+				}
+			})
+
+			t.Run("setting empty member list deletes members", func(t *testing.T) {
+				emptyLists := []struct {
+					name  string
+					value []*accesslist.AccessListMember
+				}{
+					{
+						name:  "nil",
+						value: nil,
+					},
+					{
+						name:  "zero-length",
+						value: []*accesslist.AccessListMember{},
+					},
+				}
+
+				for _, emptyList := range emptyLists {
+					t.Run(emptyList.name, func(t *testing.T) {
+						t.Cleanup(deleteAccessLists(t))
+						listName := "test-set-empty-members-list" + emptyList.name
+
+						// GIVEN an access list with several members...
+						acl, _, err := service.UpsertAccessListWithMembers(ctx,
+							newAccessList(t, listName, clock),
+							[]*accesslist.AccessListMember{
+								newAccessListMember(t, listName, "alice"),
+								newAccessListMember(t, listName, "bob"),
+								newAccessListMember(t, listName, "carol"),
+								newAccessListMember(t, listName, "dave"),
+							})
+						require.NoError(t, err)
+
+						backendMembers, err := stream.Collect(service.StreamAccessListMembers(ctx, listName))
+						require.NoError(t, err)
+						require.Len(t, backendMembers, 4)
+
+						// WHEN I update it with an empty member list
+						_, members, err := fnUnderTest(ctx, acl, emptyList.value)
+						require.NoError(t, err)
+
+						// EXPECT that both the returned member list and the member
+						// collection from the backend are empty
+						require.Empty(t, members)
+						backendMembers, err = stream.Collect(service.StreamAccessListMembers(ctx, listName))
+						require.NoError(t, err)
+						require.Empty(t, backendMembers)
+					})
+				}
+			})
+
+			t.Run("colliding updates", func(t *testing.T) {
+				const listName = "test-colliding-updates-list"
+				t.Cleanup(deleteAccessLists(t))
+
+				// GIVEN an existing Access List (note that we're deliberately
+				// using UpsertAccessListWithMembers rather than fnUnderTest,
+				// because this is part of the test setup rather than the test
+				// action itself.)
+				originalACL, originalMembers, err := service.UpsertAccessListWithMembers(ctx,
+					newAccessList(t, listName, clock),
+					[]*accesslist.AccessListMember{
+						newAccessListMember(t, listName, "alice"),
+						newAccessListMember(t, listName, "bob"),
+						newAccessListMember(t, listName, "carol"),
+						newAccessListMember(t, listName, "dave"),
+					})
+				require.NoError(t, err)
+
+				// GIVEN an updated version of the original access list, which
+				// will have a new version string...
+				update := originalACL.Clone()
+				update.Spec.Title = "updated list once"
+
+				updatedACL, err := service.UpsertAccessList(ctx, update)
+				require.NoError(t, err)
+
+				// WHEN I try to submit an updated Access List based on the original
+				// Access List revision
+				secondUpdate := originalACL.Clone()
+				secondUpdate.Spec.Title = "overridden update"
+				updatedMembers := []*accesslist.AccessListMember{
+					newAccessListMember(t, listName, "erica"),
+					newAccessListMember(t, listName, "fred"),
+					newAccessListMember(t, listName, "giselle"),
+					newAccessListMember(t, listName, "hector"),
+				}
+				_, _, updateErr := fnUnderTest(ctx, secondUpdate, updatedMembers)
+
+				backendACL, err := service.GetAccessList(ctx, listName)
+				require.NoError(t, err)
+
+				backendMembers, err := stream.Collect(service.StreamAccessListMembers(ctx, listName))
+				require.NoError(t, err)
+				slices.SortFunc(backendMembers, byName)
+
+				switch op {
+				case opTypeUpsert:
+					// EXPECT an upsert to succeed and update the Access List
+					// and its members
+					require.NoError(t, updateErr)
+
+					require.Empty(t, cmp.Diff(backendACL, secondUpdate, cmpOpts...))
+					require.Empty(t, cmp.Diff(backendMembers, updatedMembers))
+
+				case opTypeUpdate:
+					// EXPECT a conditional update to fail and that the backend
+					// Access List and Member records have not been overwritten
+					var cmpFailedErr *trace.CompareFailedError
+					require.ErrorAs(t, updateErr, &cmpFailedErr)
+
+					require.Empty(t, cmp.Diff(backendACL, updatedACL, cmpOpts...))
+					require.Empty(t, cmp.Diff(backendMembers, originalMembers))
+				}
+			})
+		})
+	}
 }
 
 func TestAccessListMembersCRUD(t *testing.T) {
@@ -2097,4 +2286,15 @@ func assertMemberOf(t *testing.T, ctx context.Context, svc *AccessListService, n
 	item, err := svc.GetAccessList(ctx, name)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, item.Status.MemberOf)
+}
+
+// String returns a human-readable name for the operation type
+func (op opType) String() string {
+	switch op {
+	case opTypeUpsert:
+		return "upsert"
+	case opTypeUpdate:
+		return "update"
+	}
+	return fmt.Sprintf("unknown op type %d", int(op))
 }

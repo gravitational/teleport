@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"io"
 	"slices"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -431,6 +433,59 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 	return members, nextToken, nil
 }
 
+type streamOptions struct {
+	nextPageToken string
+	pageSize      int
+}
+
+type streamOption func(*streamOptions)
+
+// WithPageSize sets the page size of the underlying list operations when
+// streaming a list of resources. Streams will use the underlying services default
+// page size if unset.
+func WithPageSize(n int) streamOption {
+	return func(opts *streamOptions) {
+		opts.pageSize = n
+	}
+}
+
+// WithStartPage sets the token of the first page of resources to yield in the
+// stream. Defaults to the start of
+func WithStartPage(token string) streamOption {
+	return func(opts *streamOptions) {
+		opts.nextPageToken = token
+	}
+}
+
+// StreamAccessListMembers returns a single-use stream that yields the members of
+// the supplied Access List
+func (a *AccessListService) StreamAccessListMembers(ctx context.Context, accessListName string, options ...streamOption) stream.Stream[*accesslist.AccessListMember] {
+	opts := streamOptions{}
+	for _, applyOption := range options {
+		applyOption(&opts)
+	}
+
+	isEOF := false
+	return stream.PageFunc(func() ([]*accesslist.AccessListMember, error) {
+		if isEOF {
+			return nil, io.EOF
+		}
+
+		var page []*accesslist.AccessListMember
+		var err error
+		page, opts.nextPageToken, err = a.ListAccessListMembers(ctx, accessListName, int(opts.pageSize), opts.nextPageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if opts.nextPageToken == "" {
+			isEOF = true
+		}
+
+		return page, nil
+	})
+}
+
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	members, next, err := a.memberService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
@@ -680,12 +735,32 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
 
-// UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+type writeFn func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+func (a *AccessListService) selectWriteFn(op opType) (writeFn, error) {
+	switch op {
+	case opTypeUpdate:
+		return a.service.ConditionalUpdateResource, nil
+
+	case opTypeUpsert:
+		return a.service.UpsertResource, nil
+	}
+
+	return nil, trace.BadParameter("Unknown Access List write operation: %d", op)
+}
+
+// writeAccessListWithMembers holds all of the common logic for updating and
+// upserting an access list and it's collection of members.
+func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, op opType) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	setOwnersEligibility(accessList)
+
+	writeFn, err := a.selectWriteFn(op)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	for _, m := range membersIn {
 		if err := m.CheckAndSetDefaults(); err != nil {
@@ -695,9 +770,20 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 	validateAccessList := func() error {
 		existingAccessList, err := a.service.GetResource(ctx, accessList.GetName())
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+		if err != nil {
+			// a not found error is totally legal for an upsert operation, but
+			// fatal for an update.
+			if op == opTypeUpdate || !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
+
+		if op == opTypeUpdate {
+			if accessList.Metadata.Revision != existingAccessList.Metadata.Revision {
+				return trace.CompareFailed("access list revision does not match. it may have been concurrently modified")
+			}
+		}
+
 		preserveAccessListFields(existingAccessList, accessList)
 
 		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
@@ -806,9 +892,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		return nil
 	}
 
-	updateAccessList := func() error {
+	writeAccessList := func() error {
 		var err error
-		accessList, err = a.service.UpsertResource(ctx, accessList)
+		accessList, err = writeFn(ctx, accessList)
 		return trace.Wrap(err)
 	}
 
@@ -822,7 +908,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
-	actions = append(actions, validateAccessList, reconcileMembers, updateAccessList, reconcileOwners)
+	actions = append(actions, validateAccessList, reconcileMembers, writeAccessList, reconcileOwners)
 
 	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -838,6 +924,26 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	}
 
 	return accessList, membersIn, nil
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	upsertedACL, upsertedMembers, err := a.writeAccessListWithMembers(ctx, accessList, membersIn, opTypeUpsert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return upsertedACL, upsertedMembers, nil
+}
+
+// UpdateAccessListWithMembers does a conditional update on an AccessList and
+// all its members. For the purposes of this update, the Access List's member
+// records  are covered under the enclosing Access List's revision.
+func (a *AccessListService) UpdateAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	updatedACL, udatedMembers, err := a.writeAccessListWithMembers(ctx, accessList, membersIn, opTypeUpdate)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return updatedACL, udatedMembers, nil
 }
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
