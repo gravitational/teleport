@@ -23,7 +23,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -405,7 +405,7 @@ func getRandomThumbnailIndex(interval time.Duration, duration time.Duration) int
 	}
 
 	if numIntervals < 5 {
-		return rand.Intn(numIntervals)
+		return rand.IntN(numIntervals)
 	}
 
 	startIndex := int(float64(numIntervals) * 0.2)
@@ -415,7 +415,7 @@ func getRandomThumbnailIndex(interval time.Duration, duration time.Duration) int
 	}
 
 	rangeSize := endIndex - startIndex
-	randomOffset := rand.Intn(rangeSize)
+	randomOffset := rand.IntN(rangeSize)
 	return startIndex + randomOffset
 }
 
