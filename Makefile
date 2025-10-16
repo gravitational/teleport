@@ -942,7 +942,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
+test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -1025,7 +1025,7 @@ test-go-chaos:
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR) ensure-gotestsum
+test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
