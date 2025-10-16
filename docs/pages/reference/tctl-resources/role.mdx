@@ -1,0 +1,909 @@
+---
+title: Role Reference
+description: Provides a reference of fields within the Role resource, which you can manage with tctl.
+sidebar_title: Role
+---
+{/* Automatically generated from: types/types.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `role`<br/>
+**Version**: `v6`
+
+Represents role resource specification
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.|string|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|spec|A role specification|[Role Spec](#role-spec)|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|kind|A resource kind|string|
+
+## Access Request Conditions
+
+A matcher for allow/deny restrictions on access-requests. Please remember to update IsEmpty when updating this message.
+
+
+Example:
+
+```yaml
+roles: 
+  - "string"
+  - "string"
+  - "string"
+claims_to_roles: 
+  - # [...]
+  - # [...]
+  - # [...]
+annotations: # [...]
+thresholds: 
+  - # [...]
+  - # [...]
+  - # [...]
+suggested_reviewers: 
+  - "string"
+  - "string"
+  - "string"
+search_as_roles: 
+  - "string"
+  - "string"
+  - "string"
+max_duration: # [...]
+kubernetes_resources: 
+  - # [...]
+  - # [...]
+  - # [...]
+reason: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|thresholds|A list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|[][Access Review Threshold](#access-review-threshold)|
+|suggested_reviewers|A list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|[]string|
+|search_as_roles|A list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|[]string|
+|roles|The name of roles which will match the request rule.|[]string|
+|reason|Defines settings for the reason for the access provided by the user.|[Access Request Conditions Reason](#access-request-conditions-reason)|
+|max_duration|The amount of time the access will be granted for. If this is zero, the default duration is used.|[Duration](#duration)|
+|kubernetes_resources|Kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|[][Request Kubernetes Resource](#request-kubernetes-resource)|
+|claims_to_roles|Specifies a mapping from claims (traits) to teleport roles.|[][Claim Mapping](#claim-mapping)|
+|annotations|A collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}`}` style substitutions.|[Traits](#traits)|
+
+## Access Request Conditions Reason
+
+Defines settings for the reason for the access provided by the user.
+
+
+Example:
+
+```yaml
+mode: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|mode|Can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.|[Request Reason Mode](#request-reason-mode)|
+
+## Access Review Conditions
+
+A matcher for allow/deny restrictions on access reviews. Please remember to update IsEmpty when updating this message.
+
+
+Example:
+
+```yaml
+roles: 
+  - "string"
+  - "string"
+  - "string"
+claims_to_roles: 
+  - # [...]
+  - # [...]
+  - # [...]
+where: "string"
+preview_as_roles: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|where|An optional predicate which further limits which requests are reviewable.|string|
+|roles|The name of roles which may be reviewed.|[]string|
+|preview_as_roles|A list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|[]string|
+|claims_to_roles|Specifies a mapping from claims (traits) to teleport roles.|[][Claim Mapping](#claim-mapping)|
+
+## Access Review Threshold
+
+Describes a filter used to match access reviews, as well as approval/denial counts which trigger state-transitions.  This type can be used to describe policies such as "can be approved by 2 admins" or "can be denied by any non-contractor".
+
+
+Example:
+
+```yaml
+name: "string"
+filter: "string"
+approve: 1
+deny: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The optional human-readable name of the threshold.|string|
+|filter|An optional predicate used to determine which reviews count toward this threshold.|string|
+|deny|The number of denials needed for state-transition.|number|
+|approve|The number of matching approvals needed for state-transition.|number|
+
+## Bool
+
+A wrapper around boolean values
+
+
+## Bool Option
+
+A wrapper around bool that can take multiple values: * true, false and non-set (when pointer is nil) and can marshal itself to protobuf equivalent BoolValue
+
+
+Example:
+
+```yaml
+: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Value|A value of the option|Boolean|
+
+## Cert Extension
+
+Represents a key/value for a certificate extension
+
+
+Example:
+
+```yaml
+type: # [...]
+mode: # [...]
+name: "string"
+value: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|value|Specifies the value to be used in the cert extension.|string|
+|type|Represents the certificate type being extended, only ssh is supported at this time. 0 is "ssh".|[Cert Extension Type](#cert-extension-type)|
+|name|Specifies the key to be used in the cert extension.|string|
+|mode|The type of extension to be used -- currently critical-option is not supported. 0 is "extension".|[Cert Extension Mode](#cert-extension-mode)|
+
+## Cert Extension Mode
+
+Specifies the type of extension to use in the cert.
+
+
+## Cert Extension Type
+
+Represents the certificate type the extension is for. Currently only ssh is supported.
+
+
+## Claim Mapping
+
+Maps a claim to teleport roles.
+
+
+Example:
+
+```yaml
+claim: "string"
+value: "string"
+roles: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|value|A claim value to match.|string|
+|roles|A list of static teleport roles to match.|[]string|
+|claim|A claim name.|string|
+
+## Create Database User Mode
+
+Determines whether database user creation should be disabled or if users should be cleaned up or kept after sessions end.
+
+
+## Create Host User Mode
+
+Determines whether host user creation should be disabled or if host users should be cleaned up or kept after sessions end.
+
+
+## Database Permission
+
+Specifies the database object permission for the user.
+
+
+Example:
+
+```yaml
+permissions: 
+  - "string"
+  - "string"
+  - "string"
+match: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|permissions|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|[]string|
+|match|A list of object labels that must be matched for the permission to be granted.|[Labels](#labels)|
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+
+## Git Hub Permission
+
+Defines GitHub integration related permissions.
+
+
+Example:
+
+```yaml
+orgs: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|orgs||[]string|
+
+## Id POptions
+
+Specify options related to access Teleport IdPs.
+
+
+Example:
+
+```yaml
+saml: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|saml|Options related to the Teleport SAML IdP.|[Id PSAMLOptions](#id-psamloptions)|
+
+## Id PSAMLOptions
+
+Specifies options related to accessing the Teleport SAML IdP.
+
+
+Example:
+
+```yaml
+enabled: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled|Set to true if this option allows access to the Teleport SAML IdP.|[Bool Option](#bool-option)|
+
+## Identity Center Account Assignment
+
+Captures an AWS Identity Center account assignment (acccount + permission set) pair.
+
+
+Example:
+
+```yaml
+permission_set: "string"
+account: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|permission_set||string|
+|account||string|
+
+## Impersonate Conditions
+
+Specifies whether users are allowed to issue certificates for other users or groups.
+
+
+Example:
+
+```yaml
+users: 
+  - "string"
+  - "string"
+  - "string"
+roles: 
+  - "string"
+  - "string"
+  - "string"
+where: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|where|Specifies optional advanced matcher|string|
+|users|A list of resources this role is allowed to impersonate, could be an empty list or a Wildcard pattern|[]string|
+|roles|A list of resources this role is allowed to impersonate|[]string|
+
+## Kubernetes Resource
+
+The Kubernetes resource identifier.
+
+
+Example:
+
+```yaml
+kind: "string"
+namespace: "string"
+name: "string"
+verbs: 
+  - "string"
+  - "string"
+  - "string"
+api_group: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|verbs|The allowed Kubernetes verbs for the following resource.|[]string|
+|namespace|The resource namespace. It supports wildcards.|string|
+|name|The resource name. It supports wildcards.|string|
+|kind|Specifies the Kubernetes Resource type.|string|
+|api_group|Specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.|string|
+
+## Labels
+
+A wrapper around map that can marshal and unmarshal itself from scalar and list values
+
+
+## Locking Mode
+
+Determines how a (possibly stale) set of locks should be applied to an interaction.
+
+
+## MCPPermissions
+
+Defines MCP servers related permissions.
+
+
+Example:
+
+```yaml
+tools: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|tools|Defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|[]string|
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+|name|An object name|string|
+|labels|A set of labels|map[string]string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|description|Object description|string|
+
+## Record Session
+
+
+
+
+Example:
+
+```yaml
+desktop: # [...]
+default: # [...]
+ssh: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ssh|Indicates the session mode used on SSH sessions.|[Session Recording Mode](#session-recording-mode)|
+|desktop|Indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.|[Bool Option](#bool-option)|
+|default|Indicates the default value for the services.|[Session Recording Mode](#session-recording-mode)|
+
+## Request Kubernetes Resource
+
+The Kubernetes resource identifier used in access request settings. Modeled after existing message KubernetesResource.
+
+
+Example:
+
+```yaml
+kind: "string"
+api_group: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|Kind specifies the Kubernetes Resource type.|string|
+|api_group|Specifies the Kubernetes Resource API group.|string|
+
+## Request Reason Mode
+
+Can be either "required" or "optional". Empty-string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.
+
+
+## Request Strategy
+
+An indicator of how access requests should be handled for holders of a given role.
+
+
+## Require MFAType
+
+A type of MFA requirement enforced outside of login, such as per-session MFA or per-request PIV touch.
+
+
+## Role Conditions
+
+A set of conditions that must all match to be allowed or denied access.
+
+
+Example:
+
+```yaml
+logins: 
+  - "string"
+  - "string"
+  - "string"
+node_labels: # [...]
+rules: 
+  - # [...]
+  - # [...]
+  - # [...]
+kubernetes_groups: 
+  - "string"
+  - "string"
+  - "string"
+request: # [...]
+kubernetes_users: 
+  - "string"
+  - "string"
+  - "string"
+app_labels: # [...]
+cluster_labels: # [...]
+kubernetes_labels: # [...]
+db_labels: # [...]
+db_names: 
+  - "string"
+  - "string"
+  - "string"
+db_users: 
+  - "string"
+  - "string"
+  - "string"
+impersonate: # [...]
+review_requests: # [...]
+aws_role_arns: 
+  - "string"
+  - "string"
+  - "string"
+windows_desktop_logins: 
+  - "string"
+  - "string"
+  - "string"
+windows_desktop_labels: # [...]
+require_session_join: 
+  - # [...]
+  - # [...]
+  - # [...]
+join_sessions: 
+  - # [...]
+  - # [...]
+  - # [...]
+host_groups: 
+  - "string"
+  - "string"
+  - "string"
+host_sudoers: 
+  - "string"
+  - "string"
+  - "string"
+azure_identities: 
+  - "string"
+  - "string"
+  - "string"
+kubernetes_resources: 
+  - # [...]
+  - # [...]
+  - # [...]
+gcp_service_accounts: 
+  - "string"
+  - "string"
+  - "string"
+db_service_labels: # [...]
+group_labels: # [...]
+desktop_groups: 
+  - "string"
+  - "string"
+  - "string"
+db_roles: 
+  - "string"
+  - "string"
+  - "string"
+node_labels_expression: "string"
+app_labels_expression: "string"
+cluster_labels_expression: "string"
+kubernetes_labels_expression: "string"
+db_labels_expression: "string"
+db_service_labels_expression: "string"
+windows_desktop_labels_expression: "string"
+group_labels_expression: "string"
+db_permissions: 
+  - # [...]
+  - # [...]
+  - # [...]
+spiffe: 
+  - # [...]
+  - # [...]
+  - # [...]
+account_assignments: 
+  - # [...]
+  - # [...]
+  - # [...]
+github_permissions: 
+  - # [...]
+  - # [...]
+  - # [...]
+workload_identity_labels: # [...]
+workload_identity_labels_expression: "string"
+mcp: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|workload_identity_labels_expression|A predicate expression used to allow/deny access to issuing a WorkloadIdentity.|string|
+|workload_identity_labels|Controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|[Labels](#labels)|
+|windows_desktop_logins|A list of desktop login names allowed/denied for Windows desktops.|[]string|
+|windows_desktop_labels_expression|A predicate expression used to allow/deny access to Windows desktops.|string|
+|windows_desktop_labels|Used in the RBAC system to allow/deny access to Windows desktops.|[Labels](#labels)|
+|spiffe|Used to allow or deny access to a role holder to generating a SPIFFE SVID.|[][SPIFFERole Condition](#spifferole-condition)|
+|rules|A list of rules and their access levels. Rules are a high level construct used for access control.|[][Rule](#rule)|
+|review_requests|Defines conditions for submitting access reviews.|[Access Review Conditions](#access-review-conditions)|
+|require_session_join|Specifies policies for required users to start a session.|[][Session Require Policy](#session-require-policy)|
+|request||[Access Request Conditions](#access-request-conditions)|
+|node_labels_expression|A predicate expression used to allow/deny access to SSH nodes.|string|
+|node_labels|A map of node labels (used to dynamically grant access to nodes).|[Labels](#labels)|
+|mcp|Permissions defines MCP servers related permissions.|[MCPPermissions](#mcppermissions)|
+|logins|A list of *nix system logins.|[]string|
+|kubernetes_users|An optional kubernetes users to impersonate|[]string|
+|kubernetes_resources|The Kubernetes Resources this Role grants access to.|[][Kubernetes Resource](#kubernetes-resource)|
+|kubernetes_labels_expression|A predicate expression used to allow/deny access to kubernetes clusters.|string|
+|kubernetes_labels|A map of kubernetes cluster labels used for RBAC.|[Labels](#labels)|
+|kubernetes_groups|A list of kubernetes groups|[]string|
+|join_sessions|Specifies policies to allow users to join other sessions.|[][Session Join Policy](#session-join-policy)|
+|impersonate|Specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|[Impersonate Conditions](#impersonate-conditions)|
+|host_sudoers|A list of entries to include in a users sudoer file|[]string|
+|host_groups|A list of groups for created users to be added to|[]string|
+|group_labels_expression|A predicate expression used to allow/deny access to user groups.|string|
+|group_labels|A map of labels used as part of the RBAC system.|[Labels](#labels)|
+|github_permissions|Defines GitHub integration related permissions.|[][Git Hub Permission](#git-hub-permission)|
+|gcp_service_accounts|A list of GCP service accounts this role is allowed to assume.|[]string|
+|desktop_groups|A list of groups for created desktop users to be added to|[]string|
+|db_users|A list of databases users this role is allowed to connect as.|[]string|
+|db_service_labels_expression|A predicate expression used to allow/deny access to Database Services.|string|
+|db_service_labels|Used in RBAC system to allow/deny access to Database Services.|[Labels](#labels)|
+|db_roles|A list of databases roles for automatic user creation.|[]string|
+|db_permissions|Specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.|[][Database Permission](#database-permission)|
+|db_names|A list of database names this role is allowed to connect to.|[]string|
+|db_labels_expression|A predicate expression used to allow/deny access to Databases.|string|
+|db_labels|Used in RBAC system to allow/deny access to databases.|[Labels](#labels)|
+|cluster_labels_expression|A predicate expression used to allow/deny access to remote Teleport clusters.|string|
+|cluster_labels|A map of node labels (used to dynamically grant access to clusters).|[Labels](#labels)|
+|azure_identities|A list of Azure identities this role is allowed to assume.|[]string|
+|aws_role_arns|A list of AWS role ARNs this role is allowed to assume.|[]string|
+|app_labels_expression|A predicate expression used to allow/deny access to Apps.|string|
+|app_labels|A map of labels used as part of the RBAC system.|[Labels](#labels)|
+|account_assignments|Holds the list of account assignments affected by this condition.|[][Identity Center Account Assignment](#identity-center-account-assignment)|
+
+## Role Options
+
+A set of role options
+
+
+Example:
+
+```yaml
+forward_agent: # [...]
+max_session_ttl: # [...]
+port_forwarding: # [...]
+cert_format: "string"
+client_idle_timeout: # [...]
+disconnect_expired_cert: # [...]
+enhanced_recording: 
+  - "string"
+  - "string"
+  - "string"
+permit_x11_forwarding: # [...]
+max_connections: 1
+max_sessions: 1
+request_access: # [...]
+request_prompt: "string"
+lock: # [...]
+record_session: # [...]
+desktop_clipboard: # [...]
+cert_extensions: 
+  - # [...]
+  - # [...]
+  - # [...]
+max_kubernetes_connections: 1
+desktop_directory_sharing: # [...]
+create_host_user: # [...]
+pin_source_ip: # [...]
+ssh_file_copy: # [...]
+require_session_mfa: # [...]
+device_trust_mode: "string"
+idp: # [...]
+create_desktop_user: # [...]
+create_db_user: # [...]
+create_host_user_mode: # [...]
+create_db_user_mode: # [...]
+mfa_verification_interval: # See description
+create_host_user_default_shell: "string"
+ssh_port_forwarding: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ssh_port_forwarding|Configures what types of SSH port forwarding are allowed by a role.|[SSHPort Forwarding](#sshport-forwarding)|
+|ssh_file_copy|Indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|[Bool Option](#bool-option)|
+|require_session_mfa|The type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".|[Require MFAType](#require-mfatype)|
+|request_prompt|An optional message which tells users what they aught to request.|string|
+|request_access|Defines the request strategy (optional\|reason\|always) where optional is the default.|[Request Strategy](#request-strategy)|
+|record_session|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|[Record Session](#record-session)|
+|port_forwarding|Deprecated: Use SSHPortForwarding instead|[Bool Option](#bool-option)|
+|pin_source_ip|Forces the same client IP for certificate generation and usage|[Bool](#bool)|
+|permit_x11_forwarding|Authorizes use of X11 forwarding.|[Bool](#bool)|
+|mfa_verification_interval|Optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.||
+|max_sessions|Defines the maximum number of concurrent sessions per connection.|number|
+|max_session_ttl|Defines how long a SSH session can last for.|[Duration](#duration)|
+|max_kubernetes_connections|Defines the maximum number of concurrent Kubernetes sessions a user may hold.|number|
+|max_connections|Defines the maximum number of concurrent connections a user may hold.|number|
+|lock|Specifies the locking mode (strict\|best_effort) to be applied with the role.|[Locking Mode](#locking-mode)|
+|idp|A set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|[Id POptions](#id-poptions)|
+|forward_agent|SSH agent forwarding.|[Bool](#bool)|
+|enhanced_recording|Defines what events to record for the BPF-based session recorder.|[]string|
+|disconnect_expired_cert|Sets disconnect clients on expired certificates.|[Bool](#bool)|
+|device_trust_mode|The device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.|string|
+|desktop_directory_sharing|Indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.|[Bool Option](#bool-option)|
+|desktop_clipboard|Indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|[Bool Option](#bool-option)|
+|create_host_user_mode|Allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop".|[Create Host User Mode](#create-host-user-mode)|
+|create_host_user_default_shell|Used to configure the default shell for newly provisioned host users.|string|
+|create_host_user|Deprecated: use CreateHostUserMode instead.|[Bool Option](#bool-option)|
+|create_desktop_user|Allows users to be automatically created on a Windows desktop|[Bool Option](#bool-option)|
+|create_db_user_mode|Allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".|[Create Database User Mode](#create-database-user-mode)|
+|create_db_user|Enabled automatic database user creation.|[Bool Option](#bool-option)|
+|client_idle_timeout|Sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.|[Duration](#duration)|
+|cert_format|Defines the format of the user certificate to allow compatibility with older versions of OpenSSH.|string|
+|cert_extensions|Specifies the key/values|[][Cert Extension](#cert-extension)|
+
+## Role Spec
+
+Role specification for RoleV6.
+
+
+Example:
+
+```yaml
+options: # [...]
+allow: # [...]
+deny: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|options|For OpenSSH options like agent forwarding.|[Role Options](#role-options)|
+|deny|The set of conditions evaluated to deny access. Deny takes priority over allow.|[Role Conditions](#role-conditions)|
+|allow|The set of conditions evaluated to grant access.|[Role Conditions](#role-conditions)|
+
+## Rule
+
+Represents allow or deny rule that is executed to check if user or service have access to resource
+
+
+Example:
+
+```yaml
+resources: 
+  - "string"
+  - "string"
+  - "string"
+verbs: 
+  - "string"
+  - "string"
+  - "string"
+where: "string"
+actions: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|where|Specifies optional advanced matcher|string|
+|verbs|A list of verbs|[]string|
+|resources|A list of resources|[]string|
+|actions|Specifies optional actions taken when this rule matches|[]string|
+
+## SPIFFERole Condition
+
+Sets out which SPIFFE identities this role is allowed or denied to generate. The Path matcher is required, and is evaluated first. If, the Path does not match then the other matcher fields are not evaluated.
+
+
+Example:
+
+```yaml
+path: "string"
+dns_sans: 
+  - "string"
+  - "string"
+  - "string"
+ip_sans: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|path|Specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar|string|
+|ip_sans|Specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42|[]string|
+|dns_sans|Specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com|[]string|
+
+## SSHLocal Port Forwarding
+
+Configures access controls for local SSH port forwarding.
+
+
+Example:
+
+```yaml
+enabled: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled||[Bool Option](#bool-option)|
+
+## SSHPort Forwarding
+
+Configures what types of SSH port forwarding are allowed by a role.
+
+
+Example:
+
+```yaml
+local: # [...]
+remote: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|remote|Allow remote port forwarding.|[SSHRemote Port Forwarding](#sshremote-port-forwarding)|
+|local|Allow local port forwarding.|[SSHLocal Port Forwarding](#sshlocal-port-forwarding)|
+
+## SSHRemote Port Forwarding
+
+Configures access controls for remote SSH port forwarding.
+
+
+Example:
+
+```yaml
+enabled: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enabled||[Bool Option](#bool-option)|
+
+## Session Join Policy
+
+Defines a policy that allows a user to join sessions.
+
+
+Example:
+
+```yaml
+name: "string"
+roles: 
+  - "string"
+  - "string"
+  - "string"
+kinds: 
+  - "string"
+  - "string"
+  - "string"
+modes: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|roles|A list of roles that you can join the session of.|[]string|
+|name|The name of the policy.|string|
+|modes|A list of permitted participant modes for this policy.|[]string|
+|kinds|The session kinds this policy applies to.|[]string|
+
+## Session Recording Mode
+
+Determines how session recording will behave in failure scenarios.
+
+
+## Session Require Policy
+
+A requirement policy that needs to be fulfilled to grant access.
+
+
+Example:
+
+```yaml
+name: "string"
+filter: "string"
+kinds: 
+  - "string"
+  - "string"
+  - "string"
+count: 1
+modes: 
+  - "string"
+  - "string"
+  - "string"
+on_leave: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|on_leave|The behaviour that's used when the policy is no longer fulfilled for a live session.|string|
+|name|The name of the policy.|string|
+|modes|The list of modes that may be used to fulfill this policy.|[]string|
+|kinds|The session kinds this policy applies to.|[]string|
+|filter|A predicate that determines what users count towards this policy.|string|
+|count|The amount of people that need to be matched for this policy to be fulfilled.|number|
+
+## Traits
+
+A wrapper around map with string slices as values
+
+
