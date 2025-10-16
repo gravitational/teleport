@@ -47,6 +47,10 @@ type Client interface {
 
 // Config for the heartbeat service.
 type Config struct {
+	// BotKind identifies whether the bot is running in the tbot binary or
+	// embedded in another component
+	BotKind machineidv1pb.BotKind
+
 	// Interval controls how frequently heartbeats are submitted.
 	Interval time.Duration
 
@@ -173,6 +177,7 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		Version:      teleport.Version,
 		Architecture: runtime.GOARCH,
 		Os:           runtime.GOOS,
+		Kind:         s.cfg.BotKind,
 	}
 
 	_, err = s.cfg.Client.SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{

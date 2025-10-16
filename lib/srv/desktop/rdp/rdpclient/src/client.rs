@@ -503,12 +503,17 @@ impl Client {
         let mut pending_resize =
             Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
-        if let Some((width, height)) = pending_resize {
+        if let Some((initial_width, initial_height)) = pending_resize {
             // If there was a resize pending, perform it now.
             debug!(
                 "Pending resize for size [{:?}x{:?}] found, sending now",
-                width, height
+                initial_width, initial_height
             );
+            let (width, height) =
+                MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
+            if width != initial_width || height != initial_height {
+                debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
+            }
             let pdu: DisplayControlPdu = DisplayControlMonitorLayout::new_single_primary_monitor(
                 width,
                 height,
@@ -1369,6 +1374,12 @@ type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
+    let initial_width = params.screen_width as u32;
+    let initial_height = params.screen_height as u32;
+    let (width, height) = MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
+    if width != initial_width || height != initial_height {
+        debug!("Adjusted screen size to [{:?}x{:?}]", width, height);
+    }
     Config {
         desktop_size: DesktopSize {
             width: params.screen_width,
@@ -1422,7 +1433,8 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         } else {
             PerformanceFlags::empty()
         },
-        desktop_scale_factor: 0,
+        // spec says that any value not in [100, 500] is ignored
+        desktop_scale_factor: 100,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
         hardware_id: Some(params.client_id),
     }
