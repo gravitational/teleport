@@ -47,7 +47,7 @@ func TestClientServerConnReg(t *testing.T) {
 		require.NoError(t, err)
 
 		// oracleClient represents the client on the other side of the connection.
-		oracleClient, err := NewConn(tlsConn)
+		oracleClient, err := NewConn(t.Context(), tlsConn)
 		require.NoError(t, err)
 		defer oracleClient.Close()
 
@@ -65,7 +65,7 @@ func TestClientServerConnReg(t *testing.T) {
 
 		// After sending Resend packet the client connection should be upgrade on more time to TLS connection.
 		tlsConn = tls.Server(conn, tlsConfig)
-		oracleClient, err = NewConn(tlsConn)
+		oracleClient, err = NewConn(t.Context(), tlsConn)
 		require.NoError(t, err)
 		defer oracleClient.Close()
 
@@ -81,7 +81,7 @@ func TestClientServerConnReg(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	serverConn, err := NewConn(tcpConn, WithTLS(ctx, &tls.Config{
+	serverConn, err := NewConn(ctx, tcpConn, WithTLS(&tls.Config{
 		ServerName: "localhost",
 		RootCAs:    pool,
 	}))
@@ -97,7 +97,7 @@ func TestClientServerConnReg(t *testing.T) {
 	require.Equal(t, mustParseDumpToPacket(t, testdata.ResendPacketDump), response)
 
 	// retry TLS
-	serverConn, err = NewConn(tcpConn, WithTLS(ctx, &tls.Config{
+	serverConn, err = NewConn(ctx, tcpConn, WithTLS(&tls.Config{
 		ServerName: "localhost",
 		RootCAs:    pool,
 	}))

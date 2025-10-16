@@ -2,15 +2,17 @@ package oracle
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/e/lib/db/oracle/connection"
 	"github.com/gravitational/teleport/e/lib/db/oracle/logging"
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
@@ -66,7 +68,7 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	}
 	defer packetLogger.Close()
 
-	clientConn, err := connection.NewConn(e.clientConn,
+	clientConn, err := connection.NewConn(ctx, e.clientConn,
 		connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ClientToTeleport, header) }),
 		connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ClientToTeleport, packet) }),
 		connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToClient, packet) }),
@@ -84,8 +86,7 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 		return trace.Wrap(err)
 	}
 
-	// Note that client connection is already closed by the `e.clientConn.Close()` call in HandleConnection function.
-	serverConn, err := e.openServerConnection(ctx, packetLogger, sessionCtx, clientConn, connectPacket)
+	serverConn, databaseURI, err := e.dialServer(ctx, sessionCtx, packetLogger, connectPacket, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,7 +97,7 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	go func() {
 		errClient := e.secureNetworkServicesClient(clientConn)
 		if errClient != nil {
-			e.Log.ErrorContext(e.Context, "Client negotiation failure", "error", errClient)
+			e.Log.WarnContext(e.Context, "Client negotiation failure", "error", errClient)
 		}
 		errCh <- errClient
 	}()
@@ -104,7 +105,7 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	go func() {
 		errServer := e.secureNetworkServicesServer(e.Context, serverConn)
 		if errServer != nil {
-			e.Log.ErrorContext(e.Context, "Server negotiation failure", "error", errServer)
+			e.Log.WarnContext(e.Context, "Server negotiation failure", "error", errServer)
 		}
 		errCh <- errServer
 	}()
@@ -114,12 +115,96 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 		return trace.Wrap(err)
 	}
 
-	err = e.forwardLoop(ctx, clientConn, serverConn)
+	err = e.forwardLoop(ctx, databaseURI, clientConn, serverConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+func (e *Engine) dialServer(ctx context.Context, sessionCtx *common.Session, packetLogger logging.PacketLogger, connectPacket *protocol.ConnectPacket, clientConn *connection.OracleConn) (*connection.OracleConn, string, error) {
+	opts := sessionCtx.Database.GetOracle()
+	uris := getURIs(sessionCtx.Database)
+	if len(uris) == 0 {
+		return nil, "", trace.BadParameter("missing database URI")
+	}
+
+	if opts.ShuffleHostnames {
+		rand.Shuffle(len(uris), func(i, j int) {
+			uris[i], uris[j] = uris[j], uris[i]
+		})
+		if len(uris) > 1 {
+			e.Log.DebugContext(e.Context, "Shuffled hostnames", "hostnames", uris)
+		}
+	}
+
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var errs []error
+
+	connectionAttempts := int(opts.RetryCount) + 1
+	for attempt := range connectionAttempts {
+		for _, uri := range uris {
+			dialer := e.newServerDialer(attempt, packetLogger, tlsConfig, connectPacket, uri)
+
+			result, err := dialer.dial(ctx)
+			if err != nil {
+				// accumulate encountered errors
+				errs = append(errs, err)
+
+				// any non-retryable error from any of dialers is a fatal error for the entire connection.
+				// without this we would retry on things like invalid credentials or certificate errors,
+				// which isn't what we want.
+				if !dialer.canRetry {
+					e.Log.DebugContext(e.Context, "Connection attempt failed permanently", "attempt", attempt, "error", err)
+					return nil, "", trace.Wrap(err)
+				}
+				continue
+			}
+
+			// no regular error: expecting accept or refuse.
+			switch {
+			case result.accept != nil:
+				serverConn, accept := result.serverConn, result.accept
+				e.Log.InfoContext(e.Context, "Processing accept packet", "protocol_version", accept.ProtocolVersion)
+
+				// update negotiated protocol version.
+				clientConn.SetProtocolVersion(accept.ProtocolVersion)
+				serverConn.SetProtocolVersion(accept.ProtocolVersion)
+
+				// forward the accept packet to the client.
+				err = clientConn.WritePacket(accept)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				e.Log.InfoContext(e.Context, "Server connection open.")
+
+				return serverConn, uri, nil
+
+			case result.refuse != nil:
+				refuse := result.refuse
+				e.Log.WarnContext(e.Context, "Processing refuse packet.", "message", refuse.Message)
+
+				// forward refuse packet to the client
+				err = clientConn.WritePacket(refuse)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return nil, "", trace.AccessDenied("server refused connection: %s", refuse.Message)
+
+			default:
+				// something unexpected
+				e.Log.ErrorContext(ctx, "encountered unexpected state (this is a bug)")
+				return nil, "", trace.BadParameter("encountered unexpected state (this is a bug)")
+			}
+		}
+	}
+
+	return nil, "", trace.ConnectionProblem(trace.NewAggregate(errs...), "failed to open server connection")
 }
 
 // tweakConnectPacket modifies connectPacket to constrain the requested protocol version and options to the supported subset.
@@ -162,175 +247,218 @@ func tweakConnectPacket(ctx context.Context, logger *slog.Logger, connectPacket 
 	return nil
 }
 
-// openServerConnection handles the first phase of the connection.
-// The client declares the database it wishes to connect to and server accepts or refuses.
-// Server may also request TLS renegotiation.
-// Protocol version is negotiated, which impacts the binary message layout.
-func (e *Engine) openServerConnection(ctx context.Context, packetLogger logging.PacketLogger, sessionCtx *common.Session, clientConn *connection.OracleConn, connectPacket *protocol.ConnectPacket) (*connection.OracleConn, error) {
-	var serverTcpConn net.Conn
-	closeServerTcpConn := true
+func (e *Engine) newServerDialer(attempt int, packetLogger logging.PacketLogger, tlsConfig *tls.Config, connectPacket *protocol.ConnectPacket, dialAddr string) *oracleServerDialer {
+	connectionOptions := []connection.ConnOption{
+		connection.WithTLS(tlsConfig),
+		connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ServerToTeleport, header) }),
+		connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ServerToTeleport, packet) }),
+		connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToServer, packet) }),
+	}
+
+	return &oracleServerDialer{
+		logger:            e.Log.With("attempt", attempt),
+		connectionOptions: connectionOptions,
+		connectPacket:     connectPacket,
+		dialAddr:          dialAddr,
+	}
+}
+
+type oracleServerDialer struct {
+	logger *slog.Logger
+
+	// connectionOptions to pass when opening Oracle connection on top of TCP connection.
+	// notably contains tls.Config and packet logger to use.
+	connectionOptions []connection.ConnOption
+
+	// dialAddr is current address to dial.
+	// it will be modified when handling SCAN redirect packet.
+	dialAddr string
+	// connectPacket is the connect packet to pass to the server.
+	// it will be modified when handling SCAN redirect packet.
+	connectPacket *protocol.ConnectPacket
+
+	// canRetry will be set to true if error returned from dial attempt is non-fatal.
+	// currently only set for TCP dial errors.
+	canRetry bool
+}
+
+type dialResult struct {
+	// nextHop affects the control flow; if not empty, it contains the new dial address (next hop).
+	nextHop string
+	// resend affects the control flow; if set to true, we received RESEND packet and will retry Oracle protocol initiation.
+	resend bool
+
+	// accept is the accept packet received from server in case of accepted connection.
+	// we will pass it to the client.
+	accept *protocol.AcceptPacket
+	// serverConn is the established connection to Oracle server.
+	// non-nil if and only if server accepted the connection.
+	serverConn *connection.OracleConn
+
+	// refuse is refuse packet received from server in case of rejected connection.
+	// we will pass it to the client.
+	refuse *protocol.RefusePacket
+}
+
+func (sd *oracleServerDialer) dial(ctx context.Context) (*dialResult, error) {
+	// we allow maximum of 3 hops:
+	// - in regular, direct connection we will observe a single dial attempt.
+	// - in SCAN, a single redirect to the direct server will happen, resulting in total two dial attempts.
+	// - we will accept yet another redirect; although there are no known configurations that would behave like this, there is little harm in allowing it.
+	const maxHops = 3
+	for range maxHops {
+		result, err := sd.dialHop(ctx, sd.dialAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if result.nextHop != "" {
+			sd.dialAddr = result.nextHop
+			continue
+		}
+		return result, nil
+	}
+	return nil, trace.LimitExceeded("too many connection hops reached")
+}
+
+func (sd *oracleServerDialer) dialHop(ctx context.Context, addr string) (*dialResult, error) {
+	dialer := &net.Dialer{
+		Timeout: time.Second * 5,
+	}
+	sd.logger.DebugContext(ctx, "Dialing", "addr", addr)
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		sd.logger.DebugContext(ctx, "Dial failed", "err", err)
+
+		// dial errors are the only errors worth retrying for.
+		sd.canRetry = true
+		return nil, trace.Wrap(err)
+	}
+	sd.logger.DebugContext(ctx, "Connection open", "local_addr", conn.LocalAddr(), "remote_addr", conn.RemoteAddr())
+
+	keepConn := false
 	defer func() {
-		if closeServerTcpConn && serverTcpConn != nil {
-			_ = serverTcpConn.Close()
+		if !keepConn {
+			_ = conn.Close()
 		}
 	}()
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// server address to dial; initially set from database spec, may be overridden by data from redirect packet.
-	serverDialAddr := getURI(sessionCtx.Database)
-
-	// we allow maximum of 3 dial attempts.
-	// - in regular, direct connection we will observe a single dial attempt.
-	// - in SCAN, a single redirect to the direct server will happen, resulting in total two dial attempts.
-	// - we will accept yet another redirect, although there are no known configurations that would behave like this.
-	const maxDialAttempts = 3
-
-	// handling the redirect packet requires continue against the outer loop.
-dial:
-	for dialAttempt := 1; ; dialAttempt++ {
-		e.Log.DebugContext(e.Context, "Opening server connection", "attempt", dialAttempt, "address", serverDialAddr)
-		if dialAttempt > maxDialAttempts {
-			return nil, trace.BadParameter("exceeded max dial attempts")
-		}
-
-		serverTcpConn, err = net.DialTimeout("tcp", serverDialAddr, defaults.DefaultIOTimeout)
+	// Initialize connection at the beginning and also after receiving a RESEND packet.
+	//
+	// Normally, RESEND packet should only appear once, but to be safe, we allow up to two occurrences.
+	// This means a maximum of three total initialization attempts.
+	const maxInits = 3
+	for range maxInits {
+		result, err := sd.initConn(ctx, conn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		e.Log.DebugContext(e.Context, "Connection opened.", "local_addr", serverTcpConn.LocalAddr(), "remote_addr", serverTcpConn.RemoteAddr())
+		if result.resend {
+			continue
+		}
 
-		// CONNECT -> ACCEPT loop; may need to restart TLS and retry.
-		// Typical happy flow:
-		// - send CONNECT
-		// - receive RESEND
-		// - send CONNECT
-		// - receive ACCEPT
-		// We allow for more RESEND packets because handling that isn't hard and the protocol technically allows for that.
-		const maxResendAttempts = 3
-		for attempt := 1; ; attempt++ {
-			if attempt > maxResendAttempts {
-				return nil, trace.BadParameter("exceeded max resend attempts")
-			}
+		// keep connection open if we have a valid server connection
+		keepConn = result.serverConn != nil
+		return result, nil
+	}
 
-			connectionOptions := []connection.ConnOption{
-				connection.WithTLS(ctx, tlsConfig),
-				connection.WithOnReadHeader(func(header protocol.PacketHeader) { packetLogger.LogHeader(packetcapture.ServerToTeleport, header) }),
-				connection.WithOnReadPacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.ServerToTeleport, packet) }),
-				connection.WithOnWritePacket(func(packet protocol.Packet) { packetLogger.LogPacket(packetcapture.TeleportToServer, packet) }),
-			}
+	return nil, trace.LimitExceeded("too many resend attempts")
+}
 
-			serverConn, err := connection.NewConn(serverTcpConn, connectionOptions...)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+func (sd *oracleServerDialer) initConn(ctx context.Context, serverTcpConn net.Conn) (*dialResult, error) {
+	sd.logger.DebugContext(ctx, "Initiating handshake", "server", serverTcpConn.RemoteAddr())
 
-			// pass the CONNECT (and optional DATA packet) down to the server.
-			e.Log.InfoContext(e.Context, "Sending connect packet", "attempt", attempt)
-			err = serverConn.WritePacket(connectPacket)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if connectPacket.DataPacket != nil {
-				err = serverConn.WritePacket(connectPacket.DataPacket)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			}
+	serverConn, err := connection.NewConn(ctx, serverTcpConn, sd.connectionOptions...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-			// read the response from server. expecting either RESEND or ACCEPT.
-			pkt, err := serverConn.ReadPacket()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			switch pktT := pkt.(type) {
-			case *protocol.AcceptPacket:
-				accept := pktT
-				e.Log.InfoContext(e.Context, "Received accept packet", "protocol_version", accept.ProtocolVersion)
-
-				// update negotiated protocol version.
-				clientConn.SetProtocolVersion(accept.ProtocolVersion)
-				serverConn.SetProtocolVersion(accept.ProtocolVersion)
-
-				// forward the accept packet to the client.
-				err = clientConn.WritePacket(accept)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				e.Log.InfoContext(e.Context, "Protocol handshake complete.")
-
-				closeServerTcpConn = false
-
-				return serverConn, nil
-			case *protocol.RefusePacket:
-				e.Log.WarnContext(e.Context, "Received refuse packet.", "message", pktT.Message)
-
-				// forward refuse packet to the client
-				err = clientConn.WritePacket(pktT)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				return nil, trace.AccessDenied("server refused connection: %s", pktT.Message)
-			case *protocol.ResendPacket:
-				e.Log.DebugContext(e.Context, "RESEND received, trying again.")
-				continue
-			case *protocol.RedirectPacket:
-				e.Log.DebugContext(e.Context, "Received REDIRECT packet, processing.")
-				redirect := pktT
-
-				// similar to connect packet, redirect packet often needs more data which is sent in a follow-up DATA packet.
-				err = redirect.MaybeReadMoreData(serverConn)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				redirectAddr, err := redirect.RedirectAddress()
-				if err != nil {
-					return nil, trace.Wrap(err, "failed to get redirect address")
-				}
-				e.Log.DebugContext(e.Context, "Redirect address", "addr", redirectAddr)
-
-				redirectHost, redirectPort, err := parseRedirectAddress(e.Context, e.Log, redirectAddr)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				serverDialAddr = net.JoinHostPort(redirectHost, strconv.Itoa(redirectPort))
-
-				redirectConnStr, err := redirect.RedirectConnectionString()
-				if err != nil {
-					return nil, trace.Wrap(err, "failed to get redirect connection string")
-				}
-				e.Log.DebugContext(e.Context, "Redirect connection string", "conn_str", redirectConnStr)
-
-				// We need to update connect packet dropping old connection string in favor of the new one provided by the server.
-				// However, the client shouldn't be bothered to provide an updated connect packet: it is unaware of the redirect happening at all.
-				// We also cannot make the fresh packet from scratch, we need to keep the flags provided by the client intact.
-				// We construct the new packet by updating the connection string of the original packet.
-				newConnectPacket, err := connectPacket.WithConnectionString(redirectConnStr)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				connectPacket = newConnectPacket
-
-				// close old TCP connection; ignore potential errors.
-				_ = serverTcpConn.Close()
-
-				// continue to new dial (outer loop)
-				continue dial
-			}
-
-			e.Log.DebugContext(e.Context, "Received unexpected packet.", "type", fmt.Sprintf("%T", pkt))
-
-			return nil, trace.BadParameter("received unexpected packet type: %T", pkt)
+	// pass the CONNECT (and optional DATA packet) down to the server.
+	sd.logger.InfoContext(ctx, "Sending connect packet")
+	err = serverConn.WritePacket(sd.connectPacket)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if sd.connectPacket.DataPacket != nil {
+		err = serverConn.WritePacket(sd.connectPacket.DataPacket)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
+
+	// read the response from server. expecting either RESEND or ACCEPT.
+	pkt, err := serverConn.ReadPacket()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch pktT := pkt.(type) {
+	case *protocol.AcceptPacket:
+		sd.logger.InfoContext(ctx, "Received accept packet", "protocol_version", pktT.ProtocolVersion)
+		return &dialResult{
+			accept:     pktT,
+			serverConn: serverConn,
+		}, nil
+
+	case *protocol.RefusePacket:
+		sd.logger.WarnContext(ctx, "Received refuse packet.", "message", pktT.Message)
+		return &dialResult{
+			refuse: pktT,
+		}, nil
+
+	case *protocol.ResendPacket:
+		sd.logger.DebugContext(ctx, "RESEND received, trying again.")
+		return &dialResult{resend: true}, nil
+
+	case *protocol.RedirectPacket:
+		sd.logger.DebugContext(ctx, "Received REDIRECT packet, processing.")
+		redirect := pktT
+
+		// similar to connect packet, redirect packet often needs more data which is sent in a follow-up DATA packet.
+		err = redirect.MaybeReadMoreData(serverConn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		redirectAddr, err := redirect.RedirectAddress()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get redirect address")
+		}
+		sd.logger.DebugContext(ctx, "Redirect address", "addr", redirectAddr)
+
+		redirectHost, redirectPort, err := parseRedirectAddress(ctx, sd.logger, redirectAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverDialAddr := net.JoinHostPort(redirectHost, strconv.Itoa(redirectPort))
+
+		redirectConnStr, err := redirect.RedirectConnectionString()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get redirect connection string")
+		}
+		sd.logger.DebugContext(ctx, "Redirect connection string", "conn_str", redirectConnStr)
+
+		// We need to update the connect packet by replacing the old connection string
+		// with the new one provided by the server.
+		//
+		// The client is unaware of the redirect, so it shouldn't be responsible for sending
+		// an updated connect packet.
+		//
+		// Since we must preserve the original flags from the client, we can't build a new
+		// packet from scratch. Instead, we modify the original packet by updating its
+		// connection string.
+		newConnectPacket, err := sd.connectPacket.WithConnectionString(redirectConnStr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sd.connectPacket = newConnectPacket
+
+		// continue to the next hop
+		return &dialResult{nextHop: serverDialAddr}, nil
+	}
+
+	sd.logger.WarnContext(ctx, "Received unexpected packet.", "type", fmt.Sprintf("%T", pkt))
+	return nil, trace.BadParameter("received unexpected packet type: %T", pkt)
 }
 
 // parseRedirectAddress extracts connection address and port from redirect address, such as:
@@ -448,7 +576,7 @@ func (e *Engine) performTCPSAuth(serverConn *connection.OracleConn) error {
 // forwardLoop is a general proxying method, where majority of packets are processed.
 // Mostly we don't care about their contents and simply pass everything as is,
 // except for the initial handful of server packets which we check for session ID, required to start audit puller.
-func (e *Engine) forwardLoop(ctx context.Context, clientConn, serverConn *connection.OracleConn) error {
+func (e *Engine) forwardLoop(ctx context.Context, databaseURI string, clientConn, serverConn *connection.OracleConn) error {
 	e.Log.DebugContext(e.Context, "Starting async proxying.")
 
 	// connections are fully initialized. from now on, just forward all traffic between db client and server.
@@ -504,7 +632,7 @@ func (e *Engine) forwardLoop(ctx context.Context, clientConn, serverConn *connec
 
 				dataPacket, ok := p.(*protocol.DataPacket)
 				if ok && dataPacket.HasAuthParameters() {
-					err = e.tryStartAuditPuller(dataPacket, dataPacketQuota)
+					err = e.tryStartAuditPuller(databaseURI, dataPacket, dataPacketQuota)
 					if err != nil {
 						e.Log.ErrorContext(e.Context, "Failed to locate valid session parameters.", "error", err)
 						errC <- trace.Wrap(err)

@@ -4,8 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,10 +39,15 @@ func TestOracleEngine(t *testing.T) {
 	certificate, err := tls.X509KeyPair(certPEM, keyPEM)
 	require.NoError(t, err)
 
-	mkServerAndSession := func() (*mockOracleServer, *common.Session) {
-		listener, err := net.Listen("tcp", "localhost:0")
+	mkServerAndSession := func(t *testing.T, ctx context.Context) (*mockOracleServer, *common.Session) {
+		var lc net.ListenConfig
+		listener, err := lc.Listen(ctx, "tcp", "localhost:0")
 		require.NoError(t, err)
-		t.Cleanup(func() { listener.Close() })
+
+		// Close listener when ctx is canceled
+		context.AfterFunc(ctx, func() {
+			_ = listener.Close()
+		})
 
 		server := &mockOracleServer{
 			listener: listener,
@@ -78,20 +87,23 @@ func TestOracleEngine(t *testing.T) {
 		return server, session
 	}
 
-	mkEngine := func() *Engine {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
-		t.Cleanup(cancelFunc)
+	mkEngine := func(t *testing.T, ctx context.Context) *Engine {
 		return &Engine{
 			EngineConfig: common.EngineConfig{
 				Context: ctx,
-				Log:     slog.Default(),
-				Auth:    &authMock{},
-				Audit:   &auditMock{},
+				Log: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+					Level: slog.LevelDebug,
+				})).With("test", t.Name()),
+				Auth:  &authMock{},
+				Audit: &auditMock{},
 			},
 		}
 	}
 
-	t.Run("connection connect package", func(t *testing.T) {
+	t.Run("connection connect package (multihost)", func(t *testing.T) {
+		ctx, cancelFunc := context.WithTimeout(t.Context(), time.Second*10)
+		t.Cleanup(cancelFunc)
+
 		t.Parallel()
 
 		client, engineConn := net.Pipe()
@@ -99,12 +111,29 @@ func TestOracleEngine(t *testing.T) {
 		defer engineConn.Close()
 
 		var connectPacket *protocol.ConnectPacket
-		engine := mkEngine()
+		engine := mkEngine(t, ctx)
 		engine.onConnectPacketRead = func(p *protocol.ConnectPacket) {
 			connectPacket = p
 		}
 
-		server, session := mkServerAndSession()
+		server, session := mkServerAndSession(t, ctx)
+
+		// add extra inaccessible endpoints with invalid ports.
+		addrs := []string{session.Database.GetURI()}
+		for i := range 10 {
+			addrs = append(addrs, fmt.Sprintf("127.0.0.1:%d", 70000+i))
+		}
+
+		session.Database = &types.DatabaseV3{
+			Spec: types.DatabaseSpecV3{
+				URI:      strings.Join(addrs, ","),
+				Protocol: defaults.ProtocolOracle,
+				Oracle: types.OracleOptions{
+					RetryCount:       5,
+					ShuffleHostnames: true,
+				},
+			},
+		}
 
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
@@ -115,19 +144,22 @@ func TestOracleEngine(t *testing.T) {
 		connectBytesTransformed, err := protocol.DecodeHexDump(testdata.ConnectPacketDumpTransformed)
 		require.NoError(t, err)
 
-		go func() {
+		var wg sync.WaitGroup
+		wg.Go(func() {
 			_, wErr := client.Write(connectBytes)
 			assert.NoError(t, wErr)
-		}()
+			t.Log("sent connect packet")
+		})
 
-		go func() {
-			engineErr := engine.HandleConnection(context.Background(), session)
+		wg.Go(func() {
+			engineErr := engine.HandleConnection(ctx, session)
 			if !utils.IsOKNetworkError(engineErr) {
 				assert.NoError(t, engineErr)
 			}
-		}()
+			t.Log("engine finished handling connection with:", engineErr)
+		})
 
-		connChannels, err := server.accept()
+		connChannels, err := server.accept(ctx)
 		require.NoError(t, err)
 
 		select {
@@ -145,21 +177,42 @@ func TestOracleEngine(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "XE", serviceName)
 			require.Equal(t, "XE", engine.serviceName)
+			t.Log("received valid connect packet")
+
+			// cancel connection
+			connChannels.closeC <- struct{}{}
+		}
+
+		// wait for the spawned goroutines
+		allDone := make(chan struct{})
+		go func() {
+			wg.Wait()
+			t.Log("goroutines exited")
+			allDone <- struct{}{}
+		}()
+
+		select {
+		case <-allDone:
+		case <-ctx.Done():
+			t.Fatal("context timed out")
 		}
 	})
 
 	t.Run("access denied database username", func(t *testing.T) {
+		ctx, cancelFunc := context.WithTimeout(t.Context(), time.Second*10)
+		t.Cleanup(cancelFunc)
+
 		t.Parallel()
 
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
-		_, session := mkServerAndSession()
+		_, session := mkServerAndSession(t, ctx)
 		session.Identity.RouteToDatabase.Database = "XE"
 		session.DatabaseName = "oracle"
 		session.DatabaseUser = "bob"
 
-		engine := mkEngine()
+		engine := mkEngine(t, ctx)
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
@@ -229,7 +282,7 @@ type connectionChannels struct {
 	returnErrC chan error
 }
 
-func (m *mockOracleServer) accept() (*connectionChannels, error) {
+func (m *mockOracleServer) accept(ctx context.Context) (*connectionChannels, error) {
 	conn, err := m.listener.Accept()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -244,7 +297,7 @@ func (m *mockOracleServer) accept() (*connectionChannels, error) {
 	}
 
 	go func() {
-		if err := m.handleConn(ch, conn); err != nil {
+		if err := m.handleConn(ctx, ch, conn); err != nil {
 			slog.DebugContext(context.Background(), "Failed to handle client connection", "err", trace.DebugReport(err))
 		}
 		ch.returnErrC <- err
@@ -253,11 +306,11 @@ func (m *mockOracleServer) accept() (*connectionChannels, error) {
 	return ch, nil
 }
 
-func (m *mockOracleServer) handleConn(ch *connectionChannels, conn net.Conn) error {
+func (m *mockOracleServer) handleConn(ctx context.Context, ch *connectionChannels, conn net.Conn) error {
 	defer conn.Close()
 	clientConn := tls.Server(conn, m.tlsConfig)
 
-	oracleClientConn, err := connection.NewConn(clientConn)
+	oracleClientConn, err := connection.NewConn(ctx, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

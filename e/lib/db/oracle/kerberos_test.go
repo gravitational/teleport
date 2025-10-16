@@ -111,7 +111,7 @@ func Test_performKerberosAuth(t *testing.T) {
 	})
 
 	serverHandler := func() error {
-		clientConn, err := connection.NewConn(serverEnd)
+		clientConn, err := connection.NewConn(t.Context(), serverEnd)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -151,7 +151,7 @@ func Test_performKerberosAuth(t *testing.T) {
 		chErr <- err
 	}()
 
-	serverConn, err := connection.NewConn(clientEnd)
+	serverConn, err := connection.NewConn(t.Context(), clientEnd)
 	require.NoError(t, err)
 
 	go func() {

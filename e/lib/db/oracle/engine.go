@@ -3,6 +3,7 @@ package oracle
 import (
 	"context"
 	"net"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -39,8 +40,11 @@ type Engine struct {
 	// serviceName read from CONNECT packet, validated.
 	serviceName string
 
-	// startAuditPuller should be called if it is non-nil and serviceName and sessionID are known.
-	startAuditPuller func(sessionID string) error
+	// startAuditPuller should be called to start audit puller, if the following are true:
+	// - it is non-nil
+	// - connection has been established
+	// - serviceName and sessionID are known
+	startAuditPuller func(sessionID string, databaseURI string) error
 
 	// onConnectPacketRead is a callback used in tests.
 	onConnectPacketRead func(connect *protocol.ConnectPacket)
@@ -83,14 +87,16 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	ctx, cancelCause := context.WithCancelCause(ctx)
 	defer cancelCause(nil)
 
-	if cfg := sessionCtx.Database.GetOracle(); cfg.IsAuditLogEnabled() {
-		auditPuller, err := e.createAuditPuller(ctx, cfg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer auditPuller.Close()
-
-		e.startAuditPuller = func(sessionID string) error {
+	if opts := sessionCtx.Database.GetOracle(); opts.IsAuditLogEnabled() {
+		e.startAuditPuller = func(sessionID string, databaseURI string) error {
+			var auditPuller *audit.Puller
+			auditPuller, err = e.createAuditPuller(ctx, opts, databaseURI)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			context.AfterFunc(ctx, func() {
+				_ = auditPuller.Close()
+			})
 			if err := auditPuller.Init(e.serviceName, sessionID); err != nil {
 				return trace.Wrap(err)
 			}
@@ -108,14 +114,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return trace.Wrap(err)
 }
 
-func (e *Engine) createAuditPuller(ctx context.Context, opts types.OracleOptions) (*audit.Puller, error) {
+func (e *Engine) createAuditPuller(ctx context.Context, opts types.OracleOptions, uri string) (*audit.Puller, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.session.GetExpiry(), e.session.Database, opts.AuditUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	cfg := audit.PullerConfig{
-		Addr:      getURI(e.session.Database),
+		Addr:      uri,
 		TLSConfig: tlsConfig,
 		OnQuery: func(entry audit.QueryEntry) {
 			e.Audit.OnQuery(e.Context, e.session, common.Query{
@@ -138,7 +144,7 @@ func (e *Engine) createAuditPuller(ctx context.Context, opts types.OracleOptions
 	return af, trace.Wrap(err)
 }
 
-func (e *Engine) tryStartAuditPuller(dataPacket *protocol.DataPacket, dataPacketQuota int) error {
+func (e *Engine) tryStartAuditPuller(databaseURI string, dataPacket *protocol.DataPacket, dataPacketQuota int) error {
 	result, err := dataPacket.AuthParameters()
 	if err != nil {
 		return trace.Wrap(err)
@@ -161,7 +167,7 @@ func (e *Engine) tryStartAuditPuller(dataPacket *protocol.DataPacket, dataPacket
 
 	e.Log.DebugContext(e.Context, "Starting audit puller", "session_id", sessionID, "quota", dataPacketQuota)
 
-	err = e.startAuditPuller(sessionID)
+	err = e.startAuditPuller(sessionID, databaseURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -193,17 +199,20 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	return nil
 }
 
-// getURI is a simple helper that returns the endpoint to dial.
+// getURIs is a simple helper that returns the endpoint to dial.
 // It exists to intentionally couple the engine dialing logic with the endpoint
 // resolver logic.
-func getURI(db types.Database) string {
-	return db.GetURI()
+func getURIs(db types.Database) []string {
+	return strings.Split(db.GetURI(), ",")
 }
 
 // NewEndpointsResolver returns an endpoint resolver.
 func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	uri := getURI(db)
 	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{uri}, nil
+		uris := getURIs(db)
+		if len(uris) == 0 {
+			return nil, trace.BadParameter("no URIs found")
+		}
+		return uris, nil
 	}), nil
 }

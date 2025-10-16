@@ -28,19 +28,19 @@ type OracleConn struct {
 }
 
 // ConnOption is an option that can modify OracleConn.
-type ConnOption func(conn *OracleConn) error
+type ConnOption func(ctx context.Context, onn *OracleConn) error
 
 func (c *OracleConn) Close() error {
 	return trace.Wrap(c.conn.Close())
 }
 
 // NewConn creates a new OracleConn using pre-opened network connection conn.
-func NewConn(conn net.Conn, options ...ConnOption) (*OracleConn, error) {
+func NewConn(ctx context.Context, conn net.Conn, options ...ConnOption) (*OracleConn, error) {
 	oracleConn := &OracleConn{
 		conn: conn,
 	}
 	for _, opt := range options {
-		err := opt(oracleConn)
+		err := opt(ctx, oracleConn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -85,7 +85,7 @@ func (c *OracleConn) SetProtocolVersion(version uint16) {
 
 // WithOnReadHeader updates the callback to call on each successful header parse.
 func WithOnReadHeader(onReadHeader func(header protocol.PacketHeader)) ConnOption {
-	return func(conn *OracleConn) error {
+	return func(ctx context.Context, conn *OracleConn) error {
 		conn.onReadHeader = onReadHeader
 		return nil
 	}
@@ -93,7 +93,7 @@ func WithOnReadHeader(onReadHeader func(header protocol.PacketHeader)) ConnOptio
 
 // WithOnReadPacket calls the specified function on each successfully parsed read packet.
 func WithOnReadPacket(onReadPacket func(protocol.Packet)) ConnOption {
-	return func(conn *OracleConn) error {
+	return func(ctx context.Context, conn *OracleConn) error {
 		conn.onReadPacket = onReadPacket
 		return nil
 	}
@@ -101,15 +101,15 @@ func WithOnReadPacket(onReadPacket func(protocol.Packet)) ConnOption {
 
 // WithOnWritePacket makes the supplied function to be called on each packet write.
 func WithOnWritePacket(onWritePacket func(protocol.Packet)) ConnOption {
-	return func(conn *OracleConn) error {
+	return func(ctx context.Context, conn *OracleConn) error {
 		conn.onWritePacket = onWritePacket
 		return nil
 	}
 }
 
 // WithTLS modifies the OracleConn by performing TLS over existing connection and replacing the connection with resulting TLS connection.
-func WithTLS(ctx context.Context, config *tls.Config) ConnOption {
-	return func(conn *OracleConn) error {
+func WithTLS(config *tls.Config) ConnOption {
+	return func(ctx context.Context, conn *OracleConn) error {
 		tlsConn := tls.Client(conn.conn, config)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			return trace.Wrap(err, "tls handshake failed")
