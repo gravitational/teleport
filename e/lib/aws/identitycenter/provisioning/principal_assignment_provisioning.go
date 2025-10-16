@@ -87,7 +87,11 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 		g.Go(func() error {
 			err := a.createAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType)
 			if err != nil {
-				log.WarnContext(ctx, "Failed to create AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)
+				log.WarnContext(ctx, "Failed to create AWS IC assignment",
+					"permission_set_arn", item.PermissionSetARN,
+					"account_id", item.AccountID,
+					"error", err,
+				)
 				return trace.Wrap(err)
 			}
 			return nil
@@ -101,7 +105,11 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 
 		g.Go(func() error {
 			if err := a.deleteAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType); err != nil {
-				log.WarnContext(ctx, "Failed to delete AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)
+				log.WarnContext(ctx, "Failed to delete AWS IC assignment",
+					"permission_set_arn", item.PermissionSetARN,
+					"account_id", item.AccountID,
+					"error", err,
+				)
 				return trace.Wrap(err)
 			}
 			return nil
