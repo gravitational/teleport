@@ -6,3 +6,9 @@ resources:
     name: "Role v6"
     yaml_kind: "role"
     yaml_version: "v6"
+  - type: OIDCConnectorV3
+    package: types
+    name: "OIDC Connector v3"
+    yaml_kind: "oidc"
+    yaml_version: "v3"
+
