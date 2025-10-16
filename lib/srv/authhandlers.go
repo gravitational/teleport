@@ -20,11 +20,12 @@ package srv
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,7 +36,9 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	protobuf "github.com/golang/protobuf/proto"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
@@ -564,13 +567,13 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	case teleport.ComponentForwardingNode:
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User(), false)
+			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User(), nil)
 		} else {
 			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
-		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), false)
+		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), nil)
 	default:
 		return nil, trace.BadParameter("cannot determine appropriate authorization checks for unknown component %q (this is a bug)", h.c.Component)
 	}
@@ -769,7 +772,7 @@ type loginChecker interface {
 	// allowed to login as user:login pair to requested server and if RBAC rules allow login.
 	// XXX: mfaVerified is a PoC hack and should be replaced with the MFA challenge response so that the Decision
 	// service can evaluate the MFA response as part of the access evaluation in production.
-	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, mfaVerified bool) (*decisionpb.SSHAccessPermit, error)
+	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, mfaChallengeResp *proto.MFAAuthenticateResponse) (*decisionpb.SSHAccessPermit, error)
 }
 
 type proxyingChecker interface {
@@ -902,7 +905,7 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 // evaluateSSHAccess checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, mfaVerified bool) (*decisionpb.SSHAccessPermit, error) {
+func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, mfaChallengeResp *proto.MFAAuthenticateResponse) (*decisionpb.SSHAccessPermit, error) {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -935,7 +938,11 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		}
 	}
 
-	if !isModeratedSessionJoin && !mfaVerified {
+	// XXX: mfaChallengeResp is being checked for nil as a PoC hack to bypass the access check if MFA response was
+	// provided. This is INSECURE and only done to save time in PoC. The proper approach is to pass the MFA response to
+	// the decision service and let it evaluate the response as part of the access evaluation.
+	// TODO(cthach): Fix this in production.
+	if !isModeratedSessionJoin && mfaChallengeResp == nil {
 		// perform the primary node access check in all cases except for moderated session join
 		if err := accessChecker.CheckAccess(
 			target,
@@ -1099,43 +1106,62 @@ func timestampFromGoTime(t time.Time) *timestamppb.Timestamp {
 }
 
 func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, perms *ssh.Permissions, conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	actionID := utils.NewRealUID().New()
+
 	log := h.log.With(
 		"local_addr", conn.LocalAddr(),
 		"remote_addr", conn.RemoteAddr(),
 		"user", conn.User(),
 		"permissions", perms,
 		"session_id", conn.SessionID(),
+		"action_id", actionID,
 	)
 
-	log.DebugContext(ctx, "MFA challenge requested by client")
+	log.DebugContext(ctx, "MFA required for client")
 
-	// TODO(cthach): Properly generate and verify an MFA challenge.
-	answers, err := challenge(conn.User(), "MFA required", []string{"MFA required, please enter the secret phrase to continue: "}, []bool{false})
+	question := struct {
+		ActionID string `json:"actionId"`
+	}{
+		ActionID: actionID,
+	}
+	questionBytes, err := json.Marshal(question)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// For testing purposes, the only valid answer is "teleport".
-	if len(answers) > 0 && strings.TrimSpace(answers[0]) != "teleport" {
-		log.DebugContext(ctx, "MFA challenge failed")
-
-		return nil, trace.AccessDenied("invalid MFA secret phrase for %q and session ID %q", conn.User(), conn.SessionID())
+	answers, err := challenge(conn.User(), "MFA required", []string{string(questionBytes)}, []bool{false})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(answers) != 1 {
+		return nil, trace.AccessDenied("got more than 1 MFA answer for %q and session ID %q", conn.User(), conn.SessionID())
 	}
 
-	log.DebugContext(ctx, "MFA challenge succeeded")
+	decodedBytes, err := base64.StdEncoding.DecodeString(answers[0])
+	if err != nil {
+		return nil, trace.AccessDenied("MFA answer was not valid base64 for %q and session ID %q: %v", conn.User(), conn.SessionID(), err)
+	}
 
-	permit, err := h.evaluateSSHAccess(ident, ca, clusterName, target, osUser, true)
+	var resp proto.MFAAuthenticateResponse
+	if err := protobuf.Unmarshal(decodedBytes, &resp); err != nil {
+		return nil, trace.AccessDenied("MFA answer was not valid for %q and session ID %q: %v", conn.User(), conn.SessionID(), err)
+	}
+
+	log.DebugContext(ctx, "Parsed MFA challenge response successfully")
+
+	permit, err := h.evaluateSSHAccess(ident, ca, clusterName, target, osUser, &resp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.DebugContext(ctx, "SSH access permit granted after successful MFA challenge", "permit", permit)
+	log.DebugContext(ctx, "SSH access permit granted with MFA challenge response", "permit", permit)
 
 	encodedPermit, err := protojson.Marshal(permit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Add the SSH access permit to the permissions.
 	perms.Extensions[utils.ExtIntSSHAccessPermit] = string(encodedPermit)
 
 	// Return the original permissions on success.

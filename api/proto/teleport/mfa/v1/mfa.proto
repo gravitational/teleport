@@ -41,6 +41,10 @@ message ChallengeExtensions {
   //
   // Optional. Empty is equivalent to "discouraged".
   string user_verification_requirement = 3;
+  // action_id is an optional field that associates the MFA challenge with a specific user action.
+  // If provided, the challenge will be correlated to the action based on this ID. This field is only applicable when
+  // ChallengeScope is set to CHALLENGE_SCOPE_ACTION.
+  string action_id = 4;
 }
 
 // ChallengeScope is a scope authorized by an MFA challenge resolution.
@@ -68,6 +72,9 @@ enum ChallengeScope {
   CHALLENGE_SCOPE_ADMIN_ACTION = 7;
   // Used for changing user's password.
   CHALLENGE_SCOPE_CHANGE_PASSWORD = 8;
+  // CHALLENGE_SCOPE_ACTION indicates that the challenge is tied to a specific user action.
+  // The action must be satisfied to proceed with the action.
+  CHALLENGE_SCOPE_ACTION = 9;
 }
 
 // ChallengeAllowReuse determines whether an MFA challenge response can be used

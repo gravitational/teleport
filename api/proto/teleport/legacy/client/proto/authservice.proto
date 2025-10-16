@@ -2006,6 +2006,27 @@ message CreateAuthenticateChallengeRequest {
   string ProxyAddress = 8 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 }
 
+message ValidateAuthenticateChallengeRequest {
+  // mfa_response contains the MFA challenge response provided by the user.
+  MFAAuthenticateResponse mfa_response = 1;
+
+  // user is the username of the user attempting to authenticate.
+  string user = 2;
+
+  // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
+  // Required, except for v15 clients and older.
+  teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 3;
+
+  // action_id is an optional unique identifier associated with the MFA challenge.
+  // If provided, it ties the response to a specific user action.
+  string action_id = 4;
+}
+
+message ValidateAuthenticateChallengeResponse {
+  // valid indicates whether the MFA challenge response is valid.
+  bool valid = 1;
+}
+
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
 // Only logged in users are allowed to obtain privilege tokens after they have successfully
 // re-authenticated with their second factor.
@@ -3198,6 +3219,8 @@ service AuthService {
   // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
   // devices.
   rpc CreateAuthenticateChallenge(CreateAuthenticateChallengeRequest) returns (MFAAuthenticateChallenge);
+  // ValidateAuthenticateChallenge validates the MFA challenge response provided by the user.
+  rpc ValidateAuthenticateChallenge(ValidateAuthenticateChallengeRequest) returns (ValidateAuthenticateChallengeResponse);
   // CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
   rpc CreateRegisterChallenge(CreateRegisterChallengeRequest) returns (MFARegisterChallenge);
 

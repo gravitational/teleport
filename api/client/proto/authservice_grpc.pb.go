@@ -152,6 +152,7 @@ const (
 	AuthService_DeleteMFADeviceSync_FullMethodName                 = "/proto.AuthService/DeleteMFADeviceSync"
 	AuthService_GetMFADevices_FullMethodName                       = "/proto.AuthService/GetMFADevices"
 	AuthService_CreateAuthenticateChallenge_FullMethodName         = "/proto.AuthService/CreateAuthenticateChallenge"
+	AuthService_ValidateAuthenticateChallenge_FullMethodName       = "/proto.AuthService/ValidateAuthenticateChallenge"
 	AuthService_CreateRegisterChallenge_FullMethodName             = "/proto.AuthService/CreateRegisterChallenge"
 	AuthService_GetOIDCConnector_FullMethodName                    = "/proto.AuthService/GetOIDCConnector"
 	AuthService_GetOIDCConnectors_FullMethodName                   = "/proto.AuthService/GetOIDCConnectors"
@@ -633,6 +634,8 @@ type AuthServiceClient interface {
 	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
 	// devices.
 	CreateAuthenticateChallenge(ctx context.Context, in *CreateAuthenticateChallengeRequest, opts ...grpc.CallOption) (*MFAAuthenticateChallenge, error)
+	// ValidateAuthenticateChallenge validates the MFA challenge response provided by the user.
+	ValidateAuthenticateChallenge(ctx context.Context, in *ValidateAuthenticateChallengeRequest, opts ...grpc.CallOption) (*ValidateAuthenticateChallengeResponse, error)
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(ctx context.Context, in *CreateRegisterChallengeRequest, opts ...grpc.CallOption) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
@@ -2315,6 +2318,16 @@ func (c *authServiceClient) CreateAuthenticateChallenge(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MFAAuthenticateChallenge)
 	err := c.cc.Invoke(ctx, AuthService_CreateAuthenticateChallenge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ValidateAuthenticateChallenge(ctx context.Context, in *ValidateAuthenticateChallengeRequest, opts ...grpc.CallOption) (*ValidateAuthenticateChallengeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateAuthenticateChallengeResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateAuthenticateChallenge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4213,6 +4226,8 @@ type AuthServiceServer interface {
 	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA
 	// devices.
 	CreateAuthenticateChallenge(context.Context, *CreateAuthenticateChallengeRequest) (*MFAAuthenticateChallenge, error)
+	// ValidateAuthenticateChallenge validates the MFA challenge response provided by the user.
+	ValidateAuthenticateChallenge(context.Context, *ValidateAuthenticateChallengeRequest) (*ValidateAuthenticateChallengeResponse, error)
 	// CreateRegisterChallenge creates and returns MFA register challenge for a new MFA device.
 	CreateRegisterChallenge(context.Context, *CreateRegisterChallengeRequest) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
@@ -4976,6 +4991,9 @@ func (UnimplementedAuthServiceServer) GetMFADevices(context.Context, *GetMFADevi
 }
 func (UnimplementedAuthServiceServer) CreateAuthenticateChallenge(context.Context, *CreateAuthenticateChallengeRequest) (*MFAAuthenticateChallenge, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAuthenticateChallenge not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateAuthenticateChallenge(context.Context, *ValidateAuthenticateChallengeRequest) (*ValidateAuthenticateChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateAuthenticateChallenge not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateRegisterChallenge(context.Context, *CreateRegisterChallengeRequest) (*MFARegisterChallenge, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateRegisterChallenge not implemented")
@@ -7404,6 +7422,24 @@ func _AuthService_CreateAuthenticateChallenge_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).CreateAuthenticateChallenge(ctx, req.(*CreateAuthenticateChallengeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ValidateAuthenticateChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateAuthenticateChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateAuthenticateChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateAuthenticateChallenge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateAuthenticateChallenge(ctx, req.(*ValidateAuthenticateChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10533,6 +10569,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateAuthenticateChallenge",
 			Handler:    _AuthService_CreateAuthenticateChallenge_Handler,
+		},
+		{
+			MethodName: "ValidateAuthenticateChallenge",
+			Handler:    _AuthService_ValidateAuthenticateChallenge_Handler,
 		},
 		{
 			MethodName: "CreateRegisterChallenge",

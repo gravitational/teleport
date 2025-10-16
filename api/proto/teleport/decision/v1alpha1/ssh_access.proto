@@ -23,6 +23,7 @@ import "teleport/decision/v1alpha1/permit_metadata.proto";
 import "teleport/decision/v1alpha1/request_metadata.proto";
 import "teleport/decision/v1alpha1/resource.proto";
 import "teleport/decision/v1alpha1/ssh_identity.proto";
+import "teleport/legacy/client/proto/authservice.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
@@ -43,6 +44,13 @@ message EvaluateSSHAccessRequest {
 
   // OSUser is the user on the target node the user is attempting to access.
   string os_user = 5;
+
+  // ActionID is an optional field that associates the SSH access attempt with a specific user action.
+  string action_id = 6;
+
+  // MFAAuthenticateResponse is an optional field that contains the MFA challenge response provided by the user. If
+  // present, the service must validate the response before granting access.
+  proto.MFAAuthenticateResponse mfa_response = 7;
 }
 
 // EvaluateSSHAccessResponse describes the result of an SSH access evaluation.

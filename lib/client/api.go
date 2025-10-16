@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -3326,22 +3327,37 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	// Add MFA challenge handler.
 	authMethods = append(
 		authMethods,
-		ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) (answers []string, err error) {
-			// TODO(cthach): Properly do MFA challenges here.
-			for _, q := range questions {
-				fmt.Fprintf(tc.Stderr, "%s\n", q)
-
-				var answer string
-
-				_, err := fmt.Fscanln(tc.Stdin, &answer)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				answers = append(answers, answer)
+		ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) { //nolint: contextcheck
+			if len(questions) == 0 {
+				return nil, trace.BadParameter("expected at least one challenge question")
 			}
 
-			return answers, nil
+			// Print the server's instruction to the user.
+			fmt.Println(instruction)
+
+			// TODO(cthach): Use ChallengeScope_CHALLENGE_SCOPE_ACTION and provide the action ID. Doing the regular
+			// scope for now to save time.
+			mfaResponse, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			challengeRespBytes := make([]byte, mfaResponse.Size())
+			if _, err := mfaResponse.MarshalTo(challengeRespBytes); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Base64 encode so serializing proto bytes to string is safe. Will be decoded on the server side.
+			encodedChallengeResponse := base64.StdEncoding.EncodeToString(challengeRespBytes)
+
+			return []string{encodedChallengeResponse}, nil
 		}),
 	)
 
