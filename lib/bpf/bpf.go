@@ -174,17 +174,15 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	// Compile and start BPF programs if they are enabled (buffer size given).
 	s.exec, err = startExec()
 	if err != nil {
-		return nil, trace.Wrap(err, "start exec: %v", err)
+		return nil, trace.Wrap(err, "failed to load command execution hooks")
 	}
 	s.open, err = startOpen()
 	if err != nil {
-		return nil, trace.Wrap(err, "start open: %v", err)
+		return nil, trace.Wrap(err, "failed to load file I/O hooks")
 	}
-
-	// Load network BPF modules only when required.
 	s.conn, err = startConn()
 	if err != nil {
-		return nil, trace.Wrap(err, "start conn: %v", err)
+		return nil, trace.Wrap(err, "failed to load network hooks")
 	}
 
 	logger.DebugContext(closeContext, "Started enhanced session recording",
@@ -634,7 +632,6 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 
 	for {
 		rec, err := eventBuf.Read()
-		logger.DebugContext(context.Background(), "Got event")
 		if err != nil {
 			if errors.Is(err, ringbuf.ErrClosed) {
 				logger.DebugContext(context.Background(), "Received signal, exiting")

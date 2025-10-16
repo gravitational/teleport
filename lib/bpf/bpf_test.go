@@ -132,9 +132,6 @@ func waitForContinue() error {
 }
 
 func TestRootWatch(t *testing.T) {
-	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
-	// t.Skip("this test always fails when running inside a CGroup/Docker")
-
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	checkBPF(t)
@@ -215,7 +212,6 @@ func TestRootWatch(t *testing.T) {
 
 // TestRootObfuscate checks if execsnoop can capture Obfuscated commands.
 func TestRootObfuscate(t *testing.T) {
-	// t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	checkBPF(t)
@@ -286,7 +282,6 @@ func TestRootObfuscate(t *testing.T) {
 
 // TestRootScript checks if execsnoop can capture what a script executes.
 func TestRootScript(t *testing.T) {
-	// t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	checkBPF(t)
@@ -451,7 +446,6 @@ func TestRootPrograms(t *testing.T) {
 // TestRootLargeCommands given commands with higher amount of characters
 // (length), ensure the command events are generated correctly.
 func TestRootLargeCommands(t *testing.T) {
-	// t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	checkBPF(t)
