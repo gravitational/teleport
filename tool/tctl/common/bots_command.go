@@ -598,7 +598,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		return nil
 	}
 
-	t := asciitable.MakeTable([]string{"ID", "Join Method", "Hostname", "Joined", "Last Seen", "Generation"})
+	t := asciitable.MakeTable([]string{"ID", "Join Method", "Hostname", "Status", "Joined", "Last Seen", "Generation"})
 	for _, i := range instances {
 		var (
 			joinMethod string
@@ -649,9 +649,12 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 			}
 		}
 
+		status := aggregateServiceHealth(i.GetStatus().GetServiceHealth())
+		statusText := formatStatus(status, false) // Disable color, it messes with the table layout
+
 		t.AddRow([]string{
 			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
-			hostname, joined, lastSeen.Format(time.RFC3339), generation,
+			hostname, statusText, joined, lastSeen.Format(time.RFC3339), generation,
 		})
 	}
 	fmt.Fprintln(c.stdout, t.AsBuffer().String())
