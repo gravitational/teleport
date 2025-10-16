@@ -72,8 +72,11 @@ type ResourceConfig struct {
 	// The name of the struct type as declared in the Go source, e.g.,
 	// RoleV6.
 	TypeName string
+	// The final path segment in the name of the Go package containing this
+	// type declaration, e.g., "api".
+	PackageName string
 	// The name of the resource to include in the docs, e.g., Role v6.
-	FriendlyName string
+	NameInDocs string
 	// The value of the "kind" field within a YAML manifest for this
 	// resource, e.g., "role".
 	KindValue string
@@ -136,45 +139,6 @@ func getPackageInfoFromExpr(expr ast.Expr) resource.PackageInfo {
 	}
 }
 
-// shouldProcess indicates whether we should generate reference entries from the
-// type declaration represented in d (i.e., whether this is a dynamic resource
-// type). To do so, it checks whether d has one of the resource types specified
-// in resourceTypeNames.
-func shouldProcess(d resource.DeclarationInfo, resourceTypeNames map[string]struct{}) bool {
-	// We expect the declaration to be a type declaration with one spec.
-	gendecl, ok := d.Decl.(*ast.GenDecl)
-	if !ok {
-		return false
-	}
-
-	if len(gendecl.Specs) != 1 {
-		return false
-	}
-
-	t, ok := gendecl.Specs[0].(*ast.TypeSpec)
-	if !ok {
-		return false
-	}
-
-	if t == nil {
-		return false
-	}
-
-	// If the declaration type is not a struct, we can't process it as a
-	// root resource entry.
-	_, ok = t.Type.(*ast.StructType)
-	if !ok {
-		return false
-	}
-
-	// We have not configured the generator to use this resource type.
-	if _, ok = resourceTypeNames[t.Name.Name]; !ok {
-		return false
-	}
-
-	return true
-}
-
 type GenerationError struct {
 	messages []error
 }
@@ -197,16 +161,16 @@ func Generate(conf GeneratorConfig) error {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	allowedResourceTypes := make(map[string]struct{})
-	for _, r := range conf.Resources {
-		allowedResourceTypes[r.TypeName] = struct{}{}
-	}
-
-	// Extract data from a declaration to transform it into a reference
-	// entry later
 	errs := GenerationError{messages: []error{}}
-	for k, decl := range sourceData.TypeDecls {
-		if !shouldProcess(decl, allowedResourceTypes) {
+	for _, r := range conf.Resources {
+		k := resource.PackageInfo{
+			DeclName:    r.TypeName,
+			PackageName: r.PackageName,
+		}
+
+		decl, ok := sourceData.TypeDecls[k]
+		if !ok {
+			errs.messages = append(errs.messages, fmt.Errorf("creating a reference entry for declaration %v.%v: cannot find a declaration of this resource type", k.PackageName, k.DeclName))
 			continue
 		}
 
@@ -226,10 +190,8 @@ func Generate(conf GeneratorConfig) error {
 		delete(entries, k)
 		pc.Fields = entries
 
-		// TODO: Figure out how to use the config to assign kind and
-		// version.
-		pc.Resource.Kind = "blah"
-		pc.Resource.Version = "blah"
+		pc.Resource.Kind = r.KindValue
+		pc.Resource.Version = r.VersionValue
 
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
 		docpath := filepath.Join(conf.DestinationDirectory, filename+".mdx")
