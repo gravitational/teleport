@@ -741,6 +741,9 @@ Latest Authentication: {{.latest_authentication_table}}
 
 Latest Heartbeat: {{.heartbeat_table}}
 
+Services:
+{{.services_table}}
+
 To view a full, machine-readable record including past heartbeats and
 authentication records, run:
 
@@ -784,6 +787,10 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Cl
 	}
 
 	healthStatus := aggregateServiceHealth(instance.GetStatus().GetServiceHealth())
+	servicesTable := "  No reported services."
+	if instance.GetStatus().GetServiceHealth() != nil {
+		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
+	}
 
 	templateData := map[string]any{
 		"executable":                   os.Args[0],
@@ -792,6 +799,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Cl
 		"latest_authentication_table":  latestAuthenticationTable,
 		"heartbeat_table":              heartbeatTable,
 		"health_status":                formatStatus(healthStatus, true),
+		"services_table":               servicesTable,
 	}
 
 	return trace.Wrap(showMessageTemplate.Execute(os.Stdout, templateData))
@@ -903,6 +911,34 @@ func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat
 	table.AddRow([]string{"OS:", record.Os})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
+}
+
+// formatServices returns a string containing a tabular representation of a
+// bot's services.
+func formatServices(services []*machineidv1pb.BotInstanceServiceHealth) string {
+	all := strings.Builder{}
+
+	sortedServices := slices.SortedFunc(slices.Values(services), func(a, b *machineidv1pb.BotInstanceServiceHealth) int {
+		return cmp.Compare(a.GetService().GetName(), b.GetService().GetName())
+	})
+	for _, service := range sortedServices {
+		all.WriteString("Name:        " + service.GetService().GetName())
+		all.WriteString("\n")
+		all.WriteString("Type:        " + service.GetService().GetType())
+		all.WriteString("\n")
+		all.WriteString("Status:      " + formatStatus(service.GetStatus(), true))
+		all.WriteString("\n")
+
+		if service.GetReason() != "" {
+			all.WriteString("Reason:      " + service.GetReason())
+			all.WriteString("\n")
+		}
+
+		all.WriteString("Reported at: " + service.GetUpdatedAt().AsTime().Format(time.RFC3339))
+		all.WriteString("\n\n")
+	}
+
+	return indentString(all.String(), "  ")
 }
 
 // formatStatus returns an human-readable representation of a service status.
