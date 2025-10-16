@@ -81,7 +81,7 @@ const (
 	maxThumbnails = 1000
 
 	// concurrencyLimit limits the number of concurrent processing operations.
-	concurrencyLimit = 5
+	concurrencyLimit = 20
 )
 
 // NewRecordingMetadataService creates a new instance of RecordingMetadataService with the provided configuration.
