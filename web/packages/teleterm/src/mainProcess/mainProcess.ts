@@ -199,7 +199,10 @@ export default class MainProcess {
     );
 
     this.getTshdClients().then(clients => {
-      this.clusterStore = new ClusterStore(clients.terminalService);
+      this.clusterStore = new ClusterStore(
+        clients.terminalService,
+        this.windowsManager
+      );
     });
   }
 
