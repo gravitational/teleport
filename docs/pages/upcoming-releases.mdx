@@ -15,10 +15,10 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                      |
-|---------|---------------------------|
-| 18.3.0  | Week of October 13, 2025  |
-| 18.4.0  | Week of October 31, 2025  |
+| Version | Date                       |
+|---------|----------------------------|
+| 18.3.0  | Week of October 27, 2025   |
+| 18.4.0  | Week of November 10, 2025  |
 
 We continue to support the following major versions of Teleport:
 
@@ -37,9 +37,9 @@ Teleport's web UI will list all workload identity resources registered in the cl
 #### Relay Service
 
 Teleport will ship with a new relay service that acts as a lightweight proxy service,
-receiving connections from both clients and agents. 
+receiving connections from both SSH clients and agents. 
 
-The relay service can be used to avoid routing connections through the broader Teleport
+The relay service can be used to avoid routing SSH connections through the broader Teleport
 control plane, providing the ability to optimize network flows in large or complex deployments.
 
 #### Multi-cluster Discovery
@@ -47,13 +47,13 @@ control plane, providing the ability to optimize network flows in large or compl
 Teleport EC2 auto-discovery will support a use-case in which multiple Teleport clusters
 discover the same EC2 instances without interfering with each other.
 
-### 18.4.0
-
 #### Kubernetes Health Checks
 
 The Kubernetes service will perform regular health checks for registered Kubernetes clusters. 
 Health status will be reported in the Teleport web UI and reflected in kube_server resources.
 Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
+
+### 18.4.0
 
 #### Improved Bot Instances Dashboard
 
@@ -61,6 +61,10 @@ The Bot Instances dashboard will now provide a more intuitive interface
 for managing a fleet of Machine & Workload Identity bot instances. This will
 include improved filtering, sorting and searching capabilities, and a high-level
 overview of the versions of all bot instances in the cluster.
+
+#### Kubernetes support for Relay Service
+
+The relay service will be extended to facilitate Kubernetes connections.
 
 ## Teleport Cloud
 
