@@ -50,6 +50,13 @@ In summary, this RFD proposes a more secure and streamlined approach to MFA enfo
 MFA checks directly into the session establishment process, reducing client complexity, and eliminating the need for
 per-session MFA certificates.
 
+## Non-Goals
+
+1. This RFD does not propose changes to other Teleport access protocols such as Kubernetes, databases, desktops, etc.
+   However, the architecture could be extended to these protocols in the future.
+1. This RFD aims to minimize changes so refactoring of existing services is kept to a minimum e.g, creating a new MFA
+   service to migrate MFA related RPCs out of the legacy Auth service.
+
 ## Details
 
 ### UX
@@ -58,24 +65,27 @@ No changes to the UX as all changes are internal to the architecture.
 
 ### High-Level Flow
 
-The client will first dial its target SSH host using the Proxy address and its standard Teleport client certificate. The
-Proxy will then resolve the target cluster and host, and open a connection to the target host's respective cluster
-hosting the SSH service.
+The client will first dial its target SSH host using the Proxy and its standard Teleport client certificate. The Proxy
+will then resolve the target cluster and host, and open a connection to the respective cluster's SSH service.
 
 The SSH service will authenticate the client using the provided client certificate and evaluate if MFA is required for
 the session by invoking the `EvaluateSSHAccess` RPC of the Decision service. If MFA is not required, the
 `EvaluateSSHAccess` RPC will return a permit and the SSH service can then proceed to establish the SSH session.
 
-If MFA is required, the Decision service will respond with an error indicating that MFA is needed. The SSH service will
-then respond via the keyboard-interactive SSH channel to inform the client that MFA is needed. The first question will
-be a protobuf encoded message containing a unique action ID and other relevant metadata. The client must then invoke the
-`CreateAuthenticateChallenge` RPC in the new `MFAService`, providing the action ID along with existing request metadata.
-The client must solve the MFA challenge and respond to the SSH service with a `MFAAuthenticateResponse` message via the
-kept open keyboard-interactive channel to proceed with the SSH session establishment.
+If MFA is required, the Decision service will respond with a message indicating that MFA is needed. The SSH service will
+then respond via the SSH keyboard-interactive channel to inform the client that MFA is needed. The first
+keyboard-interactive question will be a base64 encoded protobuf message containing a unique action ID. Protobuf messages
+must be base64 encoded to ensure they can be safely transmitted over the SSH keyboard-interactive channel.
+
+The client must then invoke the `CreateAuthenticateChallenge` RPC of the Auth service, providing the action ID along
+with existing request metadata. The Auth service will respond to the client with a challenge that must be solved. The
+client must solve the MFA challenge and send a base64 encoded `MFAAuthenticateResponse` message to the SSH service via
+the keyboard-interactive channel.
 
 Once the MFA challenge response is received, the SSH service will invoke the `EvaluateSSHAccess` RPC again with the
-action ID and the MFA challenge response. If the second `EvaluateSSHAccess` RPC confirms that MFA has been satisfied, a
-permit is returned and the SSH service will proceed to establish the SSH session with the target host.
+action ID, the client's MFA challenge response, and any other relevant metadata. If the second `EvaluateSSHAccess` RPC
+confirms that MFA has been satisfied, a permit is returned and the SSH service will proceed to establish the SSH session
+with the client and the target host.
 
 ```mermaid
 sequenceDiagram
@@ -83,7 +93,7 @@ sequenceDiagram
 
   participant Client
   participant Proxy as Proxy Service
-  participant MFA Service as Auth Service
+  participant Auth as Auth Service
   participant Decision Service
   participant SSH as SSH Service
   participant Host as Target SSH Host
@@ -93,15 +103,15 @@ sequenceDiagram
   SSH->>Decision Service: EvaluateSSHAccess(client cert)
 
   alt MFA required
-    Decision Service-->>SSH: Error MFA required
+    Decision Service-->>SSH: MFA required
     SSH->>Client: Keyboard-interactive (MFA required, action ID)
-    Client->>MFA Service: CreateAuthenticateChallenge (action ID)
-    MFA Service-->>Client: MFA challenge
+    Client->>Auth: CreateAuthenticateChallenge (client cert, action ID)
+    Auth-->>Client: MFA challenge
     Client->>Client: Solve MFA challenge
     Client->>SSH: Keyboard-interactive (MFA response)
     SSH->>Decision Service: EvaluateSSHAccess (client cert, action ID, MFA response)
-    Decision Service-->>MFA Service: ValidateAuthenticateChallenge (action ID, MFA response)
-    MFA Service-->>Decision Service: MFA valid
+    Decision Service->>Auth: ValidateAuthenticateChallenge (action ID, MFA response)
+    Auth-->>Decision Service: MFA valid
   end
 
   Decision Service->>SSH: Permit
@@ -117,17 +127,29 @@ In addition to the risks raised in [Access Control Decision API (RFD
 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), there are a
 few risks specific to this RFD.
 
-#### Replay Attacks
+#### Replay Attacks Risk
 
 MFA challenge responses could potentially be captured and replayed by an attacker to gain unauthorized access. Although
-this risk has already existed with the previous design using per-session MFA SSH certificates, it is important to
-address it in the new design as well.
+this risk has already existed using per-session MFA SSH certificates, it is important to address it in the new design as
+well.
 
-To mitigate this risk, the following measures will be implemented:
+Mitigations:
 
-1. Each MFA challenge will include a unique action identifier that ties the challenge to a specific user action.
+1. Each MFA challenge will include a unique action ID that couples the challenge to a specific user action.
 1. The Auth service will maintain a record of issued challenges and their associated action IDs. Once a challenge has
-   been successfully completed or expired, it will be invalidated and cannot be reused.
+   been successfully completed or expired, it will be invalidated.
+1. The MFA challenge is time-bound and will expire after a duration (e.g., 5 minutes).
+
+#### New RPC Attack Surface Risk
+
+This RFD introduces a new RPC `ValidateAuthenticateChallenge` in the Auth service, which could potentially be exploited
+by an attacker to DoS the service by flooding it with requests.
+
+Mitigations:
+
+1. Implement rate limiting on the `ValidateAuthenticateChallenge` RPC to prevent abuse.
+1. Ensure that the Auth service validates the `MFAAuthenticateResponse` and `action_id` before processing the request to
+   avoid unnecessary processing of invalid requests.
 
 ### Privacy
 
@@ -142,8 +164,8 @@ follows the existing pattern in Teleport where RPCs accept MFA challenge respons
 MFA has been satisfied and the RPC service must validate the response before granting access.
 
 If the `mfa_response` field is not present, the Decision service will evaluate if MFA is required for the request based
-on the user's MFA configuration and the access control policies. If MFA is required, an error indicating that MFA is
-required will be returned (e.g., `services.ErrSessionMFARequired`) and access will be denied.
+on the user's MFA configuration and the access control policies. If MFA is required, the service will return a denial
+with a `DenialMetadataReason` of `REASON_MFA_REQUIRED`. If MFA is not required, the service will return a permit.
 
 ```proto
 // EvaluateSSHAccessRequest describes a request to evaluate whether or not a
@@ -151,26 +173,30 @@ required will be returned (e.g., `services.ErrSessionMFARequired`) and access wi
 message EvaluateSSHAccessRequest {
   // ... existing fields ...
 
-  // MFAAuthenticateResponse is an optional field that contains the MFA challenge response
-  // provided by the user. If present, the service must validate the response
-  // before granting access.
-  MFAAuthenticateResponse mfa_response = 6;
+  // MFAAuthenticateResponse is an optional field that contains the MFA challenge response provided by the user. If
+  // present, the service must validate the response before granting access.
+  proto.MFAAuthenticateResponse mfa_response = 6;
+}
+
+// Metadata for access denials.
+message DenialMetadata {
+  // ... existing fields ...
+
+  // Reason is a structured reason for the denial.
+  DenialMetadataReason reason = 4;
+}
+
+// DenialMetadataReason represents structured reasons for denial.
+enum DenialMetadataReason {
+  REASON_UNSPECIFIED = 0; // Default value, unspecified reason.
+  REASON_MFA_REQUIRED = 1; // Indicates that MFA is required for access but not provided.
 }
 ```
 
 #### Auth Service
 
-TODO: Add new `MFAService` instead of extending legacy `AuthService`?
-
-The messages for `CreateAuthenticateChallenge` will be updated to include an optional `action_id` field to associate the
-MFA challenge with a specific user action. The `action_id` can be used for other Teleport features, not just SSH access.
-The service must store the `action_id` along with the MFA challenge so that when the client responds with the MFA
-challenge response, it can be correlated with the original challenge.
-
-A new RPC `ValidateAuthenticateChallenge` will be added to validate the MFA challenge response provided by the user.
-This RPC will accept the `action_id` and the `MFAAuthenticateResponse` as parameters. The service must verify that the
-response matches the original challenge associated with the `action_id` and that the challenge has not expired or been
-previously used.
+A new challenge scope `CHALLENGE_SCOPE_ACTION` will be added to indicate that the MFA challenge is tied to a specific
+user action. The action must be satisfied to proceed with the action.
 
 ```proto
 // ChallengeScope is a scope authorized by an MFA challenge resolution.
@@ -181,17 +207,33 @@ enum ChallengeScope {
   // The action must be satisfied to proceed with the action.
   CHALLENGE_SCOPE_ACTION = 9;
 }
+```
 
+The `ChallengeExtensions` message will be updated to include an optional `action_id` field that associates the MFA
+challenge with a specific user action. The `action_id` can be used for other Teleport features, not just SSH access.
+
+The service must store the `action_id` along with the MFA challenge so that when the client responds with the MFA
+challenge response, it can be correlated with the original challenge.
+
+```proto
 // ChallengeExtensions contains MFA challenge extensions used by Teleport
 // during MFA authentication.
 message ChallengeExtensions {
   // ... existing fields ...
 
   // action_id is an optional field that associates the MFA challenge with a specific user action.
-  // If provided, the challenge will be tied to the action and must be satisfied to proceed with the action.
+  // If provided, the challenge will be correlated to the action based on this ID. This field is only applicable when
+  // ChallengeScope is set to CHALLENGE_SCOPE_ACTION.
   string action_id = 4;
 }
+```
 
+A new RPC `ValidateAuthenticateChallenge` will be added to validate the MFA challenge response provided by the user.
+This RPC will accept the `action_id` and the `MFAAuthenticateResponse` as parameters. The service must verify that the
+response matches the original challenge associated with the `action_id` and that the challenge has not expired or been
+previously used.
+
+```proto
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // ... existing RPCs ...
@@ -218,18 +260,27 @@ message ValidateAuthenticateChallengeRequest {
 
 message ValidateAuthenticateChallengeResponse {
   // valid indicates whether the MFA challenge response is valid.
+  // TODO(cthach): Consider more details to be returned.
   bool valid = 1;
 }
 ```
 
-### Per-session MFA SSH Certificates
+### Running an SSH command on multiple target hosts
 
-Per-session MFA SSH certificates are not required in the new design except for backwards compatibility with legacy
-clients and agents. They were previously used to convey session metadata and enforce MFA at the agents. Support for
-per-session MFA SSH certificates will initially be retained during the transition period to ensure backwards
-compatibility with existing clients and agents (see [Backwards Compatibility](#backwards-compatibility)).
+The MFA challenge and response will be reused for all SSH connections initiated as part of a single user action. In
+other words, a user will only need to complete the MFA challenge once when running SSH commands on multiple hosts as
+part of a single action. If the MFA challenge and response are no longer valid (e.g., expired), the user will need to
+complete the MFA challenge again.
 
 ### Backwards Compatibility
+
+#### Terminology
+
+- Legacy clients: Clients that rely on per-session MFA SSH certificates for MFA enforcement.
+- Modern clients: Clients that support in-band MFA enforcement and do not rely on per-session MFA SSH certificates.
+- Legacy agents: Agents hosting the SSH service that rely on per-session MFA SSH certificates for MFA enforcement.
+- Modern agents: Agents hosting the SSH service that support in-band MFA enforcement and do not rely on per-session MFA
+  SSH certificates.
 
 #### Transition Period
 
@@ -237,17 +288,34 @@ The transition period will last at least 2 major releases to allow clients suffi
 
 #### SSH Service
 
-The SSH service will continue to support per-session MFA SSH certificate verification during the transition period to
-ensure compatibility with clients that have not yet migrated. The SSH service will check for the presence of a
-per-session MFA SSH certificate. If present, it will validate the certificate as before. If not present, it will proceed
-with the in-band MFA flow as described in this RFD.
+The SSH service will continue to support legacy clients that rely on per-session MFA SSH certificates during the
+transition period, while modern clients will be required to use the in-band MFA flow. After the transition period, the
+SSH service will no longer accept per-session MFA SSH certificates and will only support the in-band MFA flow.
 
-After the transition period, the per-session MFA SSH certificate verification logic will be removed and agents will no
-longer accept per-session MFA SSH certificates.
+MFA required connection flow during the transition period:
+
+1. Upon a new connection, the SSH service will check whether the certificate is a per-session MFA SSH certificate or a
+   standard client certificate.
+1. If it is a per-session MFA SSH certificate, the SSH service will validate the certificate as before.
+1. If it is a standard client certificate with a legacy client, the SSH service will reject the connection since the
+   legacy client should be using a per-session MFA SSH certificate (client will retry with a per-session MFA SSH
+   certificate).
+1. If it is a standard client certificate with a modern client, the SSH service will proceed with the in-band MFA flow.
+
+If MFA is not required, the SSH service will continue to accept both per-session MFA SSH certificates and standard
+client certificates from both legacy and modern clients.
+
+#### Modern Clients and Legacy Agents
+
+Modern clients will support legacy agents that rely on per-session MFA SSH certificates during the transition period.
+Modern clients will generate per-session MFA SSH certificates for legacy agents while using the in-band MFA flow for
+modern agents.
 
 ### Audit Events
 
-No changes to audit events are needed.
+The `CreateAuthenticateChallenge` RPC event will be updated to include the `action_id` in the request metadata.
+
+The `ValidateAuthenticateChallenge` RPC event will be added to log when an MFA challenge response is validated.
 
 ### Observability
 
@@ -259,8 +327,18 @@ No changes in product usage are expected since this is an internal change.
 
 ### Test Plan
 
-No changes are needed for existing SSH access tests. Since this RFD does not change the UX, existing end-to-end tests
-for `tsh ssh`, `tsh vnet`, and web terminal will continue to provide coverage.
+### Existing Tests
+
+Existing tests for SSH access are expected to continue working as this is an internal change and should not have any
+impact.
+
+### New Tests
+
+During the transition period, tests will be added to ensure that both legacy and modern clients can connect to both
+legacy and modern agents as expected.
+
+After the transition period, tests will be added to ensure that modern clients can connect to modern agents using the
+in-band MFA flow and that legacy clients are rejected when attempting to connect to modern agents.
 
 ### Implementation
 
@@ -278,11 +356,20 @@ The following are assumed to be completed before starting work on this RFD:
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
-TODO
+1. Update the Decision service to support evaluating SSH access requests with MFA challenge responses.
+1. Update the Auth service to support creating and validating MFA challenges tied to specific user actions.
+1. Update the SSH service to implement the in-band MFA flow during session establishment.
+1. Update modern clients to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
+   legacy agents.
+1. Update modern agents to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
+   legacy clients.
+1. Add tests to ensure both legacy and modern clients can connect to both legacy and modern agents as expected.
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
-TODO
+1. Update the SSH service to no longer accept per-session MFA SSH certificates and only support the in-band MFA flow.
+1. Update clients to no longer generate per-session MFA SSH certificates.
+1. Update tests to remove support for legacy clients and agents.
 
 ## Alternatives Considered
 
@@ -290,10 +377,9 @@ TODO
    including creating the MFA challenge and validating the response. While this would still simplify the client-side
    implementation, it would potentially introduce security risks by giving Proxy/Relay access to operations that are out
    of its domain scope.
-1. A new version of `TransportService` is introduced to handle in-band MFA: This approach would involve creating a new
-   service specifically for handling in-band MFA at the control plane level. While this would separate concerns and keep
-   the MFA logic isolated, it would add complexity to the architecture and require significant changes to existing
-   services.
+1. New version of `TransportService` is introduced to handle in-band MFA at the Proxy/Relay: While this would separate
+   concerns and keep the MFA logic isolated, it would add complexity to the architecture, require significant changes
+   to existing services, and break domain boundaries.
 
 ## Future Considerations
 
