@@ -48,6 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+var ignoreRevision = protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")
+
 func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
@@ -605,7 +607,7 @@ func TestCreateBot(t *testing.T) {
 			tt.assertError(t, err)
 			if tt.want != nil {
 				// Check that the returned bot matches
-				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform()))
+				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform(), ignoreRevision))
 			}
 			if tt.wantUser != nil {
 				gotUser, err := srv.Auth().GetUser(ctx, tt.wantUser.GetName(), false)
@@ -1008,6 +1010,7 @@ func TestUpdateBot(t *testing.T) {
 							&machineidv1pb.BotSpec{},
 							"traits",
 						),
+						ignoreRevision,
 					),
 				)
 			}
@@ -1596,7 +1599,7 @@ func TestUpsertBot(t *testing.T) {
 			tt.assertError(t, err)
 			if tt.want != nil {
 				// Check that the returned bot matches
-				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform()))
+				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform(), ignoreRevision))
 			}
 			if tt.wantUser != nil {
 				gotUser, err := srv.Auth().GetUser(ctx, tt.wantUser.GetName(), false)
@@ -1781,7 +1784,7 @@ func TestGetBot(t *testing.T) {
 			tt.assertError(t, err)
 			if tt.want != nil {
 				// Check that the returned bot matches
-				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform()))
+				require.Empty(t, cmp.Diff(tt.want, bot, protocmp.Transform(), ignoreRevision))
 			}
 		})
 	}
@@ -1935,6 +1938,7 @@ func TestListBots(t *testing.T) {
 						res,
 						protocmp.Transform(),
 						protocmp.SortRepeatedFields(&machineidv1pb.ListBotsResponse{}, "bots"),
+						ignoreRevision,
 					),
 				)
 			}

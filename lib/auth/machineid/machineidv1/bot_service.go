@@ -727,6 +727,12 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 
 	expiry := botExpiryFromUser(user)
 
+	// We need to return a revision because the Terraform provider uses it to
+	// determine when the change has been applied to the cache. We do not use
+	// the revision for conditional updates, though, so the concatenation of
+	// the user and role's revisions is sufficient.
+	revision := user.GetMetadata().Revision + role.GetMetadata().Revision
+
 	b := &pb.Bot{
 		Kind:    types.KindBot,
 		Version: types.V1,
@@ -734,6 +740,7 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			Name:        botName,
 			Expires:     expiry,
 			Description: user.GetMetadata().Description,
+			Revision:    revision,
 		},
 		Status: &pb.BotStatus{
 			UserName: user.GetName(),
