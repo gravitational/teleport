@@ -54,6 +54,7 @@ func New(botConfig *BotConfig) (*EmbeddedBot, error) {
 	credential := &clientcredentials.UnstableConfig{}
 
 	cfg := bot.Config{
+		Kind: botConfig.Kind,
 		Connection: connection.Config{
 			Address:               botConfig.AuthServer,
 			AddressKind:           connection.AddressKindAuth,

@@ -268,6 +268,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	}
 
 	bt, err := bot.New(bot.Config{
+		Kind:               bot.KindTbot,
 		Connection:         b.cfg.ConnectionConfig(),
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
