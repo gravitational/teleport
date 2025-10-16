@@ -1,6 +1,6 @@
 ---
-title: Deploying tbot on AWS
-description: How to deploy tbot and configure Machine ID and Workload Identity on an AWS EC2 instance
+title: Deploying tbot with Workload Identity on AWS 
+description: How to deploy a tbot and configure Workload Identity on an AWS EC2 instance
 tags:
  - how-to
  - get-started
@@ -11,8 +11,8 @@ tags:
 
 {/* lint disable page-structure remark-lint */}
 
-This guide walks you through deploying tbot on an Amazon EC2 instance and setting up Machine and Workload Identity (MWI).
-By the end, you'll have a working tbot service that issues SPIFFE-compatible credentials to workloads running on your EC2 instance.
+This guide walks you through deploying `tbot` on an Amazon EC2 instance and setting up Machine and Workload Identity (MWI).
+By the end, you'll have a working `tbot` service that issues SPIFFE-compatible credentials to workloads running on your EC2 instance.
 
 ## Prerequisites
 
@@ -112,7 +112,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
-## Configure Workload Identity
+### Configure Workload Identity
 
 Next, configure Workload Identity on the target resource you just created. 
 
@@ -194,10 +194,11 @@ with the name of the Bot you created in the deployment guide and
 $ tctl bots update example-bot --add-roles example-workload-identity-issuer
 ```
 
-## Step 7/9. Configure `workload-identity-api` service in `tbot`
+## Step 7/9. Expose a Workload API endpoint
 
-To issue SPIFFE credentials to workloads, `tbot` must expose a Workload API endpoint.
-You’ll configure this by adding the workload-identity-api service to your tbot configuration.
+Configure `workload-identity-api` service in `tbot`. To issue SPIFFE credentials to workloads, 
+`tbot` must expose a Workload API endpoint.You’ll configure this by adding the `workload-identity-api`
+service to your `tbot` configuration.
 
 First, determine where you wish this socket to be created. In our example,
 we'll use `/opt/machine-id/workload.sock`. You may wish to choose a directory
@@ -223,7 +224,7 @@ Replace:
 
 Start or restart your `tbot` instance to apply the new configuration
 
-### Configuring Unix Workload Attestation
+## Configuring Unix Workload Attestation
 
 By default, an SVID listed under the Workload API service will be issued to any
 workload that connects to the Workload API. You may wish to restrict which SVIDs
