@@ -213,7 +213,38 @@ Replace:
 
 Start or restart your `tbot` instance to apply the new configuration.
 
-## Configuring Unix Workload Attestation
+## Step 8/9. Testing the Workload API with `tbot spiffe-inspect`
+
+Use `tbot spiffe-inspect` to verify that the Workload API endpoint is issuing SPIFFE credentials correctly.
+This command connects to the endpoint, requests SVIDs, and prints detailed debug information.
+
+Before configuring your workload to use the Workload API, we recommend using
+this command to ensure that the Workload API is behaving as expected.
+
+Use the `spiffe-inspect` command with `--path` to specify the path to the
+Workload API socket, replacing `/opt/machine-id/workload.sock` with the path you
+configured in the previous step:
+
+```code
+$ tbot spiffe-inspect --path unix:///opt/machine-id/workload.sock
+INFO [TBOT]      Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock tbot/spiffe.go:31
+INFO [TBOT]      Received X.509 SVID context from Workload API bundles_count:1 svids_count:1 tbot/spiffe.go:46
+SVIDS
+- spiffe://example.teleport.sh/svc/foo
+  - Expiry: 2024-03-20 10:55:52 +0000 UTC
+Trust Bundles
+- example.teleport.sh
+```
+
+## Step 9/9. Configuring your workload to use the Workload API
+
+Now that you know that the Workload API is behaving as expected, you can
+configure your workload to use it. The exact steps will depend on the workload.
+
+In cases where you have used the SPIFFE SDKs, you can configure the
+`SPIFFE_ENDPOINT_SOCKET` environment variable to point to the socket created by `tbot`.
+
+### Configuring Unix Workload Attestation
 
 By default, an SVID listed under the Workload API service will be issued to any
 workload that connects to the Workload API. You may wish to restrict which SVIDs
@@ -258,39 +289,9 @@ spec:
     id: /svc/foo
 ```
 
-## Step 8/9. Testing the Workload API with `tbot spiffe-inspect`
-
-Use `tbot spiffe-inspect` to verify that the Workload API endpoint is issuing SPIFFE credentials correctly.
-This command connects to the endpoint, requests SVIDs, and prints detailed debug information.
-
-Before configuring your workload to use the Workload API, we recommend using
-this command to ensure that the Workload API is behaving as expected.
-
-Use the `spiffe-inspect` command with `--path` to specify the path to the
-Workload API socket, replacing `/opt/machine-id/workload.sock` with the path you
-configured in the previous step:
-
-```code
-$ tbot spiffe-inspect --path unix:///opt/machine-id/workload.sock
-INFO [TBOT]      Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock tbot/spiffe.go:31
-INFO [TBOT]      Received X.509 SVID context from Workload API bundles_count:1 svids_count:1 tbot/spiffe.go:46
-SVIDS
-- spiffe://example.teleport.sh/svc/foo
-  - Expiry: 2024-03-20 10:55:52 +0000 UTC
-Trust Bundles
-- example.teleport.sh
-```
-
-## Step 9/9. Configuring your workload to use the Workload API
-
-Now that you know that the Workload API is behaving as expected, you can
-configure your workload to use it. The exact steps will depend on the workload.
-
-In cases where you have used the SPIFFE SDKs, you can configure the
-`SPIFFE_ENDPOINT_SOCKET` environment variable to point to the socket created by `tbot`.
 
 ## Next steps
-a
+
 - Read the [configuration reference](../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/machine-workload-identity/machine-id/telemetry.mdx)
