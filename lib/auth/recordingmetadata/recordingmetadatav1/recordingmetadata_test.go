@@ -19,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -664,27 +664,33 @@ func generateSessionWithJoinLeave(startTime time.Time) []apievents.AuditEvent {
 }
 
 func unmarshalMetadata(data []byte) (*pb.SessionRecordingMetadata, []*pb.SessionRecordingThumbnail, error) {
-	reader := bytes.NewReader(data)
+	reader := bufio.NewReader(bytes.NewReader(data))
 
-	metadata := &pb.SessionRecordingMetadata{}
-	err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, metadata)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+	var metadata *pb.SessionRecordingMetadata
 	var frames []*pb.SessionRecordingThumbnail
 
 	for {
-		frame := &pb.SessionRecordingThumbnail{}
-		err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, frame)
-		if errors.Is(err, io.EOF) {
-			break
-		}
+		msgBytes, err := readDelimitedMessage(reader)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			if errors.Is(err, io.EOF) {
+				break
+			}
 		}
 
-		frames = append(frames, frame)
+		var m pb.SessionRecordingMetadata
+		if err := proto.Unmarshal(msgBytes, &m); err == nil {
+			metadata = &m
+
+			continue
+		}
+
+		var f pb.SessionRecordingThumbnail
+		if err := proto.Unmarshal(msgBytes, &f); err == nil {
+			frames = append(frames, &f)
+			continue
+		}
+
+		return nil, nil, trace.BadParameter("failed to parse message as metadata or thumbnail")
 	}
 
 	return metadata, frames, nil
