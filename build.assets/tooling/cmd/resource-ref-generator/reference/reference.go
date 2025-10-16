@@ -86,7 +86,7 @@ type ResourceConfig struct {
 // GeneratorConfig is the user-facing configuration for the resource reference
 // generator.
 type GeneratorConfig struct {
-	Resources []ResourceConfig
+	Resources []ResourceConfig `yaml:"resources"`
 	// Path to the root of the Go project directory.
 	SourcePath string `yaml:"source"`
 	// Directory where the generator writes reference pages.
