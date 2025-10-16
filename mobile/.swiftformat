@@ -2,6 +2,3 @@
 --swift-version 6
 --indent 2
 --exclude Foobar/Foobar/gen
-# Turn off until it gets fixed.
-# https://github.com/nicklockwood/SwiftFormat/issues/2239
---someAny false

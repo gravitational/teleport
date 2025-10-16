@@ -41,7 +41,7 @@ final class DeviceTrust: DeviceTrustP {
       config: ProtocolClientConfig(
         host: "\(hostnameWithPort)/webapi/devicetrust/",
         networkProtocol: .connect,
-        codec: ProtoCodec(),
+        codec: ProtoCodec()
       )
     )
     let client = Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: protocolClient)
