@@ -546,12 +546,14 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	athenaURI, ok := athena.GetAthenaURI(auditConf.AuditEventsURIs())
 	if !ok {
 		logger.WarnContext(ctx, "Access Monitoring Enabled but Athena backend is not configured")
+		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{})
 		return nil
 	}
 
 	features := modules.GetModules().Features()
 	if !features.GetEntitlement(entitlements.AccessMonitoring).Enabled {
 		logger.WarnContext(ctx, "Access Monitoring specified in config, but the subscription does not include Access Monitoring, Access Monitoring will not be enabled")
+		secreportsv1pb.RegisterSecReportsServiceServer(serviceGRPC, secreportsv1.NotImplementedService{})
 		return nil
 	}
 
