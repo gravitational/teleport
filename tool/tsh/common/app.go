@@ -106,6 +106,10 @@ func onAppLogin(cf *CLIConf) error {
 		AccessRequests: appInfo.profile.ActiveRequests,
 	}
 
+	if app.GetAWSRolesAnywhereProfileARN() != "" {
+		appCertParams.RequesterName = proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
+	}
+
 	key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
 	if err != nil {
 		return trace.Wrap(err)

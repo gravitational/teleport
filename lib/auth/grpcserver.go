@@ -2684,7 +2684,7 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
 			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
+			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS)
 }
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
