@@ -228,7 +228,25 @@ func (ac *cloudWithRoles) CreateContact(ctx context.Context, in *v1.CreateContac
 	return res, nil
 }
 
-func (ac *cloudWithRoles) action(ctx context.Context, resource, action string) error {
+func (ac *cloudWithRoles) GetClientIPRestrictions(ctx context.Context, in *v1.GetClientIPRestrictionsRequest) (*v1.GetClientIPRestrictionsResponse, error) {
+	if err := ac.action(ctx, types.KindClientIPRestriction, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(mcbattirola): audit events
+	return ac.plugin.cloudClient.GetClientIPRestrictions(ctx, in)
+}
+
+func (ac *cloudWithRoles) PutClientIPRestrictions(ctx context.Context, in *v1.PutClientIPRestrictionsRequest) (*v1.PutClientIPRestrictionsResponse, error) {
+	if err := ac.action(ctx, types.KindClientIPRestriction, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(mcbattirola): audit events
+	return ac.plugin.cloudClient.PutClientIPRestrictions(ctx, in)
+}
+
+func (ac *cloudWithRoles) action(ctx context.Context, resource string, actions ...string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")
 	}
@@ -238,11 +256,19 @@ func (ac *cloudWithRoles) action(ctx context.Context, resource, action string) e
 		return trace.AccessDenied("access denied")
 	}
 
-	return authCtx.Checker.CheckAccessToRule(
-		&services.Context{User: authCtx.User},
-		apidefaults.Namespace,
-		resource,
-		action)
+	var errs []error
+
+	for _, action := range actions {
+		if err := authCtx.Checker.CheckAccessToRule(
+			&services.Context{User: authCtx.User},
+			apidefaults.Namespace,
+			resource,
+			action); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // hasBuiltinProxyRole checks if context contains built in role proxy

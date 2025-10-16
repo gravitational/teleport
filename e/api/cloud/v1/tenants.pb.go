@@ -4166,6 +4166,218 @@ func (x *Contact) GetState() ContactState {
 	return ContactState_CONTACT_STATE_UNSPECIFIED
 }
 
+type CIDR struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cidr          string                 `protobuf:"bytes,1,opt,name=cidr,proto3" json:"cidr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CIDR) Reset() {
+	*x = CIDR{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CIDR) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CIDR) ProtoMessage() {}
+
+func (x *CIDR) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CIDR.ProtoReflect.Descriptor instead.
+func (*CIDR) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *CIDR) GetCidr() string {
+	if x != nil {
+		return x.Cidr
+	}
+	return ""
+}
+
+type PutClientIPRestrictionsRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ClientIpRestrictions []*CIDR                `protobuf:"bytes,1,rep,name=client_ip_restrictions,json=clientIPRestrictions,proto3" json:"client_ip_restrictions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *PutClientIPRestrictionsRequest) Reset() {
+	*x = PutClientIPRestrictionsRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutClientIPRestrictionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutClientIPRestrictionsRequest) ProtoMessage() {}
+
+func (x *PutClientIPRestrictionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutClientIPRestrictionsRequest.ProtoReflect.Descriptor instead.
+func (*PutClientIPRestrictionsRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *PutClientIPRestrictionsRequest) GetClientIpRestrictions() []*CIDR {
+	if x != nil {
+		return x.ClientIpRestrictions
+	}
+	return nil
+}
+
+type PutClientIPRestrictionsResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ClientIpRestrictions []*CIDR                `protobuf:"bytes,1,rep,name=client_ip_restrictions,json=clientIPRestrictions,proto3" json:"client_ip_restrictions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *PutClientIPRestrictionsResponse) Reset() {
+	*x = PutClientIPRestrictionsResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutClientIPRestrictionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutClientIPRestrictionsResponse) ProtoMessage() {}
+
+func (x *PutClientIPRestrictionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutClientIPRestrictionsResponse.ProtoReflect.Descriptor instead.
+func (*PutClientIPRestrictionsResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *PutClientIPRestrictionsResponse) GetClientIpRestrictions() []*CIDR {
+	if x != nil {
+		return x.ClientIpRestrictions
+	}
+	return nil
+}
+
+type GetClientIPRestrictionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetClientIPRestrictionsRequest) Reset() {
+	*x = GetClientIPRestrictionsRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetClientIPRestrictionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetClientIPRestrictionsRequest) ProtoMessage() {}
+
+func (x *GetClientIPRestrictionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetClientIPRestrictionsRequest.ProtoReflect.Descriptor instead.
+func (*GetClientIPRestrictionsRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{52}
+}
+
+type GetClientIPRestrictionsResponse struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ClientIpRestrictions []*CIDR                `protobuf:"bytes,1,rep,name=client_ip_restrictions,json=clientIPRestrictions,proto3" json:"client_ip_restrictions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetClientIPRestrictionsResponse) Reset() {
+	*x = GetClientIPRestrictionsResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetClientIPRestrictionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetClientIPRestrictionsResponse) ProtoMessage() {}
+
+func (x *GetClientIPRestrictionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetClientIPRestrictionsResponse.ProtoReflect.Descriptor instead.
+func (*GetClientIPRestrictionsResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *GetClientIPRestrictionsResponse) GetClientIpRestrictions() []*CIDR {
+	if x != nil {
+		return x.ClientIpRestrictions
+	}
+	return nil
+}
+
 type EmptyResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -4174,7 +4386,7 @@ type EmptyResponse struct {
 
 func (x *EmptyResponse) Reset() {
 	*x = EmptyResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4186,7 +4398,7 @@ func (x *EmptyResponse) String() string {
 func (*EmptyResponse) ProtoMessage() {}
 
 func (x *EmptyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4199,7 +4411,7 @@ func (x *EmptyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmptyResponse.ProtoReflect.Descriptor instead.
 func (*EmptyResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{49}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{54}
 }
 
 type EmptyRequest struct {
@@ -4210,7 +4422,7 @@ type EmptyRequest struct {
 
 func (x *EmptyRequest) Reset() {
 	*x = EmptyRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4222,7 +4434,7 @@ func (x *EmptyRequest) String() string {
 func (*EmptyRequest) ProtoMessage() {}
 
 func (x *EmptyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4235,7 +4447,7 @@ func (x *EmptyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmptyRequest.ProtoReflect.Descriptor instead.
 func (*EmptyRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{50}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{55}
 }
 
 var File_api_tenants_v1_tenants_proto protoreflect.FileDescriptor
@@ -4559,7 +4771,16 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\fcontact_type\x18\x05 \x01(\x05R\vcontactType\x12\x1a\n" +
 	"\bverified\x18\x06 \x01(\bR\bverified\x12*\n" +
 	"\x11verify_expires_at\x18\a \x01(\x03R\x0fverifyExpiresAt\x12I\n" +
-	"\x05state\x18\b \x01(\x0e2,.gravitational.cloud.tenants.v1.ContactStateR\fcontactState\"\x0f\n" +
+	"\x05state\x18\b \x01(\x0e2,.gravitational.cloud.tenants.v1.ContactStateR\fcontactState\"\x1a\n" +
+	"\x04CIDR\x12\x12\n" +
+	"\x04cidr\x18\x01 \x01(\tR\x04cidr\"|\n" +
+	"\x1ePutClientIPRestrictionsRequest\x12Z\n" +
+	"\x16client_ip_restrictions\x18\x01 \x03(\v2$.gravitational.cloud.tenants.v1.CIDRR\x14clientIPRestrictions\"}\n" +
+	"\x1fPutClientIPRestrictionsResponse\x12Z\n" +
+	"\x16client_ip_restrictions\x18\x01 \x03(\v2$.gravitational.cloud.tenants.v1.CIDRR\x14clientIPRestrictions\" \n" +
+	"\x1eGetClientIPRestrictionsRequest\"}\n" +
+	"\x1fGetClientIPRestrictionsResponse\x12Z\n" +
+	"\x16client_ip_restrictions\x18\x01 \x03(\v2$.gravitational.cloud.tenants.v1.CIDRR\x14clientIPRestrictions\"\x0f\n" +
 	"\rEmptyResponse\"\x0e\n" +
 	"\fEmptyRequest*\x90\x01\n" +
 	"\x11UsageResourceType\x12\v\n" +
@@ -4585,7 +4806,7 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x19CONTACT_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CONTACT_STATE_ACTIVE\x10\x01\x12\x19\n" +
 	"\x15CONTACT_STATE_PENDING\x10\x02\x12\x19\n" +
-	"\x15CONTACT_STATE_EXPIRED\x10\x032\xe8\x1c\n" +
+	"\x15CONTACT_STATE_EXPIRED\x10\x032\xa2\x1f\n" +
 	"\x0eTenantsService\x12~\n" +
 	"\x12SubmitUsageReports\x129.gravitational.cloud.tenants.v1.SubmitUsageReportsRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\x12\x84\x01\n" +
 	"\x15GetBillingInformation\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a=.gravitational.cloud.tenants.v1.GetBillingInformationResponse\x12\x9a\x01\n" +
@@ -4616,7 +4837,9 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x13UpdateStripeAddress\x12;.gravitational.cloud.tenants.v1.StripeBillingAddressRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\"\x03\x88\x02\x01\x12u\n" +
 	"\vUpdateEmail\x122.gravitational.cloud.tenants.v1.UpdateEmailRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\"\x03\x88\x02\x01\x12\x91\x01\n" +
 	"\x19UpdatePurchaseOrderPrefix\x12@.gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\"\x03\x88\x02\x01\x12v\n" +
-	"\x12CancelSubscription\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\"\x03\x88\x02\x01B/Z-github.com/gravitational/cloud/api/tenants/v1b\x06proto3"
+	"\x12CancelSubscription\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\"\x03\x88\x02\x01\x12\x9a\x01\n" +
+	"\x17GetClientIPRestrictions\x12>.gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest\x1a?.gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse\x12\x9a\x01\n" +
+	"\x17PutClientIPRestrictions\x12>.gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest\x1a?.gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponseB/Z-github.com/gravitational/cloud/api/tenants/v1b\x06proto3"
 
 var (
 	file_api_tenants_v1_tenants_proto_rawDescOnce sync.Once
@@ -4631,7 +4854,7 @@ func file_api_tenants_v1_tenants_proto_rawDescGZIP() []byte {
 }
 
 var file_api_tenants_v1_tenants_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_api_tenants_v1_tenants_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
+var file_api_tenants_v1_tenants_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_api_tenants_v1_tenants_proto_goTypes = []any{
 	(UsageResourceType)(0),                             // 0: gravitational.cloud.tenants.v1.UsageResourceType
 	(ProductType)(0),                                   // 1: gravitational.cloud.tenants.v1.ProductType
@@ -4686,9 +4909,14 @@ var file_api_tenants_v1_tenants_proto_goTypes = []any{
 	(*RemoveContactRequest)(nil),                       // 50: gravitational.cloud.tenants.v1.RemoveContactRequest
 	(*RemoveContactResponse)(nil),                      // 51: gravitational.cloud.tenants.v1.RemoveContactResponse
 	(*Contact)(nil),                                    // 52: gravitational.cloud.tenants.v1.Contact
-	(*EmptyResponse)(nil),                              // 53: gravitational.cloud.tenants.v1.EmptyResponse
-	(*EmptyRequest)(nil),                               // 54: gravitational.cloud.tenants.v1.EmptyRequest
-	nil,                                                // 55: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
+	(*CIDR)(nil),                                       // 53: gravitational.cloud.tenants.v1.CIDR
+	(*PutClientIPRestrictionsRequest)(nil),             // 54: gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
+	(*PutClientIPRestrictionsResponse)(nil),            // 55: gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
+	(*GetClientIPRestrictionsRequest)(nil),             // 56: gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
+	(*GetClientIPRestrictionsResponse)(nil),            // 57: gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
+	(*EmptyResponse)(nil),                              // 58: gravitational.cloud.tenants.v1.EmptyResponse
+	(*EmptyRequest)(nil),                               // 59: gravitational.cloud.tenants.v1.EmptyRequest
+	nil,                                                // 60: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
 }
 var file_api_tenants_v1_tenants_proto_depIdxs = []int32{
 	5,  // 0: gravitational.cloud.tenants.v1.StripeBillingAddressRequest.address:type_name -> gravitational.cloud.tenants.v1.StripeBillingAddress
@@ -4697,7 +4925,7 @@ var file_api_tenants_v1_tenants_proto_depIdxs = []int32{
 	0,  // 3: gravitational.cloud.tenants.v1.UsageReportItem.resource:type_name -> gravitational.cloud.tenants.v1.UsageResourceType
 	1,  // 4: gravitational.cloud.tenants.v1.GetFeaturesResponse.product_type:type_name -> gravitational.cloud.tenants.v1.ProductType
 	2,  // 5: gravitational.cloud.tenants.v1.GetFeaturesResponse.support_type:type_name -> gravitational.cloud.tenants.v1.SupportType
-	55, // 6: gravitational.cloud.tenants.v1.GetFeaturesResponse.entitlements:type_name -> gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
+	60, // 6: gravitational.cloud.tenants.v1.GetFeaturesResponse.entitlements:type_name -> gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
 	29, // 7: gravitational.cloud.tenants.v1.GetUsageResponse.usage_history:type_name -> gravitational.cloud.tenants.v1.UsageCycle
 	28, // 8: gravitational.cloud.tenants.v1.GetUsageResponse.alerts:type_name -> gravitational.cloud.tenants.v1.Alert
 	30, // 9: gravitational.cloud.tenants.v1.UsageCycle.usage:type_name -> gravitational.cloud.tenants.v1.Usage
@@ -4723,68 +4951,75 @@ var file_api_tenants_v1_tenants_proto_depIdxs = []int32{
 	52, // 29: gravitational.cloud.tenants.v1.CreateContactResponse.contact:type_name -> gravitational.cloud.tenants.v1.Contact
 	52, // 30: gravitational.cloud.tenants.v1.RemoveContactResponse.contact:type_name -> gravitational.cloud.tenants.v1.Contact
 	3,  // 31: gravitational.cloud.tenants.v1.Contact.state:type_name -> gravitational.cloud.tenants.v1.ContactState
-	24, // 32: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry.value:type_name -> gravitational.cloud.tenants.v1.EntitlementInfo
-	12, // 33: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:input_type -> gravitational.cloud.tenants.v1.SubmitUsageReportsRequest
-	54, // 34: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	54, // 35: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	19, // 36: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.UpdateAccountUpgradeWindowStartHourRequest
-	20, // 37: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
-	21, // 38: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:input_type -> gravitational.cloud.tenants.v1.SendAccountLockedRequest
-	22, // 39: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveredRequest
-	54, // 40: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	54, // 41: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	54, // 42: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	26, // 43: gravitational.cloud.tenants.v1.TenantsService.GetUsage:input_type -> gravitational.cloud.tenants.v1.GetUsageRequest
-	42, // 44: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:input_type -> gravitational.cloud.tenants.v1.SetSurveyResultsRequest
-	43, // 45: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:input_type -> gravitational.cloud.tenants.v1.SendTeleportInviteRequest
-	54, // 46: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	45, // 47: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:input_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
-	54, // 48: gravitational.cloud.tenants.v1.TenantsService.GetContacts:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	48, // 49: gravitational.cloud.tenants.v1.TenantsService.CreateContact:input_type -> gravitational.cloud.tenants.v1.CreateContactRequest
-	50, // 50: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:input_type -> gravitational.cloud.tenants.v1.RemoveContactRequest
-	54, // 51: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	16, // 52: gravitational.cloud.tenants.v1.TenantsService.AddCard:input_type -> gravitational.cloud.tenants.v1.AddCardRequest
-	15, // 53: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:input_type -> gravitational.cloud.tenants.v1.RemoveCardRequest
-	17, // 54: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:input_type -> gravitational.cloud.tenants.v1.UpdateCardRequest
-	54, // 55: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	54, // 56: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	4,  // 57: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:input_type -> gravitational.cloud.tenants.v1.StripeBillingAddressRequest
-	6,  // 58: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:input_type -> gravitational.cloud.tenants.v1.UpdateEmailRequest
-	7,  // 59: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:input_type -> gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest
-	54, // 60: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	53, // 61: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	9,  // 62: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingInformationResponse
-	18, // 63: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse
-	53, // 64: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 65: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 66: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 67: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	23, // 68: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:output_type -> gravitational.cloud.tenants.v1.GetFeaturesResponse
-	32, // 69: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
-	41, // 70: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:output_type -> gravitational.cloud.tenants.v1.SurveyCompanyResponse
-	27, // 71: gravitational.cloud.tenants.v1.TenantsService.GetUsage:output_type -> gravitational.cloud.tenants.v1.GetUsageResponse
-	53, // 72: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 73: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	44, // 74: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:output_type -> gravitational.cloud.tenants.v1.ClusterAlertInfoResponse
-	46, // 75: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:output_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
-	47, // 76: gravitational.cloud.tenants.v1.TenantsService.GetContacts:output_type -> gravitational.cloud.tenants.v1.GetContactsResponse
-	49, // 77: gravitational.cloud.tenants.v1.TenantsService.CreateContact:output_type -> gravitational.cloud.tenants.v1.CreateContactResponse
-	51, // 78: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:output_type -> gravitational.cloud.tenants.v1.RemoveContactResponse
-	10, // 79: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:output_type -> gravitational.cloud.tenants.v1.CreateSetupIntentResponse
-	53, // 80: gravitational.cloud.tenants.v1.TenantsService.AddCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 81: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 82: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	38, // 83: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:output_type -> gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse
-	39, // 84: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:output_type -> gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse
-	53, // 85: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 86: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 87: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	53, // 88: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	61, // [61:89] is the sub-list for method output_type
-	33, // [33:61] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	53, // 32: gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
+	53, // 33: gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
+	53, // 34: gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
+	24, // 35: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry.value:type_name -> gravitational.cloud.tenants.v1.EntitlementInfo
+	12, // 36: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:input_type -> gravitational.cloud.tenants.v1.SubmitUsageReportsRequest
+	59, // 37: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	59, // 38: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	19, // 39: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.UpdateAccountUpgradeWindowStartHourRequest
+	20, // 40: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
+	21, // 41: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:input_type -> gravitational.cloud.tenants.v1.SendAccountLockedRequest
+	22, // 42: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveredRequest
+	59, // 43: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	59, // 44: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	59, // 45: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	26, // 46: gravitational.cloud.tenants.v1.TenantsService.GetUsage:input_type -> gravitational.cloud.tenants.v1.GetUsageRequest
+	42, // 47: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:input_type -> gravitational.cloud.tenants.v1.SetSurveyResultsRequest
+	43, // 48: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:input_type -> gravitational.cloud.tenants.v1.SendTeleportInviteRequest
+	59, // 49: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	45, // 50: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:input_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
+	59, // 51: gravitational.cloud.tenants.v1.TenantsService.GetContacts:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	48, // 52: gravitational.cloud.tenants.v1.TenantsService.CreateContact:input_type -> gravitational.cloud.tenants.v1.CreateContactRequest
+	50, // 53: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:input_type -> gravitational.cloud.tenants.v1.RemoveContactRequest
+	59, // 54: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	16, // 55: gravitational.cloud.tenants.v1.TenantsService.AddCard:input_type -> gravitational.cloud.tenants.v1.AddCardRequest
+	15, // 56: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:input_type -> gravitational.cloud.tenants.v1.RemoveCardRequest
+	17, // 57: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:input_type -> gravitational.cloud.tenants.v1.UpdateCardRequest
+	59, // 58: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	59, // 59: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	4,  // 60: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:input_type -> gravitational.cloud.tenants.v1.StripeBillingAddressRequest
+	6,  // 61: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:input_type -> gravitational.cloud.tenants.v1.UpdateEmailRequest
+	7,  // 62: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:input_type -> gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest
+	59, // 63: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	56, // 64: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestrictions:input_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
+	54, // 65: gravitational.cloud.tenants.v1.TenantsService.PutClientIPRestrictions:input_type -> gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
+	58, // 66: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	9,  // 67: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingInformationResponse
+	18, // 68: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse
+	58, // 69: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 70: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 71: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 72: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	23, // 73: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:output_type -> gravitational.cloud.tenants.v1.GetFeaturesResponse
+	32, // 74: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
+	41, // 75: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:output_type -> gravitational.cloud.tenants.v1.SurveyCompanyResponse
+	27, // 76: gravitational.cloud.tenants.v1.TenantsService.GetUsage:output_type -> gravitational.cloud.tenants.v1.GetUsageResponse
+	58, // 77: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 78: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	44, // 79: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:output_type -> gravitational.cloud.tenants.v1.ClusterAlertInfoResponse
+	46, // 80: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:output_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
+	47, // 81: gravitational.cloud.tenants.v1.TenantsService.GetContacts:output_type -> gravitational.cloud.tenants.v1.GetContactsResponse
+	49, // 82: gravitational.cloud.tenants.v1.TenantsService.CreateContact:output_type -> gravitational.cloud.tenants.v1.CreateContactResponse
+	51, // 83: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:output_type -> gravitational.cloud.tenants.v1.RemoveContactResponse
+	10, // 84: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:output_type -> gravitational.cloud.tenants.v1.CreateSetupIntentResponse
+	58, // 85: gravitational.cloud.tenants.v1.TenantsService.AddCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 86: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 87: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	38, // 88: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:output_type -> gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse
+	39, // 89: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:output_type -> gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse
+	58, // 90: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 91: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 92: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	58, // 93: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	57, // 94: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestrictions:output_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
+	55, // 95: gravitational.cloud.tenants.v1.TenantsService.PutClientIPRestrictions:output_type -> gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
+	66, // [66:96] is the sub-list for method output_type
+	36, // [36:66] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_api_tenants_v1_tenants_proto_init() }
@@ -4798,7 +5033,7 @@ func file_api_tenants_v1_tenants_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_tenants_v1_tenants_proto_rawDesc), len(file_api_tenants_v1_tenants_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   52,
+			NumMessages:   57,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

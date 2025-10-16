@@ -6,6 +6,10 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TenantsService } from "./tenants_pb";
+import type { PutClientIPRestrictionsResponse } from "./tenants_pb";
+import type { PutClientIPRestrictionsRequest } from "./tenants_pb";
+import type { GetClientIPRestrictionsResponse } from "./tenants_pb";
+import type { GetClientIPRestrictionsRequest } from "./tenants_pb";
 import type { UpdatePurchaseOrderPrefixRequest } from "./tenants_pb";
 import type { UpdateEmailRequest } from "./tenants_pb";
 import type { StripeBillingAddressRequest } from "./tenants_pb";
@@ -231,6 +235,18 @@ export interface ITenantsServiceClient {
      * @generated from protobuf rpc: CancelSubscription(gravitational.cloud.tenants.v1.EmptyRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     cancelSubscription(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, EmptyResponse>;
+    /**
+     * GetClientIPRestrictions returns the tenant's client IP ingress allow list.
+     *
+     * @generated from protobuf rpc: GetClientIPRestrictions(gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest) returns (gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse);
+     */
+    getClientIPRestrictions(input: GetClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse>;
+    /**
+     * PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
+     *
+     * @generated from protobuf rpc: PutClientIPRestrictions(gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest) returns (gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse);
+     */
+    putClientIPRestrictions(input: PutClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse>;
 }
 /**
  * TenantsService is the API service for interacting with the tenants-operator
@@ -509,5 +525,23 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
     cancelSubscription(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, EmptyResponse> {
         const method = this.methods[27], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, EmptyResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetClientIPRestrictions returns the tenant's client IP ingress allow list.
+     *
+     * @generated from protobuf rpc: GetClientIPRestrictions(gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest) returns (gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse);
+     */
+    getClientIPRestrictions(input: GetClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse> {
+        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
+     *
+     * @generated from protobuf rpc: PutClientIPRestrictions(gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest) returns (gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse);
+     */
+    putClientIPRestrictions(input: PutClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse> {
+        const method = this.methods[29], opt = this._transport.mergeOptions(options);
+        return stackIntercept<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
     }
 }

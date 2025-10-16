@@ -93,6 +93,10 @@ type TenantsServiceClient interface {
 	// Deprecated: Do not use.
 	// CancelSubscription marks a users Stripe account for cancellation at the end of the current billing cycle
 	CancelSubscription(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// GetClientIPRestrictions returns the tenant's client IP ingress allow list.
+	GetClientIPRestrictions(ctx context.Context, in *GetClientIPRestrictionsRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionsResponse, error)
+	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
+	PutClientIPRestrictions(ctx context.Context, in *PutClientIPRestrictionsRequest, opts ...grpc.CallOption) (*PutClientIPRestrictionsResponse, error)
 }
 
 type tenantsServiceClient struct {
@@ -365,6 +369,24 @@ func (c *tenantsServiceClient) CancelSubscription(ctx context.Context, in *Empty
 	return out, nil
 }
 
+func (c *tenantsServiceClient) GetClientIPRestrictions(ctx context.Context, in *GetClientIPRestrictionsRequest, opts ...grpc.CallOption) (*GetClientIPRestrictionsResponse, error) {
+	out := new(GetClientIPRestrictionsResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetClientIPRestrictions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) PutClientIPRestrictions(ctx context.Context, in *PutClientIPRestrictionsRequest, opts ...grpc.CallOption) (*PutClientIPRestrictionsResponse, error) {
+	out := new(PutClientIPRestrictionsResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/PutClientIPRestrictions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TenantsServiceServer is the server API for TenantsService service.
 // All implementations must embed UnimplementedTenantsServiceServer
 // for forward compatibility
@@ -440,6 +462,10 @@ type TenantsServiceServer interface {
 	// Deprecated: Do not use.
 	// CancelSubscription marks a users Stripe account for cancellation at the end of the current billing cycle
 	CancelSubscription(context.Context, *EmptyRequest) (*EmptyResponse, error)
+	// GetClientIPRestrictions returns the tenant's client IP ingress allow list.
+	GetClientIPRestrictions(context.Context, *GetClientIPRestrictionsRequest) (*GetClientIPRestrictionsResponse, error)
+	// PutClientIPRestrictions replaces the tenant's client IP ingress allow list.
+	PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error)
 	mustEmbedUnimplementedTenantsServiceServer()
 }
 
@@ -530,6 +556,12 @@ func (UnimplementedTenantsServiceServer) UpdatePurchaseOrderPrefix(context.Conte
 }
 func (UnimplementedTenantsServiceServer) CancelSubscription(context.Context, *EmptyRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelSubscription not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetClientIPRestrictions(context.Context, *GetClientIPRestrictionsRequest) (*GetClientIPRestrictionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClientIPRestrictions not implemented")
+}
+func (UnimplementedTenantsServiceServer) PutClientIPRestrictions(context.Context, *PutClientIPRestrictionsRequest) (*PutClientIPRestrictionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutClientIPRestrictions not implemented")
 }
 func (UnimplementedTenantsServiceServer) mustEmbedUnimplementedTenantsServiceServer() {}
 
@@ -1048,6 +1080,42 @@ func _TenantsService_CancelSubscription_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_GetClientIPRestrictions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClientIPRestrictionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetClientIPRestrictions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetClientIPRestrictions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetClientIPRestrictions(ctx, req.(*GetClientIPRestrictionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_PutClientIPRestrictions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutClientIPRestrictionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).PutClientIPRestrictions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/PutClientIPRestrictions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).PutClientIPRestrictions(ctx, req.(*PutClientIPRestrictionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TenantsService_ServiceDesc is the grpc.ServiceDesc for TenantsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1166,6 +1234,14 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelSubscription",
 			Handler:    _TenantsService_CancelSubscription_Handler,
+		},
+		{
+			MethodName: "GetClientIPRestrictions",
+			Handler:    _TenantsService_GetClientIPRestrictions_Handler,
+		},
+		{
+			MethodName: "PutClientIPRestrictions",
+			Handler:    _TenantsService_PutClientIPRestrictions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

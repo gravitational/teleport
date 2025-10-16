@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -261,6 +262,85 @@ func TestCreateContact(t *testing.T) {
 
 		resp, err := suite.cloudWithRoles.CreateContact(ctx, tc.req)
 		tc.assert(t, resp, err, suite.emitter.in)
+	}
+}
+
+type mockChecker struct {
+	services.AccessChecker
+	allowedVerbs []string
+}
+
+func (m mockChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string) error {
+	if !slices.Contains(m.allowedVerbs, verb) {
+		return trace.BadParameter("verb %s not allowed", verb)
+	}
+	return nil
+}
+
+func TestAction(t *testing.T) {
+	suite := newCloudSuite(t)
+
+	ctx := t.Context()
+	tt := []struct {
+		name              string
+		actions           []string
+		authorizedActions []string
+		cloudEnabled      bool
+		assert            require.ErrorAssertionFunc
+	}{
+		{
+			name:              "ok: single verb",
+			actions:           []string{types.VerbRead},
+			authorizedActions: []string{types.VerbRead},
+			cloudEnabled:      true,
+			assert:            require.NoError,
+		},
+		{
+			name:    "all verbs allowed",
+			actions: []string{types.VerbRead, types.VerbCreate, types.VerbUpdate},
+
+			authorizedActions: []string{types.VerbRead, types.VerbCreate, types.VerbUpdate},
+			cloudEnabled:      true,
+			assert:            require.NoError,
+		},
+		{
+			name:              "first verb not allowed",
+			actions:           []string{types.VerbRead},
+			authorizedActions: nil,
+			cloudEnabled:      true,
+			assert:            require.Error,
+		},
+		{
+			name:    "extras verb not allowed",
+			actions: []string{types.VerbRead, types.VerbCreate, types.VerbUpdate},
+
+			authorizedActions: []string{types.VerbRead, types.VerbCreate},
+			cloudEnabled:      true,
+			assert:            require.Error,
+		},
+		{
+			name:         "cloud disabled short-circuits",
+			actions:      []string{types.VerbList},
+			cloudEnabled: false,
+			assert:       require.Error,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			ac := suite.cloudWithRoles
+			mockChecker := mockChecker{
+				allowedVerbs: tc.authorizedActions,
+			}
+			suite.authorizer.authorize = func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					User:     newUser(t, "testuser", types.UserTypeLocal),
+					Checker:  mockChecker,
+					Identity: authtest.TestAdmin().I,
+				}, nil
+			}
+			ac.action(ctx, "some-resource", tc.actions...)
+		})
 	}
 }
 

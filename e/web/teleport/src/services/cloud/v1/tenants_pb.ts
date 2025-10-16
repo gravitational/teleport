@@ -1765,6 +1765,47 @@ export interface Contact {
     state: ContactState;
 }
 /**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.CIDR
+ */
+export interface CIDR {
+    /**
+     * @generated from protobuf field: string cidr = 1;
+     */
+    cidr: string;
+}
+/**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
+ */
+export interface PutClientIPRestrictionsRequest {
+    /**
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"];
+     */
+    clientIpRestrictions: CIDR[];
+}
+/**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
+ */
+export interface PutClientIPRestrictionsResponse {
+    /**
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"];
+     */
+    clientIpRestrictions: CIDR[];
+}
+/**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
+ */
+export interface GetClientIPRestrictionsRequest {
+}
+/**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
+ */
+export interface GetClientIPRestrictionsResponse {
+    /**
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"];
+     */
+    clientIpRestrictions: CIDR[];
+}
+/**
  * @generated from protobuf message gravitational.cloud.tenants.v1.EmptyResponse
  */
 export interface EmptyResponse {
@@ -5619,6 +5660,232 @@ class Contact$Type extends MessageType<Contact> {
  */
 export const Contact = new Contact$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CIDR$Type extends MessageType<CIDR> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.CIDR", [
+            { no: 1, name: "cidr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CIDR>): CIDR {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cidr = "";
+        if (value !== undefined)
+            reflectionMergePartial<CIDR>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CIDR): CIDR {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cidr */ 1:
+                    message.cidr = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CIDR, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cidr = 1; */
+        if (message.cidr !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.cidr);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CIDR
+ */
+export const CIDR = new CIDR$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PutClientIPRestrictionsRequest$Type extends MessageType<PutClientIPRestrictionsRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest", [
+            { no: 1, name: "client_ip_restrictions", kind: "message", jsonName: "clientIPRestrictions", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CIDR }
+        ]);
+    }
+    create(value?: PartialMessage<PutClientIPRestrictionsRequest>): PutClientIPRestrictionsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clientIpRestrictions = [];
+        if (value !== undefined)
+            reflectionMergePartial<PutClientIPRestrictionsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PutClientIPRestrictionsRequest): PutClientIPRestrictionsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"];*/ 1:
+                    message.clientIpRestrictions.push(CIDR.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PutClientIPRestrictionsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"]; */
+        for (let i = 0; i < message.clientIpRestrictions.length; i++)
+            CIDR.internalBinaryWrite(message.clientIpRestrictions[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
+ */
+export const PutClientIPRestrictionsRequest = new PutClientIPRestrictionsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PutClientIPRestrictionsResponse$Type extends MessageType<PutClientIPRestrictionsResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse", [
+            { no: 1, name: "client_ip_restrictions", kind: "message", jsonName: "clientIPRestrictions", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CIDR }
+        ]);
+    }
+    create(value?: PartialMessage<PutClientIPRestrictionsResponse>): PutClientIPRestrictionsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clientIpRestrictions = [];
+        if (value !== undefined)
+            reflectionMergePartial<PutClientIPRestrictionsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PutClientIPRestrictionsResponse): PutClientIPRestrictionsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"];*/ 1:
+                    message.clientIpRestrictions.push(CIDR.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PutClientIPRestrictionsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"]; */
+        for (let i = 0; i < message.clientIpRestrictions.length; i++)
+            CIDR.internalBinaryWrite(message.clientIpRestrictions[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
+ */
+export const PutClientIPRestrictionsResponse = new PutClientIPRestrictionsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetClientIPRestrictionsRequest$Type extends MessageType<GetClientIPRestrictionsRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest", []);
+    }
+    create(value?: PartialMessage<GetClientIPRestrictionsRequest>): GetClientIPRestrictionsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetClientIPRestrictionsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetClientIPRestrictionsRequest): GetClientIPRestrictionsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetClientIPRestrictionsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
+ */
+export const GetClientIPRestrictionsRequest = new GetClientIPRestrictionsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetClientIPRestrictionsResponse$Type extends MessageType<GetClientIPRestrictionsResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse", [
+            { no: 1, name: "client_ip_restrictions", kind: "message", jsonName: "clientIPRestrictions", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CIDR }
+        ]);
+    }
+    create(value?: PartialMessage<GetClientIPRestrictionsResponse>): GetClientIPRestrictionsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clientIpRestrictions = [];
+        if (value !== undefined)
+            reflectionMergePartial<GetClientIPRestrictionsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetClientIPRestrictionsResponse): GetClientIPRestrictionsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"];*/ 1:
+                    message.clientIpRestrictions.push(CIDR.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetClientIPRestrictionsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.CIDR client_ip_restrictions = 1 [json_name = "clientIPRestrictions"]; */
+        for (let i = 0; i < message.clientIpRestrictions.length; i++)
+            CIDR.internalBinaryWrite(message.clientIpRestrictions[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
+ */
+export const GetClientIPRestrictionsResponse = new GetClientIPRestrictionsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EmptyResponse$Type extends MessageType<EmptyResponse> {
     constructor() {
         super("gravitational.cloud.tenants.v1.EmptyResponse", []);
@@ -5725,5 +5992,7 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "UpdateStripeAddress", options: {}, I: StripeBillingAddressRequest, O: EmptyResponse },
     { name: "UpdateEmail", options: {}, I: UpdateEmailRequest, O: EmptyResponse },
     { name: "UpdatePurchaseOrderPrefix", options: {}, I: UpdatePurchaseOrderPrefixRequest, O: EmptyResponse },
-    { name: "CancelSubscription", options: {}, I: EmptyRequest, O: EmptyResponse }
+    { name: "CancelSubscription", options: {}, I: EmptyRequest, O: EmptyResponse },
+    { name: "GetClientIPRestrictions", options: {}, I: GetClientIPRestrictionsRequest, O: GetClientIPRestrictionsResponse },
+    { name: "PutClientIPRestrictions", options: {}, I: PutClientIPRestrictionsRequest, O: PutClientIPRestrictionsResponse }
 ]);
