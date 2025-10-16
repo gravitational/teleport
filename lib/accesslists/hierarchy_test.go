@@ -147,7 +147,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 
 	ownershipType, err := IsAccessListOwner(ctx, stubUserNoRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", member1, acl1.Spec.Title))
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	// Should not have inherited ownership due to missing OwnershipRequires.
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 
@@ -162,7 +162,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsMemberRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", member1, acl4.Spec.Title))
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 
 	// User which meets acl1's Membership and acl1's Ownership requirements.
@@ -183,8 +183,9 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 
 	stubUserMeetsAllRequires.SetName(member2)
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsAllRequires, acl4, accessListAndMembersGetter, nil, clock)
-	require.NoError(t, err)
 	// Should not have ownership.
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 }
 
@@ -215,9 +216,8 @@ func TestAccessListIsMember(t *testing.T) {
 	})
 	stubMember1.SetRoles([]string{"mrole1", "mrole2"})
 
-	membershipType, reason, err := IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
+	membershipType, err := IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
 	require.NoError(t, err)
-	require.Empty(t, reason)
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, membershipType)
 
 	// When user is Locked, should not be considered a Member.
@@ -229,9 +229,9 @@ func TestAccessListIsMember(t *testing.T) {
 	require.NoError(t, err)
 	locksGetter.targets[member1] = []types.Lock{lock}
 
-	membershipType, reason, err = IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
-	require.NoError(t, err)
-	require.Contains(t, reason, "locked")
+	membershipType, err = IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, membershipType)
 }
 
@@ -253,10 +253,10 @@ func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
 	locks := &mockLocksGetter{}
 
 	// Missing membershipRequires should be AccessDenied
-	typ, reason, err := IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
-	require.NoError(t, err)
+	typ, err := IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
-	require.Contains(t, reason, filteredOutReasonUnmetRequirements)
 
 	// Give correct traits/roles, but expire the membership
 	u.SetRoles([]string{"mrole1", "mrole2"})
@@ -267,10 +267,10 @@ func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
 	// advance clock past Expires
 	clock.Advance(48 * time.Hour)
 
-	typ, reason, err = IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
+	typ, err = IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
 	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
-	require.NoError(t, err)
-	require.Contains(t, reason, filteredOutReasonExpired)
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 }
 
 func TestAccessListIsMember_NestedRequirements(t *testing.T) {
@@ -324,9 +324,8 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		)
 		userAllRoles.SetRoles(allRoles)
 
-		typ, reason, err := IsAccessListMember(ctx, userAllRoles, rootList, aclGetter, locks, clock)
+		typ, err := IsAccessListMember(ctx, userAllRoles, rootList, aclGetter, locks, clock)
 		require.NoError(t, err)
-		require.Empty(t, reason)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
 
 		// User missing middle role
@@ -338,9 +337,9 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		require.NoError(t, err)
 		userMissingMiddle.SetRoles(missingMiddleRoles)
 
-		typ, reason, err = IsAccessListMember(ctx, userMissingMiddle, rootList, aclGetter, locks, clock)
-		require.NoError(t, err)
-		require.Contains(t, reason, filteredOutReasonUnmetRequirements)
+		typ, err = IsAccessListMember(ctx, userMissingMiddle, rootList, aclGetter, locks, clock)
+		require.Error(t, err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
 	})
 
@@ -374,18 +373,17 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		user.SetRoles(rootList.Spec.MembershipRequires.Roles)
 		user.SetTraits(rootList.Spec.MembershipRequires.Traits)
 
-		typ, reason, err := IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
+		typ, err := IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
 		require.NoError(t, err)
-		require.Empty(t, reason)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
 
 		// advancing the clock makes the middle -> leaf membership expire
 		clock.Advance(14 * time.Hour)
 
-		typ, reason, err = IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
-		require.NoError(t, err)
+		typ, err = IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
+		require.Error(t, err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
-		require.Contains(t, reason, filteredOutReasonExpired)
 	})
 
 	t.Run("cyclic graph, no membership", func(t *testing.T) {
@@ -417,8 +415,9 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		user.SetRoles(firstList.Spec.MembershipRequires.Roles)
 		user.SetTraits(firstList.Spec.MembershipRequires.Traits)
 
-		typ, _, err := IsAccessListMember(ctx, user, firstList, aclGetter, locks, clock)
-		require.NoError(t, err, "No error expected, user should not be member either")
+		typ, err := IsAccessListMember(ctx, user, firstList, aclGetter, locks, clock)
+		require.Error(t, err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
 	})
 
@@ -452,10 +451,9 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 			},
 		}
 
-		typ, reason, err := IsAccessListMember(ctx, user, firstList, aclGetter, locks, clock)
+		typ, err := IsAccessListMember(ctx, user, firstList, aclGetter, locks, clock)
 		require.NoError(t, err)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
-		require.Empty(t, reason)
 	})
 }
 
