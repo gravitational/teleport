@@ -118,6 +118,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -780,7 +781,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if as.createBoundKeypairValidator == nil {
-		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (joinboundkeypair.BoundKeypairValidator, error) {
 			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
 		}
 	}
@@ -1267,7 +1268,7 @@ type Server struct {
 
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
-	createBoundKeypairValidator createBoundKeypairValidator
+	createBoundKeypairValidator joinboundkeypair.CreateBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1490,6 +1491,12 @@ func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.lockWatcher = lockWatcher
+}
+
+// CheckLockInForce returns an AccessDenied error if there is a lock in force
+// matching at least one of the targets.
+func (a *Server) CheckLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
+	return a.checkLockInForce(mode, targets)
 }
 
 func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
