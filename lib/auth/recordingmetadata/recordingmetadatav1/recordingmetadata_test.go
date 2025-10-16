@@ -811,13 +811,13 @@ func (m *mockUploadHandler) UploadSummary(ctx context.Context, sessionID session
 }
 
 func (m *mockUploadHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	if m.uploadError != nil {
-		return "", m.uploadError
-	}
-
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
+	}
+
+	if m.uploadError != nil {
+		return "", m.uploadError
 	}
 
 	select {
