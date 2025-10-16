@@ -731,7 +731,7 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 	// determine when the change has been applied to the cache. We do not use
 	// the revision for conditional updates, though, so the concatenation of
 	// the user and role's revisions is sufficient.
-	revision := user.GetMetadata().Revision + role.GetMetadata().Revision
+	revision := fmt.Sprintf("%s/%s", user.GetMetadata().Revision, role.GetMetadata().Revision)
 
 	b := &pb.Bot{
 		Kind:    types.KindBot,
