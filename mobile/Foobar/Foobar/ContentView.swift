@@ -16,7 +16,7 @@ private let logger = Logger(
 struct ContentView: View {
   @State private var openedURL: DeepLinkParseResult?
   @State private var isConfirmingEnrollment: Bool = false
-  @State private var enrollAttempt: Attempt<String, EnrollError> = .idle
+  @State private var enrollAttempt: Attempt<Never?, EnrollError> = .idle
   @State private var serialNumber: String?
   private var deviceTrust: DeviceTrustP
 
@@ -153,20 +153,32 @@ enum EnrollError: Error & Equatable {
   }
 }
 
+enum AuthError: Error & Equatable {
+  case unknownError(Error)
+
+  static func == (lhs: AuthError, rhs: AuthError) -> Bool {
+    if case let .unknownError(lhsError) = lhs,
+       case let .unknownError(rhsError) = rhs
+    {
+      return (lhsError as NSError) === (rhsError as NSError)
+    }
+    return false
+  }
+}
+
 typealias DeepLinkParseResult = Result<ParsedDeepLink, DeepLinkParseError>
 
 struct ScannedURLView: View {
   @Binding var openedURL: Result<ParsedDeepLink, DeepLinkParseError>?
-  @Binding var enrollAttempt: Attempt<String, EnrollError>
+  // TODO: EnrollAttempt should be a @State not a @Binding, see authAttempt.
+  @Binding var enrollAttempt: Attempt<Never?, EnrollError>
   @Binding var serialNumber: String?
   @State var deleteDeviceKeyAttempt: Attempt<Bool, SecOSStatusError> = .idle
   @State var showDeleteDeviceKeyAlert: Bool = false
   let deviceTrust: DeviceTrustP
 
   private var maybeEnrollMobileDeviceURL: EnrollMobileDeviceDeepURL? {
-    if case let .success(parsedDeepLink) = openedURL,
-       case let .enrollMobileDevice(deepURL) = parsedDeepLink
-    {
+    if case let .success(.enrollMobileDevice(deepURL)) = openedURL {
       return deepURL
     }
     return nil
@@ -174,6 +186,18 @@ struct ScannedURLView: View {
 
   private var isConfirmingEnrollment: Bool {
     maybeEnrollMobileDeviceURL != nil
+  }
+
+  @State var authAttempt: Attempt<String, AuthError> = .idle
+  private var maybeAuthenticateWebDeviceURL: AuthenticateWebDeviceDeepURL? {
+    if case let .success(.authenticateWebDevice(deepURL)) = openedURL {
+      return deepURL
+    }
+    return nil
+  }
+
+  private var isAuthenticatingWebDevice: Bool {
+    maybeAuthenticateWebDeviceURL != nil
   }
 
   private var hasDeepLinkParseError: Bool {
@@ -289,7 +313,7 @@ struct ScannedURLView: View {
                   return
                 }
                 try await Task.sleep(for: .seconds(3))
-                enrollAttempt = .success("foo")
+                enrollAttempt = .success(nil)
               }
             }, label: {
               switch enrollAttempt {
@@ -316,15 +340,77 @@ struct ScannedURLView: View {
           } else {
             Text("Do you want to enroll this device?").font(.headline)
             Text("""
-            This will enable \(maybeEnrollMobileDeviceURL!.url.user) to authorize Device Trust web sessions \
+            This will enable \(maybeEnrollMobileDeviceURL!.url
+              .user) to authorize Device Trust web sessions \
             in \(maybeEnrollMobileDeviceURL!.url.hostname) with this device.
             """)
           }
           Spacer()
         }.presentationDetents([.medium]).padding(16).presentationCompactAdaptation(.sheet)
       }
-    )
-    .alert("Cannot open the link", isPresented: .constant(hasDeepLinkParseError)) {
+    ).sheet(
+      isPresented: .constant(isAuthenticatingWebDevice),
+      onDismiss: {
+        openedURL = nil
+        authAttempt = .idle
+      },
+      content: {
+        VStack(spacing: 8) {
+          HStack {
+            Button("Cancel", systemImage: "xmark", role: .cancel) {
+              openedURL = nil
+              authAttempt = .idle
+            }.glassButton().labelStyle(.iconOnly)
+            Spacer()
+            Button(action: {
+              guard let deepURL = maybeAuthenticateWebDeviceURL else {
+                return
+              }
+              if authAttempt.didSucceed {
+                openedURL = nil
+                authAttempt = .idle
+                return
+              }
+              if !authAttempt.isIdle {
+                return
+              }
+              authAttempt = .loading
+              Task {
+                // TODO: Perform actual auth.
+                authAttempt = .success("foo")
+              }
+            }, label: {
+              switch authAttempt {
+              case .idle:
+                Text("Authenticate")
+              case .loading:
+                Label("Authentication in progress", systemImage: "progress.indicator")
+                  .labelStyle(.iconOnly).symbolEffect(
+                    .variableColor.iterative,
+                    options: .repeat(.continuous),
+                    isActive: true
+                  )
+              case .success:
+                Label("Authenticated", systemImage: "checkmark").labelStyle(.iconOnly)
+              case .failure:
+                Label("Authentication error", systemImage: "xmark.octagon").labelStyle(.iconOnly)
+              }
+            }).glassProminentButton().animation(.easeInOut, value: authAttempt)
+          }.padding(8).controlSize(.large)
+          Spacer()
+          if case let .failure(.unknownError(error)) = enrollAttempt {
+            Text("Could not authenticate this device").font(.headline)
+            Text("There was an error: \(error.localizedDescription)")
+          } else {
+            Text("Do you want to authenticate this device?").font(.headline)
+            Text("""
+            Lorem ipsum dolor sit amet.
+            """)
+          }
+          Spacer()
+        }.presentationDetents([.medium]).padding(16).presentationCompactAdaptation(.sheet)
+      }
+    ).alert("Cannot open the link", isPresented: .constant(hasDeepLinkParseError)) {
       Button("Dismiss", role: .cancel) {}
     } message: {
       switch openedURL {
@@ -414,6 +500,22 @@ struct ScannedURLView: View {
 #Preview("Deep link error") {
   ScannedURLView(
     openedURL: .constant(.failure(.unsupportedPath)),
+    enrollAttempt: .constant(.idle),
+    serialNumber: .constant(nil),
+    deviceTrust: DeviceTrust()
+  )
+}
+
+#Preview("Auth prompt") {
+  @Previewable @State var openedURL: DeepLinkParseResult? =
+    .success(.authenticateWebDevice(AuthenticateWebDeviceDeepURL(
+      url: DeepURL(hostname: "example.com", port: 3080, user: "alice"),
+      id: "1234",
+      token: "abcdf",
+      redirectURI: "https://example.com:3080/web"
+    )))
+  ScannedURLView(
+    openedURL: $openedURL,
     enrollAttempt: .constant(.idle),
     serialNumber: .constant(nil),
     deviceTrust: DeviceTrust()
