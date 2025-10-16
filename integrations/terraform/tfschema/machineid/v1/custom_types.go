@@ -20,12 +20,14 @@ import (
 	context "context"
 	fmt "fmt"
 
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/integrations/terraform/tfschema/resource153"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+
+	"github.com/gravitational/teleport/integrations/terraform/tfschema/resource153"
 )
 
 var (
