@@ -186,6 +186,7 @@ loop:
 
 			switch e := evt.(type) {
 			case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
+				cancelUpload()
 				// Unsupported session recording types
 				return nil
 
