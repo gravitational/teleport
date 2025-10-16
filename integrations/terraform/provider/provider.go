@@ -543,7 +543,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            resourceTeleportTrustedClusterType{},
 		"teleport_user":                       resourceTeleportUserType{},
-		"teleport_bot":                        resourceTeleportBotType{},
+		"teleport_bot":                        resourceTeleportBotLegacyType{},
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
