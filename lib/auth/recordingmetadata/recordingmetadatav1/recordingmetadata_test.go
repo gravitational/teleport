@@ -155,8 +155,10 @@ func TestProcessSessionRecording(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			lastEventTime := tt.events[len(tt.events)-1].GetTime()
+
 			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID)
+			err = service.ProcessSessionRecording(ctx, sessionID, lastEventTime.Sub(startTime))
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -205,7 +207,7 @@ func TestProcessSessionRecording_StreamError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream error")
 }
@@ -228,7 +230,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
 }
@@ -251,7 +253,7 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 
 	processDone := make(chan error, 1)
 	go func() {
-		processDone <- service.ProcessSessionRecording(ctx, sessionID)
+		processDone <- service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
 	}()
 
 	streamer.WaitUntilBlocking()
@@ -314,7 +316,7 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID)
+			err = service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
 
 			require.NoError(t, err)
 
@@ -322,6 +324,158 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 			require.Empty(t, uploadHandler.thumbnails)
 		})
 	}
+}
+
+func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	events := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				Type: "session.start",
+				Time: startTime,
+			},
+			TerminalSize: "80:24",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(1 * time.Second),
+			},
+			Data: []byte("Hello\n"),
+		},
+		&apievents.Resize{
+			Metadata: apievents.Metadata{
+				Type: "resize",
+				Time: startTime.Add(2 * time.Second),
+			},
+			TerminalSize: "invalid:terminal:size",
+		},
+		&apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type: "session.end",
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+
+	streamer := &mockStreamer{
+		events:       events,
+		errorOnEvent: -1,
+	}
+	uploadHandler := newMockUploadHandler()
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: uploadHandler,
+	})
+	require.NoError(t, err)
+
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "parsing terminal size")
+
+	uploadHandler.mu.Lock()
+	defer uploadHandler.mu.Unlock()
+
+	require.Empty(t, uploadHandler.metadata, "no metadata should be uploaded after cancelUpload")
+}
+
+func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	events := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				Type: "session.start",
+				Time: startTime,
+			},
+			TerminalSize: "80:24",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(1 * time.Second),
+			},
+			Data: []byte("Hello\n"),
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(2 * time.Second),
+			},
+			Data: []byte("World\n"),
+		},
+		&apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type: "session.end",
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+
+	streamer := &mockStreamer{
+		events:       events,
+		errorOnEvent: -1,
+	}
+
+	uploadHandler := &mockUploadHandlerFailAfterRead{
+		failAfterBytes: 10,
+	}
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: uploadHandler,
+	})
+	require.NoError(t, err)
+
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "simulated upload failure")
+}
+
+// mockUploadHandlerFailAfterRead simulates an upload failure after reading some bytes
+type mockUploadHandlerFailAfterRead struct {
+	failAfterBytes int
+	bytesRead      int
+	mu             sync.Mutex
+}
+
+func (m *mockUploadHandlerFailAfterRead) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	buf := make([]byte, 1024)
+	for {
+		n, err := reader.Read(buf)
+		if n > 0 {
+			m.mu.Lock()
+			m.bytesRead += n
+			shouldFail := m.bytesRead >= m.failAfterBytes
+			m.mu.Unlock()
+
+			if shouldFail {
+				return "", errors.New("simulated upload failure")
+			}
+		}
+
+		if errors.Is(err, io.EOF) {
+			return "metadata/success", nil
+		}
+
+		if err != nil {
+			return "", err
+		}
+	}
+}
+
+func (m *mockUploadHandlerFailAfterRead) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return "thumbnail/success", nil
 }
 
 func generateBasicSessionWithImmediateResize(startTime time.Time) []apievents.AuditEvent {
@@ -645,13 +799,13 @@ func (m *mockUploadHandler) UploadMetadata(ctx context.Context, sessionID sessio
 		return "", m.uploadError
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	path := "metadata/" + string(sessionID)
 	m.metadata[string(sessionID)] = data
@@ -664,13 +818,13 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 		return "", m.uploadError
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	path := "thumbnail/" + string(sessionID)
 	m.thumbnails[string(sessionID)] = data
