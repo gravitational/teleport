@@ -151,7 +151,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 // TryRun attempts to run subcommands.
 func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
+	var commandFunc func(ctx context.Context, client authclient.ClientI) error
 	switch cmd {
 	case c.botsList.FullCommand():
 		commandFunc = c.ListBots
@@ -184,7 +184,7 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client authclient.ClientI) error {
 	var bots []*machineidv1pb.Bot
 	req := &machineidv1pb.ListBotsRequest{}
 	for {
@@ -267,7 +267,7 @@ Please note:
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) AddBot(ctx context.Context, client authclient.ClientI) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -356,7 +356,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 	return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client authclient.ClientI) error {
 	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
 		BotName: c.botName,
 	})
@@ -369,7 +369,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client authclient.ClientI) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -507,7 +507,7 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGette
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
-func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) UpdateBot(ctx context.Context, client authclient.ClientI) error {
 	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
 		BotName: c.botName,
 	})
@@ -558,7 +558,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 }
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
-func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) ListBotInstances(ctx context.Context, client authclient.ClientI) error {
 	var instances []*machineidv1pb.BotInstance
 	req := &machineidv1pb.ListBotInstancesV2Request{
 		Filter:    &machineidv1pb.ListBotInstancesV2Request_Filters{},
@@ -581,6 +581,25 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	for {
 		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, req)
 		if err != nil {
+			if trace.IsNotImplemented(err) && req.GetFilter().GetQuery() == "" {
+				// Fallback to increase backwards compatibility
+				// TODO(nicholasmarais1158): Remove in v20.0.0
+				//nolint:staticcheck // SA1019
+				resp, err = client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+					FilterBotName:    req.GetFilter().GetBotName(),
+					PageSize:         req.GetPageSize(),
+					PageToken:        req.GetPageToken(),
+					FilterSearchTerm: req.GetFilter().GetSearchTerm(),
+					Sort: &types.SortBy{
+						Field:  req.GetSortField(),
+						IsDesc: req.GetSortDesc(),
+					},
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
 			return trace.Wrap(err)
 		}
 
@@ -683,7 +702,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 }
 
 // AddBotInstance begins onboarding a new instance of an existing bot.
-func (c *BotsCommand) AddBotInstance(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) AddBotInstance(ctx context.Context, client authclient.ClientI) error {
 	// A bit of a misnomer but makes the terminology a bit more consistent. This
 	// doesn't directly create a bot instance, but creates token that allows a
 	// bot to join, which creates a new instance.
@@ -766,7 +785,7 @@ To onboard a new instance for this bot, run:
 > {{.executable}} bots instances add {{.instance.Spec.BotName}}
 `))
 
-func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) ShowBotInstance(ctx context.Context, client authclient.ClientI) error {
 	botName, instanceID, err := parseInstanceID(c.instanceID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -819,7 +838,7 @@ type botJSONResponse struct {
 }
 
 // outputToken writes token information to stdout, depending on the token format.
-func outputToken(wr io.Writer, format string, client *authclient.Client, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
+func outputToken(wr io.Writer, format string, client authclient.ClientI, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
 	if format == teleport.JSON {
 		tokenTTL := time.Duration(0)
 		if exp := token.Expiry(); !exp.IsZero() {

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service"
@@ -497,3 +499,69 @@ func createBotInstance(t *testing.T, ctx context.Context, process *service.Telep
 
 	return
 }
+
+func TestListBotInstancesFallback(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	ctx := t.Context()
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	mockedClient := &MockedAuthClient{
+		Client: client,
+	}
+
+	t.Run("fallback allowed", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout: ptr(strings.Builder{}),
+			format: teleport.JSON,
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, mockedClient))
+	})
+
+	t.Run("fallback not allowed", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout: ptr(strings.Builder{}),
+			format: teleport.JSON,
+			query:  "foo()", // query is only available in ListBotInstancesV2
+		}
+
+		err := cmd.ListBotInstances(ctx, mockedClient)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not implemeted in mock")
+	})
+}
+
+type MockedAuthClient struct {
+	*authclient.Client
+}
+
+func (c *MockedAuthClient) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
+	return &MockBotInstanceService{
+		c.Client.BotInstanceServiceClient(),
+	}
+}
+
+type MockBotInstanceService struct {
+	machineidv1pb.BotInstanceServiceClient
+}
+
+func (m *MockBotInstanceService) ListBotInstancesV2(ctx context.Context, in *machineidv1pb.ListBotInstancesV2Request, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
+	return nil, trace.NotImplemented("not implemeted in mock")
+}
+
+func ptr[T any](v T) *T { return &v }
