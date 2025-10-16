@@ -104,10 +104,15 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
 func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID) error {
+	sessionsPendingMetric.Inc()
+
 	if err := s.concurrencyLimiter.Acquire(ctx, 1); err != nil {
+		sessionsPendingMetric.Dec()
 		return trace.Wrap(err)
 	}
 	defer s.concurrencyLimiter.Release(1)
+
+	sessionsPendingMetric.Dec()
 
 	sessionsProcessingMetric.Inc()
 	defer sessionsProcessingMetric.Dec()
