@@ -1693,6 +1693,15 @@ func TestAccessListMemberOwnerEligibility(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, m2.Spec.IneligibleStatus)
 
+	require.NoError(t, service.DeleteAllAccessLists(ctx))
+	member := newAccessListMember(t, acl.GetName(), "member1", withExpire(time.Time{}))
+	member.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String()
+	_, _, err = service.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{member})
+	require.NoError(t, err)
+
+	m3, err := service.GetAccessListMember(ctx, acl.GetName(), "member1")
+	require.NoError(t, err)
+	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST.String(), m3.Spec.IneligibleStatus)
 }
 
 type newAccessListOptions struct {
