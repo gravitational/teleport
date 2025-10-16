@@ -148,6 +148,8 @@ type AccessMonitoringRuleSpec struct {
 	DesiredState string `protobuf:"bytes,7,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
 	// schedules specifies a map of schedules that can be used to configure the
 	// access monitoring rule conditions.
+	//
+	// Available in Teleport v18.2.8 or higher.
 	Schedules     map[string]*Schedule `protobuf:"bytes,8,rep,name=schedules,proto3" json:"schedules,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -394,8 +396,14 @@ func (x *Schedule) GetTime() *TimeSchedule {
 type TimeSchedule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Shifts contains a set of shifts that make up the schedule.
-	// Shifts are configured in UTC.
-	Shifts        []*TimeSchedule_Shift `protobuf:"bytes,1,rep,name=shifts,proto3" json:"shifts,omitempty"`
+	Shifts []*TimeSchedule_Shift `protobuf:"bytes,1,rep,name=shifts,proto3" json:"shifts,omitempty"`
+	// Timezone specifies the schedule timezone. This field is optional and defaults
+	// to "UTC". Accepted values use timezone locations as defined in the IANA
+	// Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or
+	// "Asia/Singapore".
+	//
+	// See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.
+	Timezone      string `protobuf:"bytes,2,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -435,6 +443,13 @@ func (x *TimeSchedule) GetShifts() []*TimeSchedule_Shift {
 		return x.Shifts
 	}
 	return nil
+}
+
+func (x *TimeSchedule) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
 }
 
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
@@ -1014,9 +1029,10 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1a\n" +
 	"\bdecision\x18\x02 \x01(\tR\bdecision\"O\n" +
 	"\bSchedule\x12C\n" +
-	"\x04time\x18\x01 \x01(\v2/.teleport.accessmonitoringrules.v1.TimeScheduleR\x04time\"\xa8\x01\n" +
+	"\x04time\x18\x01 \x01(\v2/.teleport.accessmonitoringrules.v1.TimeScheduleR\x04time\"\xc4\x01\n" +
 	"\fTimeSchedule\x12M\n" +
-	"\x06shifts\x18\x01 \x03(\v25.teleport.accessmonitoringrules.v1.TimeSchedule.ShiftR\x06shifts\x1aI\n" +
+	"\x06shifts\x18\x01 \x03(\v25.teleport.accessmonitoringrules.v1.TimeSchedule.ShiftR\x06shifts\x12\x1a\n" +
+	"\btimezone\x18\x02 \x01(\tR\btimezone\x1aI\n" +
 	"\x05Shift\x12\x18\n" +
 	"\aweekday\x18\x01 \x01(\tR\aweekday\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\tR\x05start\x12\x10\n" +
