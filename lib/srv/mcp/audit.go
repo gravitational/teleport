@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -76,6 +77,38 @@ func newSessionAuditor(cfg sessionAuditorConfig) (*sessionAuditor, error) {
 	}, nil
 }
 
+type eventOptions struct {
+	err    error
+	header http.Header
+}
+
+type eventOptionFunc func(*eventOptions)
+
+func newEventOptions(options ...eventOptionFunc) (opt eventOptions) {
+	for _, fn := range options {
+		if fn != nil {
+			fn(&opt)
+		}
+	}
+	return
+}
+
+func eventWithError(err error) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.err = err
+	}
+}
+
+func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc {
+	return eventWithError(convertHTTPResponseErrorForAudit(resp, err))
+}
+
+func eventWithHeader(r *http.Request) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.header = r.Header
+	}
+}
+
 func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
 	// Do not record discovery, ping calls.
 	switch method {
@@ -105,7 +138,9 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 	})
 }
 
-func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
+func (a *sessionAuditor) emitEndEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
 	event := &apievents.MCPSessionEnd{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionEndEvent,
@@ -119,17 +154,20 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionEndFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionNotification{
@@ -148,17 +186,19 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionNotificationFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionRequest{
@@ -178,17 +218,19 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 			ID:      msg.ID.String(),
 			Params:  msg.Params.GetEventParams(),
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
 
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionRequestFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error) {
+func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
 	event := &apievents.MCPSessionListenSSEStream{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionListenSSEStream,
@@ -200,11 +242,12 @@ func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionListenSSEStreamFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
@@ -223,6 +266,7 @@ func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Req
 		Method:          r.Method,
 		Body:            body,
 		RawQuery:        r.URL.RawQuery,
+		Headers:         wrappers.Traits(r.Header),
 	}
 	a.emitEvent(ctx, event)
 }
