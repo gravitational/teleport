@@ -219,7 +219,6 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	cfg.HostPort = hostPort
 	cfg.ClientAddr = httpReq.RemoteAddr
 	cfg.PROXYSigner = proxySigner
-	cfg.AddKeysToAgent = client.AddKeysToAgentNo
 
 	tc, err := client.NewClient(cfg)
 	if err != nil {
