@@ -88,7 +88,7 @@ func startOpen() (*open, error) {
 			prog: objs.TracepointSyscallsSysEnterCreat,
 		},
 		{
-			name: "sys_enter_openat",
+			name: "sys_enter_open",
 			prog: objs.TracepointSyscallsSysEnterOpenat,
 		},
 		{
@@ -109,7 +109,7 @@ func startOpen() (*open, error) {
 		},
 	}
 
-	if runtime.GOARCH == "arm64" {
+	if runtime.GOARCH != "arm64" {
 		// openat is not implemented on arm64.
 		trs = append(trs, []struct {
 			name string

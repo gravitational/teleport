@@ -108,34 +108,29 @@ func startExec() (*exec, error) {
 	toClose := make([]interface{ Close() error }, 0)
 
 	tracePoints := []struct {
-		group      string
 		name       string
 		tracepoint *ebpf.Program
 	}{
 		{
-			group:      "syscalls",
 			name:       "sys_enter_execve",
 			tracepoint: objs.TracepointSyscallsSysEnterExecve,
 		},
 		{
-			group:      "syscalls",
 			name:       "sys_exit_execve",
 			tracepoint: objs.TracepointSyscallsSysExitExecve,
 		},
 		{
-			group:      "syscalls",
 			name:       "sys_enter_execveat",
 			tracepoint: objs.TracepointSyscallsSysEnterExecveat,
 		},
 		{
-			group:      "syscalls",
 			name:       "sys_exit_execveat",
 			tracepoint: objs.TracepointSyscallsSysExitExecveat,
 		},
 	}
 
 	for _, tp := range tracePoints {
-		tp, err := link.Tracepoint(tp.group, tp.name, tp.tracepoint, nil)
+		tp, err := link.Tracepoint("syscalls", tp.name, tp.tracepoint, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
