@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/token"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleTokenJoin handles join attempts for the token join method.
@@ -29,7 +29,7 @@ func (s *Server) handleTokenJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisioner token.Provisioner,
+	token provision.Token,
 ) (messages.Response, error) {
 	// Receive the TokenInit message from the client.
 	tokenInit, err := messages.RecvRequest[*messages.TokenInit](stream)
@@ -47,7 +47,7 @@ func (s *Server) handleTokenJoin(
 		authCtx,
 		clientInit,
 		&tokenInit.ClientParams,
-		provisioner,
+		token,
 		nil, /*rawClaims*/
 		nil, /*attrs*/
 	)

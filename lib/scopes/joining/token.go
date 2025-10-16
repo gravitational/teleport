@@ -17,6 +17,9 @@
 package joining
 
 import (
+	"strings"
+	"time"
+
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -122,4 +125,108 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	return nil
+}
+
+// Token wraps a [joiningv1.ScopedToken] such that it can be used to provision
+// resources.
+type Token struct {
+	*joiningv1.ScopedToken
+	joinMethod types.JoinMethod
+	roles      types.SystemRoles
+}
+
+// NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
+// It will return an error if the configured join method is not a valid
+// [types.JoinMethod] or if any of the configured roles are not a valid
+// [types.SystemRole]. The validated join method and roles are cached on the
+// [Scoped] wrapper itself so they can be read without repeating validation.
+func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
+	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
+	if err := types.ValidateJoinMethod(joinMethod); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Token{ScopedToken: token, joinMethod: joinMethod, roles: roles}, nil
+}
+
+// GetName returns the name of a [joiningv1.ScopedToken].
+func (t *Token) GetName() string {
+	if t == nil {
+		return ""
+	}
+
+	return t.GetMetadata().GetName()
+}
+
+// GetJoinMethod returns the cached [types.JoinMethod] generated when the
+// [joiningv1.ScopedToken] was wrapped.
+func (t *Token) GetJoinMethod() types.JoinMethod {
+	if t == nil {
+		return types.JoinMethodUnspecified
+	}
+
+	return t.joinMethod
+}
+
+// GetRoles returns the cached [types.SystemRoles] generated when the
+// [joiningv1.ScopedToken] was wrapped.
+func (t *Token) GetRoles() types.SystemRoles {
+	if t == nil {
+		return nil
+	}
+	return t.roles
+}
+
+// GetSafeName returns the name of the scoped token, sanitized appropriately
+// for join methods where the name is secret. This should be used when logging
+// the token name.
+func (t *Token) GetSafeName() string {
+	if t == nil {
+		return ""
+	}
+
+	name := t.GetName()
+	if t.GetJoinMethod() != types.JoinMethodToken {
+		return name
+	}
+
+	// If the token name is short, we just blank the whole thing.
+	if len(name) < 16 {
+		return strings.Repeat("*", len(name))
+	}
+
+	// If the token name is longer, we can show the last 25% of it to help
+	// the operator identify it.
+	hiddenBefore := int(0.75 * float64(len(name)))
+	name = name[hiddenBefore:]
+	name = strings.Repeat("*", hiddenBefore) + name
+	return name
+}
+
+// Expiry returns the [time.Time] representing when the wrapped
+// [joiningv1.ScopedToken] will expire.
+func (t *Token) Expiry() time.Time {
+	expiry := t.GetMetadata().GetExpires()
+	if expiry == nil {
+		return time.Time{}
+	}
+
+	return expiry.AsTime()
+}
+
+// GetBotName returns the bot name configured on the wrapped
+// [joiningv1.ScopedToken], if there is one.
+func (t *Token) GetBotName() string {
+	return t.GetSpec().GetBotName()
+}
+
+// GetAssignedScope returns the scope that will be assigned to resources
+// provisioned using the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetAssignedScope() string {
+	return t.GetSpec().GetAssignedScope()
 }
