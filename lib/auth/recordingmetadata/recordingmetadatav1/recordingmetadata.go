@@ -130,8 +130,11 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	}
 
 	w, cancelUpload, uploadErrs := s.startUpload(ctx, sessionID)
+	shouldCancelUpload := true
+
 	defer func() {
-		if w != nil {
+		if shouldCancelUpload {
+			cancelUpload()
 			w.Close()
 		}
 	}()
@@ -186,14 +189,12 @@ loop:
 
 			switch e := evt.(type) {
 			case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
-				cancelUpload()
 				// Unsupported session recording types
 				return nil
 
 			case *apievents.Resize:
 				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
-					cancelUpload()
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
@@ -256,7 +257,6 @@ loop:
 				}
 
 				if _, err := vt.Write(e.Data); err != nil {
-					cancelUpload()
 					return trace.Errorf("writing data to terminal: %w", err)
 				}
 
@@ -273,7 +273,6 @@ loop:
 
 				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
-					cancelUpload()
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
 				}
 
@@ -311,7 +310,6 @@ loop:
 	}
 
 	if lastEvent == nil {
-		cancelUpload()
 		return trace.NotFound("no events found for session %v", sessionID)
 	}
 
@@ -336,11 +334,11 @@ loop:
 		return trace.Wrap(err)
 	}
 
+	shouldCancelUpload = false
+
 	if err := w.Close(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	w = nil
 
 	if err := <-uploadErrs; err != nil {
 		return trace.Wrap(err)
