@@ -24,6 +24,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestTrimToMaxSize(t *testing.T) {
@@ -221,13 +223,13 @@ func TestTrimMCPJSONRPCMessage(t *testing.T) {
 
 	orgSize := m.Size()
 	t.Run("not trimmed", func(t *testing.T) {
-		notTrimmed := m.trimToMaxSize(10000)
+		notTrimmed := m.trimToMaxFieldSize(10000)
 		require.Equal(t, orgSize, m.Size())
 		require.Equal(t, notTrimmed, m)
 	})
 
 	t.Run("trimmed", func(t *testing.T) {
-		trimmed := m.trimToMaxSize(50)
+		trimmed := m.trimToMaxFieldSize(maxSizePerField(50, m.nonEmptyStrs()))
 		require.Equal(t, orgSize, m.Size())
 		require.Less(t, trimmed.Size(), 50)
 		require.Equal(t, MCPJSONRPCMessage{
@@ -247,4 +249,30 @@ func TestTrimMCPJSONRPCMessage(t *testing.T) {
 			},
 		}, trimmed)
 	})
+}
+
+func Test_nonEmptyBytes(t *testing.T) {
+	require.Equal(t, 0, nonEmptyBytes())
+	require.Equal(t, 0, nonEmptyBytes([]byte(""), nil))
+	require.Equal(t, 2, nonEmptyBytes([]byte(""), []byte("aaaa"), nil, []byte("bbbb")))
+}
+
+func Test_calculateEventMaxFieldSize(t *testing.T) {
+	m := &MCPSessionListenSSEStream{
+		Status: Status{
+			Error:       strings.Repeat("e", 20),
+			UserMessage: strings.Repeat("m", 20),
+		},
+		Headers: wrappers.Traits{
+			"aaa": []string{strings.Repeat("a", 20)},
+			"bbb": []string{strings.Repeat("b", 20)},
+		},
+	}
+	out := &MCPSessionListenSSEStream{}
+
+	// adjustMaxSize is 63
+	// customFieldsCount is 6 (2 from status, 4 from headers)
+	// maxFieldSize is 63/6 = 10
+	maxFieldSize := calculateEventMaxFieldSize(out, 100, m.Status.nonEmptyStrs(), nonEmptyTraits(m.Headers))
+	require.Equal(t, 10, maxFieldSize)
 }

@@ -96,6 +96,10 @@ func trimStr(s string, n int) string {
 	return s
 }
 
+func trimBytes(s []byte, n int) []byte {
+	return []byte(trimStr(string(s), n))
+}
+
 // maxSizePerField returns the maximum size each field can be when trimming.
 func maxSizePerField(maxSize, customFields int) int {
 	if customFields == 0 {
@@ -136,6 +140,17 @@ func nonEmptyStrsInSlice[T ~string](s ...[]T) int {
 	return nonEmptyStrs
 }
 
+// nonEmptyBytes returns the number of non-empty []byte.
+func nonEmptyBytes(s ...[]byte) int {
+	nonEmptyStrs := 0
+	for _, byteSlice := range s {
+		if len(byteSlice) != 0 {
+			nonEmptyStrs++
+		}
+	}
+	return nonEmptyStrs
+}
+
 // trimStrSlice trims each element in a slice of strings to a given
 // length.
 func trimStrSlice[T ~string](strs []T, maxSize int) []T {
@@ -153,10 +168,10 @@ func (m *Status) nonEmptyStrs() int {
 	return nonEmptyStrs(m.Error, m.UserMessage)
 }
 
-func (m *Status) trimToMaxSize(maxSize int) Status {
+func (m *Status) trimToMaxFieldSize(maxFieldSize int) Status {
 	var out Status
-	out.Error = trimStr(m.Error, maxSize)
-	out.UserMessage = trimStr(m.UserMessage, maxSize)
+	out.Error = trimStr(m.Error, maxFieldSize)
+	out.UserMessage = trimStr(m.UserMessage, maxFieldSize)
 	return out
 }
 
@@ -256,6 +271,15 @@ func trimMap(m map[string]string, maxSize int) map[string]string {
 		m[trimmedKey] = trimStr(v, maxSize)
 	}
 	return m
+}
+
+func calculateEventMaxFieldSize(out AuditEvent, maxSize int, nonEmptyStrsCounts ...int) int {
+	maxSize = adjustedMaxSize(out, maxSize)
+	var customFieldsCount int
+	for _, count := range nonEmptyStrsCounts {
+		customFieldsCount += count
+	}
+	return maxSizePerField(maxSize, customFieldsCount)
 }
 
 // nonEmptyTraits returns the number of non-empty keys and values in
@@ -439,7 +463,7 @@ func (m *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldSize)
 
 	return out
 }
@@ -858,7 +882,7 @@ func (m *DatabaseSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -909,7 +933,7 @@ func (m *DatabaseUserCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.Username) + nonEmptyStrsInSlice(m.Roles)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.Username = trimStr(m.Username, maxFieldsSize)
 	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
 
@@ -931,7 +955,7 @@ func (m *DatabaseUserDeactivate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.Username)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.Username = trimStr(m.Username, maxFieldsSize)
 
 	return out
@@ -1358,7 +1382,7 @@ func (m *DeviceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	status := m.Status.trimToMaxSize(maxFieldsSize)
+	status := m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.Status = &status
 
 	return out
@@ -1378,7 +1402,7 @@ func (m *DeviceEvent2) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1409,7 +1433,7 @@ func (m *RecoveryCodeUsed) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1434,7 +1458,7 @@ func (m *WindowsDesktopSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 		nonEmptyStrsInMap(m.DesktopLabels)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.Domain = trimStr(m.Domain, maxFieldsSize)
 	out.WindowsUser = trimStr(m.WindowsUser, maxFieldsSize)
 	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
@@ -1684,7 +1708,7 @@ func (m *InstanceJoin) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1723,7 +1747,7 @@ func (m *SAMLIdPAuthAttempt) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1762,7 +1786,7 @@ func (m *OktaSyncFailure) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1781,7 +1805,7 @@ func (m *OktaAssignmentResult) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1800,7 +1824,7 @@ func (m *OktaUserSync) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1819,7 +1843,7 @@ func (m *OktaAccessListSync) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1842,7 +1866,7 @@ func (m *AccessListCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1861,7 +1885,7 @@ func (m *AccessListUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1880,7 +1904,7 @@ func (m *AccessListDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1899,7 +1923,7 @@ func (m *AccessListReview) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1918,7 +1942,7 @@ func (m *AccessListMemberCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1937,7 +1961,7 @@ func (m *AccessListMemberUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1956,7 +1980,7 @@ func (m *AccessListMemberDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1975,7 +1999,7 @@ func (m *AccessListMemberDeleteAllForAccessList) TrimToMaxSize(maxSize int) Audi
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -1994,7 +2018,7 @@ func (m *UserLoginAccessListInvalid) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -2015,7 +2039,7 @@ func (m *AuditQueryRun) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.Name, m.Query)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.Name = trimStr(m.Name, maxFieldsSize)
 	out.Query = trimStr(m.Query, maxFieldsSize)
 
@@ -2036,7 +2060,7 @@ func (m *SecurityReportRun) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -2102,7 +2126,7 @@ func (m *ClusterNetworkingConfigUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -2121,7 +2145,7 @@ func (m *SessionRecordingConfigUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -2140,7 +2164,7 @@ func (m *AccessGraphSettingsUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
 }
@@ -2161,7 +2185,7 @@ func (m *SpannerRPC) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.Procedure) + m.Args.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.Procedure = trimStr(m.Procedure, maxFieldsSize)
 	out.Args = m.Args.trimToMaxFieldSize(maxFieldsSize)
 
@@ -2513,7 +2537,7 @@ func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
 	maxSize = adjustedMaxSize(out, maxSize)
 	customFieldsCount := m.Status.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	return out
 }
 
@@ -2555,19 +2579,37 @@ func (m *MCPSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 func (m *MCPSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
-	return m
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.Headers = nil
+
+	maxFieldSize := calculateEventMaxFieldSize(out, maxSize,
+		m.Status.nonEmptyStrs(),
+		nonEmptyTraits(m.Headers),
+	)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldSize)
+	out.Headers = trimTraits(m.Headers, maxFieldSize)
+	return out
 }
 
-func (m *MCPJSONRPCMessage) trimToMaxSize(maxSize int) MCPJSONRPCMessage {
+func (m *MCPJSONRPCMessage) nonEmptyStrs() int {
+	if m == nil {
+		return 0
+	}
+	return nonEmptyStrs(m.JSONRPC, m.ID, m.Method) + m.Params.nonEmptyStrs()
+}
+
+func (m *MCPJSONRPCMessage) trimToMaxFieldSize(maxFieldsSize int) MCPJSONRPCMessage {
 	if m == nil {
 		return MCPJSONRPCMessage{}
 	}
 
 	out := MCPJSONRPCMessage{}
-
-	customFieldsCount := nonEmptyStrs(m.JSONRPC, m.ID, m.Method) + m.Params.nonEmptyStrs()
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-
 	out.JSONRPC = trimStr(m.JSONRPC, maxFieldsSize)
 	out.ID = trimStr(m.ID, maxFieldsSize)
 	out.Method = trimStr(m.Method, maxFieldsSize)
@@ -2583,8 +2625,17 @@ func (m *MCPSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.Message = MCPJSONRPCMessage{}
-	maxSize = adjustedMaxSize(out, maxSize)
-	out.Message = m.Message.trimToMaxSize(maxSize)
+	out.Status = Status{}
+	out.Headers = nil
+
+	maxFieldSize := calculateEventMaxFieldSize(out, maxSize,
+		m.Message.nonEmptyStrs(),
+		m.Status.nonEmptyStrs(),
+		nonEmptyTraits(m.Headers),
+	)
+	out.Message = m.Message.trimToMaxFieldSize(maxFieldSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldSize)
+	out.Headers = trimTraits(m.Headers, maxFieldSize)
 	return out
 }
 
@@ -2596,13 +2647,37 @@ func (m *MCPSessionNotification) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.Message = MCPJSONRPCMessage{}
-	maxSize = adjustedMaxSize(out, maxSize)
-	out.Message = m.Message.trimToMaxSize(maxSize)
+	out.Status = Status{}
+	out.Headers = nil
+
+	maxFieldSize := calculateEventMaxFieldSize(out, maxSize,
+		m.Message.nonEmptyStrs(),
+		m.Status.nonEmptyStrs(),
+		nonEmptyTraits(m.Headers),
+	)
+	out.Message = m.Message.trimToMaxFieldSize(maxFieldSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldSize)
+	out.Headers = trimTraits(m.Headers, maxFieldSize)
 	return out
 }
 
 func (m *MCPSessionListenSSEStream) TrimToMaxSize(maxSize int) AuditEvent {
-	return m
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.Headers = nil
+
+	maxFieldSize := calculateEventMaxFieldSize(out, maxSize,
+		m.Status.nonEmptyStrs(),
+		nonEmptyTraits(m.Headers),
+	)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldSize)
+	out.Headers = trimTraits(m.Headers, maxFieldSize)
+	return out
 }
 
 func (m *MCPSessionInvalidHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
@@ -2617,18 +2692,16 @@ func (m *MCPSessionInvalidHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Headers = nil
 	out.Body = nil
 
-	maxSize = adjustedMaxSize(out, maxSize)
+	maxFieldSize := calculateEventMaxFieldSize(out, maxSize,
+		nonEmptyStrs(m.Path, m.RawQuery),
+		nonEmptyTraits(m.Headers),
+		nonEmptyBytes(m.Body),
+	)
 
-	customFieldsCount := nonEmptyStrs(m.Path, m.RawQuery) + nonEmptyTraits(m.Headers)
-	if len(m.Body) != 0 {
-		customFieldsCount++
-	}
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
-	out.Body = []byte(trimStr(string(m.Body), maxFieldsSize))
-	out.Headers = trimTraits(m.Headers, maxFieldsSize)
+	out.Path = trimStr(m.Path, maxFieldSize)
+	out.RawQuery = trimStr(m.RawQuery, maxFieldSize)
+	out.Headers = trimTraits(m.Headers, maxFieldSize)
+	out.Body = trimBytes(m.Body, maxFieldSize)
 	return out
 }
 
@@ -2647,7 +2720,7 @@ func (m *BoundKeypairRecovery) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.TokenName, m.BotName, m.PublicKey)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
 	out.BotName = trimStr(m.BotName, maxFieldsSize)
 	out.PublicKey = trimStr(m.PublicKey, maxFieldsSize)
@@ -2670,7 +2743,7 @@ func (m *BoundKeypairRotation) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.TokenName, m.BotName, m.PreviousPublicKey, m.NewPublicKey)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
 	out.BotName = trimStr(m.BotName, maxFieldsSize)
 	out.PreviousPublicKey = trimStr(m.PreviousPublicKey, maxFieldsSize)
@@ -2692,7 +2765,7 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.TokenName, m.BotName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
 	out.BotName = trimStr(m.BotName, maxFieldsSize)
 	return out
@@ -2719,7 +2792,7 @@ func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		trimmed.Display)
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
 
-	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
 	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
 	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
@@ -2747,7 +2820,7 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		trimmed.ResourceType,
 		m.Filter)
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
-	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
 	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
 	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
