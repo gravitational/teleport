@@ -1341,18 +1341,18 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		}
 		if len(entries) == 0 {
 			//No users found using UPN, assume the baseDN is the same as the UPN suffix and try again using sAMAccountName
-			if len(username) > 20 {
-				s.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
-				username = username[:20]
-			}
-			filter := fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username))
-			entries, err = s.queryLDAP(ctx, filter, username, windows.DomainDN(domain))
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			if len(entries) == 0 {
-				return nil, nil, trace.NotFound("could not find Windows account %q", username)
-			}
+			//if len(username) > 20 {
+			//	s.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
+			//	username = username[:20]
+			//}
+			//filter := fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username))
+			//entries, err = s.queryLDAP(ctx, filter, username, windows.DomainDN(domain))
+			//if err != nil {
+			//	return nil, nil, trace.Wrap(err)
+			//}
+			//if len(entries) == 0 {
+			return nil, nil, trace.NotFound("could not find Windows account %q", username)
+			//}
 		}
 		if len(entries) > 1 {
 			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)
