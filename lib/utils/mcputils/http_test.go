@@ -19,7 +19,9 @@
 package mcputils
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -45,7 +47,7 @@ func TestReplaceHTTPResponse(t *testing.T) {
 	ctx := t.Context()
 
 	// Set up a server.
-	mcpServer := mcptest.NewServer()
+	mcpServer := mcptest.NewServerWithVersion("11.22.33")
 	httpServer := mcpserver.NewTestStreamableHTTPServer(mcpServer)
 	t.Cleanup(httpServer.Close)
 
@@ -62,11 +64,11 @@ func TestReplaceHTTPResponse(t *testing.T) {
 	client := mcpclient.NewClient(mcpClientTransport)
 	require.NoError(t, client.Start(ctx))
 
-	// Initialize client and call a tool.
-	_, err = mcptest.InitializeClient(ctx, client)
-	require.NoError(t, err)
-	mcptest.MustCallServerTool(t, client)
-	assert.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
+		// Initialize client and call a tool.
+		result := mcptest.MustInitializeClient(t, client)
+		require.Equal(t, "111.222.333", result.ServerInfo.Version)
+		mcptest.MustCallServerTool(t, client)
+		require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
 	// Send notifications from server. Notifications will be sent through SSE.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -119,10 +121,27 @@ func (t *testReplaceHTTPResponseTransport) RoundTrip(r *http.Request) (*http.Res
 	if err := ReplaceHTTPResponse(r.Context(), resp, t); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if resp != nil {
+		switch {
+		case resp.ContentLength >= 0:
+			if resp.Header.Get("Content-Length") != fmt.Sprintf("%d", resp.ContentLength) {
+				return nil, trace.CompareFailed("Content-Length does not match Content-Length header")
+			}
+
+		default:
+			if resp.Header.Get("Content-Length") != "" {
+				return nil, trace.CompareFailed("Content-Length does not match Content-Length header")
+			}
+		}
+	}
+
 	return resp, nil
 }
 
 func (t *testReplaceHTTPResponseTransport) ProcessResponse(_ context.Context, response *JSONRPCResponse) mcp.JSONRPCMessage {
+	// Replace server version.
+	response.Result = bytes.ReplaceAll(response.Result, []byte("11.22.33"), []byte("111.222.333"))
 	t.countMCPResponse.Add(1)
 	return response
 }
