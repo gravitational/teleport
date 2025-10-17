@@ -221,11 +221,11 @@ function Tabs(props: {
 }
 
 const StyledTabsContainer = styled(TabsContainer)`
-  gap: ${p => p.theme.space[3]}px;
+  gap: 0;
 `;
 
 const StyledTabContainer = styled(TabContainer)`
-  padding: ${p => p.theme.space[2]}px;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
   font-weight: ${p => p.theme.fontWeights.medium};
   font-size: ${p => p.theme.fontSizes[2]}px;
 `;
