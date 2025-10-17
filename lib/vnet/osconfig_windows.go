@@ -25,7 +25,13 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+)
+
+var (
+	userenv             = windows.NewLazySystemDLL("userenv.dll")
+	procRefreshPolicyEx = userenv.NewProc("RefreshPolicyEx")
 )
 
 // platformOSConfigState holds state about which addresses and routes have
@@ -175,8 +181,17 @@ func configureDNS(ctx context.Context, zones, nameservers []string) error {
 	}
 
 	nrptRegKey = groupPolicyNRPTParentKey + `\` + vnetNRPTKeyID
-	return trace.Wrap(configureDNSAtNRPTKey(ctx, nrptRegKey, zones, nameservers),
-		"configuring DNS NRPT at group policy path %s", nrptRegKey)
+	if err := configureDNSAtNRPTKey(ctx, nrptRegKey, zones, nameservers); err != nil {
+		return trace.Wrap(err, "configuring DNS NRPT at group policy path %s", nrptRegKey)
+	}
+	// In some cases, rules under groupPolicyKey don't seem to be picked up by the DNS client service
+	// until the computer refreshes its policies. [1] A force refresh here ensures they're picked up
+	// immediately. See also https://github.com/gravitational/teleport/issues/60468.
+	// 1: https://github.com/tailscale/tailscale/issues/4607#issuecomment-1130586168
+	if err := forceRefreshComputerPolicies(); err != nil {
+		return trace.Wrap(err, "refreshing computer policies")
+	}
+	return nil
 }
 
 func configureDNSAtNRPTKey(ctx context.Context, nrptRegKey string, zones, nameservers []string) (err error) {
@@ -261,4 +276,21 @@ func deleteRegistryKey(key string) error {
 	}
 	keyHandle.Close()
 	return trace.Wrap(deleteErr, "failed to delete DNS registry key %s", key)
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-refreshpolicyex
+func forceRefreshComputerPolicies() error {
+	// rp_force is a flag for RefreshPolicyEx which makes it reapply all policies even if no policy
+	// change was detected.
+	const rp_force = 1
+
+	retVal, _, err := procRefreshPolicyEx.Call(
+		// Refresh computer policies.
+		uintptr(1),
+		uintptr(rp_force),
+	)
+	if retVal == 0 {
+		return trace.Wrap(err)
+	}
+	return nil
 }
