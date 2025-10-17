@@ -246,7 +246,14 @@ func joinWithMethod(
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
-		return nil, trace.NotImplemented("server selected join method %v which is not supported by this client", method)
+		sendGivingUpErr := stream.Send(&messages.GivingUp{
+			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
+			Msg:    "join method " + method + " is not supported by this client",
+		})
+		return nil, trace.NewAggregate(
+			trace.NotImplemented("server selected join method %v which is not supported by this client", method),
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 }
 
@@ -261,7 +268,7 @@ func tokenJoin(
 	// client->server Tokeninit
 	// client<-server Result
 	//
-	// At this point the ServerInit messages has already been received, all
+	// At this point the ServerInit message has already been received, all
 	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,
