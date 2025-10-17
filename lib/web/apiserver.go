@@ -5318,6 +5318,7 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
+		AddKeysToAgent:    client.AddKeysToAgentNo,
 	}
 
 	return config, nil
