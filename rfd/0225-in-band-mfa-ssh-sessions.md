@@ -33,10 +33,11 @@ shortcomings that this proposal aims to address:
    across different clients (e.g., `tsh`, web terminal, Teleport Connect, etc.).
 1. A per-session MFA certificate is a single credential, representing multiple factors of authentication for a user. If
    an attacker were to gain possession, it could be used to bypass all forms of authentication checks, including MFA.
-1. When connecting to multiple SSH hosts as part of a single user action (e.g., using `tsh ssh root@env=example uptime`), the current design only evaluates MFA requirements once on the first host matching the label, and if MFA was
-   required, the per-session MFA certificate was used for all subsequent hosts without further MFA checks. This could
-   lead to situations where MFA is not enforced on all target hosts as intended. For example, if the first host does not
-   require MFA but subsequent hosts do, the user would be able to access those hosts without completing MFA.
+1. When connecting to multiple SSH hosts as part of a single user action (e.g., using `tsh ssh root@env=example
+uptime`), the current design only evaluates MFA requirements once on the first host matching the label, and if MFA
+   was required, the per-session MFA certificate was used for all subsequent hosts without further MFA checks. This
+   could lead to situations where MFA is not enforced on all target hosts as intended. For example, if the first host
+   does not require MFA but subsequent hosts do, the user would be able to access those hosts without completing MFA.
 
 By moving MFA enforcement to the SSH service during session establishment, this new design directly addresses the above
 issues by:
@@ -93,14 +94,23 @@ the session by invoking the `EvaluateSSHAccess` RPC of the Decision service. If 
 `EvaluateSSHAccess` RPC will return a permit and the SSH service can then proceed to establish the SSH session.
 
 If MFA is required, the Decision service will respond with a message indicating that MFA is needed. The SSH service will
-then respond via the SSH keyboard-interactive channel to inform the client that MFA is needed. The first
-keyboard-interactive question will be a base64 encoded protobuf message containing a unique action ID. Protobuf messages
-must be base64 encoded to ensure they can be safely transmitted over the SSH keyboard-interactive channel.
+then send a JSON encoded keyboard-interactive question containing the action ID via the SSH keyboard-interactive channel
+to inform the client that MFA is needed. The MFA keyboard-interactive question will follow this schema:
+
+```json
+{
+  // Unique identifier for the MFA action.
+  "action_id": "121c49ab-8bc1-414a-b11c-5311bc54eceb",
+  // Human-readable message to display to the user.
+  "message": "MFA required. Complete the challenge using the provided action ID."
+}
+```
 
 The client must then invoke the `CreateAuthenticateChallenge` RPC of the Auth service, providing the action ID along
 with existing request metadata. The Auth service will respond to the client with a challenge that must be solved. The
 client must solve the MFA challenge and send a base64 encoded `MFAAuthenticateResponse` message to the SSH service via
-the keyboard-interactive channel.
+the keyboard-interactive channel. Protobuf messages must be base64 encoded to ensure they can be safely transmitted over
+the SSH keyboard-interactive channel.
 
 Once the MFA challenge response is received, the SSH service will invoke the `EvaluateSSHAccess` RPC again with the
 action ID, the client's MFA challenge response, and any other relevant metadata. If the second `EvaluateSSHAccess` RPC
