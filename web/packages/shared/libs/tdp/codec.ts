@@ -17,49 +17,9 @@
  */
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
+import * as tdpp from 'gen-proto-ts/teleport/desktop/tdp_pb';
 
-export type Message = ArrayBuffer;
-
-export enum MessageType {
-  CLIENT_SCREEN_SPEC = 1,
-  PNG_FRAME = 2,
-  MOUSE_MOVE = 3,
-  MOUSE_BUTTON = 4,
-  KEYBOARD_BUTTON = 5,
-  CLIPBOARD_DATA = 6,
-  CLIENT_USERNAME = 7,
-  MOUSE_WHEEL_SCROLL = 8,
-  ERROR = 9,
-  MFA_JSON = 10,
-  SHARED_DIRECTORY_ANNOUNCE = 11,
-  SHARED_DIRECTORY_ACKNOWLEDGE = 12,
-  SHARED_DIRECTORY_INFO_REQUEST = 13,
-  SHARED_DIRECTORY_INFO_RESPONSE = 14,
-  SHARED_DIRECTORY_CREATE_REQUEST = 15,
-  SHARED_DIRECTORY_CREATE_RESPONSE = 16,
-  SHARED_DIRECTORY_DELETE_REQUEST = 17,
-  SHARED_DIRECTORY_DELETE_RESPONSE = 18,
-  SHARED_DIRECTORY_READ_REQUEST = 19,
-  SHARED_DIRECTORY_READ_RESPONSE = 20,
-  SHARED_DIRECTORY_WRITE_REQUEST = 21,
-  SHARED_DIRECTORY_WRITE_RESPONSE = 22,
-  SHARED_DIRECTORY_MOVE_REQUEST = 23,
-  SHARED_DIRECTORY_MOVE_RESPONSE = 24,
-  SHARED_DIRECTORY_LIST_REQUEST = 25,
-  SHARED_DIRECTORY_LIST_RESPONSE = 26,
-  PNG2_FRAME = 27,
-  ALERT = 28,
-  RDP_FASTPATH_PDU = 29,
-  RDP_RESPONSE_PDU = 30,
-  RDP_CONNECTION_ACTIVATED = 31,
-  SYNC_KEYS = 32,
-  SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
-  SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
-  LATENCY_STATS = 35,
-  // MessageType 36 is a server-side only Ping message
-  CLIENT_KEYBOARD_LAYOUT = 37,
-  __LAST, // utility value
-}
+import {MessageInfo, MessageType, readFieldOption, IMessageType} from "@protobuf-ts/runtime";
 
 // 0 is left button, 1 is middle button, 2 is right button
 export type MouseButton = 0 | 1 | 2;
@@ -190,7 +150,7 @@ export type SharedDirectoryInfoRequest = {
 // | message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
 export type SharedDirectoryInfoResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
 };
 
@@ -205,7 +165,7 @@ export type SharedDirectoryCreateRequest = {
 // | message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
 export type SharedDirectoryCreateResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
 };
 
@@ -219,7 +179,7 @@ export type SharedDirectoryDeleteRequest = {
 // | message type (18) | completion_id uint32 | err_code uint32 |
 export type SharedDirectoryDeleteResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
 };
 
 // | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
@@ -235,7 +195,7 @@ export type SharedDirectoryReadRequest = {
 // | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
 export type SharedDirectoryReadResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
   readDataLength: number;
   readData: Uint8Array;
 };
@@ -253,7 +213,7 @@ export type SharedDirectoryWriteRequest = {
 // | message type (22) | completion_id uint32 | err_code uint32 | bytes_written uint32 |
 export type SharedDirectoryWriteResponse = {
   completionId: number;
-  errCode: number;
+  errorCode: number;
   bytesWritten: number;
 };
 
@@ -270,7 +230,7 @@ export type SharedDirectoryMoveRequest = {
 // | message type (24) | completion_id uint32 | err_code uint32 |
 export type SharedDirectoryMoveResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
 };
 
 // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
@@ -283,7 +243,7 @@ export type SharedDirectoryListRequest = {
 // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
 export type SharedDirectoryListResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
   fsoList: FileSystemObject[];
 };
 
@@ -298,7 +258,7 @@ export type SharedDirectoryTruncateRequest = {
 // | message type (34) | completion_id uint32 | err_code uint32 |
 export type SharedDirectoryTruncateResponse = {
   completionId: number;
-  errCode: SharedDirectoryErrCode;
+  errorCode: SharedDirectoryErrCode;
 };
 
 // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
@@ -354,14 +314,8 @@ export default class Codec {
   // encodeClientScreenSpec encodes the client's screen spec.
   // | message type (1) | width uint32 | height uint32 |
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
-  encodeClientScreenSpec(spec: ClientScreenSpec): Message {
-    const { width, height } = spec;
-    const buffer = new ArrayBuffer(9);
-    const view = new DataView(buffer);
-    view.setUint8(0, MessageType.CLIENT_SCREEN_SPEC);
-    view.setUint32(1, width);
-    view.setUint32(5, height);
-    return buffer;
+  encodeClientScreenSpec(spec: ClientScreenSpec): [tdpp.ClientScreenSpec, IMessageType<tdpp.ClientScreenSpec>] {
+    return [tdpp.ClientScreenSpec.create({height: spec.height, width: spec.width}), tdpp.ClientScreenSpec];
   }
 
   // decodeClientScreenSpec decodes a raw tdp CLIENT_SCREEN_SPEC message
@@ -369,395 +323,171 @@ export default class Codec {
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
   decodeClientScreenSpec(buffer: ArrayBuffer): ClientScreenSpec {
     let dv = new DataView(buffer);
+    let screenspecpb = tdpp.ClientScreenSpec.fromBinary(new Uint8Array(buffer));
     return {
-      width: dv.getUint32(1),
-      height: dv.getUint32(5),
+      width: screenspecpb.width,
+      height: screenspecpb.height,
     };
   }
 
   // encodeMouseMove encodes a mouse move event.
   // | message type (3) | x uint32 | y uint32 |
-  encodeMouseMove(x: number, y: number): Message {
-    const buffer = new ArrayBuffer(9);
-    const view = new DataView(buffer);
-    view.setUint8(0, MessageType.MOUSE_MOVE);
-    view.setUint32(1, x);
-    view.setUint32(5, y);
-    return buffer;
+  encodeMouseMove(x: number, y: number): [tdpp.MouseMove, IMessageType<tdpp.MouseMove>] {
+    return [tdpp.MouseMove.create({x, y}), tdpp.MouseMove];
   }
 
   // encodeMouseButton encodes a mouse button action.
   // | message type (4) | button byte | state byte |
-  encodeMouseButton(button: MouseButton, state: ButtonState): Message {
-    const buffer = new ArrayBuffer(3);
-    const view = new DataView(buffer);
-    view.setUint8(0, MessageType.MOUSE_BUTTON);
-    view.setUint8(1, button);
-    view.setUint8(2, state);
-    return buffer;
+  encodeMouseButton(button: MouseButton, state: ButtonState): [tdpp.MouseButton, IMessageType<tdpp.MouseButton>] {
+    return [tdpp.MouseButton.create({button, pressed: state == ButtonState.DOWN}), tdpp.MouseButton];
   }
 
   // encodeKeyboardInput encodes a keyboard action.
   // Returns an empty array if an unsupported code is passed.
   // | message type (5) | key_code uint32 | state byte |
-  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+  encodeKeyboardInput(code: string, state: ButtonState): [tdpp.KeyboardButton, IMessageType<tdpp.KeyboardButton>][] {
     const scancodes = KEY_SCANCODES[code];
     if (!scancodes) {
       // eslint-disable-next-line no-console
       console.warn(`unsupported key code: ${code}`);
       return [];
     }
-
     return scancodes.map(scancode => this.encodeScancode(scancode, state));
   }
 
-  private encodeScancode(scancode: number, state: ButtonState): Message {
-    const buffer = new ArrayBuffer(6);
-    const view = new DataView(buffer);
-    view.setUint8(0, MessageType.KEYBOARD_BUTTON);
-    view.setUint32(1, scancode);
-    view.setUint8(5, state);
-    return buffer;
+  private encodeScancode(scancode: number, state: ButtonState): [tdpp.KeyboardButton, IMessageType<tdpp.KeyboardButton>] {
+    return [tdpp.KeyboardButton.create({keyCode: scancode, pressed: state == ButtonState.DOWN}), tdpp.KeyboardButton]
   }
 
   // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
   // and resets the server key state to all keys up.
   // | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
-  encodeSyncKeys(syncKeys: SyncKeys): Message {
-    const buffer = new ArrayBuffer(BYTE_LEN * 5);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset++, MessageType.SYNC_KEYS);
-    view.setUint8(offset++, syncKeys.scrollLockState);
-    view.setUint8(offset++, syncKeys.numLockState);
-    view.setUint8(offset++, syncKeys.capsLockState);
-    view.setUint8(offset++, syncKeys.kanaLockState);
-
-    return buffer;
+  encodeSyncKeys(syncKeys: SyncKeys): [tdpp.SyncKeys, IMessageType<tdpp.SyncKeys>] {
+    return [tdpp.SyncKeys.create({
+      scrollLockPressed: syncKeys.scrollLockState == ButtonState.DOWN,
+      numLockState: syncKeys.numLockState == ButtonState.DOWN,
+      capsLockState: syncKeys.capsLockState == ButtonState.DOWN,
+      kanaLockState: syncKeys.kanaLockState == ButtonState.DOWN
+    }), tdpp.SyncKeys];
   }
 
   // _encodeStringMessage encodes a message of the form
   // | message type (N) | length uint32 | data []byte |
-  _encodeStringMessage(messageType: MessageType, data: string) {
-    const dataUtf8array = this.encoder.encode(data);
-
-    // bufLen is 1 byte for the `message type`,
-    // 4 bytes for the `length uint32`,
-    // and enough bytes for the full `data []byte`
-    const bufLen = BYTE_LEN + UINT_32_LEN + dataUtf8array.length;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset++, messageType);
-    view.setUint32(offset, dataUtf8array.length);
-    offset += UINT_32_LEN;
-    dataUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte);
-    });
-
-    return buffer;
-  }
+  //_encodeStringMessage(messageType: MessageType, data: string) {
+  //  const dataUtf8array = this.encoder.encode(data);
+//
+  //  // bufLen is 1 byte for the `message type`,
+  //  // 4 bytes for the `length uint32`,
+  //  // and enough bytes for the full `data []byte`
+  //  const bufLen = BYTE_LEN + UINT_32_LEN + dataUtf8array.length;
+  //  const buffer = new ArrayBuffer(bufLen);
+  //  const view = new DataView(buffer);
+  //  let offset = 0;
+//
+  //  view.setUint8(offset++, messageType);
+  //  view.setUint32(offset, dataUtf8array.length);
+  //  offset += UINT_32_LEN;
+  //  dataUtf8array.forEach(byte => {
+  //    view.setUint8(offset++, byte);
+  //  });
+//
+  //  return buffer;
+  //}
 
   // encodeClipboardData encodes clipboard data
   // | message type (6) | length uint32 | data []byte |
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
-  encodeClipboardData(clipboardData: ClipboardData) {
-    return this._encodeStringMessage(
-      MessageType.CLIPBOARD_DATA,
-      clipboardData.data
-    );
+  encodeClipboardData(clipboardData: ClipboardData): [tdpp.ClipboardData, IMessageType<tdpp.ClipboardData>] {
+    return [tdpp.ClipboardData.create({data: clipboardData.data}), tdpp.ClipboardData];
   }
 
   // encodeUsername encodes a username to log in to the remote desktop with.
   // | message type (7) | username_length uint32 | username []byte |
-  encodeUsername(username: string): Message {
-    return this._encodeStringMessage(MessageType.CLIENT_USERNAME, username);
+  encodeUsername(username: string): [tdpp.ClientUsername, IMessageType<tdpp.ClientUsername>] {
+    return [{username}, tdpp.ClientUsername];
   }
 
   // encodeClientKeyboardLayout encodes a keyboard layout to use on the remote desktop.
   // | messsage type (37) | length uint32 | keyboard_layout uint32 |
-  encodeClientKeyboardLayout(keyboardLayout: number): Message {
-    const buffer = new ArrayBuffer(BYTE_LEN + UINT_32_LEN + UINT_32_LEN);
-    const view = new DataView(buffer);
-    let offset = 0;
-    view.setUint8(offset, MessageType.CLIENT_KEYBOARD_LAYOUT);
-    offset += BYTE_LEN;
-    view.setUint32(offset, 4); // length of uint32 keyboard layout
-    offset += UINT_32_LEN;
-    view.setUint32(offset, keyboardLayout);
-    return buffer;
+  encodeClientKeyboardLayout(keyboardLayout: number): [tdpp.ClientKeyboardLayout, IMessageType<tdpp.ClientKeyboardLayout>] {
+    return [{keyboardLayout}, tdpp.ClientKeyboardLayout];
   }
-
+  
   // encodeMouseWheelScroll encodes a mouse wheel scroll event.
   // on vertical axis, positive delta is up, negative delta is down
   // on horizontal axis, positive delta is left, negative delta is right
   // | message type (8) | axis byte | delta int16
-  encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
-    const buffer = new ArrayBuffer(4);
-    const view = new DataView(buffer);
-    view.setUint8(0, MessageType.MOUSE_WHEEL_SCROLL);
-    view.setUint8(1, axis);
-    view.setUint16(2, delta);
-    return buffer;
+  encodeMouseWheelScroll(axis: tdpp.MouseWheelAxis, delta: number):
+  [tdpp.MouseWheel, IMessageType<tdpp.MouseWheel>] {
+    return [tdpp.MouseWheel.create({axis, delta}), tdpp.MouseWheel];
   }
 
   // | message type (10) | mfa_type byte | message_length uint32 | json []byte
-  encodeMfaJson(mfaJson: MfaJson): Message {
-    const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
-
-    const bufLen = BYTE_LEN + BYTE_LEN + UINT_32_LEN + dataUtf8array.length;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset++, MessageType.MFA_JSON);
-    view.setUint8(offset++, mfaJson.mfaType.charCodeAt(0));
-    view.setUint32(offset, dataUtf8array.length);
-    offset += UINT_32_LEN;
-    dataUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte);
-    });
-
-    return buffer;
+  encodeMfaJson(mfaJson: MfaJson): [tdpp.MFA, IMessageType<tdpp.MFA>] {
+    return [tdpp.MFA.create({}), tdpp.MFA];
   }
 
   // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
   encodeSharedDirectoryAnnounce(
     sharedDirAnnounce: SharedDirectoryAnnounce
-  ): Message {
-    const dataUtf8array = this.encoder.encode(sharedDirAnnounce.name);
-
-    const bufLen = BYTE_LEN + 3 * UINT_32_LEN + dataUtf8array.length;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_ANNOUNCE);
-    // TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
-    // for now in order that the proxy stay compatible with previous versions of the wds.
-    view.setUint32(offset, sharedDirAnnounce.discard);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, sharedDirAnnounce.directoryId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, dataUtf8array.length);
-    offset += UINT_32_LEN;
-    dataUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte);
-    });
-
-    return buffer;
+  ): [tdpp.SharedDirectoryAnnounce, IMessageType<tdpp.SharedDirectoryAnnounce>] {
+    return [sharedDirAnnounce, tdpp.SharedDirectoryAnnounce];
   }
 
   // | message type (14) | completion_id uint32 | err_code uint32 | file_system_object fso |
-  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
-    const bufLenSansFso = BYTE_LEN + 2 * UINT_32_LEN;
-    const bufferSansFso = new ArrayBuffer(bufLenSansFso);
-    const view = new DataView(bufferSansFso);
-    let offset = 0;
-
-    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_INFO_RESPONSE);
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-
-    const fsoBuffer = this.encodeFileSystemObject(res.fso);
-
-    // https://gist.github.com/72lions/4528834?permalink_comment_id=2395442#gistcomment-2395442
-    return new Uint8Array([
-      ...new Uint8Array(bufferSansFso),
-      ...new Uint8Array(fsoBuffer),
-    ]).buffer;
+  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse):
+  [tdpp.SharedDirectoryInfoResponse, IMessageType<tdpp.SharedDirectoryInfoResponse>] {
+    return [res, tdpp.SharedDirectoryInfoResponse];
   }
 
   // | message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
   encodeSharedDirectoryCreateResponse(
     res: SharedDirectoryCreateResponse
-  ): Message {
-    const bufLenSansFso = BYTE_LEN + 2 * UINT_32_LEN;
-    const bufferSansFso = new ArrayBuffer(bufLenSansFso);
-    const view = new DataView(bufferSansFso);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_CREATE_RESPONSE);
-    offset += BYTE_LEN;
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-
-    const fsoBuffer = this.encodeFileSystemObject(res.fso);
-
-    // https://gist.github.com/72lions/4528834?permalink_comment_id=2395442#gistcomment-2395442
-    return new Uint8Array([
-      ...new Uint8Array(bufferSansFso),
-      ...new Uint8Array(fsoBuffer),
-    ]).buffer;
+  ): [tdpp.SharedDirectoryCreateResponse, IMessageType<tdpp.SharedDirectoryCreateResponse>] {
+    return [res, tdpp.SharedDirectoryCreateResponse];
   }
 
   // | message type (18) | completion_id uint32 | err_code uint32 |
   encodeSharedDirectoryDeleteResponse(
     res: SharedDirectoryDeleteResponse
-  ): Message {
-    return this.encodeGenericResponse(
-      MessageType.SHARED_DIRECTORY_DELETE_RESPONSE,
-      res
-    );
+  ): [tdpp.SharedDirectoryDeleteResponse, IMessageType<tdpp.SharedDirectoryDeleteResponse>] {
+    return [res, tdpp.SharedDirectoryDeleteResponse];
   }
 
   // | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
-  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
-    const bufLen = BYTE_LEN + 3 * UINT_32_LEN + BYTE_LEN * res.readDataLength;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_READ_RESPONSE);
-    offset += BYTE_LEN;
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.readDataLength);
-    offset += UINT_32_LEN;
-    res.readData.forEach(byte => {
-      view.setUint8(offset++, byte);
-    });
-
-    return buffer;
+  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse):
+  [tdpp.SharedDirectoryReadResponse, IMessageType<SharedDirectoryReadResponse>] {
+    return [res, tdpp.SharedDirectoryReadResponse];
   }
 
   // | message type (22) | completion_id uint32 | err_code uint32 | bytes_written uint32 |
   encodeSharedDirectoryWriteResponse(
     res: SharedDirectoryWriteResponse
-  ): Message {
-    const bufLen = BYTE_LEN + 3 * UINT_32_LEN;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.SHARED_DIRECTORY_WRITE_RESPONSE);
-    offset += BYTE_LEN;
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.bytesWritten);
-    offset += UINT_32_LEN;
-
-    return buffer;
+  ): [tdpp.SharedDirectoryWriteResponse, IMessageType<tdpp.SharedDirectoryWriteResponse>] {
+    return [res, tdpp.SharedDirectoryWriteResponse];
   }
 
   // | message type (24) | completion_id uint32 | err_code uint32 |
-  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
-    return this.encodeGenericResponse(
-      MessageType.SHARED_DIRECTORY_MOVE_RESPONSE,
-      res
-    );
+  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse):
+  [tdpp.SharedDirectoryMoveResponse, IMessageType<tdpp.SharedDirectoryMoveResponse>] {
+    return [res, tdpp.SharedDirectoryMoveResponse];
   }
 
   // | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
-  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
-    const bufLenSansFsoList = BYTE_LEN + 3 * UINT_32_LEN;
-    const bufferSansFsoList = new ArrayBuffer(bufLenSansFsoList);
-    const view = new DataView(bufferSansFsoList);
-    let offset = 0;
-
-    view.setUint8(offset++, MessageType.SHARED_DIRECTORY_LIST_RESPONSE);
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.fsoList.length);
-    offset += UINT_32_LEN;
-
-    let withFsoList = new Uint8Array(bufferSansFsoList);
-    res.fsoList.forEach(fso => {
-      const fsoBuffer = this.encodeFileSystemObject(fso);
-
-      // https://gist.github.com/72lions/4528834?permalink_comment_id=2395442#gistcomment-2395442
-      withFsoList = new Uint8Array([
-        ...withFsoList,
-        ...new Uint8Array(fsoBuffer),
-      ]);
-    });
-
-    return withFsoList.buffer;
+  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse):
+  [tdpp.SharedDirectoryListResponse, IMessageType<tdpp.SharedDirectoryListResponse>] {
+    return [res, tdpp.SharedDirectoryListResponse];
   }
 
   encodeSharedDirectoryTruncateResponse(
     res: SharedDirectoryTruncateResponse
-  ): Message {
-    return this.encodeGenericResponse(
-      MessageType.SHARED_DIRECTORY_TRUNCATE_RESPONSE,
-      res
-    );
-  }
-
-  private encodeGenericResponse(
-    type: MessageType,
-    res: {
-      completionId: number;
-      errCode: SharedDirectoryErrCode;
-    }
-  ): Message {
-    const bufLen = BYTE_LEN + 2 * UINT_32_LEN;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, type);
-    offset += BYTE_LEN;
-    view.setUint32(offset, res.completionId);
-    offset += UINT_32_LEN;
-    view.setUint32(offset, res.errCode);
-    offset += UINT_32_LEN;
-
-    return buffer;
-  }
-
-  // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
-  encodeFileSystemObject(fso: FileSystemObject): Message {
-    const dataUtf8array = this.encoder.encode(fso.path);
-
-    const bufLen =
-      BYTE_LEN + 2 * UINT_64_LEN + 2 * UINT_32_LEN + dataUtf8array.length;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-    view.setBigUint64(offset, fso.lastModified);
-    offset += UINT_64_LEN;
-    view.setBigUint64(offset, fso.size);
-    offset += UINT_64_LEN;
-    view.setUint32(offset, fso.fileType);
-    offset += UINT_32_LEN;
-    view.setUint8(offset, fso.isEmpty ? 1 : 0);
-    offset += BYTE_LEN;
-    view.setUint32(offset, dataUtf8array.length);
-    offset += UINT_32_LEN;
-    dataUtf8array.forEach(byte => {
-      view.setUint8(offset++, byte);
-    });
-
-    return buffer;
+  ): [tdpp.SharedDirectoryTruncateResponse, IMessageType<tdpp.SharedDirectoryTruncateResponse>] {
+    return [res, tdpp.SharedDirectoryTruncateResponse];
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message {
-    const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
-    const buffer = new ArrayBuffer(bufLen);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint8(offset, MessageType.RDP_RESPONSE_PDU);
-    offset += BYTE_LEN;
-    view.setUint32(offset, responseFrame.byteLength);
-    offset += UINT_32_LEN;
-    new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
-
-    return buffer;
+  encodeRdpResponsePdu(responseFrame: ArrayBufferLike): [tdpp.RDPResponsePDU, IMessageType<tdpp.RDPResponsePDU>] {
+    return [{response: new Uint8Array(responseFrame)}, tdpp.RDPResponsePDU];
   }
 
   // decodeClipboardData decodes clipboard data

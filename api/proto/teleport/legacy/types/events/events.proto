@@ -17,6 +17,7 @@ syntax = "proto3";
 package events;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
@@ -535,6 +536,12 @@ message DesktopRecording {
   bytes Message = 2 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "message"
+  ];
+
+  // ProtoMessage is the TDP_Proto message.
+  google.protobuf.Any ProtoMessage = 4 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "protomessage"
   ];
 
   // DelayMilliseconds is the delay in milliseconds from the start of the session

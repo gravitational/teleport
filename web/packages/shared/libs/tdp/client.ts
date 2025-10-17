@@ -17,6 +17,7 @@
  */
 
 import { EventEmitter } from 'events';
+import {MessageInfo, MessageType, readFieldOption, IMessageType, readMessageOption} from "@protobuf-ts/runtime";
 
 import { useEffect } from 'react';
 
@@ -30,7 +31,6 @@ import { ensureError, isAbortError } from 'shared/utils/error';
 import Codec, {
   FileType,
   LatencyStats,
-  MessageType,
   PointerData,
   Severity,
   SharedDirectoryErrCode,
@@ -56,6 +56,12 @@ import {
   SharedDirectoryAccess,
   type FileOrDirInfo,
 } from './sharedDirectoryAccess';
+
+import * as tdp from 'gen-proto-ts/teleport/desktop/tdp_pb';
+//import { Any } from "@protobuf-ts/runtime";
+import { Any } from 'gen-proto-ts/google/protobuf/any_pb';
+
+
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -346,10 +352,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(buffer: ArrayBufferLike): Promise<void> {
+  async processMessage(buffer: ArrayBufferLike): Promise<void> {try {
+    let envelope = tdp.TDPEnvelope.fromBinary(new Uint8Array(buffer))
+    
     const messageType = this.codec.decodeMessageType(buffer);
-    switch (messageType) {
-      case MessageType.PNG_FRAME:
+    switch (envelope.type) {
+      case tdp.TDPMessageType.TDP_MESSAGE_IMAGE_FRAME:
         this.handlePngFrame(buffer);
         break;
       case MessageType.PNG2_FRAME:
@@ -723,12 +731,18 @@ export class TdpClient extends EventEmitter<EventMap> {
     };
   }
 
-  protected send(data: string | ArrayBufferLike): void {
+  protected send<T extends object>(tup: [data: T, type: IMessageType<T>]): void {
+    let data = tup[0], type = tup[1];
     if (!this.transport) {
       this.logger.info('Transport is not ready, discarding message');
       return;
     }
-    this.transport.send(data);
+
+    let opt = readMessageOption(type, "tdp_type", tdp.TDPOptions);
+    let msg = Any.pack(data, type);
+    let envelope = tdp.TDPEnvelope.create({type: opt.tdpType, message: msg});
+
+    this.transport.send(tdp.TDPEnvelope.toBinary(envelope).buffer);
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
@@ -750,7 +764,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.send(this.codec.encodeMouseButton(button, state));
   }
 
-  sendMouseWheelScroll(axis: ScrollAxis, delta: number) {
+  sendMouseWheelScroll(axis: tdp.MouseWheelAxis, delta: number) {
     this.send(this.codec.encodeMouseWheelScroll(axis, delta));
   }
 
