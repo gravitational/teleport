@@ -610,9 +610,10 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	// without going through the join process.
 	process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity already includes required system role, requesting role-specific certificates", "role", role)
 	id := state.IdentityID{
-		Role:     role,
-		HostUUID: instanceIdentity.ID.HostUUID,
-		NodeName: process.Config.Hostname,
+		Role:       role,
+		HostUUID:   instanceIdentity.ID.HostUUID,
+		NodeName:   process.Config.Hostname,
+		AgentScope: instanceIdentity.ID.AgentScope,
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, id.HostID())
 	if err != nil {
