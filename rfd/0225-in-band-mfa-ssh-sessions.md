@@ -188,8 +188,8 @@ message DenialMetadata {
 
 // DenialMetadataReason represents structured reasons for denial.
 enum DenialMetadataReason {
-  REASON_UNSPECIFIED = 0; // Default value, unspecified reason.
-  REASON_MFA_REQUIRED = 1; // Indicates that MFA is required for access but not provided.
+  DENIAL_METADATA_REASON_UNSPECIFIED = 0; // Default value, unspecified reason.
+  DENIAL_METADATA_REASON_MFA_REQUIRED = 1; // Indicates that MFA is required for access but not provided.
 }
 ```
 
