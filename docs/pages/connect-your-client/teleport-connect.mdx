@@ -6,8 +6,8 @@ tags:
  - platform-wide
 ---
 
-Teleport Connect provides easy and secure access to SSH servers, databases, applications, Windows desktops, and
-Kubernetes clusters.
+Teleport Connect provides easy and secure access to SSH servers, databases,
+applications, MCP servers, Windows desktops, and Kubernetes clusters.
 
 ![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
 
@@ -336,6 +336,22 @@ without worrying about the port suddenly changing.
 The application connection tab shows an example command that can be used to query the application.
 Requests sent under the displayed address will be proxied through an authenticated tunnel to the
 application.
+
+## Connecting to an MCP server
+
+Teleport Connect can set up an authenticated tunnel on a random port on your
+device to an MCP server in streamable-HTTP transport. All connections made to
+that tunnel will be authenticated with your credentials.
+
+1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+  can also press `Ctrl+Shift+T/Cmd+T` to achieve the same result.
+1. Click the Connect button of the MCP server resource.
+
+A new tab will open with a new connection established between your device and the MCP server.
+
+This connection will remain active until you click the Close Connection button or close Teleport
+Connect. The port number will persist between app restarts—you can set up your favorite client
+without worrying about the port suddenly changing.
 
 ## Connecting to multiple clusters
 

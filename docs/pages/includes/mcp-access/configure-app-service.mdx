@@ -1,0 +1,73 @@
+{{ extraAppScheme="" }}
+
+You can update an existing Application Service or create a new one to enable the
+the MCP server.
+
+<Tabs>
+
+<TabItem label="Update an existing service">
+
+If you already have an existing Application Service running, you can add a MCP
+server in your YAML configuration:
+```yaml
+app_service:
+  enabled: true
+  apps:
+  - name: "everything"
+    uri: "mcp+{{extraAppScheme}}<Var name="MCP endpoint" />"
+    labels:
+      env: dev
+    description:
+```
+
+</TabItem>
+<TabItem label="Create a new service">
+
+{/* lint ignore heading-increment remark-lint */}
+#### Get a join token
+(!docs/pages/includes/tctl-token.mdx serviceName="Application" tokenType="app" tokenFile="/tmp/token"!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
+
+#### Install the Teleport Application Service
+Install Teleport on the host where you will run the Teleport Application Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+#### Configure the Teleport Application service
+
+On the host where you will run the Teleport Application Service, create a file
+at `/etc/teleport.yaml` with the following content:
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+app_service:
+  enabled: true
+  apps:
+  - name: "everything"
+    uri: "mcp+{{extraAppScheme}}<Var name="MCP endpoint" />"
+    labels:
+      env: dev
+    description:
+```
+
+Replace <Var name="teleport.example.com:443" /> with the host and port of your Teleport Proxy
+Service or Teleport Cloud tenant, and replace the MCP details with the MCP
+server you desire to run.
+
+#### Start the Teleport Application Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Application Service"!)
+
+</TabItem>
+</Tabs>

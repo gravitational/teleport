@@ -1,5 +1,6 @@
 ---
 title: MCP Access with Stdio MCP Server
+sidebar_position: 3
 description: How to access MCP server with stdio transport.
 tags:
 - how-to
@@ -148,32 +149,7 @@ Name       Description           Type  Labels
 everything everything MCP server stdio env=dev
 ```
 
-To show configurations for your MCP client to connect:
-
-```code
-$ tsh mcp config everything
-Found MCP servers:
-everything
-
-Here is a sample JSON configuration for launching Teleport MCP servers:
-{
-  "mcpServers": {
-    "teleport-mcp-everything": {
-      "command": "/path/to/tsh",
-      "args": ["mcp", "connect", "everything"]
-    }
-  }
-}
-
-Tip: You can use this command to update your MCP servers configuration file automatically.
-- For Claude Desktop, use --client-config=claude to update the default configuration.
-- For Cursor, use --client-config=cursor to update the global MCP servers configuration.
-In addition, you can use --client-config=<path> to specify a config file location that is compatible with the "mcpServers" mapping.
-For example, you can update a Cursor project using --client-config=<path-to-project>/.cursor/mcp.json
-```
-
-Once your MCP client configuration is updated, you will see
-`teleport-mcp-everything` MCP server with allowed tools appear in your MCP client.
+(!docs/pages/includes/mcp-access/tsh-mcp-config.mdx!)
 
 ## Next Steps
 

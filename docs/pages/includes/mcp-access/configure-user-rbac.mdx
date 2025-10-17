@@ -5,22 +5,23 @@ their MCP tools.
 
 <TabItem label="Configure an existing user">
 
-If you have an existing Teleport user, you can create a role for MCP access
-assign it to your Teleport user.
-```code
-$ tctl create <<EOF
+If you have an existing Teleport user, assign the preset role `mcp-user` to to
+that user. The `mcp-user` role allows access to all MCP servers and their tools:
+```yaml
 kind: role
 version: v8
 metadata:
-  name: access-mcp
+  description: Access to MCP servers
+  labels:
+    teleport.internal/resource-type: preset
+  name: mcp-user
 spec:
   allow:
     app_labels:
-      '*': '*'
+      'teleport.internal/app-sub-kind': 'mcp'
     mcp:
       tools:
       - '*'
-EOF
 ```
 
 Alternatively, add the above allow permissions to an existing Teleport role.
@@ -32,7 +33,7 @@ Alternatively, add the above allow permissions to an existing Teleport role.
 Crate a new local user called <Var name="my_user" /> with MCP access:
 
 ```code
-$ tctl users add <Var name="my_user" /> --roles=access --mcp-tools "*"
+$ tctl users add <Var name="my_user" /> --roles=mcp-user
 ```
 
 </TabItem>
