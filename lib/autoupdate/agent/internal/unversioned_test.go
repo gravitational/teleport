@@ -136,11 +136,8 @@ func TestUnversionedTbotConfig(t *testing.T) {
 		{
 			name:    "v3", // when this fails, add any new fields to the unversioned config
 			version: "v3",
-			in: internal.UnversionedConfig{
-				AuthServer:  "auth.example.com",
-				ProxyServer: "proxy.example.com",
-			},
-			err: true,
+			in:      internal.UnversionedConfig{},
+			err:     true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

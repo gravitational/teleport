@@ -1253,6 +1253,23 @@ func TestUpdater_Remove(t *testing.T) {
 			teardownCalls:   1,
 		},
 		{
+			name: "active version with tbot",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: defaultPathDir,
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			linkSystemCalls: 1,
+			syncCalls:       1,
+			reloadCalls:     1,
+			teardownCalls:   1,
+		},
+		{
 			name: "active version, no systemd",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
@@ -1328,89 +1345,114 @@ func TestUpdater_Remove(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			ns := &Namespace{installDir: dir}
-			_, err := ns.Init()
-			require.NoError(t, err)
-			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-			updater, err := NewLocalUpdater(LocalUpdaterConfig{
-				InsecureSkipVerify: true,
-			}, ns)
-			require.NoError(t, err)
-
-			// Create config file only if provided in test case
-			if tt.cfg != nil {
-				b, err := yaml.Marshal(tt.cfg)
+		for _, tbot := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
+				dir := t.TempDir()
+				ns := &Namespace{installDir: dir}
+				_, err := ns.Init()
 				require.NoError(t, err)
-				err = os.WriteFile(cfgPath, b, 0600)
-				require.NoError(t, err)
-			}
+				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
 
-			var (
-				linkSystemCalls int
-				revertFuncCalls int
-				syncCalls       int
-				reloadCalls     int
-				teardownCalls   int
-				unlinkedVersion string
-			)
-			updater.Installer = &testInstaller{
-				FuncLinkSystem: func(_ context.Context) (revert func(context.Context) bool, err error) {
-					linkSystemCalls++
-					return func(_ context.Context) bool {
-						revertFuncCalls++
-						return true
-					}, tt.linkSystemErr
-				},
-				FuncUnlink: func(_ context.Context, rev Revision, path string) error {
-					unlinkedVersion = rev.Version
+				updater, err := NewLocalUpdater(LocalUpdaterConfig{
+					InsecureSkipVerify: true,
+				}, ns)
+				require.NoError(t, err)
+
+				// Create config file only if provided in test case
+				if tt.cfg != nil {
+					b, err := yaml.Marshal(tt.cfg)
+					require.NoError(t, err)
+					err = os.WriteFile(cfgPath, b, 0600)
+					require.NoError(t, err)
+				}
+
+				var (
+					linkSystemCalls     int
+					revertFuncCalls     int
+					teleportSyncCalls   int
+					teleportReloadCalls int
+					tbotSyncCalls       int
+					tbotReloadCalls     int
+					teardownCalls       int
+					unlinkedVersion     string
+				)
+				updater.Installer = &testInstaller{
+					FuncLinkSystem: func(_ context.Context) (revert func(context.Context) bool, err error) {
+						linkSystemCalls++
+						return func(_ context.Context) bool {
+							revertFuncCalls++
+							return true
+						}, tt.linkSystemErr
+					},
+					FuncUnlink: func(_ context.Context, rev Revision, path string) error {
+						unlinkedVersion = rev.Version
+						return nil
+					},
+				}
+				updater.TeleportProcess = &testProcess{
+					FuncName: func() string {
+						if tt.serviceName != "" {
+							return tt.serviceName
+						}
+						return teleportServiceName
+					},
+					FuncSync: func(_ context.Context) error {
+						teleportSyncCalls++
+						return tt.syncErr
+					},
+					FuncReload: func(_ context.Context) error {
+						teleportReloadCalls++
+						return tt.reloadErr
+					},
+					FuncIsActive: func(_ context.Context) (bool, error) {
+						return tt.processActive, tt.isActiveErr
+					},
+				}
+				updater.TbotProcess = &testProcess{
+					FuncSync: func(_ context.Context) error {
+						tbotSyncCalls++
+						return tt.syncErr
+					},
+					FuncReload: func(_ context.Context) error {
+						tbotReloadCalls++
+						return tt.reloadErr
+					},
+					FuncIsActive: func(_ context.Context) (bool, error) {
+						return tt.processActive, tt.isActiveErr
+					},
+				}
+				updater.TeardownNamespace = func(_ context.Context) error {
+					teardownCalls++
 					return nil
-				},
-			}
-			updater.TeleportProcess = &testProcess{
-				FuncName: func() string {
-					if tt.serviceName != "" {
-						return tt.serviceName
-					}
-					return teleportServiceName
-				},
-				FuncSync: func(_ context.Context) error {
-					syncCalls++
-					return tt.syncErr
-				},
-				FuncReload: func(_ context.Context) error {
-					reloadCalls++
-					return tt.reloadErr
-				},
-				FuncIsActive: func(_ context.Context) (bool, error) {
-					return tt.processActive, tt.isActiveErr
-				},
-			}
-			updater.TeardownNamespace = func(_ context.Context) error {
-				teardownCalls++
-				return nil
-			}
-			updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
-				return false, nil
-			}
+				}
+				updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
+					return !tbot, nil
+				}
 
-			ctx := context.Background()
-			err = updater.Remove(ctx, tt.force)
-			if tt.errMatch != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMatch)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, tt.syncCalls, syncCalls)
-			require.Equal(t, tt.reloadCalls, reloadCalls)
-			require.Equal(t, tt.linkSystemCalls, linkSystemCalls)
-			require.Equal(t, tt.revertFuncCalls, revertFuncCalls)
-			require.Equal(t, tt.unlinkedVersion, unlinkedVersion)
-			require.Equal(t, tt.teardownCalls, teardownCalls)
-		})
+				ctx := context.Background()
+				err = updater.Remove(ctx, tt.force)
+				if tt.errMatch != "" {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tt.errMatch)
+				} else {
+					require.NoError(t, err)
+				}
+				require.Equal(t, tt.syncCalls, teleportSyncCalls)
+				require.Equal(t, tt.reloadCalls, teleportReloadCalls)
+				require.Equal(t, 0, tbotSyncCalls)
+				if tbot && tt.reloadErr == nil {
+					require.Equal(t, tt.reloadCalls, tbotReloadCalls)
+				} else {
+					require.Equal(t, 0, tbotReloadCalls)
+				}
+
+				require.Equal(t, tt.linkSystemCalls, linkSystemCalls)
+				require.Equal(t, tt.revertFuncCalls, revertFuncCalls)
+				require.Equal(t, tt.unlinkedVersion, unlinkedVersion)
+				require.Equal(t, tt.teardownCalls, teardownCalls)
+			})
+		}
+
 	}
 }
 

@@ -549,6 +549,70 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	return code
 }
 
+// ProcessGroup is a group of other Teleport processes.
+type ProcessGroup []Process
+
+func (p ProcessGroup) Name() string {
+	return "Teleport services"
+}
+
+// Reload reloads all processes in the process group.
+func (p ProcessGroup) Reload(ctx context.Context) error {
+	// TODO(sclevine): consider reloading in parallel if this is too slow for users
+	for _, process := range p {
+		if err := process.Reload(ctx); err != nil {
+			return trace.Wrap(err, "failed to reload %s", process.Name())
+		}
+	}
+	return nil
+}
+
+// Sync syncs only the first process in the group, and fails if no processes are present.
+// The systemctl daemon-reload command is global, so we only need to sync once.
+func (p ProcessGroup) Sync(ctx context.Context) error {
+	for _, process := range p {
+		if err := process.Sync(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+	return trace.Errorf("no services to sync")
+}
+
+// IsEnabled returns true if any processes in the group are enabled.
+func (p ProcessGroup) IsEnabled(ctx context.Context) (bool, error) {
+	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
+		return p.IsEnabled(ctx)
+	})
+}
+
+// IsPresent returns true if any processes in the group are present.
+func (p ProcessGroup) IsPresent(ctx context.Context) (bool, error) {
+	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
+		return p.IsPresent(ctx)
+	})
+}
+
+// IsActive returns true if any processes in the group are active.
+func (p ProcessGroup) IsActive(ctx context.Context) (bool, error) {
+	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
+		return p.IsActive(ctx)
+	})
+}
+
+func (p ProcessGroup) anyAreTrue(ctx context.Context, f func(ctx context.Context, p Process) (bool, error)) (bool, error) {
+	for _, process := range p {
+		ok, err := f(ctx, process)
+		if err != nil {
+			return ok, trace.Wrap(err)
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // localExec runs a command locally, logging any output.
 type localExec struct {
 	// Dir specifies the working directory of the local command.

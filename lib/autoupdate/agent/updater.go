@@ -378,65 +378,6 @@ type Process interface {
 	IsPresent(ctx context.Context) (bool, error)
 }
 
-type ProcessGroup []Process
-
-func (p ProcessGroup) Name() string {
-	return "Teleport services"
-}
-
-// Reload reloads all processes in the process group.
-// Reload does not return ErrNotNeeded.
-func (p ProcessGroup) Reload(ctx context.Context) error {
-	// TODO: reload in parallel
-	for _, process := range p {
-		if err := process.Reload(ctx); err != nil {
-			return trace.Wrap(err, "failed to reload %s", process.Name())
-		}
-	}
-	return nil
-}
-
-func (p ProcessGroup) Sync(ctx context.Context) error {
-	for _, process := range p {
-		if err := process.Sync(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-	return trace.Errorf("no services to sync")
-}
-
-func (p ProcessGroup) IsEnabled(ctx context.Context) (bool, error) {
-	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
-		return p.IsEnabled(ctx)
-	})
-}
-
-func (p ProcessGroup) IsPresent(ctx context.Context) (bool, error) {
-	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
-		return p.IsPresent(ctx)
-	})
-}
-
-func (p ProcessGroup) IsActive(ctx context.Context) (bool, error) {
-	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
-		return p.IsActive(ctx)
-	})
-}
-
-func (p ProcessGroup) anyAreTrue(ctx context.Context, f func(ctx context.Context, p Process) (bool, error)) (bool, error) {
-	for _, process := range p {
-		ok, err := f(ctx, process)
-		if err != nil {
-			return ok, trace.Wrap(err)
-		}
-		if ok {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // OverrideConfig contains overrides for individual update operations.
 // If validated, these overrides may be persisted to disk.
 type OverrideConfig struct {
