@@ -22,11 +22,11 @@ spec: # [...]
 ```
 |Field Name|Description|Type|
 |---|---|---|
-|version|The resource version. It must be specified. Supported values are: `v3`.|string|
-|sub_kind|An optional resource sub kind, used in some resources.|string|
-|spec|An OIDC connector specification.|[OIDCConnector Spec](#oidcconnector-spec)|
-|metadata|Holds resource metadata.|[Metadata](#metadata)|
 |kind|A resource kind.|string|
+|metadata|Holds resource metadata.|[Metadata](#metadata)|
+|spec|An OIDC connector specification.|[OIDCConnector Spec](#oidcconnector-spec)|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|version|The resource version. It must be specified. Supported values are: `v3`.|string|
 
 ## Claim Mapping
 
@@ -46,9 +46,9 @@ roles:
 
 |Field Name|Description|Type|
 |---|---|---|
-|value|A claim value to match.|string|
-|roles|A list of static teleport roles to match.|[]string|
 |claim|A claim name.|string|
+|roles|A list of static teleport roles to match.|[]string|
+|value|A claim value to match.|string|
 
 ## Duration
 
@@ -70,9 +70,9 @@ graph_endpoint: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|group_type|A user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".|string|
-|graph_endpoint|A Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.|string|
 |disabled|Specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.|Boolean|
+|graph_endpoint|A Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.|string|
+|group_type|A user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".|string|
 
 ## Metadata
 
@@ -94,11 +94,11 @@ revision: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
-|name|An object name|string|
-|labels|A set of labels|map[string]string|
-|expires|A global expiry time header can be set on any resource in the system.||
 |description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
 ## OIDCConnector MFASettings
 
@@ -119,13 +119,13 @@ request_object_mode: "string"
 
 |Field Name|Description|Type|
 |---|---|---|
-|request_object_mode|Determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for the MFA client.|string|
-|prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|string|
-|max_age|The amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.|[Duration](#duration)|
-|enabled|Specified whether this OIDC connector supports MFA checks. Defaults to false.|Boolean|
-|client_secret|The OIDC OAuth app client secret.|string|
-|client_id|ClientID is the OIDC OAuth app client ID.|string|
 |acr_values|Authentication Context Class Reference values. The meaning of the ACR value is context-specific and varies for identity providers. Some identity providers support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.|string|
+|client_id|ClientID is the OIDC OAuth app client ID.|string|
+|client_secret|The OIDC OAuth app client secret.|string|
+|enabled|Specified whether this OIDC connector supports MFA checks. Defaults to false.|Boolean|
+|max_age|The amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.|[Duration](#duration)|
+|prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|string|
+|request_object_mode|Determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for the MFA client.|string|
 
 ## OIDCConnector Spec
 
@@ -170,28 +170,28 @@ entra_id_groups_provider: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|username_claim|Specifies the name of the claim from the OIDC connector to be used as the user's username.|string|
-|user_matchers|A set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|[]string|
-|scope|Specifies additional scopes set by provider.|[]string|
-|request_object_mode|Determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.|string|
-|redirect_url|A list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|[Strings](#strings)|
-|provider|The external identity provider.|string|
-|prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|string|
-|pkce_mode|Represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"|string|
-|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[OIDCConnector MFASettings](#oidcconnector-mfasettings)|
-|max_age||[Duration](#duration)|
-|issuer_url|The endpoint of the provider, e.g. https://accounts.google.com.|string|
-|google_service_account_uri|A path to a google service account uri.|string|
-|google_service_account|A string containing google service account credentials.|string|
-|google_admin_email|The email of a google admin to impersonate.|string|
-|entra_id_groups_provider|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit.|[Entra IDGroups Provider](#entra-idgroups-provider)|
-|display|The friendly name for this provider.|string|
-|client_secret|Used to authenticate the client.|string|
-|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSOClient Redirect Settings](#ssoclient-redirect-settings)|
-|client_id|The id of the authentication client (Teleport Auth Service).|string|
-|claims_to_roles|Specifies a dynamic mapping from claims to roles.|[][Claim Mapping](#claim-mapping)|
-|allow_unverified_email|Tells the connector to accept OIDC users with unverified emails.|Boolean|
 |acr_values|An Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.|string|
+|allow_unverified_email|Tells the connector to accept OIDC users with unverified emails.|Boolean|
+|claims_to_roles|Specifies a dynamic mapping from claims to roles.|[][Claim Mapping](#claim-mapping)|
+|client_id|The id of the authentication client (Teleport Auth Service).|string|
+|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSOClient Redirect Settings](#ssoclient-redirect-settings)|
+|client_secret|Used to authenticate the client.|string|
+|display|The friendly name for this provider.|string|
+|entra_id_groups_provider|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit.|[Entra IDGroups Provider](#entra-idgroups-provider)|
+|google_admin_email|The email of a google admin to impersonate.|string|
+|google_service_account|A string containing google service account credentials.|string|
+|google_service_account_uri|A path to a google service account uri.|string|
+|issuer_url|The endpoint of the provider, e.g. https://accounts.google.com.|string|
+|max_age||[Duration](#duration)|
+|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[OIDCConnector MFASettings](#oidcconnector-mfasettings)|
+|pkce_mode|Represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"|string|
+|prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|string|
+|provider|The external identity provider.|string|
+|redirect_url|A list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|[Strings](#strings)|
+|request_object_mode|Determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.|string|
+|scope|Specifies additional scopes set by provider.|[]string|
+|user_matchers|A set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|[]string|
+|username_claim|Specifies the name of the claim from the OIDC connector to be used as the user's username.|string|
 
 ## SSOClient Redirect Settings
 
@@ -213,8 +213,8 @@ insecure_allowed_cidr_ranges:
 
 |Field Name|Description|Type|
 |---|---|---|
-|insecure_allowed_cidr_ranges|A list of CIDRs allowed for HTTP or HTTPS client redirect URLs|[]string|
 |allowed_https_hostnames|A list of hostnames allowed for https client redirect URLs|[]string|
+|insecure_allowed_cidr_ranges|A list of CIDRs allowed for HTTP or HTTPS client redirect URLs|[]string|
 
 ## Strings
 
