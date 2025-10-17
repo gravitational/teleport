@@ -9,18 +9,21 @@ tags:
 Teleport can provide secure connections to your MCP (Model Context Protocol)
 servers while improving both access control and visibility.
 
-![Architecture diagram for enrolling MCP servers with Teleport](../../../img/mcp-access/architecture-stdio.svg)
+![Architecture diagram for enrolling MCP servers with Teleport](../../../img/mcp-access/architecture.svg)
 
 
 ## Getting started
-- [Quick-start with demo MCP server](./getting-started.mdx): Provides instructions to set up a Teleport Service and enable secure access to a demo MCP server.
+- [Quick-start with Demo MCP Server](./getting-started.mdx): Provides instructions to set up a Teleport Service and enable secure access to a demo MCP server.
 
 ## Guides
+- [MCP Access with Streamable-HTTP MCP Server](./streamable-http.mdx): Set up a Teleport Service and enable secure access to a MCP server with streamable-HTTP transport.
 - [MCP Access with Stdio MCP Server](./stdio.mdx): Set up a Teleport Service and enable secure access to a MCP server with stdio transport.
+- [MCP Access with SSE MCP Server](./sse.mdx): Set up a Teleport Service and enable secure access to a MCP server with SSE transport.
 - [Configure MCP clients](../../connect-your-client/model-context-protocol/mcp-access.mdx): How to configure MCP clients such as Claude Desktop to access MCP servers.
 
 ## Configuration & management
 - [MCP Access Controls](./rbac.mdx): Role-Based Access Control (RBAC) for Teleport MCP access.
+- [JWT Authentication to MCP server](./jwt.mdx): Use Teleport JWT to authenticate your MCP servers.
 - [Dynamic Registration](./dynamic-registration.mdx): Register/unregister MCP servers without restarting Teleport.
 
 ## Troubleshooting & support
