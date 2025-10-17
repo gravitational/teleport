@@ -273,15 +273,25 @@ message ValidateAuthenticateChallengeRequest {
   // Required, except for v15 clients and older.
   teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 3;
 
-    // action_id is an optional unique identifier associated with the MFA challenge.
+  // action_id is an optional unique identifier associated with the MFA challenge.
   // If provided, it ties the response to a specific user action.
   string action_id = 4;
 }
 
 message ValidateAuthenticateChallengeResponse {
-  // valid indicates whether the MFA challenge response is valid.
-  // TODO(cthach): Consider more details to be returned.
-  bool valid = 1;
+  // user is the authenticated Teleport User.
+  string user = 1;
+
+  // device contains information about the user's MFA device used to authenticate.
+  teleport.mfa.v1.MFADevice device = 2;
+
+  // allow_reuse determines whether the MFA challenge response used to authenticate
+  // can be reused. AllowReuse responses may be denied for specific actions.
+  teleport.mfa.v1.ChallengeAllowReuse allow_reuse = 3;
+
+  // action_id is an optional unique identifier associated with the MFA challenge.
+  // If provided, the challenge and response was tied to a specific user action.
+  string action_id = 4;
 }
 ```
 
