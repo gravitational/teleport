@@ -3276,23 +3276,66 @@ func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 }
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
+// Deprecated: Prefer paginated variant such as [Client.ListLocks] or [Client.RangeLocks]
 func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	targetPtrs := make([]*types.LockTarget, len(targets))
-	for i := range targets {
-		targetPtrs[i] = &targets[i]
+	filter := types.NewLockFilter(inForceOnly, targets...)
+
+	return clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return c.ListLocks(ctx, limit, start, filter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
+			resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
+				InForceOnly: filter.InForceOnly,
+				Targets:     filter.Targets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			locks := make([]types.Lock, 0, len(resp.Locks))
+			for _, lock := range resp.Locks {
+				locks = append(locks, lock)
+			}
+			return locks, nil
+		},
+	)
+
+}
+
+// ListLocks returns a page of locks matching a filter
+func (c *Client) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	req := &proto.ListLocksRequest{
+		PageSize:  int32(limit),
+		PageToken: startKey,
+		Filter:    filter,
 	}
-	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
-		InForceOnly: inForceOnly,
-		Targets:     targetPtrs,
-	})
+
+	resp, err := c.grpc.ListLocks(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
+
 	locks := make([]types.Lock, 0, len(resp.Locks))
 	for _, lock := range resp.Locks {
 		locks = append(locks, lock)
 	}
-	return locks, nil
+	return locks, resp.NextPageToken, nil
+
+}
+
+// RangeLocks returns locks within the range [start, end) matching a filter
+func (c *Client) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return c.ListLocks(ctx, limit, start, filter)
+		},
+		types.Lock.GetName,
+	)
 }
 
 // UpsertLock upserts a lock.

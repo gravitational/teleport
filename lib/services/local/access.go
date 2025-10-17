@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"strings"
 	"time"
@@ -30,7 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // AccessService manages roles
@@ -277,37 +280,86 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	return services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
-// GetLocks gets all/in-force locks that match at least one of the targets when specified.
-func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	startKey := backend.ExactKey(locksPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (s *AccessService) matchLock(lock types.Lock, filter *types.LockFilter) (types.Lock, bool) {
+	if filter == nil {
+		return lock, true
 	}
 
-	out := []types.Lock{}
-	for _, item := range result.Items {
-		lock, err := services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if inForceOnly && !lock.IsInForce(s.Clock().Now()) {
-			continue
-		}
-		// If no targets specified, return all of the found/in-force locks.
-		if len(targets) == 0 {
-			out = append(out, lock)
-			continue
-		}
-		// Otherwise, use the targets as filters.
-		for _, target := range targets {
-			if target.Match(lock) {
-				out = append(out, lock)
-				break
-			}
+	if filter.InForceOnly && !lock.IsInForce(s.Clock().Now()) {
+		return nil, false
+	}
+
+	// If no targets specified, return all of the found/in-force locks.
+	if len(filter.Targets) == 0 {
+		return lock, true
+	}
+
+	// Otherwise, use the targets as filters.
+	for _, target := range filter.Targets {
+		if target.Match(lock) {
+			return lock, true
 		}
 	}
-	return out, nil
+
+	return nil, false
+}
+
+// GetLocks gets all/in-force locks that match at least one of the targets when specified.
+func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return stream.Collect(s.RangeLocks(ctx, "", "", types.NewLockFilter(inForceOnly, targets...)))
+}
+
+// RangeLocks returns Snowflake session resources within the range [start, end).
+func (s *AccessService) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	return stream.FilterMap(
+		func(yield func(types.Lock, error) bool) {
+			lockKey := backend.NewKey(locksPrefix)
+			startKey := lockKey.AppendKey(backend.KeyFromString(start))
+			endKey := backend.RangeEnd(lockKey)
+			if end != "" {
+				endKey = lockKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+			}
+
+			for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}) {
+				if err != nil {
+					yield(*new(types.Lock), err)
+					return
+				}
+
+				lock, err := services.UnmarshalLock(item.Value,
+					services.WithExpires(item.Expires),
+					services.WithRevision(item.Revision))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal lock",
+						"key", item.Key,
+						"error", err,
+					)
+					continue
+				}
+
+				// The range is not inclusive of the end key, so return early
+				// if the end has been reached.
+				if end != "" && lock.GetName() >= end {
+					return
+				}
+
+				if !yield(lock, nil) {
+					return
+				}
+			}
+		},
+		func(lock types.Lock) (types.Lock, bool) {
+			return s.matchLock(lock, filter)
+		},
+	)
+}
+
+// ListLocks returns a page of Snowflake session resources.
+func (s *AccessService) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	return generic.CollectPageAndCursor(s.RangeLocks(ctx, startKey, "", filter), limit, types.Lock.GetName)
 }
 
 // UpsertLock upserts a lock.

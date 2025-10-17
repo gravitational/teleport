@@ -132,7 +132,6 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetEvents":                                               {},
 			"proto.AuthService.GetGithubConnectors":                                     {},
 			"proto.AuthService.GetInstallers":                                           {},
-			"proto.AuthService.GetLocks":                                                {},
 			"proto.AuthService.GetMFADevices":                                           {},
 			"proto.AuthService.GetOIDCConnectors":                                       {},
 			"proto.AuthService.GetPluginData":                                           {},

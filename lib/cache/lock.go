@@ -18,11 +18,13 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -43,7 +45,16 @@ func newLockCollection(upstream services.Access, w types.WatchKind) (*collection
 				lockNameIndex: types.Lock.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Lock, error) {
-			locks, err := upstream.GetLocks(ctx, false)
+			locks, err := clientutils.CollectWithFallback(
+				ctx,
+				func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+					return upstream.ListLocks(ctx, limit, start, nil /* No filter */)
+				},
+				func(ctx context.Context) ([]types.Lock, error) {
+					return upstream.GetLocks(ctx, false)
+				},
+			)
+
 			return locks, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Lock {
@@ -123,4 +134,92 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	}
 
 	return locks, nil
+}
+
+func matchLock(lock types.Lock, filter *types.LockFilter) bool {
+	if filter == nil {
+		return true
+	}
+
+	if filter.InForceOnly && !lock.IsInForce(time.Now()) {
+		return false
+	}
+
+	// If no targets specified, return all of the found/in-force locks.
+	if len(filter.Targets) == 0 {
+		return true
+	}
+
+	// Otherwise, use the targets as filters.
+	for _, target := range filter.Targets {
+		if target.Match(lock) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// RangeLocks returns Snowflake session resources within the range [start, end).
+func (c *Cache) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	lister := genericLister[types.Lock, lockIndex]{
+		cache:      c,
+		collection: c.collections.locks,
+		index:      lockNameIndex,
+		upstreamList: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return c.Config.Access.ListLocks(ctx, limit, start, filter)
+		},
+		filter: func(l types.Lock) bool {
+			return matchLock(l, filter)
+		},
+		nextToken: types.Lock.GetName,
+		// TODO(lokraszewski): DELETE IN v21.0.0
+		fallbackGetter: func(ctx context.Context) ([]types.Lock, error) {
+			if filter != nil {
+				targets := make([]types.LockTarget, 0, len(filter.Targets))
+				for _, tgt := range filter.Targets {
+					targets = append(targets, *tgt)
+				}
+				return c.Config.Access.GetLocks(ctx, filter.InForceOnly, targets...)
+			} else {
+				return c.Config.Access.GetLocks(ctx, false)
+			}
+		},
+	}
+
+	return func(yield func(types.Lock, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeLocks")
+		defer span.End()
+
+		for db, err := range lister.RangeWithFallback(ctx, start, end) {
+			if !yield(db, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+// ListLocks returns a page of Snowflake session resources.
+func (c *Cache) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListLocks")
+	defer span.End()
+
+	lister := genericLister[types.Lock, lockIndex]{
+		cache:      c,
+		collection: c.collections.locks,
+		index:      lockNameIndex,
+		upstreamList: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return c.Config.Access.ListLocks(ctx, limit, start, filter)
+		},
+		nextToken: types.Lock.GetName,
+		filter: func(l types.Lock) bool {
+			return matchLock(l, filter)
+		},
+	}
+	out, next, err := lister.list(ctx, limit, startKey)
+	return out, next, trace.Wrap(err)
 }
