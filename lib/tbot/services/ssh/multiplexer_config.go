@@ -41,13 +41,13 @@ type MultiplexerConfig struct {
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.
-	EnableResumption *bool `yaml:"enable_resumption"`
+	EnableResumption *bool `yaml:"enable_resumption,omitempty"`
 	// ProxyTemplatesPath is the path to the directory containing the templates
 	// for the SSH proxy.
 	// This field is optional, if not provided, no templates will be used.
 	// This file is loaded once on start, so changes to the templates will
 	// require a restart of tbot.
-	ProxyTemplatesPath string `yaml:"proxy_templates_path"`
+	ProxyTemplatesPath string `yaml:"proxy_templates_path,omitempty"`
 	// ProxyCommand is the base command to configure OpenSSH to invoke to
 	// connect to the SSH multiplexer. The path to the socket and the target
 	// will be automatically appended.

@@ -4363,9 +4363,7 @@ func TestSerializeDatabases(t *testing.T) {
         "docdb": {}
       },
       "mysql": {},
-      "oracle": {
-        "audit_user": ""
-      },
+      "oracle": {},
       "gcp": {
         "alloydb": {}
       },
