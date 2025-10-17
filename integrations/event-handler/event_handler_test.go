@@ -28,43 +28,19 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-func startApp(t *testing.T, appConfig *StartCmdConfig) {
-	t.Helper()
-	app, err := NewApp(appConfig, slog.Default())
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		app.Close()
-	})
-
-	integration.RunAndWaitReady(t, app)
-}
-
-// nonce is data produced to uniquely identify an event.
-// The nonce is propagated from the event generator to the event checker.
-// All events not matching the nonce are skipped.
-type nonce any
-
-// TestEventHandler is the refactored test function that no longer uses
-// testify/suite.
 func TestEventHandler(t *testing.T) {
-	AuthHelper := &integration.MinimalAuthHelper{}
-	var teleportConfig lib.TeleportConfig
-
-	var err error
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	authHelper := &integration.MinimalAuthHelper{}
 
 	// starts a Teleport auth service and creates the event forwarder
 	// user and role.
 	// Start the Teleport Auth server and get the admin client.
-	adminClient := AuthHelper.StartServer(t)
-	_, err = adminClient.Ping(ctx)
+	adminClient := authHelper.StartServer(t)
+	t.Cleanup(func() { require.NoError(t, authHelper.Auth().Close()) })
+	_, err := adminClient.Ping(t.Context())
 	require.NoError(t, err)
 
 	eventHandlerRole, err := types.NewRole("teleport-event-handler", types.RoleSpecV6{
@@ -80,18 +56,15 @@ func TestEventHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	eventHandlerRole, err = adminClient.CreateRole(ctx, eventHandlerRole)
+	eventHandlerRole, err = adminClient.CreateRole(t.Context(), eventHandlerRole)
 	require.NoError(t, err)
 
 	eventHandlerUser, err := types.NewUser("teleport-event-handler")
 	require.NoError(t, err)
 
 	eventHandlerUser.SetRoles([]string{eventHandlerRole.GetName()})
-	eventHandlerUser, err = adminClient.CreateUser(ctx, eventHandlerUser)
+	eventHandlerUser, err = adminClient.CreateUser(t.Context(), eventHandlerUser)
 	require.NoError(t, err)
-
-	teleportConfig.Addr = AuthHelper.ServerAddr()
-	teleportConfig.Identity = AuthHelper.SignIdentityForUser(t, ctx, eventHandlerUser)
 
 	// Starts a fake fluentd server.
 	err = logger.Setup(logger.Config{Severity: "debug"})
@@ -103,12 +76,16 @@ func TestEventHandler(t *testing.T) {
 
 	startTime := time.Now().Add(-time.Minute)
 
+	fluentdConfig := fakeFluentd.GetClientConfig()
+	fluentdConfig.FluentdURL = fakeFluentd.GetURL()
+	fluentdConfig.FluentdSessionURL = fluentdConfig.FluentdURL + "/session"
+
 	appConfig := StartCmdConfig{
 		TeleportConfig: TeleportConfig{
-			TeleportAddr:         teleportConfig.Addr,
-			TeleportIdentityFile: teleportConfig.Identity,
+			TeleportAddr:         authHelper.ServerAddr(),
+			TeleportIdentityFile: authHelper.SignIdentityForUser(t, t.Context(), eventHandlerUser),
 		},
-		FluentdConfig: fakeFluentd.GetClientConfig(),
+		FluentdConfig: fluentdConfig,
 		IngestConfig: IngestConfig{
 			StorageDir:       t.TempDir(),
 			Timeout:          time.Second,
@@ -120,22 +97,15 @@ func TestEventHandler(t *testing.T) {
 		},
 	}
 
-	appConfig.FluentdURL = fakeFluentd.GetURL()
-	appConfig.FluentdSessionURL = appConfig.FluentdURL + "/session"
-
-	t.Cleanup(func() {
-		AuthHelper.Auth().Close()
-	})
-
 	// Original TestEvent
 	tests := []struct {
 		name          string
-		generateEvent func(*testing.T, *client.Client) nonce
-		checkEvent    func(*testing.T, string, nonce) bool
+		generateEvent func(*testing.T, *client.Client) any
+		checkEvent    func(*testing.T, string, any) bool
 	}{
 		{
 			name: "new role",
-			generateEvent: func(t *testing.T, c *client.Client) nonce {
+			generateEvent: func(t *testing.T, c *client.Client) any {
 				roleName := uuid.New().String()
 				role, err := types.NewRole(roleName, types.RoleSpecV6{
 					Options: types.RoleOptions{},
@@ -143,11 +113,11 @@ func TestEventHandler(t *testing.T) {
 					Deny:    types.RoleConditions{},
 				})
 				require.NoError(t, err)
-				role, err = c.CreateRole(ctx, role)
+				role, err = c.CreateRole(t.Context(), role)
 				require.NoError(t, err)
 				return role.GetName()
 			},
-			checkEvent: func(t *testing.T, event string, n nonce) bool {
+			checkEvent: func(t *testing.T, event string, n any) bool {
 				roleName, ok := n.(string)
 				require.True(t, ok)
 				return strings.Contains(event, roleName)
@@ -155,35 +125,39 @@ func TestEventHandler(t *testing.T) {
 		},
 		{
 			name: "new token",
-			generateEvent: func(t *testing.T, c *client.Client) nonce {
+			generateEvent: func(t *testing.T, c *client.Client) any {
 				tokenName := uuid.New().String()
 				token, err := types.NewProvisionToken(tokenName, types.SystemRoles{types.RoleNode}, time.Time{})
 				require.NoError(t, err)
-				err = c.CreateToken(ctx, token)
+				err = c.CreateToken(t.Context(), token)
 				require.NoError(t, err)
 				return nil
 			},
-			checkEvent: func(t *testing.T, event string, _ nonce) bool {
+			checkEvent: func(t *testing.T, event string, _ any) bool {
 				return strings.Contains(event, "join_token.create")
 			},
 		},
 	}
 
 	// Start the event forwarder
-	startApp(t, &appConfig)
+	app, err := NewApp(&appConfig, slog.Default())
+	require.NoError(t, err)
+
+	t.Cleanup(app.Close)
+
+	integration.RunAndWaitReady(t, app)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nonce := tt.generateEvent(t, adminClient)
+			any := tt.generateEvent(t, adminClient)
 
-			waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			t.Cleanup(cancel)
 
-			eventFound := false
-			for !eventFound {
+			for eventFound := false; !eventFound; {
 				event, err := fakeFluentd.GetMessage(waitCtx)
 				require.NoError(t, err, "did not receive the event after 5 seconds")
-				if tt.checkEvent(t, event, nonce) {
+				if tt.checkEvent(t, event, any) {
 					t.Logf("Event matched: %s", event)
 					eventFound = true
 				} else {
