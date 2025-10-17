@@ -85,7 +85,7 @@ export const mockGetBotInstanceResponse = {
           version: '18.4.0',
           hostname: 'test-hostname',
           os: 'linux',
-          kind: BotInstanceKind.BOT_KIND_TBOT_BINARY,
+          kind: BotInstanceKind.BOT_KIND_TCTL,
         },
       ],
       latest_authentications: [

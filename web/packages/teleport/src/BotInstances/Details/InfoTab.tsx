@@ -297,6 +297,12 @@ function makeKindInfo(kind: BotInstanceKind | undefined) {
         'This instance is running using the Teleport Kubernetes Operator.',
     };
   }
+  if (kind === BotInstanceKind.BOT_KIND_TCTL) {
+    return {
+      kindLabel: 'tctl',
+      kindTooltip: 'This instance is running inside tctl.',
+    };
+  }
 
   return undefined;
 }

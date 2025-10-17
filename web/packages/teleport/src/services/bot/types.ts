@@ -124,6 +124,7 @@ export enum BotInstanceKind {
   BOT_KIND_TBOT = 1,
   BOT_KIND_TERRAFORM_PROVIDER = 2,
   BOT_KIND_KUBERNETES_OPERATOR = 3,
+  BOT_KIND_TCTL = 4,
 }
 
 export type GetBotInstanceResponseJoinAttrs = {
