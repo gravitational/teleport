@@ -136,7 +136,6 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindUser:                               rc.createUser,
 		types.KindTrustedCluster:                     rc.createTrustedCluster,
 		types.KindGithubConnector:                    rc.createGithubConnector,
 		types.KindCertAuthority:                      rc.createCertAuthority,
@@ -195,7 +194,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindUser:                               rc.updateUser,
 		types.KindGithubConnector:                    rc.updateGithubConnector,
 		types.KindOIDCConnector:                      rc.updateOIDCConnector,
 		types.KindSAMLConnector:                      rc.updateSAMLConnector,
@@ -565,44 +563,6 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 	return nil
 }
 
-// createUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	userName := user.GetName()
-	existingUser, err := client.GetUser(ctx, userName, false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists {
-		if !rc.force {
-			return trace.AlreadyExists("user %q already exists", userName)
-		}
-
-		// Unmarshalling user sets createdBy to zero values which will overwrite existing data.
-		// This field should not be allowed to be overwritten.
-		user.SetCreatedBy(existingUser.GetCreatedBy())
-
-		if _, err := client.UpsertUser(ctx, user); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been updated\n", userName)
-
-	} else {
-		if _, err := client.CreateUser(ctx, user); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been created\n", userName)
-	}
-
-	return nil
-}
-
 func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	bot := &machineidv1pb.Bot{}
 	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
@@ -672,21 +632,6 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 	fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
-	return nil
-}
-
-// updateUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateUser(ctx, user); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("user %q has been updated\n", user.GetName())
-
 	return nil
 }
 
@@ -1805,11 +1750,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
-	case types.KindUser:
-		if err = client.DeleteUser(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
 	case types.KindToken:
 		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2409,19 +2349,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	// The resource hasn't been migrated yet, falling back to the old logic.
 
 	switch rc.ref.Kind {
-	case types.KindUser:
-		if rc.ref.Name == "" {
-			users, err := client.GetUsers(ctx, rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &userCollection{users: users}, nil
-		}
-		user, err := client.GetUser(ctx, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &userCollection{users: services.Users{user}}, nil
 	case types.KindConnectors:
 		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
