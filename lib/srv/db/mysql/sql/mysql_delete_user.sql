@@ -1,7 +1,7 @@
-CREATE PROCEDURE teleport_delete_user(IN username VARCHAR(32))
+CREATE PROCEDURE teleport_delete_user(IN username TEXT)
 BEGIN
     -- Defaults to dropping user.
-    DECLARE state VARCHAR(5) DEFAULT 'TP003';
+    DECLARE state TEXT DEFAULT 'TP003';
     DECLARE is_active INT DEFAULT 0;
 
     -- Views and procedures rely on the definer to work correctly. Dropping the
