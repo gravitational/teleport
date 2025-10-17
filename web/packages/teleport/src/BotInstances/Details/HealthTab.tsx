@@ -137,9 +137,9 @@ const HealthStatusDot = styled.div<{
           BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
         ? theme.colors.interactive.solid.danger.default
         : $status ===
-            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
-          ? theme.colors.interactive.solid.alert.default
-          : theme.colors.interactive.tonal.neutral[1]};
+            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+          ? theme.colors.interactive.tonal.neutral[1]
+          : theme.colors.interactive.solid.alert.default};
 `;
 
 const ReasonContainer = styled.div<{
@@ -156,9 +156,9 @@ const ReasonContainer = styled.div<{
           BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
         ? theme.colors.interactive.solid.danger.default
         : $status ===
-            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
-          ? theme.colors.interactive.solid.alert.default
-          : theme.colors.interactive.tonal.neutral[1]};
+            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+          ? theme.colors.interactive.tonal.neutral[1]
+          : theme.colors.interactive.solid.alert.default};
   padding: 0 ${({ theme }) => theme.space[2]}px;
 `;
 
