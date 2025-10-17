@@ -58,7 +58,6 @@ object has the following structure:
   e.g., `RoleV6`.
 - `package`: The name of the Go package that includes the type declaration,
   e.g., `types`.
-- `name`: The name of the resource to display in the docs, e.g., "Role v6".
 - `yaml_kind`: The value of `kind` to include in the resource manifest, e.g.,
   "role".
 - `yaml_version`: The value of `version` to include in the resource manifest,
@@ -72,17 +71,14 @@ destination: "../../../../docs/pages/reference/tctl-resources"
 resources:
   - type: RoleV6
     package: types
-    name: "Role v6"
     yaml_kind: "role"
     yaml_version: "v6"
   - type: OIDCConnectorV3
     package: types
-    name: "OIDC Connector v3"
     yaml_kind: "oidc"
     yaml_version: "v3"
   - type: SAMLConnectorV2
     package: types
-    name: "SAML Connector V2"
     yaml_kind: "saml"
     yaml_version: "v2"
 ```

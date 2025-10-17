@@ -3,17 +3,14 @@ destination: "../../../../docs/pages/reference/tctl-resources"
 resources:
   - type: RoleV6
     package: types
-    name: "Role v6"
     yaml_kind: "role"
     yaml_version: "v6"
   - type: OIDCConnectorV3
     package: types
-    name: "OIDC Connector v3"
     yaml_kind: "oidc"
     yaml_version: "v3"
   - type: SAMLConnectorV2
     package: types
-    name: "SAML Connector V2"
     yaml_kind: "saml"
     yaml_version: "v2"
 

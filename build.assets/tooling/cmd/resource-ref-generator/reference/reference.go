@@ -73,8 +73,6 @@ type ResourceConfig struct {
 	// The final path segment in the name of the Go package containing this
 	// type declaration, e.g., "api".
 	PackageName string `yaml:"package"`
-	// The name of the resource to include in the docs, e.g., Role v6.
-	NameInDocs string `yaml:"name"`
 	// The value of the "kind" field within a YAML manifest for this
 	// resource, e.g., "role".
 	KindValue string `yaml:"yaml_kind"`
