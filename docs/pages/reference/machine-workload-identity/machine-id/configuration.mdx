@@ -1156,6 +1156,8 @@ This differs to using `identity` output for SSH in a few ways:
   SSH connections to be established and to continue running.
 - Resource consumption is significantly reduced by multiplexing SSH connections
   through a fewer number of upstream connections to the Teleport Proxy Service.
+- It's possible to configure the `ssh-multiplexer` service to connect to SSH
+  servers through a [Teleport Relay](../../architecture/relay.mdx).
 
 Additionally, the `ssh-multiplexer` opens a socket that implements the SSH
 agent protocol. This allows the SSH client to authenticate without writing the
@@ -1194,6 +1196,13 @@ proxy_command:
 #
 # If unspecified, proxy templates will not be used.
 proxy_templates_path: /etc/my-proxy-templates.yaml
+# relay_server, if set, specifies the address of the Relay service that should be
+# used to connect to SSH servers, instead of connecting through the Teleport
+# control plane. If set, only SSH servers that are available through the specified
+# Relay will be reachable, and no connections will go through the control plane.
+#
+# Use of the relay_server option requires `tbot` 18.3.0 or later.
+relay_server: relay.example.com
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.
