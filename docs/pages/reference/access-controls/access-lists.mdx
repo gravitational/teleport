@@ -191,20 +191,20 @@ Through these you can list Access Lists, get information about a particular Acce
 Access List users. To see more details, run `tctl acl --help`. More detail can be seen in the
 [CLI Reference](../cli/cli.mdx).
 
-## Finding parent access lists
+## Finding parent Access Lists
 
-In some environments, access lists can be nested, where one list owns or references another. 
-When multiple layers of access lists are involved, identifying all parent lists can become time-consuming.
+In some environments, Access Lists can be nested, where one list owns or references another. 
+When multiple layers of Access Lists are involved, identifying all parent lists can become time-consuming.
 
-If you have both `tctl` and `jq` installed, you can use the following command sequence to find which access lists are parents of a given list.
+If you have both `tctl` and `jq` installed, you can use the following command sequence to find which Access Lists are parents of a given list.
 
 **Note:**
-- The access list title (spec.title) is a human-readable name.
-- The access list name (metadata.name) is a UUID used internally by Teleport.
+- The Access List title (spec.title) is a human-readable name.
+- The Access List name (metadata.name) is a UUID used internally by Teleport.
 
 ```code
 # Change the CHILD_TITLE variable
-CHILD_TITLE="Human readable access list title"
+CHILD_TITLE="Human readable Access List title"
 
 # Two lines below don't need to be changed
 CHILD_NAME=$(tctl get access_list --format json | jq -r --arg CHILD_TITLE "$CHILD_TITLE" '.[] | select(.spec.title==$CHILD_TITLE) | .metadata.name')
