@@ -150,9 +150,9 @@ booleans:
 `,
 					Fields: []Field{
 						Field{
-							Name:        "numbers",
-							Description: "A list of numbers.",
-							Type:        "[]number",
+							Name:        "booleans",
+							Description: "A list of Booleans.",
+							Type:        "[]Boolean",
 						},
 						Field{
 							Name:        "names",
@@ -160,9 +160,9 @@ booleans:
 							Type:        "[]string",
 						},
 						Field{
-							Name:        "booleans",
-							Description: "A list of Booleans.",
-							Type:        "[]Boolean",
+							Name:        "numbers",
+							Description: "A list of numbers.",
+							Type:        "[]number",
 						},
 					},
 				},
@@ -482,11 +482,10 @@ ttl: 1
 is_active: true
 `,
 					Fields: []Field{
-
 						Field{
-							Name:        "ttl",
-							Description: "How long the resource is valid.",
-							Type:        "number",
+							Name:        "address",
+							Description: "The address of the server.",
+							Type:        "string",
 						},
 						Field{
 							Name:        "is_active",
@@ -494,9 +493,9 @@ is_active: true
 							Type:        "Boolean",
 						},
 						Field{
-							Name:        "address",
-							Description: "The address of the server.",
-							Type:        "string",
+							Name:        "ttl",
+							Description: "How long the resource is valid.",
+							Type:        "number",
 						},
 					},
 				},
@@ -556,13 +555,14 @@ label_maps:
 `,
 					Fields: []Field{
 						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)"},
-						Field{
 							Name:        "label_maps",
 							Description: "Includes a map of strings to labels.",
 							Type:        "[]map[string][Label](#label)",
+						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)",
 						},
 					},
 				},
@@ -939,7 +939,6 @@ type Metadata struct {
 		},
 		{
 			description: "non-embedded custom field type declared in the same package as the containing struct",
-
 			declInfo: PackageInfo{
 				DeclName:    "DatabaseServerV3",
 				PackageName: "typestest",
@@ -975,14 +974,14 @@ type Metadata struct {
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
 						Field{
-							Name:        "metadata",
-							Description: "The database server metadata.",
-							Type:        "[Metadata](#metadata)",
-						},
-						Field{
 							Name:        "kind",
 							Description: "The database server resource kind.",
 							Type:        "string",
+						},
+						Field{
+							Name:        "metadata",
+							Description: "The database server metadata.",
+							Type:        "[Metadata](#metadata)",
 						},
 					},
 					YAMLExample: `kind: "string"
@@ -998,13 +997,13 @@ metadata: # [...]
 					SourcePath:  "src/myfile0.go",
 					Fields: []Field{
 						{
-							Name:        "name",
-							Description: "An object name",
+							Name:        "description",
+							Description: "Object description",
 							Type:        "string",
 						},
 						{
-							Name:        "description",
-							Description: "Object description",
+							Name:        "name",
+							Description: "An object name",
 							Type:        "string",
 						},
 					},
@@ -1213,14 +1212,14 @@ expiry: # See description
 `,
 					Fields: []Field{
 						Field{
-							Name:        "name",
-							Description: "The name of the resource.",
-							Type:        "string",
-						},
-						Field{
 							Name:        "expiry",
 							Description: "How much time must elapse before the resource expires.",
 							Type:        "",
+						},
+						Field{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
 						},
 					},
 				},
@@ -1258,14 +1257,14 @@ private_key: BASE64_STRING
 `,
 					Fields: []Field{
 						Field{
-							Name:        "private_key",
-							Description: "The private key of the resource.",
-							Type:        "base64-encoded string",
-						},
-						Field{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
+						},
+						Field{
+							Name:        "private_key",
+							Description: "The private key of the resource.",
+							Type:        "base64-encoded string",
 						},
 					},
 				},
@@ -1316,14 +1315,14 @@ spec: # [...]
 `,
 					Fields: []Field{
 						Field{
-							Name:        "spec",
-							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)",
-						},
-						Field{
 							Name:        "name",
 							Description: "The name of the resource.",
 							Type:        "string",
+						},
+						Field{
+							Name:        "spec",
+							Description: "Contains information about the server.",
+							Type:        "[Server Spec](#server-spec)",
 						},
 					},
 				},
