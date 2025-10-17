@@ -5851,6 +5851,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer:  cfg.Authorizer,
 		AuthService: cfg.AuthServer,
 		Clock:       cfg.AuthServer.clock,
+		FIPS:        cfg.AuthServer.fips,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
