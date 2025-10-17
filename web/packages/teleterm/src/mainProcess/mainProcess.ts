@@ -130,7 +130,7 @@ export default class MainProcess {
     autoUpdateService: AutoUpdateClient;
   }>;
   private readonly appUpdater: AppUpdater;
-  public clusterStore: ClusterStore;
+  public readonly clusterStore: ClusterStore;
 
   /**
    * Starts necessary child processes such as tsh daemon and the shared process. It also sets
@@ -197,13 +197,10 @@ export default class MainProcess {
       },
       process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
     );
-
-    this.getTshdClients().then(clients => {
-      this.clusterStore = new ClusterStore(
-        clients.terminalService,
-        this.windowsManager
-      );
-    });
+    this.clusterStore = new ClusterStore(
+      this.getTshdClients().then(c => c.terminalService),
+      this.windowsManager
+    );
   }
 
   async dispose(): Promise<void> {
