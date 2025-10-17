@@ -45,7 +45,7 @@ func main() {
 	}
 	defer conffile.Close()
 
-	genconf := reference.GeneratorConfig{}
+	var genconf reference.GeneratorConfig
 	if err := yaml.NewDecoder(conffile).Decode(&genconf); err != nil {
 		fmt.Fprintf(os.Stderr, "Invalid configuration file: %v\n", err)
 		os.Exit(1)
