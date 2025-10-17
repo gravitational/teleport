@@ -313,3 +313,16 @@ func (t LockTarget) Equals(t2 LockTarget) bool {
 		t.BotInstanceID == t2.BotInstanceID &&
 		t.JoinToken == t2.JoinToken
 }
+
+// NewLockFilter is a convenience method that creates an instance of [*LockFilter].
+func NewLockFilter(inForceOnly bool, targets ...LockTarget) *LockFilter {
+	targetPtrs := make([]*LockTarget, len(targets))
+	for i := range targets {
+		targetPtrs[i] = &targets[i]
+	}
+
+	return &LockFilter{
+		InForceOnly: inForceOnly,
+		Targets:     targetPtrs,
+	}
+}
