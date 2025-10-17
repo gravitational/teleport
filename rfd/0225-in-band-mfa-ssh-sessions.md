@@ -33,6 +33,10 @@ shortcomings that this proposal aims to address:
    across different clients (e.g., `tsh`, web terminal, Teleport Connect, etc.).
 1. A per-session MFA certificate is a single credential, representing multiple factors of authentication for a user. If
    an attacker were to gain possession, it could be used to bypass all forms of authentication checks, including MFA.
+1. When connecting to multiple SSH hosts as part of a single user action (e.g., using `tsh ssh root@env=example uptime`), the current design only evaluates MFA requirements once on the first host matching the label, and if MFA was
+   required, the per-session MFA certificate was used for all subsequent hosts without further MFA checks. This could
+   lead to situations where MFA is not enforced on all target hosts as intended. For example, if the first host does not
+   require MFA but subsequent hosts do, the user would be able to access those hosts without completing MFA.
 
 By moving MFA enforcement to the SSH service during session establishment, this new design directly addresses the above
 issues by:
@@ -45,10 +49,15 @@ issues by:
    implementation errors.
 1. Per-session MFA certificates can be completely removed, eliminating a single credential representing multiple factors
    of authentication.
+1. Each target host independently evaluates MFA requirements during session establishment, ensuring that MFA is enforced
+   on all target hosts as intended.
 
 In summary, this RFD proposes a more secure and streamlined approach to MFA enforcement for SSH sessions by integrating
 MFA checks directly into the session establishment process, reducing client complexity, and eliminating the need for
-per-session MFA certificates.
+per-session MFA certificates. Crucially, it also fixes the multiple-hosts scenario where MFA was previously evaluated
+once and a per-session MFA SSH certificate could be reused across subsequent targets; with in-band MFA each target host
+independently evaluates and enforces MFA, preventing unintended bypasses when different hosts have different MFA
+requirements.
 
 ## Non-Goals
 
@@ -61,7 +70,18 @@ per-session MFA certificates.
 
 ### UX
 
-No changes to the UX as all changes are internal to the architecture.
+From a user perspective, the experience of connecting to a _single SSH host_ with MFA enabled will remain unchanged. The
+user will still use standard clients such as `tsh`, web terminal, and Teleport Connect, that previously supported
+per-session MFA.
+
+However, when connecting to _multiple SSH hosts_ as part of a single user action (e.g., `tsh ssh root@env=example
+uptime`), the user may need to complete the MFA challenge multiple times depending on each target host's MFA
+requirements.
+
+This is due to the fact that the current design only evaluates MFA requirements _once_ on the first host matching the
+label, and if MFA was required, the per-session MFA certificate was used for all subsequent hosts without further MFA
+checks. Moving to in-band MFA enforcement means that each target host will independently evaluate MFA requirements
+during session establishment, which increases security.
 
 ### High-Level Flow
 
@@ -265,13 +285,6 @@ message ValidateAuthenticateChallengeResponse {
 }
 ```
 
-### Running an SSH command on multiple target hosts
-
-The MFA challenge and response will be reused for all SSH connections initiated as part of a single user action. In
-other words, a user will only need to complete the MFA challenge once when running SSH commands on multiple hosts as
-part of a single action. If the MFA challenge and response are no longer valid (e.g., expired), the user will need to
-complete the MFA challenge again.
-
 ### Backwards Compatibility
 
 #### Terminology
@@ -378,8 +391,8 @@ The following are assumed to be completed before starting work on this RFD:
    implementation, it would potentially introduce security risks by giving Proxy/Relay access to operations that are out
    of its domain scope.
 1. New version of `TransportService` is introduced to handle in-band MFA at the Proxy/Relay: While this would separate
-   concerns and keep the MFA logic isolated, it would add complexity to the architecture, require significant changes
-   to existing services, and break domain boundaries.
+   concerns and keep the MFA logic isolated, it would add complexity to the architecture, require significant changes to
+   existing services, and break domain boundaries.
 
 ## Future Considerations
 
