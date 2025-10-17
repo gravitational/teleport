@@ -20,7 +20,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"go/ast"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,33 +88,6 @@ type GeneratorConfig struct {
 	SourcePath string `yaml:"source"`
 	// Directory where the generator writes reference pages.
 	DestinationDirectory string `yaml:"destination"`
-}
-
-// getPackageInfoFromExpr extracts a package name and declaration name from an
-// arbitrary expression. If the expression is not an expected kind,
-// getPackageInfoFromExpr returns an empty PackageInfo.
-func getPackageInfoFromExpr(expr ast.Expr) resource.PackageInfo {
-	var gopkg, fldname string
-	switch t := expr.(type) {
-	case *ast.StarExpr:
-		return getPackageInfoFromExpr(t.X)
-	case *ast.SelectorExpr:
-		// If the type of the field is an *ast.SelectorExpr,
-		// it's of the form <package>.<type name>.
-		g, ok := t.X.(*ast.Ident)
-		if ok {
-			gopkg = g.Name
-		}
-		fldname = t.Sel.Name
-
-	// There's no package, so only assign a name.
-	case *ast.Ident:
-		fldname = t.Name
-	}
-	return resource.PackageInfo{
-		DeclName:    fldname,
-		PackageName: gopkg,
-	}
 }
 
 type GenerationError struct {
