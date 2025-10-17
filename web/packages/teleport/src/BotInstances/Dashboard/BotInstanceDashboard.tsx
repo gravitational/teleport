@@ -68,7 +68,7 @@ export function BotInstancesDashboard(props: {
   return (
     <Container>
       <TitleContainer>
-        <H2>Dashboard</H2>
+        <H2>Insights</H2>
         <HoverTooltip placement="top" tipContent={'Refresh metrics'}>
           <ButtonIcon
             onClick={() => refetch()}
