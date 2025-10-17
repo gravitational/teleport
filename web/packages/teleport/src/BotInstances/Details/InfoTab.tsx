@@ -23,7 +23,6 @@ import styled from 'styled-components';
 import Box from 'design/Box/Box';
 import Flex from 'design/Flex/Flex';
 import { SecondaryOutlined } from 'design/Label/Label';
-import StyledLink from 'design/Link';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { IconTooltip } from 'design/Tooltip/IconTooltip';
@@ -80,9 +79,9 @@ export function InfoTab(props: {
             {bot_name ? (
               <Flex inline alignItems={'center'} gap={1} overflow={'hidden'}>
                 <GridValue>
-                  <Link to={cfg.getBotDetailsRoute(bot_name)}>
-                    <StyledLink>{bot_name}</StyledLink>
-                  </Link>
+                  <StyledLink to={cfg.getBotDetailsRoute(bot_name)}>
+                    {bot_name}
+                  </StyledLink>
                 </GridValue>
                 <CopyButton value={bot_name} />
               </Flex>
@@ -175,9 +174,9 @@ export function InfoTab(props: {
             {join_token_name ? (
               <Flex inline alignItems={'center'} gap={1} overflow={'hidden'}>
                 <GridValue>
-                  <Link to={cfg.getJoinTokensRoute()}>
-                    <StyledLink>{join_token_name}</StyledLink>
-                  </Link>
+                  <StyledLink to={cfg.getJoinTokensRoute()}>
+                    {join_token_name}
+                  </StyledLink>
                 </GridValue>
                 <CopyButton value={join_token_name} />
               </Flex>
@@ -274,6 +273,21 @@ const HealthStatusDot = styled.div<{
 const AccentCountText = styled(Text)`
   font-size: ${({ theme }) => theme.fontSizes[8]}px;
   font-weight: ${({ theme }) => theme.fontWeights.light}px;
+`;
+
+const StyledLink = styled(Link)`
+  color: ${({ theme }) => theme.colors.interactive.solid.accent.default};
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.interactive.solid.accent.hover};
+  }
+
+  &:active {
+    color: ${({ theme }) => theme.colors.interactive.solid.accent.active};
+  }
 `;
 
 function makeKindInfo(kind: BotInstanceKind | undefined) {
