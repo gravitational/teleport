@@ -1,0 +1,103 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.delegation.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/delegation/v1/delegation_profile_resource.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
+
+// DelegationProfileService manages DelegationProfile resources.
+service DelegationProfileService {
+  // CreateDelegationProfile creates a delegation profile.
+  rpc CreateDelegationProfile(CreateDelegationProfileRequest) returns (DelegationProfile);
+
+  // UpsertDelegationProfile creates or updates a delegation profile.
+  //
+  // You should prefer to call CreateDelegationProfile or UpdateDelegationProfile instead.
+  rpc UpsertDelegationProfile(UpsertDelegationProfileRequest) returns (DelegationProfile);
+
+  // UpdateDelegationProfile updates an existing delegation profile. It will
+  // refuse to update a delegation profile if one does not already exist with
+  // the same name.
+  //
+  // ConditionalUpdate semantics are applied, e.g, the update will only succeed
+  // if the revision of the provided DelegationProfile matches the revision of
+  // the existing DelegationProfile.
+  rpc UpdateDelegationProfile(UpdateDelegationProfileRequest) returns (DelegationProfile);
+
+  // GetDelegationProfile gets a delegation profile by name.
+  rpc GetDelegationProfile(GetDelegationProfileRequest) returns (DelegationProfile);
+
+  // DeleteDelegationProfile deletes a delegation profile by name.
+  rpc DeleteDelegationProfile(DeleteDelegationProfileRequest) returns (google.protobuf.Empty);
+
+  // ListDelegationProfiles returns a list of delegation profiles, pagination
+  // semantics are applied.
+  rpc ListDelegationProfiles(ListDelegationProfilesRequest) returns (ListDelegationProfilesResponse);
+}
+
+// CreateDelegationProfileRequest are the parameters to CreateDelegationProfile.
+message CreateDelegationProfileRequest {
+  // Profile that will be created.
+  DelegationProfile delegation_profile = 1;
+}
+
+// UpsertDelegationProfileRequest are the parameters to UpsertDelegationProfile.
+message UpsertDelegationProfileRequest {
+  // Profile that will be updated.
+  DelegationProfile delegation_profile = 1;
+}
+
+// UpdateDelegationProfileRequest are the parameters to UpdateDelegationProfile.
+message UpdateDelegationProfileRequest {
+  // Profile that will be created or updated.
+  DelegationProfile delegation_profile = 1;
+}
+
+// GetDelegationProfileRequest are the parameters to GetDelegationProfile.
+message GetDelegationProfileRequest {
+  // Name of the delegation profile.
+  string name = 1;
+}
+
+// DeleteDelegationProfileRequest are the parameters to DeleteDelegationProfile.
+message DeleteDelegationProfileRequest {
+  // Name of the delegation profile.
+  string name = 1;
+}
+
+// ListDelegationProfilesRequest are the parameters for ListDelegationProfiles.
+message ListDelegationProfilesRequest {
+  // The maximum number of items to return. The server may impose a different
+  // page size at its discretion.
+  int32 page_size = 1;
+
+  // The page_token value returned from a previous ListDelegationProfiles
+  // request, if any.
+  string page_token = 2;
+}
+
+// The response from ListDelegationProfiles.
+message ListDelegationProfilesResponse {
+  // The page of delegation profiles that matched the request.
+  repeated DelegationProfile delegation_profiles = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no more
+  // results in the list.
+  string next_page_token = 2;
+}
