@@ -569,6 +569,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.ScopedTokenService == nil {
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -635,6 +642,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		ScopedTokenService:              cfg.ScopedTokenService,
 	}
 
 	as = &Server{
@@ -903,6 +911,7 @@ type Services struct {
 	RecordingEncryptionManager
 	events.MultipartHandler
 	services.Summarizer
+	services.ScopedTokenService
 }
 
 // GetWebSession returns existing web session described by req.
