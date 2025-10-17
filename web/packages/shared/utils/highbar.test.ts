@@ -381,18 +381,18 @@ describe('equalsDeep', () => {
 });
 
 test('runOnce only runs once and preserves "this"', () => {
-  class Counter {
+  class Class {
     value: symbol;
 
     update = runOnce(
       // Use 'this' in a convoluted way to make sure it's passed correctly.
-      function (this: Counter) {
+      function (this: Class) {
         this.value = Symbol();
       }
     );
   }
 
-  const c = new Counter();
+  const c = new Class();
 
   // First call updates the value (and doesn't throw because of 'this' being undefined).
   expect(() => c.update()).not.toThrow();
