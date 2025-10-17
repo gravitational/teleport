@@ -539,7 +539,7 @@ export class WindowsManager {
     this.logger.error('Window crashed', error);
     const { response } = await dialog.showMessageBox(this.window, {
       type: 'error',
-      message: 'Teleport Connect Crashed',
+      message: 'Teleport Connect has crashed',
       detail: ensureError(error).message,
       buttons: ['Reload Window', 'Quit'],
       defaultId: 0,
