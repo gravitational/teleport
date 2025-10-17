@@ -50,7 +50,7 @@ func (c *databaseCollection) Resources() []types.Resource {
 }
 
 func (c *databaseCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
+	rows := make([][]string, 0, len(c.databases))
 	for _, database := range c.databases {
 		labels := common.FormatLabels(database.GetAllLabels(), verbose)
 		rows = append(rows, []string{
