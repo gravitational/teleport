@@ -198,6 +198,113 @@ func TestConflictingRules(t *testing.T) {
 	require.NoError(t, handler.HandleAccessRequest(ctx, event))
 }
 
+func TestScheduleRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	t.Cleanup(cancel)
+
+	testReqID := uuid.New().String()
+	testRuleName := "test-rule"
+	withSecretsFalse := false
+	requesterUserName := "requester"
+
+	requester, err := types.NewUser(requesterUserName)
+	require.NoError(t, err)
+
+	testRule := newApprovedRule(
+		testRuleName,
+		`true`)
+
+	testRule.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
+		"test-schedule": {
+			Time: &accessmonitoringrulesv1.TimeSchedule{
+				Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+					{
+						Weekday: time.Monday.String(),
+						Start:   "14:00",
+						End:     "15:00",
+					},
+				},
+			},
+		},
+	}
+
+	cache := accessmonitoring.NewCache()
+	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
+
+	tests := []struct {
+		description  string
+		setupMock    func(m *mockClient)
+		creationTime time.Time
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			description: "test within schedule",
+			setupMock: func(m *mockClient) {
+				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+					Return(requester, nil)
+
+				review, err := newAccessReview(
+					requesterUserName,
+					testRuleName,
+					types.RequestState_APPROVED.String(),
+					time.Time{},
+				)
+				require.NoError(t, err)
+
+				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+					RequestID: testReqID,
+					Review:    review,
+				}).Return(mock.Anything, nil)
+			},
+			creationTime: time.Date(2025, time.August, 11, 14, 30, 0, 0, time.UTC),
+			assertErr:    require.NoError,
+		},
+		{
+			description: "test outside schedule",
+			setupMock: func(m *mockClient) {
+				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+					Return(requester, nil)
+
+				m.AssertNotCalled(t, "SubmitAccessReview")
+			},
+			creationTime: time.Date(2025, time.August, 11, 15, 30, 0, 0, time.UTC),
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockClient{}
+			if test.setupMock != nil {
+				test.setupMock(client)
+			}
+
+			handler, err := NewHandler(Config{
+				HandlerName: handlerName,
+				Client:      client,
+				Cache:       cache,
+			})
+			require.NoError(t, err)
+
+			req, err := types.NewAccessRequest(
+				testReqID,
+				requesterUserName,
+				"role",
+			)
+			require.NoError(t, err)
+			req.SetCreationTime(test.creationTime)
+
+			test.assertErr(t, handler.HandleAccessRequest(ctx, types.Event{
+				Type:     types.OpPut,
+				Resource: req,
+			}))
+			client.AssertExpectations(t)
+		})
+	}
+}
+
 func TestResourceRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	t.Cleanup(cancel)

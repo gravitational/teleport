@@ -154,6 +154,22 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	}
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
+		// Check if creation time is within rule schedules.
+		isInSchedules, err := accessmonitoring.InSchedules(rule.GetSpec().GetSchedules(), env.CreationTime)
+		if err != nil {
+			log.WarnContext(ctx, "Failed to evaluate access monitoring rule",
+				"error", err,
+				"rule", rule.GetMetadata().GetName(),
+			)
+			continue
+		}
+		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
+			log.DebugContext(ctx, "Access request does not satisfy schedule condition",
+				"rule", rule.GetMetadata().GetName())
+			continue
+		}
+
+		// Check if environment matches rule conditions.
 		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
@@ -188,6 +204,22 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	}
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
+		// Check if creation time is within rule schedules.
+		isInSchedules, err := accessmonitoring.InSchedules(rule.GetSpec().GetSchedules(), env.CreationTime)
+		if err != nil {
+			log.WarnContext(ctx, "Failed to evaluate access monitoring rule",
+				"error", err,
+				"rule", rule.GetMetadata().GetName(),
+			)
+			continue
+		}
+		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
+			log.DebugContext(ctx, "Access request does not satisfy schedule condition",
+				"rule", rule.GetMetadata().GetName())
+			continue
+		}
+
+		// Check if environment matches rule conditions.
 		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
