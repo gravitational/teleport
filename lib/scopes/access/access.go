@@ -132,6 +132,20 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that all rules are allowed for scoped roles
+	for _, rule := range role.GetSpec().GetAllow().GetRules() {
+		for _, resource := range rule.GetResources() {
+			for _, verb := range rule.GetVerbs() {
+				if !isAllowedScopedRule(resource, verb) {
+					if verb == types.VerbRead && isAllowedScopedRule(resource, types.VerbReadNoSecrets) {
+						return trace.BadParameter("scoped role %q has rule with verb %q that is too permissive for resource %q, use %q instead", role.GetMetadata().GetName(), verb, resource, types.VerbReadNoSecrets)
+					}
+					return trace.BadParameter("scoped role %q has rule with unsupported resource/verb combination: %q/%q", role.GetMetadata().GetName(), resource, verb)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

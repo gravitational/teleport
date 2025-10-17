@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -117,37 +116,6 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 			}
 		}
 	}
-}
-
-// DoScopedDecision is a helper function that takes care of boilerplate for simple scoped decisions.  It calls the provided
-// decision function until one of three conditions is met:
-//
-// 1. Decision function executes without error (allow)
-// 2. Decision function returns an AccessExplicitlyDenied error (explicit deny)
-// 3. Checker stream is exhausted (implicit deny)
-//
-// The generic parameter may be used to propagate additional information/parameterization of the decision. For basic checks,
-// conventionally set D to struct{} to indicate that the presence/absence of the error alone is the entire decision state.
-// For logging/debuggin purposes, returning checker.Scope() as the decision value may be convenient.
-func DoScopedDecision[D any](checkers stream.Stream[*ScopedAccessChecker], decisionFn func(*ScopedAccessChecker) (D, error)) (D, error) {
-	for checker, err := range checkers {
-		if err != nil {
-			return *new(D), trace.Wrap(err)
-		}
-
-		result, err := decisionFn(checker)
-		switch {
-		case err == nil:
-			return result, nil
-		case IsAccessExplicitlyDenied(err):
-			return *new(D), trace.Wrap(err)
-		default:
-			// implicit deny, continue to the next check
-			continue
-		}
-	}
-
-	return *new(D), trace.AccessDenied("access denied (scoped)")
 }
 
 // scopedAccessCheckerBuilder is a helper that builds scoped access checkers.
@@ -276,24 +244,9 @@ func (c *ScopedAccessChecker) Traits() wrappers.Traits {
 	return c.checker.Traits()
 }
 
-// CheckAccessToRules verifies that *all* of a series of verbs are permitted for the specified resource. This function differs
-// from the unscoped AccessChecker.CheckAccessToRule in a number of ways. It does not support advanced context-based features
-// or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.
-func (c *ScopedAccessChecker) CheckAccessToRules(resource string, verbs ...string) error {
-	if len(verbs) == 0 {
-		return trace.AccessDenied("malformed rule check, no verbs provided (this is a bug)")
-	}
-
-	// scoped roles currently do not support any rule-context features.
-	ctx := &Context{}
-
-	for _, verb := range verbs {
-		if err := c.checker.CheckAccessToRule(ctx, apidefaults.Namespace, resource, verb); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+// CheckAccessToRules verifies that *all* of a series of verbs are permitted for the specified resource.
+func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
+	return checkAccessToRulesImpl(c.checker, ctx, resource, verbs...)
 }
 
 // CheckAccessToRemoteCluster checks access to remote cluster

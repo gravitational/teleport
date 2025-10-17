@@ -19,6 +19,7 @@ package access
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -45,4 +46,94 @@ func TestEmptyRoleConverts(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, role)
 	require.Equal(t, "test@/foo/bar", role.GetName())
+}
+
+// TestRulesConversion verifies various scoped role rule conversion scenarios.
+func TestRulesConversion(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		rules  []*scopedaccessv1.ScopedRule
+		expect []types.Rule
+	}{
+		{
+			name: "basic",
+			rules: []*scopedaccessv1.ScopedRule{
+				{
+					Resources: []string{KindScopedRole},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+				},
+				{
+					Resources: []string{KindScopedRoleAssignment},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+				},
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{KindScopedRole},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+				},
+				{
+					Resources: []string{KindScopedRoleAssignment},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+				},
+			},
+		},
+		{
+			name: "unsupported verb",
+			rules: []*scopedaccessv1.ScopedRule{
+				{
+					Resources: []string{KindScopedRole},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				},
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{KindScopedRole},
+					Verbs:     []string{types.VerbList},
+				},
+			},
+		},
+		{
+			name: "unsupported resource",
+			rules: []*scopedaccessv1.ScopedRule{
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+				},
+				{
+					Resources: []string{KindScopedRole},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+				},
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{KindScopedRole},
+					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/foo",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo/bar"},
+					Allow: &scopedaccessv1.ScopedRoleConditions{
+						Rules: tt.rules,
+					},
+				},
+				Version: types.V1,
+			}, "/foo/bar")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tt.expect, role.GetRules(types.Allow)))
+		})
+	}
 }
