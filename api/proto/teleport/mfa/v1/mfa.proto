@@ -90,3 +90,9 @@ enum ChallengeAllowReuse {
   // Reuse is not permitted.
   CHALLENGE_ALLOW_REUSE_NO = 2;
 }
+
+// MFARequiredError is returned when multi-factor authentication is required but has not been completed.
+message MFARequiredError {
+  // Error message describing why MFA is required.
+  string message = 1;
+}

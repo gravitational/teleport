@@ -35,4 +35,14 @@ message DenialMetadata {
   // UserMessage is a sanitized message safe for return to the subject identity
   // of the decision request.
   string user_message = 3;
+
+  // Reason is a structured reason for the denial. This field is optional and may be empty if no structured reason is
+  // applicable.
+  DenialMetadataReason reason = 4;
+}
+
+// DenialMetadataReason represents structured reasons for denial.
+enum DenialMetadataReason {
+  DENIAL_METADATA_REASON_UNSPECIFIED = 0; // Default value, unspecified reason.
+  DENIAL_METADATA_REASON_MFA_REQUIRED = 1; // Indicates that MFA is required for access but not provided.
 }

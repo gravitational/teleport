@@ -35,6 +35,53 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// DenialMetadataReason represents structured reasons for denial.
+type DenialMetadataReason int32
+
+const (
+	DenialMetadataReason_DENIAL_METADATA_REASON_UNSPECIFIED  DenialMetadataReason = 0 // Default value, unspecified reason.
+	DenialMetadataReason_DENIAL_METADATA_REASON_MFA_REQUIRED DenialMetadataReason = 1 // Indicates that MFA is required for access but not provided.
+)
+
+// Enum value maps for DenialMetadataReason.
+var (
+	DenialMetadataReason_name = map[int32]string{
+		0: "DENIAL_METADATA_REASON_UNSPECIFIED",
+		1: "DENIAL_METADATA_REASON_MFA_REQUIRED",
+	}
+	DenialMetadataReason_value = map[string]int32{
+		"DENIAL_METADATA_REASON_UNSPECIFIED":  0,
+		"DENIAL_METADATA_REASON_MFA_REQUIRED": 1,
+	}
+)
+
+func (x DenialMetadataReason) Enum() *DenialMetadataReason {
+	p := new(DenialMetadataReason)
+	*p = x
+	return p
+}
+
+func (x DenialMetadataReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DenialMetadataReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_decision_v1alpha1_denial_metadata_proto_enumTypes[0].Descriptor()
+}
+
+func (DenialMetadataReason) Type() protoreflect.EnumType {
+	return &file_teleport_decision_v1alpha1_denial_metadata_proto_enumTypes[0]
+}
+
+func (x DenialMetadataReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DenialMetadataReason.Descriptor instead.
+func (DenialMetadataReason) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescGZIP(), []int{0}
+}
+
 // Metadata for access denials.
 type DenialMetadata struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -48,7 +95,10 @@ type DenialMetadata struct {
 	PdpVersion string `protobuf:"bytes,2,opt,name=pdp_version,json=pdpVersion,proto3" json:"pdp_version,omitempty"`
 	// UserMessage is a sanitized message safe for return to the subject identity
 	// of the decision request.
-	UserMessage   string `protobuf:"bytes,3,opt,name=user_message,json=userMessage,proto3" json:"user_message,omitempty"`
+	UserMessage string `protobuf:"bytes,3,opt,name=user_message,json=userMessage,proto3" json:"user_message,omitempty"`
+	// Reason is a structured reason for the denial. This field is optional and may be empty if no structured reason is
+	// applicable.
+	Reason        DenialMetadataReason `protobuf:"varint,4,opt,name=reason,proto3,enum=teleport.decision.v1alpha1.DenialMetadataReason" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -104,16 +154,27 @@ func (x *DenialMetadata) GetUserMessage() string {
 	return ""
 }
 
+func (x *DenialMetadata) GetReason() DenialMetadataReason {
+	if x != nil {
+		return x.Reason
+	}
+	return DenialMetadataReason_DENIAL_METADATA_REASON_UNSPECIFIED
+}
+
 var File_teleport_decision_v1alpha1_denial_metadata_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc = "" +
 	"\n" +
-	"0teleport/decision/v1alpha1/denial_metadata.proto\x12\x1ateleport.decision.v1alpha1\x1a4teleport/decision/v1alpha1/enforcement_feature.proto\"\xb3\x01\n" +
+	"0teleport/decision/v1alpha1/denial_metadata.proto\x12\x1ateleport.decision.v1alpha1\x1a4teleport/decision/v1alpha1/enforcement_feature.proto\"\xfd\x01\n" +
 	"\x0eDenialMetadata\x12]\n" +
 	"\x12feature_assertions\x18\x01 \x03(\x0e2..teleport.decision.v1alpha1.EnforcementFeatureR\x11featureAssertions\x12\x1f\n" +
 	"\vpdp_version\x18\x02 \x01(\tR\n" +
 	"pdpVersion\x12!\n" +
-	"\fuser_message\x18\x03 \x01(\tR\vuserMessageBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
+	"\fuser_message\x18\x03 \x01(\tR\vuserMessage\x12H\n" +
+	"\x06reason\x18\x04 \x01(\x0e20.teleport.decision.v1alpha1.DenialMetadataReasonR\x06reason*g\n" +
+	"\x14DenialMetadataReason\x12&\n" +
+	"\"DENIAL_METADATA_REASON_UNSPECIFIED\x10\x00\x12'\n" +
+	"#DENIAL_METADATA_REASON_MFA_REQUIRED\x10\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
 
 var (
 	file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescOnce sync.Once
@@ -127,18 +188,21 @@ func file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescGZIP() []byte 
 	return file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescData
 }
 
+var file_teleport_decision_v1alpha1_denial_metadata_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_decision_v1alpha1_denial_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_decision_v1alpha1_denial_metadata_proto_goTypes = []any{
-	(*DenialMetadata)(nil),  // 0: teleport.decision.v1alpha1.DenialMetadata
-	(EnforcementFeature)(0), // 1: teleport.decision.v1alpha1.EnforcementFeature
+	(DenialMetadataReason)(0), // 0: teleport.decision.v1alpha1.DenialMetadataReason
+	(*DenialMetadata)(nil),    // 1: teleport.decision.v1alpha1.DenialMetadata
+	(EnforcementFeature)(0),   // 2: teleport.decision.v1alpha1.EnforcementFeature
 }
 var file_teleport_decision_v1alpha1_denial_metadata_proto_depIdxs = []int32{
-	1, // 0: teleport.decision.v1alpha1.DenialMetadata.feature_assertions:type_name -> teleport.decision.v1alpha1.EnforcementFeature
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 0: teleport.decision.v1alpha1.DenialMetadata.feature_assertions:type_name -> teleport.decision.v1alpha1.EnforcementFeature
+	0, // 1: teleport.decision.v1alpha1.DenialMetadata.reason:type_name -> teleport.decision.v1alpha1.DenialMetadataReason
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_denial_metadata_proto_init() }
@@ -152,13 +216,14 @@ func file_teleport_decision_v1alpha1_denial_metadata_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc), len(file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_decision_v1alpha1_denial_metadata_proto_goTypes,
 		DependencyIndexes: file_teleport_decision_v1alpha1_denial_metadata_proto_depIdxs,
+		EnumInfos:         file_teleport_decision_v1alpha1_denial_metadata_proto_enumTypes,
 		MessageInfos:      file_teleport_decision_v1alpha1_denial_metadata_proto_msgTypes,
 	}.Build()
 	File_teleport_decision_v1alpha1_denial_metadata_proto = out.File
