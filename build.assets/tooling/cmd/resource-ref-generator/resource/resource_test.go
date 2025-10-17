@@ -466,7 +466,7 @@ spec: # [...]
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)",
+							Type:        "[Server Spec V1](#server-spec-v1)",
 						},
 					},
 				},
@@ -474,7 +474,7 @@ spec: # [...]
 					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
-					SectionName: "Server Spec",
+					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "src/myfile0.go",
 					YAMLExample: `address: "string"
@@ -562,7 +562,7 @@ label_maps:
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)",
+							Type:        "[Server Spec V1](#server-spec-v1)",
 						},
 					},
 				},
@@ -570,7 +570,7 @@ label_maps:
 					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
-					SectionName: "Server Spec",
+					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "src/myfile0.go",
 					YAMLExample: `address: "string"
@@ -969,7 +969,7 @@ type Metadata struct {
 					DeclName:    "DatabaseServerV3",
 					PackageName: "typestest",
 				}: ReferenceEntry{
-					SectionName: "Database Server",
+					SectionName: "Database Server V3",
 					Description: "Represents a database access server.",
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
@@ -1041,7 +1041,7 @@ type Metadata struct {
 					DeclName:    "DatabaseServerV3",
 					PackageName: "typestest",
 				}: ReferenceEntry{
-					SectionName: "Database Server",
+					SectionName: "Database Server V3",
 					Description: "Represents a database access server.",
 					SourcePath:  "src/myfile.go",
 					Fields: []Field{
@@ -1322,7 +1322,7 @@ spec: # [...]
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)",
+							Type:        "[Server Spec V1](#server-spec-v1)",
 						},
 					},
 				},
@@ -1330,7 +1330,7 @@ spec: # [...]
 					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
-					SectionName: "Server Spec",
+					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "src/myfile0.go",
 					YAMLExample: `address: "string"
@@ -1406,14 +1406,14 @@ type AddressInfo struct {
 						Field{
 							Name:        "spec",
 							Description: "Contains information about the server.",
-							Type:        "[Server Spec](#server-spec)"},
+							Type:        "[Server Spec V1](#server-spec-v1)"},
 					},
 				},
 				PackageInfo{
 					DeclName:    "ServerSpecV1",
 					PackageName: "types",
 				}: {
-					SectionName: "Server Spec",
+					SectionName: "Server Spec V1",
 					Description: "Includes aspects of a proxied server.",
 					SourcePath:  "src/myfile0.go",
 					YAMLExample: `info: # [...]
@@ -1998,7 +1998,7 @@ func TestMakeSectionName(t *testing.T) {
 		{
 			description: "camel-case name with version",
 			original:    "ServerSpecV2",
-			expected:    "Server Spec",
+			expected:    "Server Spec V2",
 		},
 		{
 			description: "abbreviation",

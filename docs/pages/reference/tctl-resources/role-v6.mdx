@@ -1,7 +1,7 @@
 ---
-title: Role Reference
-description: Provides a reference of fields within the Role resource, which you can manage with tctl.
-sidebar_label: Role
+title: Role V6 Reference
+description: Provides a reference of fields within the Role V6 resource, which you can manage with tctl.
+sidebar_label: Role V6
 ---
 {/* Automatically generated from: types/types.pb.go */}
 {/* DO NOT EDIT */}
@@ -24,7 +24,7 @@ spec: # [...]
 |---|---|---|
 |kind|A resource kind|string|
 |metadata|Resource metadata|[Metadata](#metadata)|
-|spec|A role specification|[Role Spec](#role-spec)|
+|spec|A role specification|[Role Spec V6](#role-spec-v6)|
 |sub_kind|An optional resource sub kind, used in some resources|string|
 |version|The resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.|string|
 
@@ -269,7 +269,7 @@ orgs:
 |---|---|---|
 |orgs||[]string|
 
-## Id POptions
+## IdP Options
 
 Specify options related to access Teleport IdPs.
 
@@ -282,9 +282,9 @@ saml: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|saml|Options related to the Teleport SAML IdP.|[Id PSAMLOptions](#id-psamloptions)|
+|saml|Options related to the Teleport SAML IdP.|[IdP SAML Options](#idp-saml-options)|
 
-## Id PSAMLOptions
+## IdP SAML Options
 
 Specifies options related to accessing the Teleport SAML IdP.
 
@@ -377,7 +377,7 @@ A wrapper around map that can marshal and unmarshal itself from scalar and list 
 Determines how a (possibly stale) set of locks should be applied to an interaction.
 
 
-## MCPPermissions
+## MCP Permissions
 
 Defines MCP servers related permissions.
 
@@ -467,7 +467,7 @@ Can be either "required" or "optional". Empty-string is treated as "optional". I
 An indicator of how access requests should be handled for holders of a given role.
 
 
-## Require MFAType
+## Require MFA Type
 
 A type of MFA requirement enforced outside of login, such as per-session MFA or per-request PIV touch.
 
@@ -620,14 +620,14 @@ mcp: # [...]
 |kubernetes_resources|The Kubernetes Resources this Role grants access to.|[][Kubernetes Resource](#kubernetes-resource)|
 |kubernetes_users|An optional kubernetes users to impersonate|[]string|
 |logins|A list of *nix system logins.|[]string|
-|mcp|Permissions defines MCP servers related permissions.|[MCPPermissions](#mcppermissions)|
+|mcp|Permissions defines MCP servers related permissions.|[MCP Permissions](#mcp-permissions)|
 |node_labels|A map of node labels (used to dynamically grant access to nodes).|[Labels](#labels)|
 |node_labels_expression|A predicate expression used to allow/deny access to SSH nodes.|string|
 |request||[Access Request Conditions](#access-request-conditions)|
 |require_session_join|Specifies policies for required users to start a session.|[][Session Require Policy](#session-require-policy)|
 |review_requests|Defines conditions for submitting access reviews.|[Access Review Conditions](#access-review-conditions)|
 |rules|A list of rules and their access levels. Rules are a high level construct used for access control.|[][Rule](#rule)|
-|spiffe|Used to allow or deny access to a role holder to generating a SPIFFE SVID.|[][SPIFFERole Condition](#spifferole-condition)|
+|spiffe|Used to allow or deny access to a role holder to generating a SPIFFE SVID.|[][SPIFFE Role Condition](#spiffe-role-condition)|
 |windows_desktop_labels|Used in the RBAC system to allow/deny access to Windows desktops.|[Labels](#labels)|
 |windows_desktop_labels_expression|A predicate expression used to allow/deny access to Windows desktops.|string|
 |windows_desktop_logins|A list of desktop login names allowed/denied for Windows desktops.|[]string|
@@ -698,7 +698,7 @@ ssh_port_forwarding: # [...]
 |disconnect_expired_cert|Sets disconnect clients on expired certificates.|[Bool](#bool)|
 |enhanced_recording|Defines what events to record for the BPF-based session recorder.|[]string|
 |forward_agent|SSH agent forwarding.|[Bool](#bool)|
-|idp|A set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|[Id POptions](#id-poptions)|
+|idp|A set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|[IdP Options](#idp-options)|
 |lock|Specifies the locking mode (strict\|best_effort) to be applied with the role.|[Locking Mode](#locking-mode)|
 |max_connections|Defines the maximum number of concurrent connections a user may hold.|number|
 |max_kubernetes_connections|Defines the maximum number of concurrent Kubernetes sessions a user may hold.|number|
@@ -711,11 +711,11 @@ ssh_port_forwarding: # [...]
 |record_session|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|[Record Session](#record-session)|
 |request_access|Defines the request strategy (optional\|reason\|always) where optional is the default.|[Request Strategy](#request-strategy)|
 |request_prompt|An optional message which tells users what they aught to request.|string|
-|require_session_mfa|The type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".|[Require MFAType](#require-mfatype)|
+|require_session_mfa|The type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".|[Require MFA Type](#require-mfa-type)|
 |ssh_file_copy|Indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|[Bool Option](#bool-option)|
-|ssh_port_forwarding|Configures what types of SSH port forwarding are allowed by a role.|[SSHPort Forwarding](#sshport-forwarding)|
+|ssh_port_forwarding|Configures what types of SSH port forwarding are allowed by a role.|[SSH Port Forwarding](#ssh-port-forwarding)|
 
-## Role Spec
+## Role Spec V6
 
 Role specification for RoleV6.
 
@@ -764,7 +764,7 @@ actions:
 |verbs|A list of verbs|[]string|
 |where|Specifies optional advanced matcher|string|
 
-## SPIFFERole Condition
+## SPIFFE Role Condition
 
 Sets out which SPIFFE identities this role is allowed or denied to generate. The Path matcher is required, and is evaluated first. If, the Path does not match then the other matcher fields are not evaluated.
 
@@ -789,7 +789,7 @@ ip_sans:
 |ip_sans|Specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42|[]string|
 |path|Specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar|string|
 
-## SSHLocal Port Forwarding
+## SSH Local Port Forwarding
 
 Configures access controls for local SSH port forwarding.
 
@@ -804,7 +804,7 @@ enabled: # [...]
 |---|---|---|
 |enabled||[Bool Option](#bool-option)|
 
-## SSHPort Forwarding
+## SSH Port Forwarding
 
 Configures what types of SSH port forwarding are allowed by a role.
 
@@ -818,10 +818,10 @@ remote: # [...]
 
 |Field Name|Description|Type|
 |---|---|---|
-|local|Allow local port forwarding.|[SSHLocal Port Forwarding](#sshlocal-port-forwarding)|
-|remote|Allow remote port forwarding.|[SSHRemote Port Forwarding](#sshremote-port-forwarding)|
+|local|Allow local port forwarding.|[SSH Local Port Forwarding](#ssh-local-port-forwarding)|
+|remote|Allow remote port forwarding.|[SSH Remote Port Forwarding](#ssh-remote-port-forwarding)|
 
-## SSHRemote Port Forwarding
+## SSH Remote Port Forwarding
 
 Configures access controls for remote SSH port forwarding.
 

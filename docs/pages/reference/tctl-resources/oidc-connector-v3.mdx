@@ -1,7 +1,7 @@
 ---
-title: OIDCConnector Reference
-description: Provides a reference of fields within the OIDCConnector resource, which you can manage with tctl.
-sidebar_label: OIDCConnector
+title: OIDC Connector V3 Reference
+description: Provides a reference of fields within the OIDC Connector V3 resource, which you can manage with tctl.
+sidebar_label: OIDC Connector V3
 ---
 {/* Automatically generated from: types/types.pb.go */}
 {/* DO NOT EDIT */}
@@ -24,7 +24,7 @@ spec: # [...]
 |---|---|---|
 |kind|A resource kind.|string|
 |metadata|Holds resource metadata.|[Metadata](#metadata)|
-|spec|An OIDC connector specification.|[OIDCConnector Spec](#oidcconnector-spec)|
+|spec|An OIDC connector specification.|[OIDC Connector Spec V3](#oidc-connector-spec-v3)|
 |sub_kind|An optional resource sub kind, used in some resources.|string|
 |version|The resource version. It must be specified. Supported values are: `v3`.|string|
 
@@ -55,7 +55,7 @@ roles:
 A wrapper around duration to set up custom marshal/unmarshal
 
 
-## Entra IDGroups Provider
+## Entra ID Groups Provider
 
 Configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for "groups" claim when the user's group membership exceeds 200 max item limit.
 
@@ -100,7 +100,7 @@ revision: "string"
 |name|An object name|string|
 |revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
-## OIDCConnector MFASettings
+## OIDC Connector MFA Settings
 
 Contains OIDC MFA settings.
 
@@ -127,7 +127,7 @@ request_object_mode: "string"
 |prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|string|
 |request_object_mode|Determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters. If omitted, MFA flows will default to the `RequestObjectMode` behavior specified in the base OIDC connector. Set this property to 'none' to explicitly disable request objects for the MFA client.|string|
 
-## OIDCConnector Spec
+## OIDC Connector Spec V3
 
 An OIDC connector specification.  It specifies configuration for Open ID Connect compatible external identity provider: https://openid.net/specs/openid-connect-core-1_0.html
 
@@ -174,16 +174,16 @@ entra_id_groups_provider: # [...]
 |allow_unverified_email|Tells the connector to accept OIDC users with unverified emails.|Boolean|
 |claims_to_roles|Specifies a dynamic mapping from claims to roles.|[][Claim Mapping](#claim-mapping)|
 |client_id|The id of the authentication client (Teleport Auth Service).|string|
-|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSOClient Redirect Settings](#ssoclient-redirect-settings)|
+|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSO Client Redirect Settings](#sso-client-redirect-settings)|
 |client_secret|Used to authenticate the client.|string|
 |display|The friendly name for this provider.|string|
-|entra_id_groups_provider|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit.|[Entra IDGroups Provider](#entra-idgroups-provider)|
+|entra_id_groups_provider|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the groups claim source, which is sent for the "groups" claim when the user's group membership exceeds 200 max item limit.|[Entra ID Groups Provider](#entra-id-groups-provider)|
 |google_admin_email|The email of a google admin to impersonate.|string|
 |google_service_account|A string containing google service account credentials.|string|
 |google_service_account_uri|A path to a google service account uri.|string|
 |issuer_url|The endpoint of the provider, e.g. https://accounts.google.com.|string|
 |max_age||[Duration](#duration)|
-|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[OIDCConnector MFASettings](#oidcconnector-mfasettings)|
+|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[OIDC Connector MFA Settings](#oidc-connector-mfa-settings)|
 |pkce_mode|Represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"|string|
 |prompt|An optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|string|
 |provider|The external identity provider.|string|
@@ -193,7 +193,7 @@ entra_id_groups_provider: # [...]
 |user_matchers|A set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|[]string|
 |username_claim|Specifies the name of the claim from the OIDC connector to be used as the user's username.|string|
 
-## SSOClient Redirect Settings
+## SSO Client Redirect Settings
 
 Contains settings to define which additional client redirect URLs should be allowed for non-browser SSO logins.
 

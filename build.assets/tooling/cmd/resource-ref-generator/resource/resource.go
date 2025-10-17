@@ -511,7 +511,6 @@ func getJSONTag(tags string) string {
 var camelCaseExceptions = []string{
 	"IdP",
 }
-var versionNumber *regexp.Regexp = regexp.MustCompile("V([0-9]+)$")
 var abbreviationWordBoundary *regexp.Regexp = regexp.MustCompile(`([A-Z]{2,})([A-Z][a-z0-9])`)
 var camelCaseWordBoundary *regexp.Regexp = regexp.MustCompile(
 	fmt.Sprintf(`(%v|[a-z]+)([A-Z])`, strings.Join(camelCaseExceptions, "|")),
@@ -520,8 +519,7 @@ var camelCaseWordBoundary *regexp.Regexp = regexp.MustCompile(
 // makeSectionName edits the original name of a declaration to make it more
 // suitable as a section within the resource reference.
 func makeSectionName(original string) string {
-	s := versionNumber.ReplaceAllString(original, "")
-	s = abbreviationWordBoundary.ReplaceAllString(s, "$1 $2")
+	s := abbreviationWordBoundary.ReplaceAllString(original, "$1 $2")
 	s = camelCaseWordBoundary.ReplaceAllString(s, "$1 $2")
 	return s
 }

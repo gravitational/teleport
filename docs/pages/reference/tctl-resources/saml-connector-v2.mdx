@@ -1,7 +1,7 @@
 ---
-title: SAMLConnector Reference
-description: Provides a reference of fields within the SAMLConnector resource, which you can manage with tctl.
-sidebar_label: SAMLConnector
+title: SAML Connector V2 Reference
+description: Provides a reference of fields within the SAML Connector V2 resource, which you can manage with tctl.
+sidebar_label: SAML Connector V2
 ---
 {/* Automatically generated from: types/types.pb.go */}
 {/* DO NOT EDIT */}
@@ -24,7 +24,7 @@ spec: # [...]
 |---|---|---|
 |kind|A resource kind.|string|
 |metadata|Holds resource metadata.|[Metadata](#metadata)|
-|spec|An SAML connector specification.|[SAMLConnector Spec](#samlconnector-spec)|
+|spec|An SAML connector specification.|[SAML Connector Spec V2](#saml-connector-spec-v2)|
 |sub_kind|An optional resource sub kind, used in some resources.|string|
 |version|The resource version. It must be specified. Supported values are: `v2`.|string|
 
@@ -93,7 +93,7 @@ revision: "string"
 |name|An object name|string|
 |revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
-## SAMLConnector MFASettings
+## SAML Connector MFA Settings
 
 Contains SAML MFA settings.
 
@@ -116,11 +116,11 @@ cert: "string"
 |enabled|Specified whether this SAML connector supports MFA checks. Defaults to false.|Boolean|
 |entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl.|string|
 |entity_descriptor_url|A URL that supplies a configuration XML.|string|
-|force_authn|Specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.|[SAMLForce Authn](#samlforce-authn)|
+|force_authn|Specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.|[SAML Force Authn](#saml-force-authn)|
 |issuer|The identity provider issuer. Usually set from EntityDescriptor.|string|
 |sso|SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.|string|
 
-## SAMLConnector Spec
+## SAML Connector Spec V2
 
 A SAML connector specification.
 
@@ -164,13 +164,13 @@ user_matchers:
 |attributes_to_roles|A list of mappings of attribute statements to roles.|[][Attribute Mapping](#attribute-mapping)|
 |audience|Uniquely identifies our service provider.|string|
 |cert|The identity provider certificate PEM. IDP signs `\<Response\>` responses using this certificate.|string|
-|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSOClient Redirect Settings](#ssoclient-redirect-settings)|
+|client_redirect_settings|Defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|[SSO Client Redirect Settings](#sso-client-redirect-settings)|
 |display|Controls how this connector is displayed.|string|
 |entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|string|
 |entity_descriptor_url|A URL that supplies a configuration XML.|string|
-|force_authn|Specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.|[SAMLForce Authn](#samlforce-authn)|
+|force_authn|Specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.|[SAML Force Authn](#saml-force-authn)|
 |issuer|The identity provider issuer.|string|
-|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[SAMLConnector MFASettings](#samlconnector-mfasettings)|
+|mfa|Contains settings to enable SSO MFA checks through this auth connector.|[SAML Connector MFA Settings](#saml-connector-mfa-settings)|
 |preferred_request_binding|A preferred SAML request binding method. Value must be either "http-post" or "http-redirect". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.|string|
 |provider|The external identity provider.|string|
 |service_provider_issuer|The issuer of the service provider (Teleport).|string|
@@ -179,12 +179,12 @@ user_matchers:
 |sso|The URL of the identity provider's SSO service.|string|
 |user_matchers|A set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|[]string|
 
-## SAMLForce Authn
+## SAML Force Authn
 
 Specified whether existing SAML sessions should be accepted or re-authentication should be forced.
 
 
-## SSOClient Redirect Settings
+## SSO Client Redirect Settings
 
 Contains settings to define which additional client redirect URLs should be allowed for non-browser SSO logins.
 
