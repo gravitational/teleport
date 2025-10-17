@@ -23,33 +23,30 @@ import { Event, Formatters } from './types';
 export function eventsWithoutExamples(
   fixtures: Event[],
   formatters: Formatters
-): referencePageEventData[] {
+): ReferencePageEventData[] {
   const fixtureCodes = new Set(fixtures.map(fixture => fixture.code));
-  return (Object.keys(formatters) as Array<keyof Formatters>).reduce(
-    (accum, current) => {
-      if (fixtureCodes.has(current)) {
-        return accum;
-      }
-      const raw = {
-        code: current,
-        event: formatters[current].type,
-        // Use fixed values for time and UID, consistent with what fixtures
-        // use.
-        time: '2020-06-05T16:24:05Z',
-        uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
-      };
-      accum.push({
-        codeDesc:
-          typeof formatters[current].desc == 'string'
-            ? formatters[current].desc
-            : formatters[current].desc(raw),
-        code: current,
-        raw: raw,
-      });
+  return Object.keys(formatters).reduce((accum, current) => {
+    if (fixtureCodes.has(current)) {
       return accum;
-    },
-    [] as referencePageEventData[]
-  );
+    }
+    const raw = {
+      code: current,
+      event: formatters[current].type,
+      // Use fixed values for time and UID, consistent with what fixtures
+      // use.
+      time: '2020-06-05T16:24:05Z',
+      uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+    };
+    accum.push({
+      codeDesc:
+        typeof formatters[current].desc == 'string'
+          ? formatters[current].desc
+          : formatters[current].desc(raw),
+      code: current,
+      raw: raw,
+    });
+    return accum;
+  }, [] as ReferencePageEventData[]);
 }
 
 // removeUnknowns removes any event fixtures in the fixtures array that do not
@@ -57,7 +54,7 @@ export function eventsWithoutExamples(
 export function removeUnknowns(
   fixtures: Event[],
   formatters: Formatters
-): referencePageEventData[] {
+): ReferencePageEventData[] {
   return fixtures.filter(r => r.code in formatters);
 }
 
@@ -68,7 +65,7 @@ export function removeUnknowns(
 // events with full examples include additional fields in the raw object. If
 // there is an example available for the event, we include the example,
 // formatted as JSON. Otherwise, we print only the event code and type.
-export function exampleOrAttributes(event: Event): string {
+export function exampleOrAttributes(event: ReferencePageEventData): string {
   if (Object.keys(event.raw).length > 1) {
     return `Example:
 
@@ -84,7 +81,7 @@ Event: \`${event.raw.event}\``;
 // createEventSection takes a JSON document that defines an audit event test
 // fixture and returns a string that contains an H2-level section to describe
 // the event.
-export function createEventSection(event: Event): string {
+export function createEventSection(event: ReferencePageEventData): string {
   return `## ${event.raw.event}
 
 ${event.codeDesc + '\n'}
@@ -99,7 +96,9 @@ ${exampleOrAttributes(event)}
 //
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
-export function createMultipleEventsSection(events: Event[]): string {
+export function createMultipleEventsSection(
+  events: ReferencePageEventData[]
+): string {
   return events.reduce(
     (accum, event) => {
       return (
@@ -119,7 +118,7 @@ There are multiple events with the \`${events[0].raw.event}\` type.
   );
 }
 
-export interface referencePageEventData {
+export interface ReferencePageEventData {
   code: string;
   [propName: string]: any;
   raw: {
@@ -138,7 +137,7 @@ export interface referencePageEventData {
 // See web/packages/teleport/src/Audit/fixtures/index.ts for the structure of an
 // audit event test fixture.
 export function createReferencePage(
-  jsonEvents: referencePageEventData[],
+  jsonEvents: ReferencePageEventData[],
   introParagraph: string
 ): string {
   const codeSet = new Set();
@@ -150,7 +149,7 @@ export function createReferencePage(
       return 1;
     }
   });
-  const events = new Map();
+  const events = new Map<string, ReferencePageEventData[]>();
   result.forEach(e => {
     if (codeSet.has(e.code)) {
       return;
