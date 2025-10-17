@@ -5674,3 +5674,35 @@ func (c *Client) ValidateTrustedCluster(
 	}
 	return resp, nil
 }
+
+// GetBot gets the bot with the given name.
+func (c *Client) GetBot(ctx context.Context, name string) (*machineidv1pb.Bot, error) {
+	bot, err := c.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+		BotName: name,
+	})
+	return bot, trace.Wrap(err)
+}
+
+// CreateBot creates the given bot.
+func (c *Client) CreateBot(ctx context.Context, bot *machineidv1pb.Bot) (*machineidv1pb.Bot, error) {
+	bot, err := c.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: bot,
+	})
+	return bot, trace.Wrap(err)
+}
+
+// DeleteBot deletes the bot with the given name.
+func (c *Client) DeleteBot(ctx context.Context, name string) error {
+	_, err := c.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		BotName: name,
+	})
+	return trace.Wrap(err)
+}
+
+// UpsertBot upserts the given bot.
+func (c *Client) UpsertBot(ctx context.Context, bot *machineidv1pb.Bot) (*machineidv1pb.Bot, error) {
+	bot, err := c.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
+		Bot: bot,
+	})
+	return bot, trace.Wrap(err)
+}
