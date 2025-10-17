@@ -146,7 +146,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
 		i.SafeTokenName = provisionToken.GetSafeName()
-		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
+		i.TokenJoinMethod = string(configuredJoinMethod(provisionToken))
 		i.TokenExpires = provisionToken.Expiry()
 		i.BotName = provisionToken.GetBotName()
 	})
@@ -281,7 +281,7 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 }
 
 func checkJoinMethod(provisionToken types.ProvisionToken, requestedJoinMethod *string) (types.JoinMethod, error) {
-	tokenJoinMethod := provisionToken.GetJoinMethod()
+	tokenJoinMethod := configuredJoinMethod(provisionToken)
 	if requestedJoinMethod == nil {
 		// Auto join method mode, the client didn't specify so use whatever is on the token.
 		return tokenJoinMethod, nil
@@ -347,7 +347,7 @@ func (s *Server) makeHostResult(
 	hostParams *messages.HostParams,
 	provisionToken types.ProvisionToken,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, provisionToken.GetJoinMethod())
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(provisionToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -600,4 +600,12 @@ func makeAuditEvent(d *diagnostic.Diagnostic) apievents.AuditEvent {
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 	}
+}
+
+func configuredJoinMethod(token types.ProvisionToken) types.JoinMethod {
+	method := token.GetJoinMethod()
+	if method == types.JoinMethodUnspecified {
+		return types.JoinMethodToken
+	}
+	return method
 }

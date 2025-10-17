@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -33,10 +34,15 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
-type JoinParams = authjoin.RegisterParams
-type JoinResult = authjoin.RegisterResult
+type (
+	JoinParams   = authjoin.RegisterParams
+	JoinResult   = authjoin.RegisterResult
+	AzureParams  = authjoin.AzureParams
+	GitlabParams = authjoin.GitlabParams
+)
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
 // provision token to get its initial certificates.
@@ -44,14 +50,41 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if params.AuthClient == nil && params.ID.HostUUID != "" {
+		// This check is skipped if AuthClient is provided because this is a
+		// re-join with an existing identity and the HostUUID will be
+		// maintained.
+		return nil, trace.BadParameter("HostUUID must not be provided to Join, it will be assigned by the Auth server")
+	}
+	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
+		return nil, trace.BadParameter("Only Instance and Bot roles may be used for direct join attempts")
+	}
 	slog.InfoContext(ctx, "Trying to join with the new join service")
 	result, err := joinNew(ctx, params)
-	if trace.IsNotImplemented(err) {
+	if trace.IsNotImplemented(err) || errors.As(err, new(*connectionError)) {
 		// Fall back to joining via legacy service.
 		slog.InfoContext(ctx, "Falling back to joining via the legacy join service", "error", err)
-		result, err := authjoin.Register(ctx, params)
+		// Non-bots must generate their own host UUID when joining via legacy service.
+		if params.ID.Role != types.RoleBot {
+			hostID, err := hostid.Generate(ctx, params.JoinMethod)
+			if err != nil {
+				return nil, trace.Wrap(err, "generating host ID")
+			}
+			params.ID.HostUUID = hostID
+		}
+		result, err := LegacyJoin(ctx, params)
 		return result, trace.Wrap(err)
 	}
+	return result, trace.Wrap(err)
+}
+
+// LegacyJoin is used to join the cluster via the legacy service with client-chosen host UUIDs.
+func LegacyJoin(ctx context.Context, params JoinParams) (*JoinResult, error) {
+	if params.ID.Role != types.RoleBot && params.ID.HostUUID == "" {
+		return nil, trace.BadParameter("HostUUID is required for LegacyJoin")
+	}
+	//nolint:staticcheck // SA1019 falling back to deprecated method for compatibility.
+	result, err := authjoin.Register(ctx, params)
 	return result, trace.Wrap(err)
 }
 
@@ -100,7 +133,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, &connectionError{trace.Wrap(err, "building proxy client")}
 	}
 	defer conn.Close()
 	return joinWithClient(ctx, params, joinv1.NewClientFromConn(conn))
@@ -109,7 +142,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 func joinViaAuth(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	authClient, err := authjoin.NewAuthClient(ctx, params)
 	if err != nil {
-		return nil, trace.Wrap(err, "building auth client")
+		return nil, &connectionError{trace.Wrap(err, "building auth client")}
 	}
 	defer authClient.Close()
 	return joinViaAuthClient(ctx, params, authClient)
@@ -126,7 +159,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken:
+	case types.JoinMethodToken, types.JoinMethodBoundKeypair:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -139,7 +172,10 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer cancel()
 	stream, err := client.Join(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Connection errors are usually delayed until the first request is
+		// attempted, wrap with a connectionError here to allow a fallback to
+		// the legacy join method.
+		return nil, &connectionError{trace.Wrap(err, "initiating join stream")}
 	}
 	defer stream.CloseSend()
 
@@ -333,4 +369,16 @@ func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (cry
 		PublicTLSKey: tlsPub,
 		PublicSSHKey: sshPub.Marshal(),
 	}, nil
+}
+
+type connectionError struct {
+	wrapped error
+}
+
+func (e *connectionError) Error() string {
+	return e.wrapped.Error()
+}
+
+func (e *connectionError) Unwrap() error {
+	return e.wrapped
 }
