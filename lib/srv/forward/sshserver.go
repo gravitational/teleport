@@ -1183,9 +1183,18 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		// TODO(Joerger): DELETE IN v20.0.0
 		// all v19+ servers set and share the session ID directly after accepting the session channel.
 		// clients should stop checking in v21, and servers should stop responding to the query in v22.
-		reply, _, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
+		reply, payload, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
 		if err != nil {
 			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
+		} else if !reply && payload != nil {
+			// If the target node replies with a payload, this means that the connection itself has been rejected,
+			// presumably due to an authz error, and the server is trying to communicate the error with the first
+			// req/chan received.
+			s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
+			if err := nch.Reject(ssh.Prohibited, fmt.Sprintf("remote session open failed: %v", string(payload))); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
 		}
 
 		if reply {
