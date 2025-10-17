@@ -43,7 +43,7 @@ import {
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { editBot, fetchRoles } from 'teleport/services/bot/bot';
+import { editBotMutationFunction, fetchRoles } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
@@ -82,7 +82,7 @@ export function EditDialog(props: {
     error: saveError,
     isPending: isSubmitting,
   } = useMutation({
-    mutationFn: editBot,
+    mutationFn: editBotMutationFunction,
     onSuccess: newData => {
       const key = createGetBotQueryKey({ botName: newData.name });
       queryClient.setQueryData(key, newData);
