@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -34,33 +33,39 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-type EventHandlerSuite struct {
-	suite.Suite
-	AuthHelper  integration.AuthHelper
-	appConfig   StartCmdConfig
-	fakeFluentd *FakeFluentd
+func startApp(t *testing.T, appConfig *StartCmdConfig) {
+	t.Helper()
+	app, err := NewApp(appConfig, slog.Default())
+	require.NoError(t, err)
 
-	client         *client.Client
-	teleportConfig lib.TeleportConfig
-}
-
-func TestEventHandler(t *testing.T) {
-	suite.Run(t, &EventHandlerSuite{
-		AuthHelper: &integration.MinimalAuthHelper{},
+	t.Cleanup(func() {
+		app.Close()
 	})
+
+	integration.RunAndWaitReady(t, app)
 }
 
-// SetupSuite starts a Teleport auth service and creates the event forwarder
-// user and role. This runs a once for the whole suite.
-func (s *EventHandlerSuite) SetupSuite() {
+// nonce is data produced to uniquely identify an event.
+// The nonce is propagated from the event generator to the event checker.
+// All events not matching the nonce are skipped.
+type nonce any
+
+// TestEventHandler is the refactored test function that no longer uses
+// testify/suite.
+func TestEventHandler(t *testing.T) {
+	AuthHelper := &integration.MinimalAuthHelper{}
+	var teleportConfig lib.TeleportConfig
+
 	var err error
 	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
+	t.Cleanup(cancel)
 
+	// starts a Teleport auth service and creates the event forwarder
+	// user and role.
 	// Start the Teleport Auth server and get the admin client.
-	s.client = s.AuthHelper.StartServer(s.T())
-	_, err = s.client.Ping(ctx)
-	require.NoError(s.T(), err)
+	adminClient := AuthHelper.StartServer(t)
+	_, err = adminClient.Ping(ctx)
+	require.NoError(t, err)
 
 	eventHandlerRole, err := types.NewRole("teleport-event-handler", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -73,43 +78,37 @@ func (s *EventHandlerSuite) SetupSuite() {
 		},
 		Deny: types.RoleConditions{},
 	})
-	require.NoError(s.T(), err)
-
-	eventHandlerRole, err = s.client.CreateRole(ctx, eventHandlerRole)
-	require.NoError(s.T(), err)
-
-	eventHandlerUser, err := types.NewUser("teleport-event-handler")
-	require.NoError(s.T(), err)
-
-	eventHandlerUser.SetRoles([]string{eventHandlerRole.GetName()})
-	eventHandlerUser, err = s.client.CreateUser(ctx, eventHandlerUser)
-	require.NoError(s.T(), err)
-
-	s.teleportConfig.Addr = s.AuthHelper.ServerAddr()
-	s.teleportConfig.Identity = s.AuthHelper.SignIdentityForUser(s.T(), ctx, eventHandlerUser)
-}
-
-// SetupTest starts a fake fluentd server.
-// This runs before every test from the suite.
-func (s *EventHandlerSuite) SetupTest() {
-	t := s.T()
-
-	// Start fake fluentd
-	err := logger.Setup(logger.Config{Severity: "debug"})
 	require.NoError(t, err)
 
-	s.fakeFluentd = NewFakeFluentd(t)
-	s.fakeFluentd.Start()
-	t.Cleanup(s.fakeFluentd.Close)
+	eventHandlerRole, err = adminClient.CreateRole(ctx, eventHandlerRole)
+	require.NoError(t, err)
+
+	eventHandlerUser, err := types.NewUser("teleport-event-handler")
+	require.NoError(t, err)
+
+	eventHandlerUser.SetRoles([]string{eventHandlerRole.GetName()})
+	eventHandlerUser, err = adminClient.CreateUser(ctx, eventHandlerUser)
+	require.NoError(t, err)
+
+	teleportConfig.Addr = AuthHelper.ServerAddr()
+	teleportConfig.Identity = AuthHelper.SignIdentityForUser(t, ctx, eventHandlerUser)
+
+	// Starts a fake fluentd server.
+	err = logger.Setup(logger.Config{Severity: "debug"})
+	require.NoError(t, err)
+
+	fakeFluentd := NewFakeFluentd(t)
+	fakeFluentd.Start()
+	t.Cleanup(fakeFluentd.Close)
 
 	startTime := time.Now().Add(-time.Minute)
 
-	conf := StartCmdConfig{
+	appConfig := StartCmdConfig{
 		TeleportConfig: TeleportConfig{
-			TeleportAddr:         s.teleportConfig.Addr,
-			TeleportIdentityFile: s.teleportConfig.Identity,
+			TeleportAddr:         teleportConfig.Addr,
+			TeleportIdentityFile: teleportConfig.Identity,
 		},
-		FluentdConfig: s.fakeFluentd.GetClientConfig(),
+		FluentdConfig: fakeFluentd.GetClientConfig(),
 		IngestConfig: IngestConfig{
 			StorageDir:       t.TempDir(),
 			Timeout:          time.Second,
@@ -121,32 +120,14 @@ func (s *EventHandlerSuite) SetupTest() {
 		},
 	}
 
-	conf.FluentdURL = s.fakeFluentd.GetURL()
-	conf.FluentdSessionURL = conf.FluentdURL + "/session"
+	appConfig.FluentdURL = fakeFluentd.GetURL()
+	appConfig.FluentdSessionURL = appConfig.FluentdURL + "/session"
 
-	s.appConfig = conf
-}
+	t.Cleanup(func() {
+		AuthHelper.Auth().Close()
+	})
 
-func (s *EventHandlerSuite) startApp() {
-	s.T().Helper()
-	t := s.T()
-	t.Helper()
-
-	app, err := NewApp(&s.appConfig, slog.Default())
-	require.NoError(t, err)
-
-	integration.RunAndWaitReady(s.T(), app)
-}
-
-// nonce is data produced to uniquely identify an event.
-// The nonce is propagated from the event generator to the event checker.
-// All events not matching the nonce are skipped.
-type nonce any
-
-func (s *EventHandlerSuite) TestEvent() {
-	ctx, cancel := context.WithCancel(context.Background())
-	s.T().Cleanup(cancel)
-
+	// Original TestEvent
 	tests := []struct {
 		name          string
 		generateEvent func(*testing.T, *client.Client) nonce
@@ -189,19 +170,19 @@ func (s *EventHandlerSuite) TestEvent() {
 	}
 
 	// Start the event forwarder
-	s.startApp()
+	startApp(t, &appConfig)
 
 	for _, tt := range tests {
-		s.T().Run(tt.name, func(t *testing.T) {
-			nonce := tt.generateEvent(t, s.client)
+		t.Run(tt.name, func(t *testing.T) {
+			nonce := tt.generateEvent(t, adminClient)
 
 			waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			s.T().Cleanup(cancel)
+			t.Cleanup(cancel)
 
 			eventFound := false
 			for !eventFound {
-				event, err := s.fakeFluentd.GetMessage(waitCtx)
-				require.NoError(s.T(), err, "did not receive the event after 5 seconds")
+				event, err := fakeFluentd.GetMessage(waitCtx)
+				require.NoError(t, err, "did not receive the event after 5 seconds")
 				if tt.checkEvent(t, event, nonce) {
 					t.Logf("Event matched: %s", event)
 					eventFound = true
