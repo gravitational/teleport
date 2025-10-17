@@ -34,6 +34,8 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return tokenInitToMessage(msg.TokenInit)
 	case *joinv1.JoinRequest_BoundKeypairInit:
 		return boundKeypairInitToMessage(msg.BoundKeypairInit)
+	case *joinv1.JoinRequest_IamInit:
+		return iamInitToMessage(msg.IamInit)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
 	default:
@@ -71,7 +73,19 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 				BoundKeypairInit: boundKeypairInit,
 			},
 		}, nil
-	case *messages.BoundKeypairChallengeSolution, *messages.BoundKeypairRotationResponse:
+	case *messages.IAMInit:
+		iamInit, err := iamInitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_IamInit{
+				IamInit: iamInit,
+			},
+		}, nil
+	case *messages.BoundKeypairChallengeSolution,
+		*messages.BoundKeypairRotationResponse,
+		*messages.IAMChallengeSolution:
 		solution, err := challengeSolutionFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -227,6 +241,8 @@ func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request
 		return boundKeypairChallengeSolutionToMessage(payload.BoundKeypairChallengeSolution), nil
 	case *joinv1.ChallengeSolution_BoundKeypairRotationResponse:
 		return boundKeypairRotationResponseToMessage(payload.BoundKeypairRotationResponse), nil
+	case *joinv1.ChallengeSolution_IamChallengeSolution:
+		return iamChallengeSolutionToMessage(payload.IamChallengeSolution), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", payload)
 	}
@@ -244,6 +260,12 @@ func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSoluti
 		return &joinv1.ChallengeSolution{
 			Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{
 				BoundKeypairRotationResponse: boundKeypairRotationResponseFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.IAMChallengeSolution:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_IamChallengeSolution{
+				IamChallengeSolution: iamChallengeSolutionFromMessage(typedMsg),
 			},
 		}, nil
 	default:
@@ -275,7 +297,9 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 				Init: serverInitFromMessage(typedMsg),
 			},
 		}, nil
-	case *messages.BoundKeypairChallenge, *messages.BoundKeypairRotationRequest:
+	case *messages.BoundKeypairChallenge,
+		*messages.BoundKeypairRotationRequest,
+		*messages.IAMChallenge:
 		challenge, err := challengeFromMessage(msg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -334,6 +358,8 @@ func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
 		return boundKeypairChallengeToMessage(payload.BoundKeypairChallenge), nil
 	case *joinv1.Challenge_BoundKeypairRotationRequest:
 		return boundKeypairRotationRequestToMessage(payload.BoundKeypairRotationRequest), nil
+	case *joinv1.Challenge_IamChallenge:
+		return iamChallengeToMessage(payload.IamChallenge), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge payload type %T", payload)
 	}
@@ -351,6 +377,12 @@ func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 		return &joinv1.Challenge{
 			Payload: &joinv1.Challenge_BoundKeypairRotationRequest{
 				BoundKeypairRotationRequest: boundKeypairRotationRequestFromMessage(msg),
+			},
+		}, nil
+	case *messages.IAMChallenge:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_IamChallenge{
+				IamChallenge: iamChallengeFromMessage(msg),
 			},
 		}, nil
 	default:

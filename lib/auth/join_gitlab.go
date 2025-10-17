@@ -20,13 +20,12 @@ package auth
 
 import (
 	"context"
-	"regexp"
-	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 type gitlabIDTokenValidator interface {
@@ -87,20 +86,7 @@ func joinRuleGlobMatch(want string, got string) (bool, error) {
 	if want == "" {
 		return true, nil
 	}
-	return globMatch(want, got)
-}
-
-// globMatch performs simple a simple glob-style match test on a string.
-// - '*' matches zero or more characters.
-// - '?' matches any single character.
-// It returns true if a match is detected.
-func globMatch(pattern, str string) (bool, error) {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
-	pattern = strings.ReplaceAll(pattern, `\?`, ".")
-	pattern = "^" + pattern + "$"
-	matched, err := regexp.MatchString(pattern, str)
-	return matched, trace.Wrap(err)
+	return joinutils.GlobMatch(want, got)
 }
 
 func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDTokenClaims) error {

@@ -27,9 +27,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/digitorus/pkcs7"
@@ -65,6 +68,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -689,9 +693,9 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	remoteAddr := "42.42.42.42:42"
 
 	t.Run("IAM method", func(t *testing.T) {
-		a.SetHTTPClientForAWSSTS(&mockClient{
+		a.SetHTTPClientForAWSSTS(&mockSTSClient{
 			respStatusCode: http.StatusOK,
-			respBody: responseFromAWSIdentity(auth.AWSIdentity{
+			respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 				Account: "1234",
 				Arn:     "arn:aws::1111",
 			}),
@@ -822,6 +826,54 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	})
 }
 
+func responseFromAWSIdentity(id iamjoin.AWSIdentity) string {
+	return fmt.Sprintf(`{
+		"GetCallerIdentityResponse": {
+			"GetCallerIdentityResult": {
+				"Account": "%s",
+				"Arn": "%s"
+			}}}`, id.Account, id.Arn)
+}
+
+type mockSTSClient struct {
+	respStatusCode int
+	respBody       string
+}
+
+func (c *mockSTSClient) Do(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: c.respStatusCode,
+		Body:       io.NopCloser(strings.NewReader(c.respBody)),
+	}, nil
+}
+
+var identityRequestTemplate = template.Must(template.New("sts-request").Parse(`POST / HTTP/1.1
+Host: {{.Host}}
+User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+Content-Length: 43
+Accept: application/json
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;{{.SignedHeader}}, Signature=111
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+X-Amz-Date: 20211102T204300Z
+X-Amz-Security-Token: aaa
+X-Teleport-Challenge: {{.Challenge}}
+
+Action=GetCallerIdentity&Version=2011-06-15`))
+
+type identityRequestTemplateInput struct {
+	Host         string
+	SignedHeader string
+	Challenge    string
+}
+
+func defaultIdentityRequestTemplateInput(challenge string) identityRequestTemplateInput {
+	return identityRequestTemplateInput{
+		Host:         "sts.amazonaws.com",
+		SignedHeader: "x-teleport-challenge;",
+		Challenge:    challenge,
+	}
+}
+
 // authClientForRegisterResult is a test helper that creats an auth client for
 // the given [*join.RegisterResult].
 func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.NetAddr, result *join.RegisterResult) *authclient.Client {
@@ -948,9 +1000,9 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		return nil, errMockInvalidToken
 	})
 
-	a.SetHTTPClientForAWSSTS(&mockClient{
+	a.SetHTTPClientForAWSSTS(&mockSTSClient{
 		respStatusCode: http.StatusOK,
-		respBody: responseFromAWSIdentity(auth.AWSIdentity{
+		respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 			Account: "1234",
 			Arn:     "arn:aws::1111",
 		}),

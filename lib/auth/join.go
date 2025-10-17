@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -44,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -92,7 +91,7 @@ func (a *Server) handleJoinFailure(
 	}
 
 	// Fetch and encode rawJoinAttrs if they are available.
-	attributesStruct, err := rawJoinAttrsToStruct(rawJoinAttrs)
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(rawJoinAttrs)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
@@ -394,7 +393,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		},
 	}
 	var err error
-	joinEvent.Attributes, err = rawJoinAttrsToStruct(params.RawJoinClaims)
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(
 			ctx,
@@ -552,7 +551,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr: params.RemoteAddr,
 		},
 	}
-	joinEvent.Attributes, err = rawJoinAttrsToStruct(params.RawJoinClaims)
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
@@ -560,21 +559,6 @@ func (a *Server) GenerateHostCertsForJoin(
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
 	return certs, nil
-}
-
-func rawJoinAttrsToStruct(in any) (*apievents.Struct, error) {
-	if in == nil {
-		return nil, nil
-	}
-	attrBytes, err := json.Marshal(in)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling join attributes")
-	}
-	out := &apievents.Struct{}
-	if err := out.UnmarshalJSON(attrBytes); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling join attributes")
-	}
-	return out, nil
 }
 
 func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
@@ -590,15 +574,4 @@ func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
 		return nil, trace.Wrap(err, "unmarshaling join attributes")
 	}
 	return out, nil
-}
-
-func generateChallenge(encoding *base64.Encoding, length int) (string, error) {
-	// read crypto-random bytes to generate the challenge
-	challengeRawBytes := make([]byte, length)
-	if _, err := rand.Read(challengeRawBytes); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// encode the challenge to base64 so it can be sent over HTTP
-	return encoding.EncodeToString(challengeRawBytes), nil
 }
