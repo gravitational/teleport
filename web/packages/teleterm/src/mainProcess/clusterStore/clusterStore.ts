@@ -47,13 +47,14 @@ export class ClusterStore {
   private logger = new Logger('ClusterStore');
 
   constructor(
-    private readonly tshdClient: TshdClient,
+    private readonly lazyTshdClient: Promise<TshdClient>,
     private readonly windowsManager: Pick<WindowsManager, 'crashWindow'>
   ) {}
 
   /** Adds a cluster. */
   async add(proxyAddress: string): Promise<Cluster> {
-    const { response } = await this.tshdClient.addCluster({
+    const client = await this.lazyTshdClient;
+    const { response } = await client.addCluster({
       name: proxyAddress,
     });
 
@@ -73,10 +74,11 @@ export class ClusterStore {
 
   /** Logs out of the cluster and removes its profile.*/
   async logout(uri: RootClusterUri): Promise<void> {
+    const client = await this.lazyTshdClient;
     // TODO(gzdunek): logout and removeCluster should be combined into
     //  a single acton in tshd.
-    await this.tshdClient.logout({ clusterUri: uri });
-    await this.tshdClient.removeCluster({ clusterUri: uri });
+    await client.logout({ clusterUri: uri });
+    await client.removeCluster({ clusterUri: uri });
     await this.update(draft => {
       for (let d of draft.values()) {
         if (routing.belongsToProfile(uri, d.uri)) {
@@ -91,7 +93,8 @@ export class ClusterStore {
    * Does not make a network call, only reads profiles from the disk.
    */
   async syncRootClusters(): Promise<void> {
-    const { response } = await this.tshdClient.listRootClusters({});
+    const client = await this.lazyTshdClient;
+    const { response } = await client.listRootClusters({});
     await this.update(draft => {
       draft.clear();
       response.clusters.forEach(cluster => {
@@ -107,8 +110,9 @@ export class ClusterStore {
   async sync(uri: RootClusterUri): Promise<void> {
     let cluster: Cluster;
     let leafs: Cluster[];
+    const client = await this.lazyTshdClient;
     try {
-      const clusterAndLeafs = await getClusterAndLeafs(this.tshdClient, uri);
+      const clusterAndLeafs = await getClusterAndLeafs(client, uri);
       cluster = clusterAndLeafs.cluster;
       leafs = clusterAndLeafs.leafs;
     } catch (error) {
