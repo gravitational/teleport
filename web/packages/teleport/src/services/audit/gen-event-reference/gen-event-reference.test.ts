@@ -20,7 +20,7 @@ import {
   createEventSection,
   createReferencePage,
   eventsWithoutExamples,
-  referencePageEventData,
+  ReferencePageEventData,
   removeUnknowns,
 } from './gen-event-reference';
 import { Event, Formatters } from './types';
@@ -30,7 +30,7 @@ describe('eventsWithoutExamples', () => {
     description: string;
     events: Event[];
     formatters: Formatters;
-    expected: referencePageEventData[];
+    expected: ReferencePageEventData[];
   }
 
   const testCases: testCase[] = [
