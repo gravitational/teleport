@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"io"
 	"slices"
 	"time"
 
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -431,59 +429,6 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 		return nil, "", trace.Wrap(err)
 	}
 	return members, nextToken, nil
-}
-
-type streamOptions struct {
-	nextPageToken string
-	pageSize      int
-}
-
-type streamOption func(*streamOptions)
-
-// WithPageSize sets the page size of the underlying list operations when
-// streaming a list of resources. Streams will use the underlying services default
-// page size if unset.
-func WithPageSize(n int) streamOption {
-	return func(opts *streamOptions) {
-		opts.pageSize = n
-	}
-}
-
-// WithStartPage sets the token of the first page of resources to yield in the
-// stream. Defaults to the start of
-func WithStartPage(token string) streamOption {
-	return func(opts *streamOptions) {
-		opts.nextPageToken = token
-	}
-}
-
-// StreamAccessListMembers returns a single-use stream that yields the members of
-// the supplied Access List
-func (a *AccessListService) StreamAccessListMembers(ctx context.Context, accessListName string, options ...streamOption) stream.Stream[*accesslist.AccessListMember] {
-	opts := streamOptions{}
-	for _, applyOption := range options {
-		applyOption(&opts)
-	}
-
-	isEOF := false
-	return stream.PageFunc(func() ([]*accesslist.AccessListMember, error) {
-		if isEOF {
-			return nil, io.EOF
-		}
-
-		var page []*accesslist.AccessListMember
-		var err error
-		page, opts.nextPageToken, err = a.ListAccessListMembers(ctx, accessListName, int(opts.pageSize), opts.nextPageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if opts.nextPageToken == "" {
-			isEOF = true
-		}
-
-		return page, nil
-	})
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
