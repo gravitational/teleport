@@ -128,6 +128,8 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		})
 	}
 
+	// an upload will be cancelled if there is an error during processing, so we don't
+	// leave incomplete files behind
 	w, cancelUpload, uploadErrs := s.startUpload(ctx, sessionID)
 	shouldCancelUpload := true
 
