@@ -33,6 +33,10 @@ struct ContentView: View {
     )
     .onOpenURL { url in
       openedURL = parseDeepLink(url)
+      logger
+        .debug(
+          "Got URL: \(url, privacy: .public), parsed: \(openedURL.debugDescription, privacy: .public)"
+        )
     }
   }
 }
@@ -63,9 +67,7 @@ func parseDeepLink(_ url: URL) -> DeepLinkParseResult {
       guard let token = getQueryParam(parts, "token") else {
         return .failure(.missingPart("token"))
       }
-      guard let redirectURI = getQueryParam(parts, "redirect_uri") else {
-        return .failure(.missingPart("redirect URI"))
-      }
+      let redirectURI = getQueryParam(parts, "redirect_uri") ?? ""
       return .success(.authenticateWebDevice(AuthenticateWebDeviceDeepURL(
         url: deepURL,
         id: id,
@@ -188,7 +190,7 @@ struct ScannedURLView: View {
     maybeEnrollMobileDeviceURL != nil
   }
 
-  @State var authAttempt: Attempt<String, AuthError> = .idle
+  @State var authAttempt: Attempt<Never?, AuthError> = .idle
   private var maybeAuthenticateWebDeviceURL: AuthenticateWebDeviceDeepURL? {
     if case let .success(.authenticateWebDevice(deepURL)) = openedURL {
       return deepURL
@@ -286,11 +288,14 @@ struct ScannedURLView: View {
               enrollAttempt = .idle
             }.glassButton().labelStyle(.iconOnly)
             Spacer()
+
+            // MARK: Enroll button
+
             Button(action: {
               guard let deepURL = maybeEnrollMobileDeviceURL else {
                 return
               }
-              if enrollAttempt.didSucceed {
+              if enrollAttempt.didFinish {
                 openedURL = nil
                 enrollAttempt = .idle
                 return
@@ -332,6 +337,7 @@ struct ScannedURLView: View {
                 Label("Enroll error", systemImage: "xmark.octagon").labelStyle(.iconOnly)
               }
             }).glassProminentButton().animation(.easeInOut, value: enrollAttempt)
+              .opacity(enrollAttempt.didFail ? 0 : 1)
           }.padding(8).controlSize(.large)
           Spacer()
           if case let .failure(.unknownError(error)) = enrollAttempt {
@@ -362,11 +368,14 @@ struct ScannedURLView: View {
               authAttempt = .idle
             }.glassButton().labelStyle(.iconOnly)
             Spacer()
+
+            // MARK: Auth button
+
             Button(action: {
               guard let deepURL = maybeAuthenticateWebDeviceURL else {
                 return
               }
-              if authAttempt.didSucceed {
+              if authAttempt.didFinish {
                 openedURL = nil
                 authAttempt = .idle
                 return
@@ -376,8 +385,22 @@ struct ScannedURLView: View {
               }
               authAttempt = .loading
               Task {
-                // TODO: Perform actual auth.
-                authAttempt = .success("foo")
+                do {
+                  try await deviceTrust.authenticateWebDevice(
+                    hostname: deepURL.url.hostname,
+                    port: deepURL.url.port,
+                    user: deepURL.url.user,
+                    deviceWebToken: Teleport_Devicetrust_V1_DeviceWebToken
+                      .with { $0.id = deepURL.id
+                        $0.token = deepURL.token
+                      }
+                  )
+                } catch {
+                  authAttempt = .failure(.unknownError(error))
+                  return
+                }
+                // TODO: Open the redirect URI on success.
+                authAttempt = .success(nil)
               }
             }, label: {
               switch authAttempt {
@@ -393,12 +416,14 @@ struct ScannedURLView: View {
               case .success:
                 Label("Authenticated", systemImage: "checkmark").labelStyle(.iconOnly)
               case .failure:
-                Label("Authentication error", systemImage: "xmark.octagon").labelStyle(.iconOnly)
+                Label("Authentication error", systemImage: "xmark.octagon")
+                  .labelStyle(.iconOnly)
               }
             }).glassProminentButton().animation(.easeInOut, value: authAttempt)
+              .opacity(authAttempt.didFail ? 0 : 1)
           }.padding(8).controlSize(.large)
           Spacer()
-          if case let .failure(.unknownError(error)) = enrollAttempt {
+          if case let .failure(.unknownError(error)) = authAttempt {
             Text("Could not authenticate this device").font(.headline)
             Text("There was an error: \(error.localizedDescription)")
           } else {
@@ -518,7 +543,7 @@ struct ScannedURLView: View {
     openedURL: $openedURL,
     enrollAttempt: .constant(.idle),
     serialNumber: .constant(nil),
-    deviceTrust: DeviceTrust()
+    deviceTrust: FakeDeviceTrust()
   )
 }
 

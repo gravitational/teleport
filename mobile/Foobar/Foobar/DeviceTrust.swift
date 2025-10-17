@@ -20,6 +20,8 @@ protocol DeviceTrustP {
   func getSerialNumber() -> String
   func deleteDeviceKey() async -> Result<Bool, SecOSStatusError>
   func enrollDevice(hostname: String, port: Int?, user: String, userToken: String) async throws
+  func authenticateWebDevice(hostname: String, port: Int?, user _: String,
+                             deviceWebToken: Teleport_Devicetrust_V1_DeviceWebToken) async throws
 }
 
 final class DeviceTrust: DeviceTrustP {
@@ -102,6 +104,51 @@ final class DeviceTrust: DeviceTrustP {
     }
     logger.debug("Successfully enrolled device")
   }
+
+  func authenticateWebDevice(hostname: String, port: Int?, user _: String,
+                             deviceWebToken: Teleport_Devicetrust_V1_DeviceWebToken) async throws
+  {
+    let hostnameWithScheme = "https://\(hostname)"
+    let hostnameWithPort = "\(hostnameWithScheme)\(port.map { ":\($0)" } ?? "")"
+    let protocolClient = ProtocolClient(
+      httpClient: NIOHTTPClient(host: hostnameWithScheme, port: port, timeout: nil),
+      config: ProtocolClientConfig(
+        host: "\(hostnameWithPort)/webapi/devicetrust/",
+        networkProtocol: .connect,
+        codec: ProtoCodec()
+      )
+    )
+    let client = Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: protocolClient)
+    let cd = collectDeviceData()
+    logger.debug("Collected device data: \(cd.debugDescription, privacy: .public)")
+
+    guard let cred = try DeviceKey.get() else {
+      throw AuthenticateWebDeviceError.noDeviceKey
+    }
+    logger.debug("Got device key: \(cred.debugDescription, privacy: .public)")
+
+    let stream = client.authenticateDevice()
+
+    try stream
+      .send(Teleport_Devicetrust_V1_AuthenticateDeviceRequest
+        .with {
+          $0.init_p = Teleport_Devicetrust_V1_AuthenticateDeviceInit
+            .with { $0.deviceWebToken = deviceWebToken
+              $0.credentialID = cred.id
+              $0.deviceData = cd
+            }
+        })
+
+    let response1 = try await (getSingleMessage(stream)).get()
+    guard case let .challenge(challenge) = response1.payload else {
+      throw UnexpectedPayload(expected: "challenge", actual: response1.payload)
+    }
+    logger.debug("Got challenge")
+  }
+}
+
+enum AuthenticateWebDeviceError: Error {
+  case noDeviceKey
 }
 
 struct UnexpectedPayload<Actual>: Error & LocalizedError {
@@ -371,6 +418,7 @@ class FakeDeviceTrust: DeviceTrustP {
   let serialNumber: String = "123456"
   let deleteDeviceKeyResult: Result<Bool, SecOSStatusError> = .success(true)
   let enrollDeviceError: Error? = NSError(domain: "test", code: 0, userInfo: nil)
+  let authenticateWebDeviceError: Error? = NSError(domain: "test", code: 0, userInfo: nil)
 
   func getSerialNumber() -> String {
     serialNumber
@@ -388,6 +436,17 @@ class FakeDeviceTrust: DeviceTrustP {
   ) async throws {
     if let enrollDeviceError {
       throw enrollDeviceError
+    }
+  }
+
+  func authenticateWebDevice(
+    hostname _: String,
+    port _: Int?,
+    user _: String,
+    deviceWebToken _: Teleport_Devicetrust_V1_DeviceWebToken
+  ) async throws {
+    if let authenticateWebDeviceError {
+      throw authenticateWebDeviceError
     }
   }
 }
