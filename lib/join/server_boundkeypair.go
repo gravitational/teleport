@@ -30,8 +30,28 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 )
 
-// handleBoundKeypairJoin takes over the join process after the ClientInit
-// message has been received for the bound keypair join method.
+// handleBoundKeypairJoin handles join attempts for the bound keypair join
+// method.
+//
+// The bound keypair join method involves the following messages:
+//
+// client->server ClientInit
+// client<-server ServerInit
+// client->server BoundKeypairInit
+// client<-server BoundKeypairChallenge
+// client->server BoundKeypairChallengeSolution
+//
+//	(optional additional steps if keypair rotation is required)
+//	client<-server: BoundKeypairRotationRequest
+//	client->server: BoundKeypairRotationResponse
+//	client<-server: BoundKeypairChallenge
+//	client->server: BoundKeypairChallengeSolution
+//
+// client<-server: Result containing BoundKeypairResult
+//
+// At this point the ServerInit message has already been sent, what's left is
+// to receive the BoundKeypairInit message, handle the challenge-response (and
+// rotation if necessary), and send the final result if everything checks out.
 func (s *Server) handleBoundKeypairJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
@@ -44,11 +64,6 @@ func (s *Server) handleBoundKeypairJoin(
 	// required and this is currently only implemented for bots.
 	if clientInit.SystemRole != types.RoleBot.String() {
 		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
-	}
-	if err := stream.Send(&messages.ServerInit{
-		JoinMethod: string(types.JoinMethodBoundKeypair),
-	}); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
 	if err != nil {
@@ -69,7 +84,13 @@ func (s *Server) handleBoundKeypairJoin(
 		return rotationResp, trace.Wrap(err)
 	}
 	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error) {
-		botCertsParams, err := makeBotCertsParams(diag, authCtx, boundKeypairInit.ClientParams.BotParams, claims)
+		botCertsParams, err := makeBotCertsParams(
+			diag,
+			authCtx,
+			boundKeypairInit.ClientParams.BotParams,
+			claims,
+			nil, // TODO(timothyb89): workload id claims
+		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -173,7 +194,13 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	}
 
 	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error) {
-		botCertsParams, err := makeBotCertsParams(diag, authCtx, clientParams.BotParams, claims)
+		botCertsParams, err := makeBotCertsParams(
+			diag,
+			authCtx,
+			clientParams.BotParams,
+			claims,
+			nil, // TODO(timothyb89): workload id claims
+		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

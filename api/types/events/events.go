@@ -2697,3 +2697,60 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	out.BotName = trimStr(m.BotName, maxFieldsSize)
 	return out
 }
+
+func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
+	if m.Size() <= maxSize {
+		return m
+	}
+	trimmed := utils.CloneProtoMsg(m)
+	if trimmed.Request != nil {
+		trimmed.Request.Body = nil
+	}
+	if trimmed.Size() <= maxSize {
+		return trimmed
+	}
+
+	maxSize = adjustedMaxSize(trimmed, maxSize)
+	trimmableFieldCount := trimmed.Status.nonEmptyStrs() + nonEmptyStrs(
+		trimmed.Integration,
+		trimmed.ResourceType,
+		trimmed.TeleportID,
+		trimmed.ExternalID,
+		trimmed.Display)
+	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+
+	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
+	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
+	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
+	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
+
+	return trimmed
+}
+
+func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
+	if m.Size() <= maxSize {
+		return m
+	}
+	trimmed := utils.CloneProtoMsg(m)
+
+	if trimmed.Request != nil {
+		trimmed.Request.Body = nil
+	}
+	if trimmed.Size() <= maxSize {
+		return trimmed
+	}
+
+	maxSize = adjustedMaxSize(trimmed, maxSize)
+	trimmableFieldCount := m.Status.nonEmptyStrs() + nonEmptyStrs(
+		trimmed.Integration,
+		trimmed.ResourceType,
+		m.Filter)
+	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
+	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
+	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+
+	return trimmed
+}

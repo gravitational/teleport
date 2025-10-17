@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -103,7 +104,6 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 }
 
 // Server handles forwarding client connections to MCP servers.
-// TODO(greedy52) add server metrics.
 type Server struct {
 	cfg ServerConfig
 
@@ -113,6 +113,10 @@ type Server struct {
 // NewServer creates a new Server.
 func NewServer(cfg ServerConfig) (*Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := metrics.RegisterPrometheusCollectors(allPrometheusCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -137,11 +141,16 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx *SessionCtx) erro
 	if err := sessionCtx.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Metrics.
+	accumulatedSessions.WithLabelValues(sessionCtx.transport).Inc()
+	activeSessions.WithLabelValues(sessionCtx.transport).Inc()
+	defer activeSessions.WithLabelValues(sessionCtx.transport).Dec()
+
 	if s.cfg.EnableDemoServer && isDemoServerApp(sessionCtx.App) {
 		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeDemoServerRunner))
 	}
-	transportType := types.GetMCPServerTransportType(sessionCtx.App.GetURI())
-	switch transportType {
+	switch sessionCtx.transport {
 	case types.MCPTransportStdio:
 		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 	case types.MCPTransportSSE:
@@ -149,7 +158,7 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx *SessionCtx) erro
 	case types.MCPTransportHTTP:
 		return trace.Wrap(s.handleStreamableHTTP(ctx, sessionCtx))
 	default:
-		return trace.BadParameter("unknown transport type: %v", transportType)
+		return trace.BadParameter("unknown transport type: %v", sessionCtx.transport)
 	}
 }
 

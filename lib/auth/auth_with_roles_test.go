@@ -3045,10 +3045,22 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
@@ -3059,8 +3071,16 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
 		// Discovery service cannot delete non-cloud clusters.
 		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
@@ -8987,6 +9007,56 @@ func TestGetSnowflakeSessions(t *testing.T) {
 			test.assertErr(t, err)
 		})
 	}
+}
+
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {

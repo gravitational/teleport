@@ -125,9 +125,8 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		getEventCode := func(e apievents.AuditEvent) string {
 			return e.GetCode()
 		}
-		_, err = mcptest.InitializeClient(ctx, client)
-		require.NoError(t, err)
-		mcptest.MustCallServerTool(t, ctx, client)
+		mcptest.MustInitializeClient(t, client)
+		mcptest.MustCallServerTool(t, client)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.ElementsMatch(t, []string{
 				libevents.MCPSessionStartCode,
@@ -168,6 +167,18 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		require.Equal(t, libevents.MCPSessionRequestFailureCode, lastEvent.GetCode())
 		require.False(t, lastEvent.Success)
 		require.Equal(t, "HTTP 404 Not Found", lastEvent.Error)
+	})
+
+	t.Run("unsupported method", func(t *testing.T) {
+		emitter.Reset()
+		httpClient := listener.MakeHTTPClient()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodOptions, "http://localhost/", nil)
+		require.NoError(t, err)
+		response, err := httpClient.Do(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
+		require.Equal(t, libevents.MCPSessionInvalidHTTPRequest, emitter.LastEvent().GetType())
 	})
 }
 

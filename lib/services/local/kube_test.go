@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestKubernetesCRUD tests backend operations with kubernetes resources.
@@ -53,6 +54,10 @@ func TestKubernetesCRUD(t *testing.T) {
 		Name: "c2",
 	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
+	kubeCluster3, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "c3",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
 
 	// Initially we expect no Kubernetess.
 	out, err := service.GetKubernetesClusters(ctx)
@@ -64,20 +69,49 @@ func TestKubernetesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	err = service.CreateKubernetesCluster(ctx, kubeCluster2)
 	require.NoError(t, err)
+	err = service.CreateKubernetesCluster(ctx, kubeCluster3)
+	require.NoError(t, err)
+
+	expectedAll := []types.KubeCluster{kubeCluster1, kubeCluster2, kubeCluster3}
+	diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
 	// Fetch all Kubernetess.
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{kubeCluster1, kubeCluster2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, cmp.Diff(expectedAll, out, diffopt))
+
+	// List with page limit
+	page1, page2Start, err := service.ListKubernetesClusters(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, page2Start)
+	require.Len(t, page1, 2)
+
+	// List with start
+	page2, next, err := service.ListKubernetesClusters(ctx, 2, page2Start)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expectedAll, append(page1, page2...), diffopt))
+
+	// Range over all
+	out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedAll, out, diffopt))
+
+	// Range with upper bound
+	out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", page2Start))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(page1, out, diffopt))
+
+	// Range with lower bound
+	out, err = stream.Collect(service.RangeKubernetesClusters(ctx, page2Start, ""))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(page2, out, diffopt))
 
 	// Fetch a specific Kubernetes.
 	cluster, err := service.GetKubernetesCluster(ctx, kubeCluster2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(kubeCluster2, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, cmp.Diff(kubeCluster2, cluster, diffopt))
 
 	// Try to fetch a Kubernetes that doesn't exist.
 	_, err = service.GetKubernetesCluster(ctx, "doesnotexist")
@@ -93,18 +127,16 @@ func TestKubernetesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	cluster, err = service.GetKubernetesCluster(ctx, kubeCluster1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(kubeCluster1, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, cmp.Diff(kubeCluster1, cluster, diffopt))
 
 	// Delete a Kubernetes.
 	err = service.DeleteKubernetesCluster(ctx, kubeCluster1.GetName())
 	require.NoError(t, err)
+
+	expectedAll = []types.KubeCluster{kubeCluster2, kubeCluster3}
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{kubeCluster2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, cmp.Diff(expectedAll, out, diffopt))
 
 	// Try to delete a Kubernetes that doesn't exist.
 	err = service.DeleteKubernetesCluster(ctx, "doesnotexist")

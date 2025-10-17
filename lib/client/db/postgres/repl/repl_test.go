@@ -17,116 +17,63 @@
 package repl
 
 import (
+	"bytes"
+	"cmp"
 	"context"
+	"crypto/rand"
+	_ "embed"
 	"errors"
 	"io"
 	"net"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/client/db/postgres/repl/testdata"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-func TestStart(t *testing.T) {
-	ctx := context.Background()
-	_, tc := StartWithServer(t, ctx)
+const crlf = "\r\n"
 
-	// Consume the REPL banner.
-	_ = readUntilNextLead(t, tc)
+var testSrv *testServer
+var testSrvMu sync.Mutex
 
-	writeLine(t, tc, singleRowQuery)
-	singleRowQueryResult := readUntilNextLead(t, tc)
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "single", []byte(singleRowQueryResult))
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	// The "Ryuk" container will cleanup everything anyhow, but only after 10s
+	// without any client connections.
+	// We can speed up container cleanup after a -count=N run, e.g., a flaky
+	// test detector run, by terminating them immediately after tests have run.
+	// https://github.com/testcontainers/moby-ryuk
+	testSrvMu.Lock()
+	defer testSrvMu.Unlock()
+	// if we don't clean up after 10 seconds, RYUK will get them anyway.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// ignore errors, Ryuk or worst case VM termination in CI will deal with it
+	if testSrv != nil {
+		_ = testSrv.container.Terminate(ctx)
 	}
-	require.Equal(t, string(golden.GetNamed(t, "single")), singleRowQueryResult)
-
-	writeLine(t, tc, multiRowQuery)
-	multiRowQueryResult := readUntilNextLead(t, tc)
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "multi", []byte(multiRowQueryResult))
-	}
-	require.Equal(t, string(golden.GetNamed(t, "multi")), multiRowQueryResult)
-
-	writeLine(t, tc, errorQuery)
-	errorQueryResult := readUntilNextLead(t, tc)
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "err", []byte(errorQueryResult))
-	}
-	require.Equal(t, string(golden.GetNamed(t, "err")), errorQueryResult)
-
-	writeLine(t, tc, dataTypesQuery)
-	dataTypeQueryResult := readUntilNextLead(t, tc)
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "data_type", []byte(dataTypeQueryResult))
-	}
-	require.Equal(t, string(golden.GetNamed(t, "data_type")), dataTypeQueryResult)
-
-	writeLine(t, tc, multiQuery)
-	multiQueryResult := readUntilNextLead(t, tc)
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "multiquery", []byte(multiQueryResult))
-	}
-	require.Equal(t, string(golden.GetNamed(t, "multiquery")), multiQueryResult)
-}
-
-// TestQuery given some input lines, the REPL should execute the expected
-// query on the PostgreSQL test server.
-func TestQuery(t *testing.T) {
-	ctx := context.Background()
-	_, tc := StartWithServer(t, ctx, WithCustomQueries())
-
-	// Consume the REPL banner.
-	_ = readUntilNextLead(t, tc)
-
-	for name, tt := range map[string]struct {
-		lines         []string
-		expectedQuery string
-	}{
-		"query":                     {lines: []string{"SELECT 1;"}, expectedQuery: "SELECT 1;"},
-		"query multiple semicolons": {lines: []string{"SELECT 1; ;;"}, expectedQuery: "SELECT 1; ;;"},
-		"query multiple semicolons with trailing space": {lines: []string{"SELECT 1; ;;  "}, expectedQuery: "SELECT 1; ;;"},
-		"multiline query":                     {lines: []string{"SELECT", "1", ";"}, expectedQuery: "SELECT\r\n1\r\n;"},
-		"malformatted":                        {lines: []string{"SELECT err;"}, expectedQuery: "SELECT err;"},
-		"query with special characters":       {lines: []string{"SELECT 'special_chars_!@#$%^&*()';"}, expectedQuery: "SELECT 'special_chars_!@#$%^&*()';"},
-		"leading and trailing whitespace":     {lines: []string{"   SELECT 1;   "}, expectedQuery: "SELECT 1;"},
-		"multiline with excessive whitespace": {lines: []string{"   SELECT", "    1", "     ;"}, expectedQuery: "SELECT\r\n1\r\n;"},
-		// Commands should only be executed if they are at the beginning of the
-		// first line.
-		"with command in the middle":              {lines: []string{"SELECT \\d 1;"}, expectedQuery: "SELECT \\d 1;"},
-		"multiline with command in the middle":    {lines: []string{"SELECT", "\\d", ";"}, expectedQuery: "SELECT\r\n\\d\r\n;"},
-		"multiline with command in the last line": {lines: []string{"SELECT", "1", "\\d;"}, expectedQuery: "SELECT\r\n1\r\n\\d;"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			for _, line := range tt.lines {
-				writeLine(t, tc, line)
-			}
-
-			select {
-			case query := <-tc.QueryChan():
-				require.Equal(t, tt.expectedQuery, query)
-			case <-time.After(5 * time.Second):
-				require.Fail(t, "expected to receive query but got nothing")
-			}
-
-			// Always expect a query reply from the server.
-			_ = readUntilNextLead(t, tc)
-		})
-	}
+	os.Exit(code)
 }
 
 func TestClose(t *testing.T) {
+	t.Parallel()
 	for name, tt := range map[string]struct {
 		closeFunc              func(tc *testCtx, cancelCtx context.CancelFunc)
 		expectTerminateMessage bool
@@ -145,7 +92,7 @@ func TestClose(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithCancel(t.Context())
 			defer cancelFunc()
 
 			_, tc := StartWithServer(t, ctx)
@@ -177,8 +124,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestConnectionError(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	t.Parallel()
 	tests := []struct {
 		desc            string
 		modifyTestCtx   func(tc *testCtx)
@@ -198,6 +144,7 @@ func TestConnectionError(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			ctx := t.Context()
 			instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
 
 			test.modifyTestCtx(tc)
@@ -209,35 +156,6 @@ func TestConnectionError(t *testing.T) {
 	}
 }
 
-func writeLine(t *testing.T, c *testCtx, line string) {
-	t.Helper()
-	data := []byte(line + lineBreak)
-
-	// When writing to the connection, the terminal emulator always writes back.
-	// If we don't consume those bytes, it will block the ReadLine call (as
-	// we're net.Pipe).
-	go func(conn net.Conn) {
-		buf := make([]byte, len(data))
-		// We need to consume any additional replies made by the terminal
-		// emulator until we consume the line contents.
-		for {
-			n, err := conn.Read(buf[0:])
-			if err != nil {
-				t.Logf("Error while terminal reply on write: %s", err)
-				break
-			}
-
-			if string(buf[:n]) == line+lineBreak {
-				break
-			}
-		}
-	}(c.conn)
-
-	time.Sleep(time.Millisecond)
-	_, err := c.conn.Write(data)
-	assert.NoError(t, err)
-}
-
 // readUntilNextLead reads the contents from the client connection until we
 // reach the next leading prompt.
 func readUntilNextLead(t *testing.T, c *testCtx) string {
@@ -246,7 +164,7 @@ func readUntilNextLead(t *testing.T, c *testCtx) string {
 	var acc strings.Builder
 	for {
 		line := readLine(t, c)
-		if strings.HasPrefix(line, lineBreak+lineLeading(c.route)) {
+		if strings.HasPrefix(line, lineLeading(c.route)) {
 			break
 		}
 
@@ -272,6 +190,9 @@ func readLine(t *testing.T, c *testCtx) string {
 	return string(buf[:n])
 }
 
+// testCtx implements a minimal stub Postgres backend that can only PostgreSQL
+// messages for startup and termination. Tests that require support for other
+// message types should use a real Postgres server running in a test container.
 type testCtx struct {
 	cfg        *testCtxConfig
 	ctx        context.Context
@@ -293,30 +214,15 @@ type testCtx struct {
 	pgClient      *pgproto3.Backend
 	errChan       chan error
 	terminateChan chan struct{}
-	// queryChan handling custom queries is enabled the queries received by the
-	// test server will be sent to this channel.
-	queryChan chan string
 }
 
 type testCtxConfig struct {
 	// skipREPLRun when set to true the REPL instance won't be executed.
 	skipREPLRun bool
-	// handleCustomQueries when set to true the PostgreSQL test server will
-	// accept any query sent and reply with success.
-	handleCustomQueries bool
 }
 
 // testCtxOption represents a testCtx option.
 type testCtxOption func(*testCtxConfig)
-
-// WithCustomQueries enables sending custom queries to the PostgreSQL test
-// server. Note that when it is enabled, callers must consume the queries on the
-// query channel.
-func WithCustomQueries() testCtxOption {
-	return func(cfg *testCtxConfig) {
-		cfg.handleCustomQueries = true
-	}
-}
 
 // WithSkipREPLRun disables automatically running the REPL instance.
 func WithSkipREPLRun() testCtxOption {
@@ -350,7 +256,6 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		pgClient:      client,
 		errChan:       make(chan error, 1),
 		terminateChan: make(chan struct{}),
-		queryChan:     make(chan string),
 	}
 
 	t.Cleanup(func() {
@@ -396,12 +301,7 @@ func StartWithServer(t *testing.T, ctx context.Context, opts ...testCtxOption) (
 		})
 	}
 
-	r, _ := instance.(*REPL)
-	return r, tc
-}
-
-func (tc *testCtx) QueryChan() chan string {
-	return tc.queryChan
+	return instance.(*REPL), tc
 }
 
 func (tc *testCtx) CloseServer() {
@@ -468,81 +368,172 @@ func (tc *testCtx) processMessages() error {
 			return trace.Wrap(err)
 		}
 
-		var messages []pgproto3.BackendMessage
 		switch msg := message.(type) {
 		case *pgproto3.Query:
-			if tc.cfg.handleCustomQueries {
-				select {
-				case tc.queryChan <- msg.String:
-					messages = []pgproto3.BackendMessage{
-						&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("INSERT 0 1")},
-						&pgproto3.ReadyForQuery{},
-					}
-				case <-tc.ctx.Done():
-					return trace.Wrap(tc.ctx.Err())
-				}
-
-				break // breaks the message switch case.
-			}
-
-			switch msg.String {
-			case singleRowQuery:
-				messages = []pgproto3.BackendMessage{
-					&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("id")}, {Name: []byte("email")}}},
-					&pgproto3.DataRow{Values: [][]byte{[]byte("1"), []byte("alice@example.com")}},
-					&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("SELECT")},
-					&pgproto3.ReadyForQuery{},
-				}
-			case multiRowQuery:
-				messages = []pgproto3.BackendMessage{
-					&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("id")}, {Name: []byte("email")}}},
-					&pgproto3.DataRow{Values: [][]byte{[]byte("1"), []byte("alice@example.com")}},
-					&pgproto3.DataRow{Values: [][]byte{[]byte("2"), []byte("bob@example.com")}},
-					&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("SELECT")},
-					&pgproto3.ReadyForQuery{},
-				}
-			case dataTypesQuery:
-				messages = testdata.TestDataQueryResult
-			case multiQuery:
-				messages = []pgproto3.BackendMessage{
-					&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("?column?")}}},
-					&pgproto3.DataRow{Values: [][]byte{[]byte("1")}},
-					&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("SELECT")},
-					&pgproto3.RowDescription{Fields: []pgproto3.FieldDescription{{Name: []byte("id")}, {Name: []byte("email")}}},
-					&pgproto3.DataRow{Values: [][]byte{[]byte("1"), []byte("alice@example.com")}},
-					&pgproto3.DataRow{Values: [][]byte{[]byte("2"), []byte("bob@example.com")}},
-					&pgproto3.CommandComplete{CommandTag: pgconn.CommandTag("SELECT")},
-					&pgproto3.ReadyForQuery{},
-				}
-			case errorQuery:
-				messages = []pgproto3.BackendMessage{
-					&pgproto3.ErrorResponse{Severity: "ERROR", Code: "42703", Message: "error"},
-					&pgproto3.ReadyForQuery{},
-				}
-			default:
-				return trace.BadParameter("unsupported query %q", msg.String)
-
-			}
+			return trace.BadParameter("stub postgres server does not support queries, use a testcontainer to test query %q", msg.String)
 		case *pgproto3.Terminate:
 			close(tc.terminateChan)
 			return nil
 		default:
 			return trace.BadParameter("unsupported message %#v", message)
 		}
-
-		for _, message := range messages {
-			err := tc.pgClient.Send(message)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
 	}
 }
 
-const (
-	singleRowQuery = "SELECT * FROM users LIMIT 1;"
-	multiRowQuery  = "SELECT * FROM users;"
-	multiQuery     = "SELECT 1; SELECT * FROM users;"
-	dataTypesQuery = "SELECT * FROM test_data_types;"
-	errorQuery     = "SELECT err;"
+func TestREPL(t *testing.T) {
+	if run, _ := apiutils.ParseBool(os.Getenv("ENABLE_TESTCONTAINERS")); !run {
+		// Docker Hub rate limits cause failures in CI, this test is disabled until we can set up an alternative to Docker Hub
+		t.Skip("Test disabled in CI. Enable it by setting env variable ENABLE_TESTCONTAINERS")
+	}
+	testSrv := newTestServer(t)
+	route := clientproto.RouteToDatabase{
+		ServiceName: "postgres-test-container",
+		Protocol:    defaults.ProtocolPostgres,
+		Username:    testSrv.username,
+		Database:    testSrv.database,
+	}
+	for _, test := range []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "ddl",
+			input: testDDL,
+		},
+		{
+			name:  "all data types",
+			input: testDataTypes,
+		},
+		{
+			name:  "literals",
+			input: testLiterals,
+		},
+		{
+			name:  "commands",
+			input: testCommands,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+			input := strings.ReplaceAll(test.input, "\n", crlf) + crlf
+			recorder := newRecordingClient(io.NopCloser(strings.NewReader(input)))
+
+			t.Logf("test server: %v", testSrv.hostPort())
+			testREPL, err := New(ctx, &dbrepl.NewREPLConfig{
+				Client:     recorder,
+				ServerConn: testSrv.connectTCP(t, 5*time.Second),
+				Route:      route,
+			})
+			require.NoError(t, err)
+			testREPL.(*REPL).connConfig.Password = testSrv.password
+			testREPL.(*REPL).teleportVersion = "19.0.0-dev"
+			err = testREPL.Run(t.Context())
+			require.NoError(t, err)
+			if golden.ShouldSet() {
+				golden.SetNamed(t, "", recorder.buf.Bytes())
+			}
+			require.Equal(t, string(golden.GetNamed(t, "")), recorder.buf.String())
+		})
+	}
+}
+
+var (
+	//go:embed fixtures/ddl.sql
+	testDDL string
+	//go:embed fixtures/all-data-types.sql
+	testDataTypes string
+	//go:embed fixtures/literals.sql
+	testLiterals string
+	//go:embed fixtures/commands.sql
+	testCommands string
 )
+
+func newTestServer(t *testing.T) *testServer {
+	t.Helper()
+	ctx := t.Context()
+
+	reuseName := cmp.Or(os.Getenv("POSTGRES_TEST_SERVER_REUSE_CONTAINER_BY_NAME"), "default-postgres-test-server")
+	testSrvMu.Lock()
+	// hold the lock for the entire func to avoid parallel container requests
+	defer testSrvMu.Unlock()
+	if testSrv != nil {
+		return testSrv
+	}
+
+	user := cmp.Or(os.Getenv("POSTGRES_TEST_SERVER_USER"), "postgres")
+	db := cmp.Or(os.Getenv("POSTGRES_TEST_SERVER_DB"), "postgres")
+	pass := cmp.Or(os.Getenv("POSTGRES_TEST_SERVER_PASS"), rand.Text())
+	opts := []testcontainers.ContainerCustomizer{
+		postgres.WithDatabase(db),
+		postgres.WithUsername(user),
+		postgres.WithPassword(pass),
+		testcontainers.WithReuseByName(reuseName),
+		postgres.BasicWaitStrategies(),
+		postgres.WithSQLDriver("pgx"),
+	}
+
+	// postgres 17
+	const img = "postgres@sha256:feff5b24fedd610975a1f5e743c51a4b360437f4dc3a11acf740dcd708f413f6"
+	container, err := postgres.Run(ctx, img, opts...)
+	require.NoError(t, err)
+
+	host, err := container.Host(ctx)
+	require.NoError(t, err)
+
+	mappedPort, err := container.MappedPort(ctx, "5432/tcp")
+	require.NoError(t, err)
+
+	srv := &testServer{
+		container: container,
+		host:      host,
+		port:      mappedPort.Port(),
+		username:  user,
+		password:  pass,
+		database:  db,
+	}
+	testSrv = srv
+	return srv
+}
+
+// testServer is a PostgreSQL server for tests.
+type testServer struct {
+	// container is the container hosting the server.
+	container testcontainers.Container
+	// host is the PostgreSQL connection endpoint host.
+	host string
+	// port is the PostgreSQL connection endpoint port.
+	port string
+	// username is the database superuser.
+	username string
+	// password is the database superuser password.
+	password string
+	// database is a database schema provisioned in the database.
+	database string
+}
+
+// hostPort returns the server host:port.
+func (s *testServer) hostPort() string {
+	return net.JoinHostPort(s.host, s.port)
+}
+
+func (s *testServer) connectTCP(t *testing.T, timeout time.Duration) net.Conn {
+	t.Helper()
+	conn, err := net.DialTimeout("tcp", s.hostPort(), timeout)
+	require.NoError(t, err)
+	return conn
+}
+
+func newRecordingClient(reader io.ReadCloser) *recordingClient {
+	var buf bytes.Buffer
+	return &recordingClient{
+		ReadCloser: reader,
+		Writer:     &buf,
+		buf:        &buf,
+	}
+}
+
+type recordingClient struct {
+	io.ReadCloser
+	io.Writer
+	buf *bytes.Buffer
+}

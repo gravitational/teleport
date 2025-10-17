@@ -32,7 +32,7 @@ import {
 import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import { useClusterVersion } from '../../useClusterVersion';
 import { JoinMethodIcon } from './JoinMethodIcon';
@@ -64,7 +64,16 @@ export function Instance(props: {
     <Container
       $isSelectable={!!isSelectable}
       $isSelected={!!isSelected}
-      onClick={() => onSelected?.()}
+      onClick={onSelected}
+      onKeyUp={
+        onSelected
+          ? event => {
+              if (event.key === 'Enter') {
+                onSelected();
+              }
+            }
+          : undefined
+      }
       role="listitem"
       tabIndex={0}
       aria-label={`${botName}/${id}`}
@@ -75,7 +84,7 @@ export function Instance(props: {
             <BotNameText>
               {botName}/{shortenId(id)}
             </BotNameText>
-            <CopyButton name={`${botName}/${id}`} />
+            <CopyButton value={`${botName}/${id}`} />
           </BotNameContainer>
         ) : (
           <IdText typography="body2">{id}</IdText>
@@ -148,7 +157,8 @@ const Container = styled(Flex)<{
       ? css`
           border-left: ${p.theme.space[1]}px solid
             ${p.theme.colors.interactive.solid.primary.default};
-          background-color: ${p.theme.colors.interactive.tonal.neutral[0]};
+          padding-left: ${props => props.theme.space[3] - p.theme.space[1]}px;
+          background-color: ${p.theme.colors.levels.sunken};
         `
       : ''}
 
@@ -158,10 +168,12 @@ const Container = styled(Flex)<{
           cursor: pointer;
 
           &:hover {
-            background-color: ${p.theme.colors.interactive.tonal.neutral[0]};
+            background-color: ${p.theme.colors.levels.sunken};
           }
-          &:active {
-            background-color: ${p.theme.colors.interactive.tonal.neutral[1]};
+          &:active,
+          &:focus {
+            outline: none;
+            background-color: ${p.theme.colors.levels.deep};
           }
         `
       : ''}

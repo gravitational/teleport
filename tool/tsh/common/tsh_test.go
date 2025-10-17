@@ -51,6 +51,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -4357,9 +4358,7 @@ func TestSerializeDatabases(t *testing.T) {
         "docdb": {}
       },
       "mysql": {},
-      "oracle": {
-        "audit_user": ""
-      },
+      "oracle": {},
       "gcp": {
         "alloydb": {}
       },
@@ -7025,10 +7024,11 @@ func TestSCP(t *testing.T) {
 	})
 
 	// Create a second server to test ambiguous matching.
+	const secondServerHostname = "second-node"
 	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
-			cfg.Hostname = "second-node"
+			cfg.Hostname = secondServerHostname
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.SSH.Enabled = true
@@ -7222,6 +7222,42 @@ func TestSCP(t *testing.T) {
 			expected: map[string][]byte{
 				filepath.Base(sourceFile1): expectedFile1,
 				filepath.Base(sourceFile2): expectedFile2,
+			},
+		},
+		{
+			name:   "two hosts without templates",
+			source: []string{sshHostname + ":" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return secondServerHostname + ":" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts with templates",
+			source: []string{"shark.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "2.3.4.5:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts, one no matching host",
+			source: []string{"2.3.4.5:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "asdf.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "no matching hosts", i...)
 			},
 		},
 	}
@@ -7671,6 +7707,43 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 			if tc.assertCommandEffect != nil {
 				tc.assertCommandEffect(t, testFile)
 			}
+		})
+	}
+}
+
+func Test_humanFriendlyValidUntilDuration(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	tests := []struct {
+		name   string
+		input  time.Time
+		expect string
+	}{
+		{
+			name:   "expired",
+			input:  clock.Now().Add(-time.Minute),
+			expect: "EXPIRED",
+		},
+		{
+			name:   "less than one minute",
+			input:  clock.Now().Add(time.Second * 30),
+			expect: "valid for <1m",
+		},
+		{
+			name:   "truncate",
+			input:  clock.Now().Add(time.Minute*5 + time.Second*50),
+			expect: "valid for 5m",
+		},
+		{
+			name:   "hours",
+			input:  clock.Now().Add(time.Hour*12 + time.Minute*34 + time.Second*10),
+			expect: "valid for 12h34m",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := humanFriendlyValidUntilDuration(test.input, clock)
+			require.Equal(t, test.expect, actual)
 		})
 	}
 }

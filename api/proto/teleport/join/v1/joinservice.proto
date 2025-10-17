@@ -190,11 +190,44 @@ message BoundKeypairResult {
   bytes public_key = 3;
 }
 
+// IAMInit is sent from the client in response to the ServerInit message for
+// the IAM join method.
+//
+// The IAM method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: IAMInit
+// 4. server->client: IAMChallenge
+// 5. client->server: IAMChallengeSolution
+// 6. server->client: Result
+message IAMInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// IAMChallenge is from the server in response to the IAMInit message from the client.
+// The client is expected to respond with a IAMChallengeSolution.
+message IAMChallenge {
+  // Challenge is a a crypto-random string that should be included by the
+  // client in the IAMChallengeSolution message.
+  string challenge = 1;
+}
+
+// IAMChallengeSolution must be sent from the client in response to the
+// IAMChallenge message.
+message IAMChallengeSolution {
+  // STSIdentityRequest is a signed sts:GetCallerIdentity API request used
+  // to prove the AWS identity of a joining node. It must include the
+  // challenge string as a signed header.
+  bytes sts_identity_request = 1;
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 message ChallengeSolution {
   oneof payload {
     BoundKeypairChallengeSolution bound_keypair_challenge_solution = 1;
     BoundKeypairRotationResponse bound_keypair_rotation_response = 2;
+    IAMChallengeSolution iam_challenge_solution = 3;
   }
 }
 
@@ -205,6 +238,7 @@ message JoinRequest {
     TokenInit token_init = 2;
     BoundKeypairInit bound_keypair_init = 3;
     ChallengeSolution solution = 4;
+    IAMInit iam_init = 5;
   }
 }
 
@@ -223,6 +257,7 @@ message Challenge {
   oneof payload {
     BoundKeypairChallenge bound_keypair_challenge = 1;
     BoundKeypairRotationRequest bound_keypair_rotation_request = 2;
+    IAMChallenge iam_challenge = 3;
   }
 }
 

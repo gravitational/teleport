@@ -176,6 +176,7 @@ func (s *execServer) getStdinPipe() (io.WriteCloser, error) {
 
 func (s *execServer) run(context.Context) error {
 	if err := s.cmd.Start(); err != nil {
+		setupErrors.WithLabelValues(s.session.transport).Inc()
 		return trace.Wrap(err)
 	}
 
@@ -214,21 +215,31 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	// WaitDelay forces a SIGKILL if the process fails to exit 10 seconds after
 	// cmd.Cancel is called. See the WaitDelay doc for details.
 	cmd.WaitDelay = 10 * time.Second
+
 	// We put all shutdown procedures in cmd.Cancel because we are too lazy to
 	// make a separate function. Since cmd.Cancel can be called outside here by
 	// the server handler, we make sure 'cmdCancel' is called to cancel the
 	// command in that case.
-	cmd.Cancel = sync.OnceValue(func() error {
+	//
+	// There is also a race where cmd.Cancel may be called before cmd.Process is
+	// available. To make sure the signal is sent, do not use sync.Once on the
+	// entire "cmd.Cancel". Instead, use sync.Once after cmd.Process non-nil
+	// check so we have a better chance to clean up.
+	signalOnce := sync.OnceValue(func() error {
+		// Use SIGINT for graceful shutdown since stdio servers are
+		// "interactive".
+		logger.DebugContext(ctx, "Sending SIGINT to command")
+		return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
+	})
+	cmd.Cancel = func() error {
+		logger.DebugContext(ctx, "Canceling command", "has_process", cmd.Process == nil)
 		cmdCancel()
 
 		if cmd.Process != nil {
-			// Use SIGINT for graceful shutdown since stdio servers are
-			// "interactive".
-			logger.DebugContext(ctx, "Sending SIGINT to command")
-			return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
+			return trace.Wrap(signalOnce())
 		}
 		return nil
-	})
+	}
 
 	// Set host user.
 	hostUser, err := user.Lookup(mcpSpec.RunAsHostUser)

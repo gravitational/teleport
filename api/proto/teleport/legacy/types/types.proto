@@ -362,11 +362,17 @@ message DatabaseAdminUser {
   string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
 }
 
-// OracleOptions contains information about privileged database user used
-// for database audit.
+// OracleOptions contains Oracle-specific configuration options.
 message OracleOptions {
-  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
-  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
+  // AuditUser is the name of the Oracle database user that should be used to access
+  // the internal audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user,omitempty"];
+  // RetryCount is the maximum number of times to retry connecting to a
+  // host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.
+  int32 RetryCount = 2 [(gogoproto.jsontag) = "retry_count,omitempty"];
+  // ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+  // the provided list.
+  bool ShuffleHostnames = 3 [(gogoproto.jsontag) = "shuffle_hostnames,omitempty"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -7373,6 +7379,11 @@ message PluginOktaSyncSettings {
   // synchronized users. This is allows for a more advanced RBAC setup where not all
   // Okta-originated users are allowed request all Okta-originated resources.
   bool disable_assign_default_roles = 13;
+
+  // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
+  // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
+  // bidirectional sync is enabled. The default value is 30m.
+  string time_between_imports = 14;
 }
 
 // Defines a set of discord channel IDs
@@ -8977,8 +8988,11 @@ message InstallerParams {
   // Valid values:
   // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
   // 1: uses script mode
-  // 2: uses eice mode
-  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+  // 2: uses eice mode (deprecated)
+  InstallParamEnrollMode EnrollMode = 8 [
+    (gogoproto.jsontag) = "enroll_mode,omitempty",
+    deprecated = true
+  ];
   // Suffix indicates the installation suffix for the teleport installation.
   // Set this value if you want multiple installations of Teleport.
   // See --install-suffix flag in teleport-update program.
@@ -9001,6 +9015,8 @@ enum InstallParamEnrollMode {
   INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
   // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
   // Only available for AWS EC2 instances.
+  //
+  // DEPRECATED: EICE mode is deprecated. Use script mode.
   INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 
@@ -9114,6 +9130,17 @@ message AccessGraphAWSSyncCloudTrailLogs {
   string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
 }
 
+// AccessGraphAWSSyncEKSAuditLogs defines the settings for ingesting Kubernetes apiserver
+// audit logs from EKS clusters.
+message AccessGraphAWSSyncEKSAuditLogs {
+  // The tags of EKS clusters for which apiserver audit logs should be fetched.
+  wrappers.LabelValues Tags = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -9124,6 +9151,7 @@ message AccessGraphAWSSync {
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
   // Configuration settings for collecting AWS CloudTrail logs via an SQS queue.
   AccessGraphAWSSyncCloudTrailLogs cloud_trail_logs = 5 [(gogoproto.jsontag) = "cloud_trail_logs,omitempty"];
+  AccessGraphAWSSyncEKSAuditLogs eks_audit_logs = 6 [(gogoproto.jsontag) = "eks_audit_logs,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

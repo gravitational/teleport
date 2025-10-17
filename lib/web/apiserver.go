@@ -942,6 +942,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
+	h.GET("/webapi/sites/:site/kubernetesservers", h.WithClusterAuth(h.clusterKubeServersList))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -1156,9 +1157,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// PUT Machine ID bot by name
 	// TODO(nicholasmarais1158) DELETE IN v20.0.0
 	// Replaced by `PUT /v2/webapi/sites/:site/machine-id/bot/:name` which allows editing more than just roles.
-	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
+	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV1))
 	// PUT Machine ID bot by name
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `PUT /v3/webapi/sites/:site/machine-id/bot/:name` which allows editing description.
 	h.PUT("/v2/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
+	// PUT Machine ID bot by name
+	h.PUT("/v3/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV3))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
@@ -1170,6 +1175,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 	// GET Machine ID bot instances (paged)
 	h.GET("/v2/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstancesV2))
+	// GET Machine ID bot instance metrics.
+	h.GET("/webapi/sites/:site/machine-id/bot-instance/metrics", h.WithClusterAuth(h.botInstanceMetrics))
 
 	// List workload identities
 	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))
@@ -3417,6 +3424,10 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			unifiedResources = append(unifiedResources, kube)
 		case types.KubeServer:
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
+			targetHealth := r.GetTargetHealth()
+			if targetHealth != nil {
+				kube.TargetHealth = *targetHealth
+			}
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)
@@ -5307,6 +5318,7 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
+		AddKeysToAgent:    client.AddKeysToAgentNo,
 	}
 
 	return config, nil

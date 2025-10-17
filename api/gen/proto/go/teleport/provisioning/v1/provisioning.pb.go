@@ -319,15 +319,15 @@ type PrincipalStateStatus struct {
 	// ExternalID holds the ID used by the downstream system to represent this
 	// principal
 	ExternalId string `protobuf:"bytes,2,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
-	// LastProvisioned records the last time this record was provisioined into
+	// LastProvisioned records the last time this record was provisioned into
 	// the downstream system.
 	LastProvisioned *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_provisioned,json=lastProvisioned,proto3" json:"last_provisioned,omitempty"`
-	// Error holds a description of the last provisioing error, if any.
+	// Error holds a description of the last provisioning error, if any.
 	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	// Revision holds the revision of the principal record provisioned into the
 	// downstream system. Used to assert that the latest revision of the principal
 	// is provisioned downstream and detect changes in the principal that require
-	// re-provisoning.
+	// re-provisioning.
 	ProvisionedPrincipalRevision string `protobuf:"bytes,6,opt,name=provisioned_principal_revision,json=provisionedPrincipalRevision,proto3" json:"provisioned_principal_revision,omitempty"`
 	// ActiveLocks holds the list of known active locks on the principal. Used to
 	// store the lock state across restarts of Teleport in order to detect state

@@ -22,6 +22,7 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
   canUseV1Edit,
+  canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
   validateGetBotInstanceResponse,
@@ -153,9 +154,12 @@ export async function editBot(
 ) {
   // TODO(nicholasmarais1158) DELETE IN v20.0.0
   const useV1 = canUseV1Edit(variables.req);
-  const path = useV1
-    ? cfg.getBotUrl({ action: 'update', botName: variables.botName })
-    : cfg.getBotUrl({ action: 'update-v2', botName: variables.botName });
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV2 = canUseV2Edit(variables.req);
+  const path = cfg.getBotUrl({
+    action: useV1 ? 'update' : useV2 ? 'update-v2' : 'update-v3',
+    botName: variables.botName,
+  });
 
   try {
     const res = await api.put(path, variables.req, signal);

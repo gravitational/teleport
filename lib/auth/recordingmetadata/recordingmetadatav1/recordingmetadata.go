@@ -130,9 +130,15 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	sampler := newThumbnailBucketSampler(maxThumbnails, thumbnailInterval)
 
 	recordThumbnail := func(start time.Time) {
-		state := vt.DumpState()
+		cols, rows := vt.Size()
 
-		sampler.add(&state, start)
+		sampler.add(&thumbnailState{
+			svg:           terminal.VtToSvg(vt),
+			cols:          cols,
+			rows:          rows,
+			cursorVisible: vt.CursorVisible(),
+			cursor:        vt.Cursor(),
+		}, start)
 	}
 
 	var hasSeenPrintEvent bool
@@ -333,12 +339,12 @@ func (s *RecordingMetadataService) upload(ctx context.Context, sessionID session
 
 func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
 	return &pb.SessionRecordingThumbnail{
-		Svg:           terminal.VtStateToSvg(t.state),
-		Cols:          int32(t.state.Cols),
-		Rows:          int32(t.state.Rows),
-		CursorX:       int32(t.state.CursorX),
-		CursorY:       int32(t.state.CursorY),
-		CursorVisible: t.state.CursorVisible,
+		Svg:           t.state.svg,
+		Cols:          int32(t.state.cols),
+		Rows:          int32(t.state.rows),
+		CursorX:       int32(t.state.cursor.X),
+		CursorY:       int32(t.state.cursor.Y),
+		CursorVisible: t.state.cursorVisible,
 		StartOffset:   durationpb.New(t.startOffset),
 		EndOffset:     durationpb.New(t.endOffset),
 	}
