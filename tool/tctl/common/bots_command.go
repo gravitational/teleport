@@ -29,6 +29,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -36,19 +37,24 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -73,6 +79,12 @@ type BotsCommand struct {
 	allowedLogins []string
 	addLogins     string
 	setLogins     string
+
+	search string
+	query  string
+
+	sortIndex string
+	sortOrder string
 
 	botsList          *kingpin.CmdClause
 	botsAdd           *kingpin.CmdClause
@@ -127,6 +139,11 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
+	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
+	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
+	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
+	c.botsInstancesList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("ascending").StringVar(&c.sortOrder)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
 	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
@@ -139,45 +156,70 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
-	switch cmd {
-	case c.botsList.FullCommand():
-		commandFunc = c.ListBots
-	case c.botsAdd.FullCommand():
-		commandFunc = c.AddBot
-	case c.botsRemove.FullCommand():
-		commandFunc = c.RemoveBot
-	case c.botsLock.FullCommand():
-		commandFunc = c.LockBot
-	case c.botsUpdate.FullCommand():
-		commandFunc = c.UpdateBot
-	case c.botsInstancesShow.FullCommand():
-		commandFunc = c.ShowBotInstance
-	case c.botsInstancesList.FullCommand():
-		commandFunc = c.ListBotInstances
-	case c.botsInstancesAdd.FullCommand():
-		commandFunc = c.AddBotInstance
-	default:
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
+	// If the `cmd` wont match a supported command, then exit before
+	// initializing the auth client
+	if !c.match(cmd) {
 		return false, nil
 	}
+
 	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	err = commandFunc(ctx, client)
-	closeFn(ctx)
+	defer func() {
+		closeFn(ctx)
+	}()
+
+	switch cmd {
+	case c.botsList.FullCommand():
+		err = c.ListBots(ctx, &authClient{client})
+	case c.botsAdd.FullCommand():
+		err = c.AddBot(ctx, &authClient{client})
+	case c.botsRemove.FullCommand():
+		err = c.RemoveBot(ctx, &authClient{client})
+	case c.botsLock.FullCommand():
+		err = c.LockBot(ctx, &authClient{client})
+	case c.botsUpdate.FullCommand():
+		err = c.UpdateBot(ctx, &authClient{client})
+	case c.botsInstancesShow.FullCommand():
+		err = c.ShowBotInstance(ctx, &authClient{client})
+	case c.botsInstancesList.FullCommand():
+		err = c.ListBotInstances(ctx, &authClient{client})
+	case c.botsInstancesAdd.FullCommand():
+		err = c.AddBotInstance(ctx, &authClient{client})
+	default:
+		return false, nil
+	}
 
 	return true, trace.Wrap(err)
 }
 
+func (c *BotsCommand) match(cmd string) bool {
+	cmds := []string{
+		c.botsList.FullCommand(),
+		c.botsAdd.FullCommand(),
+		c.botsRemove.FullCommand(),
+		c.botsLock.FullCommand(),
+		c.botsUpdate.FullCommand(),
+		c.botsInstancesShow.FullCommand(),
+		c.botsInstancesList.FullCommand(),
+		c.botsInstancesAdd.FullCommand(),
+	}
+	return slices.ContainsFunc(cmds, func(c string) bool { return c == cmd })
+}
+
+type listBotsClient interface {
+	ListBots(ctx context.Context, in *machineidv1pb.ListBotsRequest, opts ...grpc.CallOption) (*machineidv1pb.ListBotsResponse, error)
+}
+
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client listBotsClient) error {
 	var bots []*machineidv1pb.Bot
 	req := &machineidv1pb.ListBotsRequest{}
 	for {
-		resp, err := client.BotServiceClient().ListBots(ctx, req)
+		resp, err := client.ListBots(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -218,6 +260,14 @@ func bold(text string) string {
 	return utils.Color(utils.Bold, text)
 }
 
+type addBotClient interface {
+	outputTokenClient
+	CreateBot(ctx context.Context, in *machineidv1pb.CreateBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error)
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+	PerformMFACeremony(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+}
+
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
 }).Parse(`The bot token: {{.token}}{{if .minutes}}
@@ -256,7 +306,7 @@ Please note:
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) AddBot(ctx context.Context, client addBotClient) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -335,7 +385,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 		},
 	}
 
-	bot, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+	bot, err = client.CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: bot,
 	})
 	if err != nil {
@@ -345,8 +395,12 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 	return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) error {
-	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+type removeBotClient interface {
+	DeleteBot(ctx context.Context, in *machineidv1pb.DeleteBotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+}
+
+func (c *BotsCommand) RemoveBot(ctx context.Context, client removeBotClient) error {
+	_, err := client.DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
 		BotName: c.botName,
 	})
 	if err != nil {
@@ -358,7 +412,12 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) error {
+type lockBotClient interface {
+	UpsertLock(ctx context.Context, lock types.Lock) error
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+}
+
+func (c *BotsCommand) LockBot(ctx context.Context, client lockBotClient) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -453,14 +512,13 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
 }
 
-// clientRoleGetter is a minimal mockable interface for the client API
-type clientRoleGetter interface {
+type updateBotRolesClient interface {
 	GetRole(context.Context, string) (types.Role, error)
 }
 
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
-func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+func (c *BotsCommand) updateBotRoles(ctx context.Context, client updateBotRolesClient, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	currentRoles := set.New[string](bot.Spec.Roles...)
 
 	var desiredRoles set.Set[string]
@@ -495,9 +553,15 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGette
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
 
+type updateBotClient interface {
+	updateBotRolesClient
+	GetBot(ctx context.Context, in *machineidv1pb.GetBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error)
+	UpdateBot(ctx context.Context, in *machineidv1pb.UpdateBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error)
+}
+
 // UpdateBot performs various updates to existing bot users and roles.
-func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) error {
-	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+func (c *BotsCommand) UpdateBot(ctx context.Context, client updateBotClient) error {
+	bot, err := client.GetBot(ctx, &machineidv1pb.GetBotRequest{
 		BotName: c.botName,
 	})
 	if err != nil {
@@ -533,7 +597,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 		return nil
 	}
 
-	_, err = client.BotServiceClient().UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
+	_, err = client.UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
 		Bot:        bot,
 		UpdateMask: fieldMask,
 	})
@@ -546,28 +610,51 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
-// ListBotInstances lists bot instances, possibly filtering for a specific bot
-func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.Client) error {
-	var instances []*machineidv1pb.BotInstance
-	req := &machineidv1pb.ListBotInstancesRequest{}
+type listBotInstancesClient interface {
+	ListBotInstances(ctx context.Context, in *machineidv1pb.ListBotInstancesRequest, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error)
+	ListBotInstancesV2(ctx context.Context, in *machineidv1pb.ListBotInstancesV2Request, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error)
+}
 
-	if c.botName != "" {
-		req.FilterBotName = c.botName
+// ListBotInstances lists bot instances, possibly filtering for a specific bot
+func (c *BotsCommand) ListBotInstances(ctx context.Context, client listBotInstancesClient) error {
+	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+		resp, err := client.ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			SortField: c.sortIndex,
+			SortDesc:  c.sortOrder == "descending",
+			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
+				BotName:    c.botName,
+				SearchTerm: c.search,
+				Query:      c.query,
+			},
+		})
+		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}
 
-	for {
-		// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
-		//nolint:staticcheck // SA1019
-		resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, req)
-		if err != nil {
-			return trace.Wrap(err)
+	fallbackFunc := func(ctx context.Context) ([]*machineidv1pb.BotInstance, error) {
+		if c.query != "" {
+			return nil, trace.NotImplemented("fallback not supported for requests with a query")
 		}
+		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+			resp, err := client.ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+				FilterBotName:    c.botName,
+				PageSize:         int32(pageSize),
+				PageToken:        pageToken,
+				FilterSearchTerm: c.search,
+				Sort: &types.SortBy{
+					Field:  c.sortIndex,
+					IsDesc: c.sortOrder == "descending",
+				},
+			})
+			return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
+		}
+		return stream.Collect(clientutils.Resources(ctx, fallbackPageFunc))
+	}
 
-		instances = append(instances, resp.BotInstances...)
-		if resp.NextPageToken == "" {
-			break
-		}
-		req.PageToken = resp.NextPageToken
+	instances, err := clientutils.CollectWithFallback(ctx, pageFunc, fallbackFunc)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if c.format == teleport.JSON {
@@ -596,15 +683,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		return nil
 	}
 
-	t := asciitable.MakeTable([]string{"ID", "Join Method", "Hostname", "Joined", "Last Seen", "Generation"})
+	t := asciitable.MakeTable([]string{"ID", "Join Method", "Version", "Hostname", "Last Seen"})
 	for _, i := range instances {
 		var (
 			joinMethod string
 			hostname   string
-			generation string
+			version    string
 		)
 
-		joined := i.Status.InitialAuthentication.AuthenticatedAt.AsTime().Format(time.RFC3339)
 		initialJoinMethod := cmp.Or(
 			i.Status.InitialAuthentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
 			i.Status.InitialAuthentication.JoinMethod,
@@ -612,12 +698,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 
 		lastSeen := i.Status.InitialAuthentication.AuthenticatedAt.AsTime()
 
-		if len(i.Status.LatestAuthentications) == 0 {
-			generation = "n/a"
-		} else {
+		if len(i.Status.LatestAuthentications) > 0 {
 			auth := i.Status.LatestAuthentications[len(i.Status.LatestAuthentications)-1]
-
-			generation = fmt.Sprint(auth.Generation)
 
 			authJM := cmp.Or(
 				auth.GetJoinAttrs().GetMeta().GetJoinMethod(),
@@ -636,11 +718,13 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 		}
 
 		if len(i.Status.LatestHeartbeats) == 0 {
-			hostname = "n/a"
+			hostname = "-"
+			version = "-"
 		} else {
 			hb := i.Status.LatestHeartbeats[len(i.Status.LatestHeartbeats)-1]
 
 			hostname = hb.Hostname
+			version = hb.Version
 
 			if hb.RecordedAt.AsTime().After(lastSeen) {
 				lastSeen = hb.RecordedAt.AsTime()
@@ -649,7 +733,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 
 		t.AddRow([]string{
 			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
-			hostname, joined, lastSeen.Format(time.RFC3339), generation,
+			version, hostname, lastSeen.Format(time.RFC3339),
 		})
 	}
 	fmt.Fprintln(c.stdout, t.AsBuffer().String())
@@ -664,13 +748,20 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	return nil
 }
 
+type addBotInstanceClient interface {
+	outputTokenClient
+	GetBot(ctx context.Context, in *machineidv1pb.GetBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error)
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+}
+
 // AddBotInstance begins onboarding a new instance of an existing bot.
-func (c *BotsCommand) AddBotInstance(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) AddBotInstance(ctx context.Context, client addBotInstanceClient) error {
 	// A bit of a misnomer but makes the terminology a bit more consistent. This
 	// doesn't directly create a bot instance, but creates token that allows a
 	// bot to join, which creates a new instance.
 
-	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+	bot, err := client.GetBot(ctx, &machineidv1pb.GetBotRequest{
 		BotName: c.botName,
 	})
 	if err != nil {
@@ -727,6 +818,10 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client *authclient.Cli
 	return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
 }
 
+type showBotInstanceClient interface {
+	GetBotInstance(ctx context.Context, in *machineidv1pb.GetBotInstanceRequest, opts ...grpc.CallOption) (*machineidv1pb.BotInstance, error)
+}
+
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
 	"bold": bold,
 }).Parse(`Bot: {{.instance.Spec.BotName}}
@@ -748,13 +843,13 @@ To onboard a new instance for this bot, run:
 > {{.executable}} bots instances add {{.instance.Spec.BotName}}
 `))
 
-func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Client) error {
+func (c *BotsCommand) ShowBotInstance(ctx context.Context, client showBotInstanceClient) error {
 	botName, instanceID, err := parseInstanceID(c.instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+	instance, err := client.GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
 		BotName:    botName,
 		InstanceId: instanceID,
 	})
@@ -800,8 +895,12 @@ type botJSONResponse struct {
 	TokenTTL time.Duration `json:"token_ttl"`
 }
 
+type outputTokenClient interface {
+	GetProxies() ([]types.Server, error)
+}
+
 // outputToken writes token information to stdout, depending on the token format.
-func outputToken(wr io.Writer, format string, client *authclient.Client, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
+func outputToken(wr io.Writer, format string, client outputTokenClient, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
 	if format == teleport.JSON {
 		tokenTTL := time.Duration(0)
 		if exp := token.Expiry(); !exp.IsZero() {
@@ -924,4 +1023,52 @@ func indentString(s string, indent string) string {
 	}
 
 	return buf.String()
+}
+
+type authClient struct {
+	*authclient.Client
+}
+
+var _ listBotsClient = (*authClient)(nil)
+var _ addBotClient = (*authClient)(nil)
+var _ removeBotClient = (*authClient)(nil)
+var _ lockBotClient = (*authClient)(nil)
+var _ updateBotRolesClient = (*authClient)(nil)
+var _ updateBotClient = (*authClient)(nil)
+var _ listBotInstancesClient = (*authClient)(nil)
+var _ addBotInstanceClient = (*authClient)(nil)
+var _ showBotInstanceClient = (*authClient)(nil)
+
+func (c *authClient) CreateBot(ctx context.Context, in *machineidv1pb.CreateBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error) {
+	return c.BotServiceClient().CreateBot(ctx, in, opts...)
+}
+
+func (c *authClient) DeleteBot(ctx context.Context, in *machineidv1pb.DeleteBotRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	return c.BotServiceClient().DeleteBot(ctx, in, opts...)
+}
+
+func (c *authClient) GetBot(ctx context.Context, in *machineidv1pb.GetBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error) {
+	return c.BotServiceClient().GetBot(ctx, in, opts...)
+}
+
+func (c *authClient) GetBotInstance(ctx context.Context, in *machineidv1pb.GetBotInstanceRequest, opts ...grpc.CallOption) (*machineidv1pb.BotInstance, error) {
+	return c.BotInstanceServiceClient().GetBotInstance(ctx, in, opts...)
+}
+
+func (c *authClient) ListBotInstances(ctx context.Context, in *machineidv1pb.ListBotInstancesRequest, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
+	// Needed for backwards compatibility
+	//nolint:staticcheck // SA1019
+	return c.BotInstanceServiceClient().ListBotInstances(ctx, in, opts...)
+}
+
+func (c *authClient) ListBotInstancesV2(ctx context.Context, in *machineidv1pb.ListBotInstancesV2Request, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
+	return c.BotInstanceServiceClient().ListBotInstancesV2(ctx, in, opts...)
+}
+
+func (c *authClient) ListBots(ctx context.Context, in *machineidv1pb.ListBotsRequest, opts ...grpc.CallOption) (*machineidv1pb.ListBotsResponse, error) {
+	return c.BotServiceClient().ListBots(ctx, in, opts...)
+}
+
+func (c *authClient) UpdateBot(ctx context.Context, in *machineidv1pb.UpdateBotRequest, opts ...grpc.CallOption) (*machineidv1pb.Bot, error) {
+	return c.BotServiceClient().UpdateBot(ctx, in, opts...)
 }
