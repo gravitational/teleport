@@ -181,14 +181,12 @@ const tabs = [
   {
     id: 'info',
     label: 'Overview',
-    tooltip: 'View instance metadata and summary',
   },
   {
     id: 'health',
     label: 'Services',
-    tooltip: 'View service-level health status',
   },
-  { id: 'yaml', label: 'YAML', tooltip: 'View full resource YAML' },
+  { id: 'yaml', label: 'YAML' },
 ] as const;
 
 type TabId = (typeof tabs)[number]['id'];
@@ -210,9 +208,7 @@ function Tabs(props: {
           onClick={() => onTabSelected(t.id)}
           role="tab"
         >
-          <HoverTooltip placement="top" tipContent={t.tooltip}>
-            <span>{t.label}</span>
-          </HoverTooltip>
+          {t.label}
         </StyledTabContainer>
       ))}
       <TabBorder ref={borderRef} />
