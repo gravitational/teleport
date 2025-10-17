@@ -232,6 +232,7 @@ func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context,
 	profileList, err := awsra.ListRolesAnywhereProfiles(ctx, listRolesAnywhereClient, awsra.ListRolesAnywhereProfilesRequest{
 		NextToken:          req.GetNextPageToken(),
 		ProfileNameFilters: req.GetProfileNameFilters(),
+		IgnoredProfileARNs: []string{spec.ProfileSyncConfig.ProfileARN},
 		PageSize:           int(req.GetPageSize()),
 	})
 	if err != nil {
@@ -321,7 +322,9 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	pingResp, err := awsra.Ping(ctx, pingClient, profileARN)
+	ignoredProfiles := []string{profileARN}
+
+	pingResp, err := awsra.Ping(ctx, pingClient, ignoredProfiles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
