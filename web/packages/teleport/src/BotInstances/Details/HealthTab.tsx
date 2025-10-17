@@ -117,7 +117,7 @@ const Container = styled(Flex)`
 
 const ItemContainer = styled(Flex)`
   flex-direction: column;
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
   border-radius: ${({ theme }) => theme.space[1]}px;
   padding: ${({ theme }) => theme.space[3]}px;
   gap: ${({ theme }) => theme.space[3]}px;
