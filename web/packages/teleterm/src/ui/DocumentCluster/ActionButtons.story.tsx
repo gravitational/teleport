@@ -123,10 +123,14 @@ function Buttons(props: StoryProps) {
         </Box>
         <HoverTooltip tipContent="Connect doesn't support MCP apps properly yet but it renders a div with consintent width.">
           <Box>
-            <Text>MCP</Text>
-            <Mcp />
+            <Text>MCP (Stdio)</Text>
+            <Mcp scheme={'mcp+stdio'} />
           </Box>
         </HoverTooltip>
+        <Box>
+          <Text>MCP (Streamable HTTP)</Text>
+          <Mcp scheme={'mcp+http'} />
+        </Box>
       </Flex>
       <Box>
         <Text>Server</Text>
@@ -266,11 +270,11 @@ function SamlApp() {
   );
 }
 
-function Mcp() {
+function Mcp(props: { scheme: string }) {
   return (
     <ConnectAppActionButton
       app={makeApp({
-        endpointUri: 'mcp+stdio://localhost:3000',
+        endpointUri: `${props.scheme}://localhost:3000`,
         uri: `${testCluster.uri}/apps/bar`,
       })}
     />

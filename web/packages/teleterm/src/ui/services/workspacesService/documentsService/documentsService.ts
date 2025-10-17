@@ -142,6 +142,7 @@ export class DocumentsService {
       port,
       gatewayUri,
       origin,
+      targetProtocol,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -157,6 +158,7 @@ export class DocumentsService {
       port,
       origin,
       status: '',
+      targetProtocol,
     };
     doc.title = getDocumentGatewayTitle(doc);
     return doc;

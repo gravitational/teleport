@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getAppProtocol } from 'shared/services/apps';
+
 import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
@@ -113,6 +115,7 @@ describe('connectToApp', () => {
       targetUser: '',
       title: 'foo',
       uri: expect.any(String),
+      targetProtocol: 'TCP',
     });
   });
 });
@@ -147,6 +150,7 @@ describe('setUpAppGateway', () => {
     await setUpAppGateway(appContext, app.uri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
+      targetProtocol: getAppProtocol(app.endpointUri),
     });
     const documents = appContext.workspacesService
       .getActiveWorkspaceDocumentService()
@@ -164,6 +168,7 @@ describe('setUpAppGateway', () => {
       targetUser: '',
       title: expectedTitle || 'foo',
       uri: expect.any(String),
+      targetProtocol: getAppProtocol(app.endpointUri),
     });
   });
 });

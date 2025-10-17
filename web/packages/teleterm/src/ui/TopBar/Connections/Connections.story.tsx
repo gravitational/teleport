@@ -281,6 +281,30 @@ const makeConnections = (index = 0) => {
       login: 'casey',
       clusterName: 'teleport.example.sh',
     },
+    {
+      connected: true,
+      kind: 'connection.gateway' as const,
+      title: 'some-web-app' + suffix,
+      targetName: 'some-web-app',
+      id: '11111' + suffix,
+      targetUri: '/clusters/foo/apps/some-web-app' + suffix,
+      port: '11111',
+      gatewayUri: '/gateways/some-web-app',
+      clusterName: 'teleport.example.sh',
+      targetProtocol: 'HTTP',
+    },
+    {
+      connected: true,
+      kind: 'connection.gateway' as const,
+      title: 'some-mcp-server' + suffix,
+      targetName: 'some-mcp-server',
+      id: '22222' + suffix,
+      targetUri: '/clusters/foo/apps/some-mcp-server' + suffix,
+      port: '22222',
+      gatewayUri: '/gateways/some-mcp-server',
+      clusterName: 'teleport.example.sh',
+      targetProtocol: 'MCP',
+    },
   ];
 };
 
