@@ -6,8 +6,8 @@ title: 0130 - Automatically Generate the Teleport Resource Reference
 
 ## Required Approvers
 
-- Engineering: @codingllama, @zmb3
-- Product: (@alexfornuto || @xinding33)
+- Engineering: @zmb3
+- Product: @roraback
 
 ## What
 
@@ -35,10 +35,7 @@ load.
 In general, we should strive to automatically generate reference guides whenever
 possible to ensure accuracy. While adding entries incrementally over time can be
 sustainable at a certain scale, adding many entries at once is a daunting task
-that is difficult for a documentation team to schedule. Our `tctl` resource
-reference is particularly lagging, with only five resources documented at the
-[time of
-writing](https://github.com/gravitational/teleport/blob/58f20f0c3fcc9bb281528915125b95dfaee6cec5/docs/pages/reference/resources.mdx).
+that is difficult for a documentation team to schedule.
 
 ## Details
 
@@ -53,13 +50,11 @@ entries](#processing-field-types) to the reference template as appropriate.
 ### Configuration
 
 By default, the generator will attempt to include an entry in the resource
-reference for every struct type in the Teleport source that includes a field of
-the `github.com/gravitational/teleport/api/types.Metadata` type, since we
-include this field in all types that correspond to Teleport resources.
-
-For resources that we want to _exclude_ from the reference, the generator will
-read from a mapping of package paths to lists of named struct types within a
-configuration file. 
+reference for every struct type in the Teleport source that we specify in a
+configuration file. Specifying resources (rather than automatically collecting
+them based on expected properties) allows us to gradually roll out the reference
+and catch bugs, hide resources meant for internal use, and control which
+versions of a resource we want to display.
 
 #### Alternative: Working from protobuf message definitions
 
@@ -131,12 +126,10 @@ begin generating a `Resource` for that struct type, plus additional `Resource`
 structs for the types of its fields (and their types and so on). The sequence
 is:
 
-- Iterate through each struct type within the declaration map.
-- If a struct type is named within the configuration as a type to exclude, skip
-  it.
-- If a struct type has a `types.Metadata` field, construct a `Resource` from the
-  struct type and insert it into the final data map (unless a `Resource` already
-  exists there).
+- Iterate through each struct type named in the configuration file.
+- If a struct has a corresponding declaration in the source, construct a
+  `Resource` from the struct type and insert it into the final data map (unless
+  a `Resource` already exists there).
 - Process the fields of the struct type using the rules described
   [below](#processing-field-types), looking up declaration data from the
   declaration map.
