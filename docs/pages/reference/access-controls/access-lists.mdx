@@ -32,7 +32,7 @@ are intended for temporary elevation of privileges. Access conveyed by an Access
 expected to live on the order of months and access conveyed by an Access Request is intended
 to live on the order of hours or days.
 
-## Access List Ownership
+## Access List ownership
 
 Access List owners are Teleport users or nested Access Lists who are granted special privileges over
 an Access List. These owners are defined explicitly as part of the Access List, and
@@ -49,7 +49,7 @@ Provided owners meet requirements, owners are able to do the following:
 Owners are not able to add or remove owners from an Access List or control what roles
 and traits are granted by the Access List.
 
-## Access List Membership
+## Access List membership
 
 Access List members are Teleport users or nested Access Lists who are granted the roles
 and traits specified by the Access List. Upon login, users will be granted these
@@ -67,7 +67,33 @@ hierarchical permission structures where permissions can be inherited from multi
 parent Access Lists. Inheritance is recursive – members of a child Access List can
 themselves be Access Lists with their own members, and so on.
 
-### Membership Inheritance
+For example, an organization might have the following two Access Lists:
+"Engineering Team" and "Production Access". "Engineering Team" represents a
+group of engineers, while "Production Access" is a higher-level Access List that
+grants access to production resources.
+
+### Creating a nested Access List
+
+To create a nested Access List, which consists of a parent and a child:
+
+1. Make sure the child Access List exists. If it does not, create it by
+   navigating to **Identity Governance** > **Access Lists** > **Create New
+   Access List** and configure your new Access List, selecting members in the
+   **Members** section.
+1. Create the parent Access List by following the same flow. When selecting
+   members, select the name of the child Access List.
+
+To confirm that members of the parent Access List have inherited member grants
+from the child Access List:
+
+1. Log in as a user who is a member of the child Access List. 
+1. Verify that the user now has access to resources granted by both the parent
+   and the child Access List. For example, if a Teleport Application Service
+   instance with the debugging application enabled is set up, and the `access`
+   role is granted through the child Access List, the "dumper" app should be
+   visible to the user.
+
+### Membership inheritance
 
 If an Access List is a member of another Access List, members of the nested Access List will
 inherit the member grants (roles and traits) of the parent Access List.
@@ -76,7 +102,11 @@ Users granted membership through inheritance must meet both the nested Access Li
 requirements, and the parent Access List's membership requirements in order for the
 membership to be valid.
 
-### Ownership Inheritance
+For example, if "Engineering Team" is added as a member of "Production Access",
+all users who are members of "Engineering Team" inherit member grants (roles and
+traits) from "Production Access".
+
+### Ownership inheritance
 
 If an Access List is an owner of another Access List, members of the nested Access List will
 inherit the owner grants (roles and traits), as well as ownership of, the parent Access List.
@@ -84,6 +114,11 @@ inherit the owner grants (roles and traits), as well as ownership of, the parent
 Users granted ownership through inheritance must meet both the nested Access List's
 membership requirements, and the parent Access List's ownership requirements in order
 for the ownership to be valid.
+
+For example, if "Engineering Team" is added as an owner of "Production Access",
+all users who are members of "Engineering Team" inherit owner grants (roles and
+traits) from "Production Access", and can perform owner actions, such as
+modifying it or managing its members.
 
 ### Limitations
 
@@ -96,13 +131,13 @@ the hierarchy.
 is not allowed. Access Lists must be removed from all parent Access Lists before they
 can be deleted.
 
-## Access List Auditing
+## Access List auditing
 
 Access Lists must be defined with an audit frequency, which specifies how often the
 Access List must be audited. If the Access List is not audited on time, owners will
 be notified in the web UI until the audit review occurs.
 
-## Overview of an Access List Resource
+## Overview of an Access List resource
 
 ```yaml
 version: v1
@@ -173,7 +208,7 @@ spec:
       - required_value1
 ```
 
-## Access Lists and Deny Rules
+## Access Lists and deny rules
 
 Use of [deny rules](./roles.mdx) in Access List roles is discouraged.
 Access Lists are not intended to be used as a tool for privilege reduction,

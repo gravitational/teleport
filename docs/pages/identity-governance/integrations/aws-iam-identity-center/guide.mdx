@@ -356,7 +356,7 @@ among their role grants to Identity Center.
 ### How does it work with nested Access Lists?
 
 Identity Center does not support nested groups. As such, Teleport recursively 
-flattens any [nested Access Lists](../../access-lists/nested-access-lists.mdx)
+flattens any [nested Access Lists](../../access-lists.mdx)
 into a single Identity Center group containing all members reachable from the 
 top-level Access List.
 
@@ -466,7 +466,7 @@ spec:
   integration such as
   [RBAC](../../../zero-trust-access/authentication/authentication.mdx),
   [JIT Access Requests](../../access-requests/access-requests.mdx),
-  [Access Lists](../../access-lists/access-lists.mdx)
+  [Access Lists](../../access-lists.mdx)
   and the [Teleport SAML IdP](../../idps/idps.mdx).
 - Learn how to enable the [Okta integration](../okta/okta.mdx)
   to sync apps, users and groups from Okta in conjunction with Identity Center
