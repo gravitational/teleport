@@ -77,7 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -152,7 +151,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindKubernetesCluster:                  rc.createKubeCluster,
 		types.KindToken:                              rc.createToken,
 		types.KindInstaller:                          rc.createInstaller,
-		types.KindNode:                               rc.createNode,
 		types.KindOIDCConnector:                      rc.createOIDCConnector,
 		types.KindSAMLConnector:                      rc.createSAMLConnector,
 		types.KindLoginRule:                          rc.createLoginRule,
@@ -1307,34 +1305,6 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	server, err := services.UnmarshalServer(raw.Raw, types.KindNode, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	name := server.GetName()
-	_, err = client.GetNode(ctx, server.GetNamespace(), name)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists, use --force flag to override",
-			name,
-			server.GetHostname(),
-			server.GetAddr(),
-		)
-	}
-
-	_, err = client.UpsertNode(ctx, server)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("node %q has been %s\n", name, UpsertVerb(exists, rc.IsForced()))
-	return nil
-}
-
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1745,11 +1715,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	}
 
 	switch rc.ref.Kind {
-	case types.KindNode:
-		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
 	case types.KindToken:
 		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2055,11 +2020,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
-	case types.KindProxy:
-		if err := client.DeleteProxy(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
 	case types.KindAccessList:
 		if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2424,82 +2384,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
-	case types.KindNode:
-		var search []string
-		if rc.ref.Name != "" {
-			search = []string{rc.ref.Name}
-		}
-
-		req := proto.ListUnifiedResourcesRequest{
-			Kinds:          []string{types.KindNode},
-			SearchKeywords: search,
-			SortBy:         types.SortBy{Field: types.ResourceKind},
-		}
-
-		var collection serverCollection
-		for {
-			page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			for _, r := range page {
-				srv, ok := r.ResourceWithLabels.(types.Server)
-				if !ok {
-					slog.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
-					continue
-				}
-
-				if rc.ref.Name == "" {
-					collection.servers = append(collection.servers, srv)
-					continue
-				}
-
-				if srv.GetName() == rc.ref.Name || srv.GetHostname() == rc.ref.Name {
-					collection.servers = []types.Server{srv}
-					return &collection, nil
-				}
-			}
-
-			req.StartKey = next
-			if req.StartKey == "" {
-				break
-			}
-		}
-
-		if len(collection.servers) == 0 && rc.ref.Name != "" {
-			return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
-		}
-
-		return &collection, nil
-	case types.KindAuthServer:
-		servers, err := client.GetAuthServers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
-		}
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{server}}, nil
-			}
-		}
-		return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
-	case types.KindProxy:
-		servers, err := client.GetProxies()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &serverCollection{servers: servers}, nil
-		}
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				return &serverCollection{servers: []types.Server{server}}, nil
-			}
-		}
-		return nil, trace.NotFound("proxy with ID %q not found", rc.ref.Name)
 	case types.KindNamespace:
 		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
@@ -3386,7 +3270,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &serverCollection{servers: []types.Server{server}}, nil
+			return resources.NewServerCollection([]types.Server{server}), nil
 		}
 
 		servers, err := stream.Collect(clientutils.Resources(ctx, client.GitServerClient().ListGitServers))
@@ -3395,7 +3279,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		// TODO(greedy52) consider making dedicated git server collection.
-		return &serverCollection{servers: servers}, nil
+		return resources.NewServerCollection(servers), nil
 
 	case types.KindWorkloadIdentityX509IssuerOverride:
 		c := client.WorkloadIdentityX509OverridesClient()
