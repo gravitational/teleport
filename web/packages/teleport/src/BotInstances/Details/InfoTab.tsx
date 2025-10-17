@@ -22,8 +22,8 @@ import styled from 'styled-components';
 
 import Box from 'design/Box/Box';
 import Flex from 'design/Flex/Flex';
-import { ArrowSquareOut } from 'design/Icon/Icons/ArrowSquareOut';
 import { SecondaryOutlined } from 'design/Label/Label';
+import StyledLink from 'design/Link';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { IconTooltip } from 'design/Tooltip/IconTooltip';
@@ -80,7 +80,9 @@ export function InfoTab(props: {
             {bot_name ? (
               <Flex inline alignItems={'center'} gap={1} overflow={'hidden'}>
                 <GridValue>
-                  <Link to={cfg.getBotDetailsRoute(bot_name)}>{bot_name}</Link>
+                  <Link to={cfg.getBotDetailsRoute(bot_name)}>
+                    <StyledLink>{bot_name}</StyledLink>
+                  </Link>
                 </GridValue>
                 <CopyButton value={bot_name} />
               </Flex>
@@ -124,7 +126,6 @@ export function InfoTab(props: {
         isSubPanel
         action={{
           label: 'View Services',
-          iconRight: <ArrowSquareOut size={'medium'} />,
           onClick: onGoToServicesClick,
         }}
       >
@@ -174,7 +175,9 @@ export function InfoTab(props: {
             {join_token_name ? (
               <Flex inline alignItems={'center'} gap={1} overflow={'hidden'}>
                 <GridValue>
-                  <Link to={cfg.getJoinTokensRoute()}>{join_token_name}</Link>
+                  <Link to={cfg.getJoinTokensRoute()}>
+                    <StyledLink>{join_token_name}</StyledLink>
+                  </Link>
                 </GridValue>
                 <CopyButton value={join_token_name} />
               </Flex>
