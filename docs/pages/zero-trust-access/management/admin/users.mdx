@@ -31,11 +31,13 @@ A Teleport administrator creates Teleport user accounts and maps them to the rol
 
 Let's look at this table:
 
-| Teleport User | Allowed OS Logins | Description |
+| Teleport User | SSH Logins | Description |
 | - | - | - |
-| `joe` | `joe`, `root` | Teleport user `joe` can log in to member Nodes as user `joe` or `root` on the OS. |
-| `bob` | `bob` | Teleport user `bob` can log in to member Nodes only as OS user `bob`. |
-| `kim` | | If no OS login is specified, it defaults to the same name as the Teleport user, `kim`. |
+| `joe` | `joe`, `root` | Teleport user `joe` can log in as user `joe` or `root` on SSH servers. |
+| `bob` | `bob` | Teleport user `bob` can log in as user `bob` on SSH servers. |
+| `kim` | | Teleport user 'kim' has no designated SSH logins.  |
+
+SSH logins are some of the user traits available in Teleport roles. For all supported traits, see the reference for [`tctl users add`](../../../reference/cli/tctl.mdx#tctl-users-add).
 
 Let's add a new user to Teleport using the `tctl` tool:
 
@@ -66,10 +68,9 @@ NOTE: Make sure <proxy_host>:443 points at a Teleport proxy which users can acce
 The user completes registration by visiting this URL in their web browser,
 picking a password, and configuring multi-factor authentication. If the
 credentials are correct, the Teleport Auth Service generates and signs a new
-certificate, and the client stores this key and will use it for subsequent
-logins.
+user certificate.
 
-The key will automatically expire after 12 hours by default, after which
+The certificate will automatically expire after 12 hours by default, after which
 the user will need to log back in with their credentials. This TTL can be
 configured to a different value.
 
@@ -78,11 +79,11 @@ Once authenticated, the account will become visible via `tctl`:
 ```code
 $ tctl users ls
 
-# User           Allowed Logins
+# User           Roles
 # ----           --------------
-# admin          admin,root
-# kim            kim
-# joe            joe,root
+# admin          editor
+# kim            access
+# joe            access,editor
 ```
 
 ## Editing users

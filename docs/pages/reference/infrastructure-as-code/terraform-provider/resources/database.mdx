@@ -286,7 +286,9 @@ Optional:
 
 Optional:
 
-- `audit_user` (String) AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+- `audit_user` (String) AuditUser is the name of the Oracle database user that should be used to access the internal audit trail.
+- `retry_count` (Number) RetryCount is the maximum number of times to retry connecting to a host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.
+- `shuffle_hostnames` (Boolean) ShuffleHostnames, when true, randomizes the order of hosts to connect to from the provided list.
 
 
 ### Nested Schema for `spec.tls`

@@ -166,6 +166,9 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewApplicationProxyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewApplicationProxyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewSSHMultiplexerCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSSHMultiplexerCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really

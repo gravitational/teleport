@@ -37,8 +37,15 @@ type thumbnailBucketSampler struct {
 	startTime     time.Time
 }
 
+type thumbnailState struct {
+	svg           []byte
+	cols, rows    int
+	cursorVisible bool
+	cursor        vt10x.Cursor
+}
+
 type thumbnailEntry struct {
-	state       *vt10x.TerminalState
+	state       *thumbnailState
 	startOffset time.Duration
 	endOffset   time.Duration
 	timestamp   time.Time
@@ -56,7 +63,7 @@ func (s *thumbnailBucketSampler) shouldCapture(timestamp time.Time) bool {
 	return !timestamp.Before(s.nextTimestamp)
 }
 
-func (s *thumbnailBucketSampler) add(state *vt10x.TerminalState, timestamp time.Time) {
+func (s *thumbnailBucketSampler) add(state *thumbnailState, timestamp time.Time) {
 	if s.startTime.IsZero() {
 		s.startTime = timestamp
 	}

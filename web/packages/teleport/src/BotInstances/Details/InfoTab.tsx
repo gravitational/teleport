@@ -277,7 +277,7 @@ const AccentCountText = styled(Text)`
 `;
 
 function makeKindInfo(kind: BotInstanceKind | undefined) {
-  if (kind === BotInstanceKind.BOT_KIND_TBOT_BINARY) {
+  if (kind === BotInstanceKind.BOT_KIND_TBOT) {
     return {
       kindLabel: 'tbot',
       kindTooltip: 'This instance is running using the tbot CLI.',

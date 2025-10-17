@@ -91,8 +91,9 @@ message BotInstanceStatusHeartbeat {
   // Information provided by the external updater, including the update group
   // and updater status.
   types.UpdaterV2Info updater_info = 12;
-  // Kind identifies whether the bot is running in the tbot binary or embedded
-  // in another component.
+
+  // Identifies whether the bot is running in the tbot binary or embedded in
+  // another component.
   BotKind kind = 13;
 
   // In future iterations, additional information can be submitted here.
@@ -107,13 +108,16 @@ enum BotKind {
   BOT_KIND_UNSPECIFIED = 0;
 
   // Means the bot is running the tbot binary.
-  BOT_KIND_TBOT_BINARY = 1;
+  BOT_KIND_TBOT = 1;
 
-  // Means the bot is running inside the Teleport Terraform provider.
+  // Means the bot is running inside one of our Terraform providers.
   BOT_KIND_TERRAFORM_PROVIDER = 2;
 
   // Means the bot is running inside the Teleport Kubernetes operator.
   BOT_KIND_KUBERNETES_OPERATOR = 3;
+
+  // Means the bot is running inside tctl (e.g. `tctl terraform env`)
+  BOT_KIND_TCTL = 4;
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.

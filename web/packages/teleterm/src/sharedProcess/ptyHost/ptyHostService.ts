@@ -17,10 +17,6 @@
  */
 
 import { Struct } from 'gen-proto-ts/google/protobuf/struct_pb';
-import {
-  CreatePtyProcessResponse,
-  GetCwdResponse,
-} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 import { IPtyHostService } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
 
 import Logger from 'teleterm/logger';
@@ -55,7 +51,7 @@ export function createPtyHostService(): IPtyHostService & {
         callback(error);
         return;
       }
-      callback(null, CreatePtyProcessResponse.create({ id: ptyId }));
+      callback(null, { id: ptyId });
       logger.info(`created PTY process for id ${ptyId}`);
     },
     getCwd: (call, callback) => {
@@ -69,8 +65,7 @@ export function createPtyHostService(): IPtyHostService & {
       ptyProcess
         .getCwd()
         .then(cwd => {
-          const response = GetCwdResponse.create({ cwd });
-          callback(null, response);
+          callback(null, { cwd });
         })
         .catch(error => {
           logger.error(`could not read CWD for id: ${id}`, error);

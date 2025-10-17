@@ -49,26 +49,30 @@ const (
 	// The enum zero-value, it means no kind was included.
 	BotKind_BOT_KIND_UNSPECIFIED BotKind = 0
 	// Means the bot is running the tbot binary.
-	BotKind_BOT_KIND_TBOT_BINARY BotKind = 1
-	// Means the bot is running inside the Teleport Terraform provider.
+	BotKind_BOT_KIND_TBOT BotKind = 1
+	// Means the bot is running inside one of our Terraform providers.
 	BotKind_BOT_KIND_TERRAFORM_PROVIDER BotKind = 2
 	// Means the bot is running inside the Teleport Kubernetes operator.
 	BotKind_BOT_KIND_KUBERNETES_OPERATOR BotKind = 3
+	// Means the bot is running inside tctl (e.g. `tctl terraform env`)
+	BotKind_BOT_KIND_TCTL BotKind = 4
 )
 
 // Enum value maps for BotKind.
 var (
 	BotKind_name = map[int32]string{
 		0: "BOT_KIND_UNSPECIFIED",
-		1: "BOT_KIND_TBOT_BINARY",
+		1: "BOT_KIND_TBOT",
 		2: "BOT_KIND_TERRAFORM_PROVIDER",
 		3: "BOT_KIND_KUBERNETES_OPERATOR",
+		4: "BOT_KIND_TCTL",
 	}
 	BotKind_value = map[string]int32{
 		"BOT_KIND_UNSPECIFIED":         0,
-		"BOT_KIND_TBOT_BINARY":         1,
+		"BOT_KIND_TBOT":                1,
 		"BOT_KIND_TERRAFORM_PROVIDER":  2,
 		"BOT_KIND_KUBERNETES_OPERATOR": 3,
+		"BOT_KIND_TCTL":                4,
 	}
 )
 
@@ -349,8 +353,8 @@ type BotInstanceStatusHeartbeat struct {
 	// Information provided by the external updater, including the update group
 	// and updater status.
 	UpdaterInfo *types.UpdaterV2Info `protobuf:"bytes,12,opt,name=updater_info,json=updaterInfo,proto3" json:"updater_info,omitempty"`
-	// Kind identifies whether the bot is running in the tbot binary or embedded
-	// in another component.
+	// Identifies whether the bot is running in the tbot binary or embedded in
+	// another component.
 	Kind          BotKind `protobuf:"varint,13,opt,name=kind,proto3,enum=teleport.machineid.v1.BotKind" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -866,12 +870,13 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\a_reason\"F\n" +
 	"\x1cBotInstanceServiceIdentifier\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name*\x80\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name*\x8c\x01\n" +
 	"\aBotKind\x12\x18\n" +
-	"\x14BOT_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
-	"\x14BOT_KIND_TBOT_BINARY\x10\x01\x12\x1f\n" +
+	"\x14BOT_KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rBOT_KIND_TBOT\x10\x01\x12\x1f\n" +
 	"\x1bBOT_KIND_TERRAFORM_PROVIDER\x10\x02\x12 \n" +
-	"\x1cBOT_KIND_KUBERNETES_OPERATOR\x10\x03*\xc4\x01\n" +
+	"\x1cBOT_KIND_KUBERNETES_OPERATOR\x10\x03\x12\x11\n" +
+	"\rBOT_KIND_TCTL\x10\x04*\xc4\x01\n" +
 	"\x17BotInstanceHealthStatus\x12*\n" +
 	"&BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED\x10\x00\x12+\n" +
 	"'BOT_INSTANCE_HEALTH_STATUS_INITIALIZING\x10\x01\x12&\n" +

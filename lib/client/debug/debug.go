@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -192,7 +193,7 @@ func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, 
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	metrics, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
