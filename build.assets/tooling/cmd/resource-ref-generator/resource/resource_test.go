@@ -2000,6 +2000,16 @@ func TestMakeSectionName(t *testing.T) {
 			original:    "ServerSpecV2",
 			expected:    "Server Spec",
 		},
+		{
+			description: "abbreviation",
+			original:    "SAMLConnector",
+			expected:    "SAML Connector",
+		},
+		{
+			description: "IdP",
+			original:    "IdPSAMLOptions",
+			expected:    "IdP SAML Options",
+		},
 	}
 
 	for _, c := range cases {
