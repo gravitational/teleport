@@ -7757,5 +7757,15 @@ func TestDebugVersionOutput(t *testing.T) {
 
 	output, err := exec.Command(testExecutable, "logout", "--debug").CombinedOutput()
 	require.NoError(t, err)
+
+	vers := []string{
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+	}
+
 	require.Contains(t, string(output), "Initializing tsh version")
+	for _, v := range vers {
+		require.Contains(t, string(output), v)
+	}
 }
