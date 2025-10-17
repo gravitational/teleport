@@ -231,6 +231,29 @@ message ChallengeSolution {
   }
 }
 
+// GivingUp should be sent by clients that fail to complete the join flow so
+// that the Auth service can log an informative error message.
+message GivingUp {
+  // Reason is the reason the client is giving up.
+  enum Reason {
+    // REASON_UNSPECIFIED is an unspecified reason.
+    REASON_UNSPECIFIED = 0;
+    // REASON_UNSUPPORTED_JOIN_METHOD means the client does not support the
+    // join method sent by the server.
+    REASON_UNSUPPORTED_JOIN_METHOD = 1;
+    // REASON_UNSUPPORTED_MESSAGE_TYPE means the client can not handle a
+    // message type sent by the server.
+    REASON_UNSUPPORTED_MESSAGE_TYPE = 2;
+    // REASON_CHALLENGE_SOLUTION_FAILED means the client failed to solve a
+    // challenge sent by the server.
+    REASON_CHALLENGE_SOLUTION_FAILED = 3;
+  }
+  // Reason is the reason the client is giving up.
+  Reason reason = 1;
+  // Msg is an error message related to the failure.
+  string msg = 2;
+}
+
 // JoinRequest is the message type sent from the joining client to the server.
 message JoinRequest {
   oneof payload {
@@ -239,6 +262,7 @@ message JoinRequest {
     BoundKeypairInit bound_keypair_init = 3;
     ChallengeSolution solution = 4;
     IAMInit iam_init = 5;
+    GivingUp giving_up = 6;
   }
 }
 

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/trace"
 
@@ -69,4 +70,49 @@ func RawJoinAttrsToStruct(in any) (*apievents.Struct, error) {
 		return nil, trace.Wrap(err, "unmarshaling join attributes")
 	}
 	return out, nil
+}
+
+// SanitizeUntrustedString sanitizes an untrusted string from a joining client
+// for inclusion in a log message or audit event.
+func SanitizeUntrustedString(in string) string {
+	var out strings.Builder
+	const maxLen = 512
+	wasSpace := false
+	for _, r := range in {
+		// Break once the output reaches the max length.
+		if out.Len() >= maxLen {
+			break
+		}
+
+		// Coalesce runs of spaces to a single space.
+		if unicode.IsSpace(r) {
+			if !wasSpace {
+				out.WriteRune(' ')
+			}
+			wasSpace = true
+			continue
+		}
+		wasSpace = false
+
+		// Strip all non-print characters.
+		if !unicode.IsPrint(r) {
+			out.WriteRune('_')
+			continue
+		}
+
+		// Allow all letters and numbers.
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			out.WriteRune(r)
+			continue
+		}
+
+		// Whitelist allowed symbols. Avoid allowing links or quotes.
+		switch r {
+		case '.', ',', ':', ';', '-', '+', '@':
+			out.WriteRune(r)
+		default:
+			out.WriteRune('_')
+		}
+	}
+	return out.String()
 }
