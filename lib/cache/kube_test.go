@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 )
 
 // TestKubernetes tests that CRUD operations on kubernetes clusters resources are
@@ -130,6 +132,63 @@ func TestKubernetesServers(t *testing.T) {
 				return p.presenceS.DeleteAllKubernetesServers(ctx)
 			},
 		})
+	})
+
+}
+
+func TestKubernetesWaitingContainers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*kubewaitingcontainerpb.KubernetesWaitingContainer]{
+		newResource: func(name string) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+			waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
+				name,
+				&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+					Username:      "user",
+					Cluster:       "cluster",
+					Namespace:     "namespace",
+					PodName:       "pod",
+					ContainerName: name,
+					Patch:         []byte("{}"),
+					PatchType:     "application/json-patch+json",
+				})
+
+			return waitingCont, trace.Wrap(err)
+		},
+		create: func(ctx context.Context, kwc *kubewaitingcontainerpb.KubernetesWaitingContainer) error {
+			_, err := p.kubeWaitingContainers.CreateKubernetesWaitingContainer(ctx, kwc)
+			return trace.Wrap(err)
+		},
+		cacheGet: func(ctx context.Context, name string) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+			return p.cache.GetKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
+				Username:      "user",
+				Cluster:       "cluster",
+				Namespace:     "namespace",
+				PodName:       "pod",
+				ContainerName: name,
+			})
+		},
+		list: func(ctx context.Context, i int, s string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+			return p.kubeWaitingContainers.ListKubernetesWaitingContainers(ctx, i, s)
+		},
+		cacheList: func(ctx context.Context, i int, s string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
+			return p.cache.ListKubernetesWaitingContainers(ctx, i, s)
+		},
+		delete: func(ctx context.Context, s string) error {
+			return p.kubeWaitingContainers.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+				Username:      "user",
+				Cluster:       "cluster",
+				Namespace:     "namespace",
+				PodName:       "pod",
+				ContainerName: s,
+			})
+		},
+		deleteAll: func(ctx context.Context) error {
+			return p.kubeWaitingContainers.DeleteAllKubernetesWaitingContainers(ctx)
+		},
 	})
 
 }

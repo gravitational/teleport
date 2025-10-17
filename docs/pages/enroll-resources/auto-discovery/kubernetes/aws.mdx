@@ -274,6 +274,13 @@ and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster p
 
 ## Step 3/3. Configure Teleport to discover EKS clusters
 
+### Install Teleport
+
+Install Teleport on the host you are using to run the Kubernetes Service and
+Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
 ### Get a join token
 
 Teleport EKS Auto-Discovery requires a valid Teleport auth token for the Discovery and
@@ -282,10 +289,14 @@ command against your Teleport Auth Service and save it in `/tmp/token` on the
 machine that will run Kubernetes Discovery:
 
 ```code
-$ tctl tokens add --type=discovery,kube
+$ tctl tokens add --type=discovery,kube --format=text
+(=presets.tokens.first=)
 ```
 
 ### Configure the Teleport Kubernetes and Discovery Services
+
+On the host running the Kubernetes Service and Discovery Service, create a
+Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 

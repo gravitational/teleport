@@ -559,7 +559,9 @@ func deriveTeleportEqual_31(this, that *MongoAtlas) bool {
 func deriveTeleportEqual_32(this, that *OracleOptions) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			this.AuditUser == that.AuditUser
+			this.AuditUser == that.AuditUser &&
+			this.RetryCount == that.RetryCount &&
+			this.ShuffleHostnames == that.ShuffleHostnames
 }
 
 // deriveTeleportEqual_33 returns whether this and that are equal.

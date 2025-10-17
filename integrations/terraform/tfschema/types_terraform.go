@@ -521,11 +521,23 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 				},
 				"oracle": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"audit_user": {
-						Description: "AuditUser is the Oracle database user privilege to access internal Oracle audit trail.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"audit_user": {
+							Description: "AuditUser is the name of the Oracle database user that should be used to access the internal audit trail.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"retry_count": {
+							Description: "RetryCount is the maximum number of times to retry connecting to a host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"shuffle_hostnames": {
+							Description: "ShuffleHostnames, when true, randomizes the order of hosts to connect to from the provided list.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+					}),
 					Description: "Oracle is an additional Oracle configuration options.",
 					Optional:    true,
 				},
@@ -7035,6 +7047,40 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["retry_count"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.Oracle.RetryCount"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.Oracle.RetryCount", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int32
+												if !v.Null && !v.Unknown {
+													t = int32(v.Value)
+												}
+												obj.RetryCount = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["shuffle_hostnames"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"DatabaseV3.Spec.Oracle.ShuffleHostnames"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Spec.Oracle.ShuffleHostnames", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.ShuffleHostnames = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -9664,6 +9710,50 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.AuditUser)
 											v.Unknown = false
 											tf.Attrs["audit_user"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["retry_count"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.Oracle.RetryCount"})
+										} else {
+											v, ok := tf.Attrs["retry_count"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.Oracle.RetryCount", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.Oracle.RetryCount", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.RetryCount) == 0
+											}
+											v.Value = int64(obj.RetryCount)
+											v.Unknown = false
+											tf.Attrs["retry_count"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["shuffle_hostnames"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"DatabaseV3.Spec.Oracle.ShuffleHostnames"})
+										} else {
+											v, ok := tf.Attrs["shuffle_hostnames"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"DatabaseV3.Spec.Oracle.ShuffleHostnames", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Spec.Oracle.ShuffleHostnames", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.ShuffleHostnames) == false
+											}
+											v.Value = bool(obj.ShuffleHostnames)
+											v.Unknown = false
+											tf.Attrs["shuffle_hostnames"] = v
 										}
 									}
 								}

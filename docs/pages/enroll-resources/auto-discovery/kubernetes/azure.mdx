@@ -216,14 +216,29 @@ associated with Teleport identity.
 
 ## Step 2/2. Configure Teleport to discover AKS clusters
 
+### Install Teleport
+
+Install Teleport on the host you are using to run the Kubernetes Service and
+Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Get a join token
+
 Teleport AKS Auto-Discovery requires a valid auth token for the Discovery and
 Kubernetes services to join the cluster. Generate one by running the following
 command against your Teleport Auth Service and save it in `/tmp/token` on the
 machine that will run Kubernetes Discovery:
 
 ```code
-$ tctl tokens add --type=discovery,kube
+$ tctl tokens add --type=discovery,kube --format=text
+(=presets.tokens.first=)
 ```
+
+### Configure the Kubernetes Service and Discovery Service
+
+On the host running the Kubernetes Service and Discovery Service, create a
+Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 Enabling AKS Auto-Discovery requires that the `discovery_service.azure` section
 include at least one entry and that `discovery_service.azure.types` include `aks`.
@@ -266,6 +281,8 @@ kubernetes_service:
 
 Once you have added this configuration, start Teleport. AKS clusters matching the tags and regions
 specified in the Azure section will be added to the Teleport cluster automatically.
+
+(!docs/pages/includes/start-teleport.mdx service="the Kubernetes and Discovery Services"!)
 
 ## Troubleshooting
 

@@ -223,7 +223,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetCreatedBy(created.GetCreatedBy())
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := &userCollection{users: []types.User{expected}}
+		collection := resources.NewUserCollection([]types.User{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 

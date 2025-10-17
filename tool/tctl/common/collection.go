@@ -152,26 +152,6 @@ func (s *serverCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSONArray(w, s.servers)
 }
 
-type userCollection struct {
-	users []types.User
-}
-
-func (u *userCollection) Resources() (r []types.Resource) {
-	for _, resource := range u.users {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (u *userCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"User"})
-	for _, user := range u.users {
-		t.AddRow([]string{user.GetName()})
-	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
-}
-
 type authorityCollection struct {
 	cas []types.CertAuthority
 }

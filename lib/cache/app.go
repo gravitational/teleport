@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -47,12 +47,8 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 				appNameIndex: types.Application.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Application, error) {
-			out, err := stream.Collect(upstream.Apps(ctx, "", ""))
-			// TODO(tross): DELETE IN v21.0.0
-			if trace.IsNotImplemented(err) {
-				apps, err := upstream.GetApps(ctx)
-				return apps, trace.Wrap(err)
-			}
+			// TODO(tross): DELETE IN v21.0.0 replace by regular clientutils.Resources
+			out, err := clientutils.CollectWithFallback(ctx, upstream.ListApps, upstream.GetApps)
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Application {
