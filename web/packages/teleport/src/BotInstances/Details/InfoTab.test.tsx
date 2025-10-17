@@ -48,7 +48,7 @@ describe('InfoTab', () => {
 
     expectFieldAndValue('Bot name', 'test-bot-name', section);
     expectFieldAndValue('Up time', '12h 1m', section);
-    expectFieldAndValue('Kind', 'tbot', section);
+    expectFieldAndValue('Kind', 'tctl', section);
     expectFieldAndValue('Version', 'v18.4.0', section);
     expectFieldAndValue('OS', 'linux', section);
     expectFieldAndValue('Hostname', 'test-hostname', section);
