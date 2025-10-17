@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"io"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,7 +36,7 @@ type lockCollection struct {
 	locks []types.Lock
 }
 
-func (c *lockCollection) Resources() ([]types.Resource) {
+func (c *lockCollection) Resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.locks))
 	for _, resource := range c.locks {
 		r = append(r, resource)
