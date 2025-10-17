@@ -108,6 +108,7 @@ func TestIdentityConversion(t *testing.T) {
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",
+		"Identity.AgentScope",
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

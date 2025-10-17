@@ -31,10 +31,14 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joinv1proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -83,9 +87,37 @@ func TestJoin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	scopedToken1 := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/aa",
+		Metadata: &headerv1.Metadata{
+			Name:      "scoped1",
+			Namespace: defaults.Namespace,
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/aa/bb",
+			Roles:         []string{types.RoleNode.String()},
+			JoinMethod:    string(types.JoinMethodToken),
+		},
+	}
+	scopedToken2 := proto.CloneOf(scopedToken1)
+	scopedToken2.Metadata.Name = "scoped2"
+	scopedToken2.Spec.AssignedScope = "/aa/cc"
+
 	authService := newFakeAuthService(t)
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+
+	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		Token: scopedToken1,
+	})
+	require.NoError(t, err)
+
+	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		Token: scopedToken2,
+	})
+	require.NoError(t, err)
 
 	proxy := newFakeProxy(authService)
 	proxy.join(t)
@@ -168,6 +200,55 @@ func TestJoin(t *testing.T) {
 			apiutils.Deduplicate(slices.Concat(
 				token1.GetRoles().StringSlice(),
 				token2.GetRoles().StringSlice(),
+			)),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, newIdentity.SystemRoles)
+	})
+
+	t.Run("join and rejoin with scoped token", func(t *testing.T) {
+		// Node initially joins by connecting to the proxy's gRPC service.
+		identity, err := joinViaProxy(
+			t.Context(),
+			scopedToken1.GetMetadata().GetName(),
+			proxyListener.Addr(),
+		)
+		require.NoError(t, err)
+		// Make sure the result contains a host ID and expected certificate roles.
+		require.NotEmpty(t, identity.ID.HostUUID)
+		require.Equal(t, types.RoleInstance, identity.ID.Role)
+		expectedSystemRoles := slices.DeleteFunc(
+			scopedToken1.GetSpec().GetRoles(),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
+
+		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.ID.AgentScope)
+		// Build an auth client with the new identity.
+		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
+		require.NoError(t, err)
+		authClient, err := authService.TLS.NewClientWithCert(tlsConfig.Certificates[0])
+		require.NoError(t, err)
+
+		// Node can rejoin with a different token by dialing the auth service
+		// with an auth client authenticed with its original credentials.
+		//
+		// It should get back its original host ID and the combined roles of
+		// its original certificate and the new token.
+		newIdentity, err := rejoinViaAuthClient(
+			t.Context(),
+			scopedToken2.GetMetadata().GetName(),
+			authClient,
+		)
+		require.NoError(t, err)
+		require.NotEqual(t, identity.ID.AgentScope, newIdentity.ID.AgentScope)
+		require.Equal(t, identity.ID.HostUUID, newIdentity.ID.HostUUID)
+		require.Equal(t, identity.ID.NodeName, newIdentity.ID.NodeName)
+		require.Equal(t, identity.ID.Role, newIdentity.ID.Role)
+		expectedSystemRoles = slices.DeleteFunc(
+			apiutils.Deduplicate(slices.Concat(
+				scopedToken1.GetSpec().GetRoles(),
+				scopedToken2.GetSpec().GetRoles(),
 			)),
 			func(s string) bool { return s == types.RoleInstance.String() },
 		)
