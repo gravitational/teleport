@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/autoupdate/agent/internal"
 	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/selinux"
@@ -125,8 +126,8 @@ ExecStart=-/bin/echo "The teleport-upgrade script has been disabled by teleport-
 {{end}}`
 )
 
-// systemdParams parameterizes the above updater systemd configuration templates.
-type systemdParams struct {
+// confParams parameterizes the above updater configuration templates.
+type confParams struct {
 	TeleportService   string
 	Services          []string
 	UpdaterBinary     string
@@ -570,7 +571,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revision) error {
 	teleportService := filepath.Base(ns.teleportServiceFile)
 	tbotService := filepath.Base(ns.tbotServiceFile)
-	params := systemdParams{
+	params := confParams{
 		TeleportService:   teleportService,
 		UpdaterBinary:     filepath.Join(path, BinaryName),
 		InstallSuffix:     ns.name,
@@ -614,7 +615,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 		return nil
 	}
 	ns.log.InfoContext(ctx, "Disabling needrestart.")
-	err = writeSystemTemplate(ns.needrestartConfigFile, "", needrestartConfTemplate, systemdParams{
+	err = writeSystemTemplate(ns.needrestartConfigFile, "", needrestartConfTemplate, confParams{
 		Services: nrServices,
 	})
 	if err != nil {
@@ -800,31 +801,19 @@ func (ns *Namespace) LogWarnings(ctx context.Context, pathDir string) {
 	)
 }
 
-// unversionedConfig is used to read all versions of teleport.yaml, including
-// versions that may now be unsupported.
-type unversionedConfig struct {
-	Teleport unversionedTeleport `yaml:"teleport"`
-}
-
-type unversionedTeleport struct {
-	AuthServers []string `yaml:"auth_servers"`
-	AuthServer  string   `yaml:"auth_server"`
-	ProxyServer string   `yaml:"proxy_server"`
-	DataDir     string   `yaml:"data_dir"`
-}
-
-// overrideFromConfig loads fields from teleport.yaml into the namespace, overriding any defaults.
+// overrideFromConfig loads fields from teleport configuration into the namespace, overriding any defaults.
 func (ns *Namespace) overrideFromConfig(ctx context.Context) {
 	if ns == nil {
 		return
 	}
 	var (
 		configFile string
-		cfg        unversionedConfig
+		cfg        internal.UnversionedTeleport
 	)
 
 	switch {
 	case ns.teleportConfigFile != "":
+		// Use values from teleport.yaml if present.
 		configFile = ns.teleportConfigFile
 		f, err := libutils.OpenFileAllowingUnsafeLinks(configFile)
 		if err != nil {
@@ -840,6 +829,9 @@ func (ns *Namespace) overrideFromConfig(ctx context.Context) {
 			ns.dataDir = cfg.Teleport.DataDir
 		}
 	case ns.tbotConfigFile != "":
+		// Otherwise, use values from tbot.yaml (bot-only installation).
+		// Do not attempt to read tbot's storage dir as the data directory used to store the tbot socket.
+		// Ignore tbot configuration if the updater does not manage the tbot service.
 		configFile = ns.tbotConfigFile
 		customTbot, err := ns.HasCustomTbot(ctx)
 		if err != nil {
