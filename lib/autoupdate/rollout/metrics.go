@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -66,11 +67,13 @@ type metrics struct {
 	configPresent prometheus.Gauge
 	configMode    prometheus.Gauge
 
-	rolloutPresent  prometheus.Gauge
-	rolloutStart    *prometheus.GaugeVec
-	rolloutTarget   *prometheus.GaugeVec
-	rolloutMode     prometheus.Gauge
-	rolloutStrategy *prometheus.GaugeVec
+	rolloutPresent     prometheus.Gauge
+	rolloutStart       *prometheus.GaugeVec
+	rolloutTarget      *prometheus.GaugeVec
+	rolloutTargetMajor prometheus.Gauge
+	buildInfoMajor     prometheus.Gauge
+	rolloutMode        prometheus.Gauge
+	rolloutStrategy    *prometheus.GaugeVec
 
 	// rollout status metrics
 	rolloutTimeOverride prometheus.Gauge
@@ -169,6 +172,18 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Name:      "rollout_target",
 			Help:      "Metric describing the agent target version from the autoupdate_gent_rollout resource.",
 		}, []string{metricsVersionLabelName}),
+		rolloutTargetMajor: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "rollout_target_major",
+			Help:      "Metric describing the agent target major version from the autoupdate_gent_rollout resource.",
+		}),
+		buildInfoMajor: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "build_info_major",
+			Help:      "Metric describing the auth major version.",
+		}),
 		rolloutStart: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
@@ -221,6 +236,8 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 		reg.Register(m.configMode),
 		reg.Register(m.rolloutPresent),
 		reg.Register(m.rolloutTarget),
+		reg.Register(m.rolloutTargetMajor),
+		reg.Register(m.buildInfoMajor),
 		reg.Register(m.rolloutStart),
 		reg.Register(m.rolloutMode),
 		reg.Register(m.rolloutStrategy),
@@ -229,6 +246,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 		reg.Register(m.rolloutState),
 		reg.Register(m.rolloutGroupState),
 	)
+	m.buildInfoMajor.Set(float64(teleport.SemVer().Major))
 
 	return &m, errs
 }
@@ -333,6 +351,10 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 		m.rolloutMode.Set(float64(agentModeCode[rollout.GetSpec().GetAutoupdateMode()]))
 		m.setVersionMetric(rollout.GetSpec().GetStartVersion(), m.rolloutStart, now)
 		m.setVersionMetric(rollout.GetSpec().GetTargetVersion(), m.rolloutTarget, now)
+
+		if target, err := version.EnsureSemver(rollout.GetSpec().GetTargetVersion()); err == nil {
+			m.rolloutTargetMajor.Set(float64(target.Major))
+		}
 	}
 
 	m.setStrategyMetric(rollout.GetSpec().GetStrategy(), m.rolloutStrategy)
