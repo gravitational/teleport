@@ -19,6 +19,12 @@
 package onboarding
 
 import (
+	"context"
+	"encoding/base64"
+	"log/slog"
+	"os"
+	"strings"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -44,6 +50,16 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodOracle),
 	string(types.JoinMethodBoundKeypair),
 }
+
+const (
+	// registrationSecretEnv is an environment variable that contains a
+	// registration secret for bound keypair joining.
+	registrationSecretEnv = "TBOT_REGISTRATION_SECRET"
+
+	// BoundKeypairStaticKeyEnv is an env var that if set, contains a base64
+	// encoded private key (with a nested PEM encoded private key).
+	BoundKeypairStaticKeyEnv = "TBOT_BOUND_KEYPAIR_STATIC_KEY"
+)
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
 type AzureOnboardingConfig struct {
@@ -71,10 +87,105 @@ type GitlabOnboardingConfig struct {
 // BoundKeypairOnboardingConfig contains parameters for the `bound_keypair` join
 // method
 type BoundKeypairOnboardingConfig struct {
-	// RegistrationSecret is the name of the initial joining secret, if any. If
-	// not specified, a keypair must be created using `tbot keypair create` and
-	// registered with Teleport in advance.
-	RegistrationSecret string `yaml:"registration_secret,omitempty"`
+	// RegistrationSecretValue is the name of the initial joining secret, if
+	// any. If not specified, a keypair must be created using `tbot keypair
+	// create` and registered with Teleport in advance. This can either be a
+	// static value or an absolute path to a file containing the secret value.
+	RegistrationSecretValue string `yaml:"registration_secret,omitempty"`
+
+	// RegistrationSecretPath is a path to a registration secret to be read from
+	// a file.
+	RegistrationSecretPath string `yaml:"registration_secret_path,omitempty"`
+
+	// StaticPrivateKeyPath is a static private key, containing either a path to
+	// a private key file. Unlike keys managed automatically in the bot storage,
+	// this will be treated as immutable. It must be preregistered, does not
+	// support rotation, and must be used with a token in `insecure` recovery
+	// mode.
+	StaticPrivateKeyPath string `yaml:"static_private_key_path,omitempty"`
+}
+
+// RegistrationSecret returns the registration secret, if set. If the value
+// appears to be an absolute filepath and points to a real file on the system,
+// the contents of that file will be returned; otherwise, the literal value is
+// returned. If `TBOT_REGISTRATION_SECRET` is set and neither explicit config
+// value is set (CLI, YAML) that value will be returned.
+func (c *BoundKeypairOnboardingConfig) RegistrationSecret() (string, error) {
+	if c.RegistrationSecretValue != "" && c.RegistrationSecretPath != "" {
+		return "", trace.BadParameter("only one of 'registration_secret' and 'registration_secret_path' may be set")
+	}
+
+	env, envExists := os.LookupEnv(registrationSecretEnv)
+
+	switch {
+	case c.RegistrationSecretPath != "":
+		if envExists {
+			slog.WarnContext(
+				context.Background(),
+				"'registration_secret_path' in tbot's configuration will override the value set in the environment",
+				"env", registrationSecretEnv,
+				"path", c.RegistrationSecretPath,
+			)
+		}
+
+		bytes, err := os.ReadFile(c.RegistrationSecretPath)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+
+		slog.DebugContext(context.Background(), "loading registration secret from file", "path", c.RegistrationSecretPath)
+
+		return strings.TrimSpace(string(bytes)), nil
+	case c.RegistrationSecretValue != "":
+		if envExists {
+			slog.WarnContext(
+				context.Background(),
+				"'registration_secret' in tbot's configuration will override the value set in the environment",
+				"env", registrationSecretEnv,
+			)
+		}
+
+		slog.DebugContext(context.Background(), "using registration secret from config file or CLI")
+
+		return c.RegistrationSecretValue, nil
+	case envExists:
+		slog.DebugContext(context.Background(), "using registration secret from environment", "env", registrationSecretEnv)
+		return env, nil
+	default:
+		return "", nil
+	}
+}
+
+// StaticPrivateKeyBytes returns a statically configured private key for bound
+// keypair joining. If not nil, this value should be used as an immutable
+// `StaticClientState` instead of a traditional `FSClientState` which would
+// otherwise mutably write to the bot storage directory. These static keys do
+// not support rotation or join state verification.
+//
+// Users can either configure `static_private_key_path` in the bound keypair
+// onboarding config, or by inserting a base64-encoded private key (in PEM
+// format) into the `TBOT_BOUND_KEYPAIR_STATIC_KEY` environment variable. The
+// configuration value supersedes the environment variable if both are set.
+func (c *BoundKeypairOnboardingConfig) StaticPrivateKeyBytes() ([]byte, error) {
+	if c.StaticPrivateKeyPath != "" {
+		bytes, err := os.ReadFile(c.StaticPrivateKeyPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "reading static key from %s", c.StaticPrivateKeyPath)
+		}
+
+		return bytes, nil
+	}
+
+	if env, envExists := os.LookupEnv(BoundKeypairStaticKeyEnv); envExists {
+		bytes, err := base64.StdEncoding.DecodeString(env)
+		if err != nil {
+			return nil, trace.Wrap(err, "decoding private key from environment")
+		}
+
+		return bytes, nil
+	}
+
+	return nil, nil
 }
 
 // Config contains values relevant to how the bot authenticates with

@@ -313,6 +313,9 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
+	if idleTimeout > 0 {
+		bearerTokenTTL = min(sessionTTL, idleTimeout)
+	}
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
@@ -385,7 +388,7 @@ func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+	if err := a.UpsertWebToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

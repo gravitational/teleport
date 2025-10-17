@@ -42,6 +42,7 @@ import {
 import { IconProps } from 'design/Icon/Icon';
 import { rotate360 } from 'design/keyframes';
 import Text from 'design/Text';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import cfg from 'teleport/config';
 import {
@@ -162,7 +163,7 @@ export function RecordingItem({
             <ArrowRight size="small" color="text.slightlyMuted" />
 
             <ItemSpan>
-              <Server size="small" color="sessionRecording.resource" />
+              <Icon size="small" color="sessionRecording.resource" />
 
               <Text>{recording.hostname}</Text>
             </ItemSpan>
@@ -172,7 +173,9 @@ export function RecordingItem({
             <Text color="text.slightlyMuted" fontSize="12px" fontFamily="mono">
               {recording.sid}
             </Text>
-
+            <Box flex="1">
+              <CopyButton value={recording.sid} ml={2} />
+            </Box>
             {actions}
           </Flex>
         </RecordingDetails>

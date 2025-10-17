@@ -66,7 +66,7 @@ func boundKeypairJoin(
 	// challenges and rotation requests.
 	boundKeypairInit := &messages.BoundKeypairInit{
 		ClientParams:      clientParams,
-		InitialJoinSecret: joinParams.BoundKeypairParams.InitialJoinSecret,
+		InitialJoinSecret: joinParams.BoundKeypairParams.RegistrationSecret,
 		PreviousJoinState: joinParams.BoundKeypairParams.PreviousJoinState,
 	}
 	if err := stream.Send(boundKeypairInit); err != nil {
@@ -144,6 +144,8 @@ func boundKeypairJoin(
 			}); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		default:
+			return nil, trace.Errorf("server sent unexpected message type %T", msg)
 		}
 	}
 }
