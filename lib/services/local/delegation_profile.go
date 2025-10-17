@@ -90,6 +90,11 @@ func (s *DelegationProfileService) DeleteDelegationProfile(ctx context.Context, 
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
 }
 
+// DeleteAllDelegationProfiles deletes all DelegationProfile resources.
+func (s *DelegationProfileService) DeleteAllDelegationProfiles(ctx context.Context) error {
+	return trace.Wrap(s.service.DeleteAllResources(ctx))
+}
+
 // UpdateDelegationProfile updates a specific DelegationProfile.
 //
 // The resource must already exist, and, conditional update semantics are

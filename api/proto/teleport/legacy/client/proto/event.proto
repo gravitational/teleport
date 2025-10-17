@@ -22,6 +22,7 @@ import "teleport/autoupdate/v1/autoupdate.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
+import "teleport/delegation/v1/delegation_profile_resource.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/healthcheckconfig/v1/health_check_config.proto";
 import "teleport/identitycenter/v1/identitycenter.proto";
@@ -234,5 +235,8 @@ message Event {
     types.PluginV1 plugin = 84;
     // AutoUpdateAgentReport is a resource for counting connected bot instances.
     teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
+    // DelegationProfile is a resource describing how delegation sessions should
+    // be created.
+    teleport.delegation.v1.DelegationProfile DelegationProfile = 86;
   }
 }
