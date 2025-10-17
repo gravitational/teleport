@@ -49,10 +49,12 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -615,52 +617,44 @@ type listBotInstancesClient interface {
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client listBotInstancesClient) error {
-	req := &machineidv1pb.ListBotInstancesV2Request{
-		Filter:    &machineidv1pb.ListBotInstancesV2Request_Filters{},
-		SortField: c.sortIndex,
-		SortDesc:  c.sortOrder == "descending",
+	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+		resp, err := client.ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			SortField: c.sortIndex,
+			SortDesc:  c.sortOrder == "descending",
+			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
+				BotName:    c.botName,
+				SearchTerm: c.search,
+				Query:      c.query,
+			},
+		})
+		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}
 
-	if c.botName != "" {
-		req.Filter.BotName = c.botName
-	}
-
-	if c.search != "" {
-		req.Filter.SearchTerm = c.search
-	}
-
-	if c.query != "" {
-		req.Filter.Query = c.query
-	}
-
-	var instances []*machineidv1pb.BotInstance
-	for {
-		resp, err := client.ListBotInstancesV2(ctx, req)
-
-		if trace.IsNotImplemented(err) && req.GetFilter().GetQuery() == "" {
-			// Fallback to increase backwards compatibility
-			// TODO(nicholasmarais1158): Remove in v20.0.0
-			resp, err = client.ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
-				FilterBotName:    req.GetFilter().GetBotName(),
-				PageSize:         req.GetPageSize(),
-				PageToken:        req.GetPageToken(),
-				FilterSearchTerm: req.GetFilter().GetSearchTerm(),
+	fallbackFunc := func(ctx context.Context) ([]*machineidv1pb.BotInstance, error) {
+		if c.query != "" {
+			return nil, trace.NotImplemented("fallback not supported for requests with a query")
+		}
+		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+			resp, err := client.ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+				FilterBotName:    c.botName,
+				PageSize:         int32(pageSize),
+				PageToken:        pageToken,
+				FilterSearchTerm: c.search,
 				Sort: &types.SortBy{
-					Field:  req.GetSortField(),
-					IsDesc: req.GetSortDesc(),
+					Field:  c.sortIndex,
+					IsDesc: c.sortOrder == "descending",
 				},
 			})
+			return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 		}
+		return stream.Collect(clientutils.Resources(ctx, fallbackPageFunc))
+	}
 
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		instances = append(instances, resp.BotInstances...)
-		if resp.NextPageToken == "" {
-			break
-		}
-		req.PageToken = resp.NextPageToken
+	instances, err := clientutils.CollectWithFallback(ctx, pageFunc, fallbackFunc)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if c.format == teleport.JSON {

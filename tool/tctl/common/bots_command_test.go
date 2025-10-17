@@ -547,7 +547,7 @@ func TestListBotInstancesFallback(t *testing.T) {
 
 		err := cmd.ListBotInstances(ctx, authClient)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "not implemeted in mock")
+		require.ErrorContains(t, err, "fallback not supported for requests with a query")
 	})
 }
 
