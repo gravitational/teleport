@@ -177,6 +177,8 @@ const Container = styled(Flex)<{
           }
         `
       : ''}
+
+  transition: background-color 200ms linear;
 `;
 
 const TopRow = styled(Flex)`

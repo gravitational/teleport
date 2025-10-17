@@ -94,12 +94,20 @@ export function BotInstancesDashboard(props: {
       ) : undefined}
 
       {isPending ? undefined : (
-        <InnerContainer>
-          <UpgradeStatusChart
-            data={data?.upgrade_statuses}
-            onFilterSelected={onFilterSelected}
-          />
-        </InnerContainer>
+        <>
+          <InnerContainer>
+            <UpgradeStatusChart
+              data={data?.upgrade_statuses}
+              onFilterSelected={onFilterSelected}
+            />
+          </InnerContainer>
+
+          {data?.upgrade_statuses ? (
+            <Alert kind="info" ml={5} mr={5} mt={3}>
+              Select a category above to filter bot instances.
+            </Alert>
+          ) : undefined}
+        </>
       )}
     </Container>
   );
@@ -217,7 +225,20 @@ function UpgradeStatusChart(props: {
 
   return (
     <UpgradeStatusContainer>
-      <ChartTitleText>Version Compatibility</ChartTitleText>
+      <Flex alignItems={'center'} justifyContent={'space-between'}>
+        <H3>Version Compatibility</H3>
+        {data?.updated_at ? (
+          <HoverTooltip
+            placement="top"
+            tipContent={format(parseISO(data.updated_at), 'PP, p z')}
+          >
+            <ChartUpdatedAtText>
+              Last updated{' '}
+              {formatDistanceToNowStrict(parseISO(data.updated_at))} ago
+            </ChartUpdatedAtText>
+          </HoverTooltip>
+        ) : undefined}
+      </Flex>
       <BarsContainer>
         {series ? (
           series.map(s => (
@@ -246,24 +267,6 @@ function UpgradeStatusChart(props: {
           <ChartNoDataContainer>No data available</ChartNoDataContainer>
         )}
       </BarsContainer>
-
-      {series ? (
-        <Alert kind="info" m={0}>
-          Select a status above to view instances.
-        </Alert>
-      ) : undefined}
-
-      {data?.updated_at ? (
-        <HoverTooltip
-          placement="top"
-          tipContent={format(parseISO(data.updated_at), 'PP, p z')}
-        >
-          <ChartUpdatedAtText>
-            Last updated {formatDistanceToNowStrict(parseISO(data.updated_at))}{' '}
-            ago
-          </ChartUpdatedAtText>
-        </HoverTooltip>
-      ) : undefined}
     </UpgradeStatusContainer>
   );
 }
@@ -271,13 +274,9 @@ function UpgradeStatusChart(props: {
 const UpgradeStatusContainer = styled(Flex)`
   flex-direction: column;
   padding: ${({ theme }) => theme.space[3]}px;
-  border-radius: ${({ theme }) => theme.space[4]}px;
+  border-radius: ${({ theme }) => theme.space[2]}px;
   gap: ${({ theme }) => theme.space[3]}px;
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
-`;
-
-const ChartTitleText = styled(H3)`
-  text-align: center;
+  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
 `;
 
 const BarsContainer = styled(Flex)`
@@ -291,14 +290,16 @@ const SeriesContainer = styled.div`
   cursor: pointer;
 
   &:hover {
-    background-color: ${({ theme }) => theme.colors.levels.surface};
+    background-color: ${({ theme }) => theme.colors.levels.sunken};
   }
   &:focus,
   &:active {
     outline: none;
 
-    background-color: ${({ theme }) => theme.colors.levels.sunken};
+    background-color: ${({ theme }) => theme.colors.levels.deep};
   }
+
+  transition: background-color 200ms linear;
 `;
 
 const ChartLabelContainer = styled(Flex)`
@@ -309,7 +310,6 @@ const ChartLabelContainer = styled(Flex)`
 const ChartLabelText = styled(Text)`
   white-space: nowrap;
   font-size: ${({ theme }) => theme.fontSizes[1]}px;
-  font-weight: ${({ theme }) => theme.fontWeights.medium};
 `;
 
 const ChartNoDataContainer = styled(Flex)`
@@ -322,7 +322,7 @@ const ChartNoDataContainer = styled(Flex)`
 const ChartUpdatedAtText = styled(Text)`
   font-size: ${({ theme }) => theme.fontSizes[1]}px;
   font-weight: ${({ theme }) => theme.fontWeights.medium};
-  align-self: flex-end;
+  text-align: right;
 `;
 
 function Bar(props: { percent: number; label: string; color: string }) {
