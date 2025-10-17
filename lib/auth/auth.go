@@ -91,6 +91,7 @@ import (
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -117,6 +118,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -779,7 +781,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if as.createBoundKeypairValidator == nil {
-		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (joinboundkeypair.BoundKeypairValidator, error) {
 			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
 		}
 	}
@@ -802,6 +804,21 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	as.pdp, err = decision.NewService(decision.Config{
 		AccessPoint:  as.Cache,
 		ULSGenerator: as.ulsGenerator,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	as.BotInstanceVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
+		Clock: cfg.Clock,
+		Logger: as.logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentAuth, "bot-version-reporter"),
+		),
+		Semaphores: as,
+		HostUUID:   cfg.HostUUID,
+		Store:      as,
+		Cache:      as.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1027,6 +1044,18 @@ var (
 		[]string{teleport.TagPrivateKeyPolicy},
 	)
 
+	botInstancesMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBotInstances,
+			Help:      "The number of bot instances across the entire cluster",
+		},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
@@ -1036,6 +1065,7 @@ var (
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
 		roleCount,
+		botInstancesMetric,
 	}
 )
 
@@ -1238,7 +1268,7 @@ type Server struct {
 
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
-	createBoundKeypairValidator createBoundKeypairValidator
+	createBoundKeypairValidator joinboundkeypair.CreateBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1301,6 +1331,10 @@ type Server struct {
 	// It allows for late initialization of the summarizer in the enterprise
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
+
+	// BotInstanceVersionReporter is called periodically to generate a report of
+	// the number of bot instances by version and update group.
+	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1459,6 +1493,12 @@ func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lockWatcher = lockWatcher
 }
 
+// CheckLockInForce returns an AccessDenied error if there is a lock in force
+// matching at least one of the targets.
+func (a *Server) CheckLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
+	return a.checkLockInForce(mode, targets)
+}
+
 func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
@@ -1574,6 +1614,8 @@ const (
 	roleCountKey
 	accessListReminderNotificationsKey
 	autoUpdateAgentReportKey
+	autoUpdateBotInstanceReportKey
+	autoUpdateBotInstanceMetricsKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1668,6 +1710,18 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      constants.AutoUpdateAgentReportPeriod,
 			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
 			// No jitter here, this is intentional and required for accurate tracking across auths.
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateBotInstanceReportKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateBotInstanceMetricsKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod / 2,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 
@@ -1795,6 +1849,10 @@ func (a *Server) runPeriodicOperations() {
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
+			case autoUpdateBotInstanceReportKey:
+				go a.BotInstanceVersionReporter.Report(a.closeCtx)
+			case autoUpdateBotInstanceMetricsKey:
+				go a.updateBotInstanceMetrics()
 			}
 		}
 	}
@@ -2110,6 +2168,18 @@ func (a *Server) updateAgentMetrics() {
 			teleport.TagUpgrader: metadata.upgraderType,
 			teleport.TagVersion:  metadata.version,
 		}).Set(float64(count))
+	}
+}
+
+func (a *Server) updateBotInstanceMetrics() {
+	report, err := a.GetAutoUpdateBotInstanceReport(a.closeCtx)
+	switch {
+	case trace.IsNotFound(err):
+		// No report to emit.
+	case err != nil:
+		a.logger.ErrorContext(a.closeCtx, "Failed to get bot instance report", "error", err)
+	default:
+		machineidv1.EmitInstancesMetric(report, botInstancesMetric)
 	}
 }
 

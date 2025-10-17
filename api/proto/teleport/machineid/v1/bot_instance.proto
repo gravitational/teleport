@@ -20,6 +20,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/legacy/types/types.proto";
 import "teleport/workloadidentity/v1/join_attrs.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
@@ -83,9 +84,40 @@ message BotInstanceStatusHeartbeat {
   string architecture = 8;
   // The OS of the host that `tbot` is running on, determined by runtime.GOOS.
   string os = 9;
+  // Identifies the external updater process.
+  string external_updater = 10;
+  // Identifies the external updated version. Empty if no updater is configured.
+  string external_updater_version = 11;
+  // Information provided by the external updater, including the update group
+  // and updater status.
+  types.UpdaterV2Info updater_info = 12;
+
+  // Identifies whether the bot is running in the tbot binary or embedded in
+  // another component.
+  BotKind kind = 13;
+
   // In future iterations, additional information can be submitted here.
   // For example, the configuration of `tbot` or the health of individual
   // outputs.
+}
+
+// BotKind identifies whether the bot is the tbot binary or embedded in another
+// component.
+enum BotKind {
+  // The enum zero-value, it means no kind was included.
+  BOT_KIND_UNSPECIFIED = 0;
+
+  // Means the bot is running the tbot binary.
+  BOT_KIND_TBOT = 1;
+
+  // Means the bot is running inside one of our Terraform providers.
+  BOT_KIND_TERRAFORM_PROVIDER = 2;
+
+  // Means the bot is running inside the Teleport Kubernetes operator.
+  BOT_KIND_KUBERNETES_OPERATOR = 3;
+
+  // Means the bot is running inside tctl (e.g. `tctl terraform env`)
+  BOT_KIND_TCTL = 4;
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.

@@ -997,8 +997,10 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 // get a certificate with both the Proxy and Node system roles.
 func TestInstanceSelfRepair(t *testing.T) {
 	// Setup: create an auth server with two tokens, one proxy proxies and one for nodes.
+	const clusterName = "testcluster"
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: makeTempDir(t),
+		Dir:         makeTempDir(t),
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 	tlsServer, err := testAuthServer.NewTestTLSServer()
@@ -1018,11 +1020,13 @@ func TestInstanceSelfRepair(t *testing.T) {
 
 	logger := logtest.NewLogger()
 	dataDir := makeTempDir(t)
+	const hostName = "testhost"
 	newStartedProcess := func(token string, sshEnabled bool) *TeleportProcess {
 		cfg := servicecfg.MakeDefaultConfig()
 		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Listener.Addr().String()))
 		cfg.Clock = clockwork.NewRealClock()
 		cfg.DataDir = dataDir
+		cfg.Hostname = hostName
 		cfg.Auth.Enabled = false
 		cfg.Proxy.Enabled = true
 		cfg.Proxy.DisableWebInterface = true
@@ -1075,6 +1079,70 @@ func TestInstanceSelfRepair(t *testing.T) {
 	// Close the process to clean up.
 	require.NoError(t, process.Close())
 	require.NoError(t, process.Wait())
+
+	nodeConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
+	require.NoError(t, err)
+	nodeID := nodeConnector.clientState.Load().identity
+	expectSSHPrincipals := expectedSSHPrincipals(nodeID.ID.HostID(), hostName, clusterName)
+	require.ElementsMatch(t, expectSSHPrincipals, nodeID.Cert.ValidPrincipals)
+}
+
+func TestSSHPrincipals(t *testing.T) {
+	const clusterName = "testcluster"
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:         t.TempDir(),
+			ClusterName: clusterName,
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("token", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleNode},
+	})
+	require.NoError(t, err)
+	require.NoError(t, authServer.Auth().UpsertToken(t.Context(), token))
+
+	logger := logtest.NewLogger()
+	const hostName = "testhost"
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Listener.Addr().String()))
+	nodeCfg.Clock = clockwork.NewRealClock()
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.Hostname = hostName
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+	nodeCfg.SSH.Addr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
+	nodeCfg.SetToken(token.GetName())
+	nodeCfg.JoinMethod = types.JoinMethodToken
+	nodeCfg.Logger = logger
+	nodeProcess, err := NewTeleport(nodeCfg)
+	require.NoError(t, err)
+	go nodeProcess.Start()
+	defer func() {
+		assert.NoError(t, nodeProcess.Close())
+		assert.NoError(t, nodeProcess.Wait())
+	}()
+
+	nodeConnector, err := nodeProcess.WaitForConnector(SSHIdentityEvent, logger)
+	require.NoError(t, err)
+	nodeID := nodeConnector.clientState.Load().identity
+	expectSSHPrincipals := expectedSSHPrincipals(nodeID.ID.HostID(), hostName, clusterName)
+	assert.ElementsMatch(t, expectSSHPrincipals, nodeID.Cert.ValidPrincipals)
+}
+
+func expectedSSHPrincipals(hostID, hostName, clusterName string) []string {
+	return []string{
+		hostID,
+		hostID + "." + clusterName,
+		hostName,
+		hostName + "." + clusterName,
+		string(teleport.PrincipalLocalhost),
+		string(teleport.PrincipalLoopbackV4),
+		string(teleport.PrincipalLoopbackV6),
+	}
+
 }
 
 func TestTeleportProcessAuthVersionCheck(t *testing.T) {
