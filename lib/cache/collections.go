@@ -27,6 +27,7 @@ import (
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -83,6 +84,7 @@ type collections struct {
 	dbs                                *collection[types.Database, databaseIndex]
 	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
 	dbServices                         *collection[types.DatabaseService, databaseServiceIndex]
+	delegationProfiles                 *collection[*delegationv1.DelegationProfile, delegationProfileIndex]
 	kubeServers                        *collection[types.KubeServer, kubeServerIndex]
 	kubeClusters                       *collection[types.KubeCluster, kubeClusterIndex]
 	kubeWaitingContainers              *collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]
@@ -285,6 +287,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.databaseObjects = collect
 			out.byKind[resourceKind] = out.databaseObjects
+		case types.KindDelegationProfile:
+			collect, err := newDelegationProfileCollection(c.DelegationProfiles, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.delegationProfiles = collect
+			out.byKind[resourceKind] = out.delegationProfiles
 		case types.KindKubeServer:
 			collect, err := newKubernetesServerCollection(c.Presence, watch)
 			if err != nil {
