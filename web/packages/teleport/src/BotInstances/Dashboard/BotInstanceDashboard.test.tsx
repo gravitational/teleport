@@ -61,7 +61,7 @@ describe('BotInstanceDashboard', () => {
 
     await waitForLoading();
 
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Insights')).toBeInTheDocument();
     expect(screen.getByText('Version Compatibility')).toBeInTheDocument();
 
     const upToDate = screen.getByLabelText('Up to date');
@@ -77,7 +77,7 @@ describe('BotInstanceDashboard', () => {
     expect(within(unsupported).getByText('0 (0%)')).toBeInTheDocument();
 
     expect(
-      screen.getByText('Select a status above to view instances.')
+      screen.getByText('Select a category above to filter bot instances.')
     ).toBeInTheDocument();
   });
 
