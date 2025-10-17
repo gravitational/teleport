@@ -1,0 +1,67 @@
+---
+title: Teleport Relay Service
+description: Architecture of Teleport's relay service
+tags:
+ - conceptual
+ - platform-wide
+---
+
+<Admonition type="info">
+
+All Teleport Relay service functionality is available starting from Teleport 18.3.0 for the SSH protocol. Other protocols are not supported at this time.
+
+</Admonition>
+
+The Relay service is an optional Teleport cluster component that can be used to provide an alternate connectivity path between clients and resources similarly to what the Proxy service does when forwarding connections to resources [through reverse tunnels](proxy.mdx#tunnels): Teleport agents can be configured to open tunnels to both the Teleport Proxy service and to the Relay service, and clients can be configured to use the Relay service when connecting to resources; the Relay service will then route and forward the connection between the client and the requested resource without passing the connection through the Proxy service.
+
+This alternate connectivity is beneficial in situations where the client and the resource are known to be close together in a physical or logical sense (the same data center, office, campus, geographical region) and regular connections through the control plane would incur higher latency, lower throughput, or higher costs.
+
+Unlike the Proxy service, the Relay does not host a web UI, intercept connections, impersonate users or provide access to the Teleport control plane API. As such, it's simpler to deploy and keep secure, and it's thus suitable to be deployed even in environments where it wouldn't be possible to securely deploy a Proxy instance.
+
+<Admonition type="warning">
+
+The Teleport Relay service is intended for specific scenarios where clients and agents are in the same network segment and there is a need for connectivity that does not go through the Teleport control plane. It is not a required or recommended cluster component in most Teleport deployments.
+
+</Admonition>
+
+## How it works
+
+A Relay service deployment consists of one or more Relay instances configured with the same Relay group name, reachable by Teleport agents and clients through a L4 network load balancer. Relay instances of the same group receive connections from agents and clients through the load balancer, and can connect to each other directly. Relay instances listen on two separate ports to serve connections from agents and clients, and it's possible to use different load balancers and hostnames if necessary. The typical setup uses a single load balancer serving the two ports, reachable at a single hostname, with port 3042 used by agents and port 443 used by clients.
+
+An agent can be configured to use a given Relay by adding the address of the load balancer to its `teleport.yaml` configuration file:
+
+```yaml
+teleport:
+  proxy_server: proxy.example.com:443
+  relay_server: relay.example.com:3042
+```
+
+Agents running the SSH service that are also connected to a Proxy (i.e. they're running in "tunnel mode") will also open tunnels to the Relay service. The address specified in the configuration should resolve to the load balancer for the port used by agents.
+
+When an agent is configured to open tunnels to a given Relay group, it will periodically check the Relay configuration advertised by the Relay instances, then open enough tunnel connections to distinct Relay instances as determined by the Relay group configuration. The target connection count in the configuration should be not bigger than the amount of active and reachable Relay instances in the group at any given time, or all agents configured to use the group will keep connecting to the load balancer to reach for distinct instances that are not actually available.
+
+Before a Relay instance shuts down, it will inform all connected agents that it's about to terminate, and agents will then open new tunnel connections to replace their existing connection, ideally maintaining availability throughout this process. Because of this, we recommend deploying new Relay instances before shutting down old ones, if possible. This is what will happen when deploying the Relay service through [the `teleport-relay` Helm chart](../helm-reference/teleport-relay.mdx). Running a fixed set of Relay instances can result in minor downtime when restarting instances.
+
+{/* TODO(espadolini): link appropriate deployment guides */}
+
+When connected to a Relay group, Teleport agents will include the group name and the list of Relay instances that they have connected to in the heartbeat for their served resources. It's possible to see this by reading the appropriate resource heartbeat through `tctl` (e.g. `tctl get node/<host ID>`) or, for SSH servers, `tsh ls --format=json`. The list of Relay instance IDs is also used internally by the Relay service to route connections if an agent serving the requested resource is not connected to all Relay instances: in such a case, the Relay instance forwarding a connection from a client will pass the connection along to a Relay instance that has a tunnel from the agent serving the resource - this is the same mechanism used for connection routing in the control plane when using [Proxy Peering](../../zero-trust-access/management/operations/proxy-peering.mdx).
+
+When a Relay instance receives a request to open a connection to a resource, it'll run the same connection routing logic used by the Proxy service, resulting in one or more registered resources as a target for the connection. It will then check if the resource is available through an agent that has a tunnel opened directly with the instance; if so, the connection is then forwarded directly to the agent, otherwise, if the resource is available through a Relay instance of the same Relay group, the connection is forwarded to one of the other Relay instances, which will then pass the connection along to the appropriate agent through a tunnel. If the connection request is for a resource that is not available through the Relay group, an error is returned to the client. The connections from the client to the Relay, the connections between Relay instances, and the tunnel connections from the Teleport agents and the Relay instances are all encrypted and authenticated through mutual TLS, with X.509 certificates issued by the Teleport control plane.
+
+## Client configuration
+
+Use of the Relay service requires a desktop client (i.e. `tsh`) or the . It's not possible to use a Relay through the Teleport web UI.
+
+When using `tsh`, it's possible to specify the `--relay` option (or the `TELEPORT_RELAY` environment variable) with the hostname and port of the load balancer for the port used by clients; if a port is not specified, the default is taken to be port 443. The load balancer for the client port of the Relay service can employ any routing strategy, since all Relay instances are going to serve client connections equally.
+
+When specifying `--relay` at `tsh login` time, the configured Relay address is stored in the `tsh` profile configuration and will then be used for all later invocations unless overridden. It's possible to configure a default Relay address on a per-user basis in the `default_relay_addr` user trait, which can be directly specified for each [local user](../../zero-trust-access/management/admin/users.mdx), passed by the SSO provider for [SSO users](../../zero-trust-access/sso/sso.mdx), granted through an [Access List](../../identity-governance/access-lists/access-lists.mdx), or added by a [Login Rule](../../zero-trust-access/authentication/login-rules/login-rules.mdx).
+
+When using `tsh ssh`, if a Relay address was specified at login time or if `--relay` is passed in, the SSH connection will go through the specified Relay rather than going through the control plane. If an address was specified at login time, `--relay=none` will temporarily disable the use of the Relay service, and `--relay=default` will use the default Relay address for the user, even if a different address was specified at login time. When a Relay address is configured, only servers available through the Relay will be accessible, and no connection will go through the control plane.
+
+The [`ssh-multiplexer`](../machine-workload-identity/machine-id/configuration.mdx#ssh-multiplexer) Machine ID service can be configured to use a Relay. Similarly to the behavior of `tsh`, if a Relay address is set in the service configuration, only servers available through the Relay will be accessible. It's possible to provide access to servers through the Relay and through the control plane from the same Machine ID instance by configuring two independent `ssh-multiplexer` services.
+
+## More concepts
+
+- [Architecture Overview](../../core-concepts.mdx)
+- [Teleport Proxy](proxy.mdx)
+- [Proxy Peering](../../zero-trust-access/management/operations/proxy-peering.mdx)
