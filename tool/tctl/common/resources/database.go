@@ -80,7 +80,7 @@ func databaseHandler() Handler {
 		updateHandler: updateDatabase,
 		deleteHandler: deleteDatabase,
 		singleton:     false,
-		mfaRequired:   true,
+		mfaRequired:   false,
 		description:   "A dynamic resource representing a database that can be proxied via a database service.",
 	}
 }
