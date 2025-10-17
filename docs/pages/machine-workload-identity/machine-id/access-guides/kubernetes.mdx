@@ -137,7 +137,7 @@ be accessing the Kubernetes cluster.
 Modify your `tbot` configuration to add a `kubernetes/v2` output:
 
 ```yaml
-outputs:
+services:
   - type: kubernetes/v2
     selectors:
       # Specify the name of the Kubernetes cluster you wish the credentials to

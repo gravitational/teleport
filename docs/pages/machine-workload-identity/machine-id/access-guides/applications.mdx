@@ -123,7 +123,7 @@ applications.
 Modify your `tbot` configuration to add an `application` output:
 
 ```yaml
-outputs:
+services:
 - type: application
   # specify the name of the application you wish the credentials to grant
   # access to.
@@ -197,7 +197,7 @@ If your automated service requires TLS certificates with a specific file
 extension, you may also enable the `specific_tls_naming` option for the output:
 
 ```yaml
-outputs:
+services:
 - type: application
   destination:
     type: directory
