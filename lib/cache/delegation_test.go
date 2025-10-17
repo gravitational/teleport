@@ -62,8 +62,11 @@ func newDelegationProfile(name string) *delegationv1.DelegationProfile {
 			Name: name,
 		},
 		Spec: &delegationv1.DelegationProfileSpec{
-			RequiredResources: []string{
-				"/test.teleport.sh/app/hr-system",
+			RequiredResources: []*delegationv1.DelegationResourceSpec{
+				{
+					Kind: types.KindApp,
+					Name: "hr-system",
+				},
 			},
 			AuthorizedUsers: []*delegationv1.DelegationUserSpec{
 				{
