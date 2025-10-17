@@ -164,7 +164,6 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -184,6 +183,7 @@ const cfg = {
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -772,6 +772,10 @@ const cfg = {
 
   getBotInstancesRoute() {
     return generatePath(cfg.routes.botInstances);
+  },
+
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
