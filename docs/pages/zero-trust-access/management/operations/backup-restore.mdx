@@ -155,7 +155,7 @@ backend and writes it to the destination backend. Any items created on the
 source backend after the initial retrieval will not be included in the clone.
 
 
-### Zero data loss rollbacks
+### Rollbacks
 
 Rollbacks can be performed without any backend corruption or data loss by leveraging
 `teleport backend clone` to create a copy of an existing backend. For example, prior
@@ -175,11 +175,11 @@ dst:
 parallel: 100
 ```
 
-In the event a rollback is required in response to a failed upgrade to v19, then the cluster
-state should also be restored to prevent any further issues. Teleport major releases may alter the
-backend state in a way that previous major versions cannot reconcile. Since the clone was
-already taken this can be achieved by altering the teleport.yaml of the Auth service to point at the prefix
-of the backup before it is restarted with v18.
+Teleport major releases may alter the backend state in a way that
+previous versions cannot reconcile. If the upgrade to v19 fails
+and requires a rollback, this can be achieved by editing the
+Auth Service configuration to point it at the prefix containing
+the v18 backup.
 
 ```yaml
 teleport:
