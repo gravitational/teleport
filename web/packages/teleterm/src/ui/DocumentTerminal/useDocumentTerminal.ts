@@ -301,9 +301,6 @@ async function setUpPtyProcess(
     refreshTitle();
   });
 
-  // TODO(ravicious): Refactor runOnce to not use the `n` variable. Otherwise runOnce subtracts 1
-  // from n each time the resulting function is executed, which in this context means each time data
-  // is transferred from PTY.
   const markDocumentAsConnectedOnce = runOnce(() => {
     if ('status' in doc) {
       documentsService.update(doc.uri, { status: 'connected' });

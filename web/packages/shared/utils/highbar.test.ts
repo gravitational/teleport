@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { arrayObjectIsEqual, equalsDeep, mergeDeep } from './highbar';
+import { arrayObjectIsEqual, equalsDeep, mergeDeep, runOnce } from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -378,4 +378,27 @@ describe('equalsDeep', () => {
       })
     ).toBe(false);
   });
+});
+
+test('runOnce only runs once and preserves "this"', () => {
+  class Counter {
+    count = 0;
+
+    increment = runOnce(
+      // Use 'this' in a convoluted way to make sure it's passed correctly.
+      function (this: Counter) {
+        this.count++;
+      }
+    );
+  }
+
+  const c = new Counter();
+
+  // First call increments (and doesn't throw because of 'this' being undefined).
+  expect(() => c.increment()).not.toThrow();
+  expect(c.count).toBe(1);
+
+  // Subsequent calls do not increment.
+  c.increment();
+  expect(c.count).toBe(1);
 });
