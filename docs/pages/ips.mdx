@@ -13,7 +13,12 @@ While not required for most deployments, this configuration can be useful in env
 connections are blocked by default, for example, when firewalls deny all internet access unless explicitly allowed.
 
 <Admonition type="note">
-    If you are a Teleport Enterprise customer and plan to use this allowlist, please open a support ticket to let us know. This allows us to provide advance notice whenever the list is updated.
+
+Teleport Cloud does **not** provide stable egress IPs for traffic from the Auth
+Service and Proxy Service. If you are a Teleport Enterprise customer and plan to
+use this allowlist, please open a support ticket to let us know. This allows us
+to provide advance notice whenever the list is updated.
+
 </Admonition>
 
 ```
