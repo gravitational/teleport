@@ -90,11 +90,11 @@ export const mockGetBotInstanceResponse = {
       ],
       latest_authentications: [
         {
-          metadata: {
-            join_method: 'github',
-            join_token_name: 'test-token-name',
-          },
           join_attrs: {
+            meta: {
+              join_method: 'github',
+              join_token_name: 'test-token-name',
+            },
             github: {
               sub: 'test-github-sub',
               repository: 'gravitational/teleport',

@@ -93,10 +93,6 @@ export type GetBotInstanceResponse = {
         | null;
       latest_authentications?:
         | {
-            metadata?: {
-              join_token_name?: string;
-              join_method?: string;
-            } | null;
             join_attrs?: GetBotInstanceResponseJoinAttrs | null;
           }[]
         | null;
@@ -131,6 +127,10 @@ export enum BotInstanceKind {
 }
 
 export type GetBotInstanceResponseJoinAttrs = {
+  meta?: {
+    join_token_name?: string;
+    join_method?: string;
+  } | null;
   gitlab?: {
     sub?: string;
     project_path?: string;

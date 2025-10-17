@@ -55,8 +55,9 @@ export function InfoTab(props: {
   const latestHeartbeat = latest_heartbeats?.at(-1);
   const { kind, uptime, version, os, hostname } = latestHeartbeat ?? {};
   const latestAuthentication = latest_authentications?.at(-1);
-  const { metadata, join_attrs } = latestAuthentication ?? {};
-  const { join_method, join_token_name } = metadata ?? {};
+  const { join_attrs } = latestAuthentication ?? {};
+  const { meta } = join_attrs ?? {};
+  const { join_method, join_token_name } = meta ?? {};
 
   const joinExtras = makeJoinExtras(join_attrs);
 
