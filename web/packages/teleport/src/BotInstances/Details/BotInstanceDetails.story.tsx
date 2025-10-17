@@ -29,6 +29,7 @@ import {
   getBotInstanceError,
   getBotInstanceForever,
   getBotInstanceSuccess,
+  mockGetBotInstanceResponse,
 } from 'teleport/test/helpers/botInstances';
 
 import { BotInstanceDetails } from './BotInstanceDetails';
@@ -49,6 +50,25 @@ export const Happy: Story = {
   parameters: {
     msw: {
       handlers: [getBotInstanceSuccess()],
+    },
+  },
+};
+
+export const ZeroServices: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        getBotInstanceSuccess({
+          ...mockGetBotInstanceResponse,
+          bot_instance: {
+            ...mockGetBotInstanceResponse.bot_instance,
+            status: {
+              ...mockGetBotInstanceResponse.bot_instance.status,
+              service_health: [],
+            },
+          },
+        }),
+      ],
     },
   },
 };
