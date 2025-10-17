@@ -54,6 +54,7 @@ TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.
 TENANT=${TENANT:-}
 CLOUD_SKIP_DEPLOY=${CLOUD_SKIP_DEPLOY:-""}
 CLOUD_SKIP_ROLLOUT=${CLOUD_SKIP_ROLLOUT:-""}
+CLOUD_SKIP_AGENT_IMMEDIATE_UPDATE=${CLOUD_SKIP_AGENT_IMMEDIATE_UPDATE:-""}
 TELEPORT_CLUSTER=${TELEPORT_CLUSTER:-platform.teleport.sh}
 KUBE_TENANT_CLUSTER=${KUBE_TENANT_CLUSTER:-tc-staging-management}
 KUBE_TENANT_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
@@ -120,6 +121,9 @@ if ! (command -v tc); then
 fi
 if (tc tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
     (tc tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
+    if [[ -z "$CLOUD_SKIP_AGENT_IMMEDIATE_UPDATE" ]]; then
+      (tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"clientServices": [{"type":"Agent", "version":"$target_image_tag", "lastVersion":"$target_image_tag", "updateSchedule":"Immediate"}]}')
+    fi
 else
 	echo "Failed to patch tenant \"$TENANT\" using tc, retrying with kubectl..."
 	tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
