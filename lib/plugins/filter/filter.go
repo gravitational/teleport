@@ -141,3 +141,47 @@ func Matches(filters Filters, param MatchParam) bool {
 	}
 	return !hasInclude
 }
+
+// Inputs is used to configure filters
+// in the Web UI or tctl. Field name matches with the
+// include and exclude fields of PluginSyncFilter proto.
+type Inputs struct {
+	ID               []string `json:"id"`
+	NameRegex        []string `json:"nameRegex"`
+	ExcludeID        []string `json:"excludeId"`
+	ExcludeNameRegex []string `json:"excludeNameRegex"`
+}
+
+// NewFromInputs returns a new [Filters] from [Inputs].
+func NewFromInputs(in Inputs) (Filters, error) {
+	cap := len(in.ID) + len(in.NameRegex) + len(in.ExcludeID) + len(in.ExcludeNameRegex)
+	protoFilters := make([]*types.PluginSyncFilter, 0, cap)
+
+	for _, id := range in.ID {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_Id{Id: id},
+		})
+	}
+	for _, n := range in.NameRegex {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_NameRegex{NameRegex: n},
+		})
+	}
+	for _, id := range in.ExcludeID {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: id},
+		})
+	}
+	for _, n := range in.ExcludeNameRegex {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: n},
+		})
+	}
+
+	filters, err := New(protoFilters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filters, nil
+}
