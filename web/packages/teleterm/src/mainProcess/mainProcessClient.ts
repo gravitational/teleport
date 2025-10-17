@@ -189,9 +189,6 @@ export default function createMainProcessClient(): MainProcessClient {
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
-    refreshClusterList() {
-      ipcRenderer.send(MainProcessIpc.RefreshClusterList);
-    },
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
@@ -263,6 +260,28 @@ export default function createMainProcessClient(): MainProcessClient {
             ipcListener
           ),
       };
+    },
+    subscribeToClusterStore: listener => {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.InitClusterStoreSubscription,
+        listener
+      );
+
+      return {
+        cleanup: close,
+      };
+    },
+    addCluster: async (proxyAddress: string) => {
+      return await ipcRenderer.invoke(MainProcessIpc.AddCluster, proxyAddress);
+    },
+    syncRootClusters: async options => {
+      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters, options);
+    },
+    syncCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
+    },
+    logoutCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
     },
   };
 }

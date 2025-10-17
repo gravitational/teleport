@@ -70,6 +70,7 @@ test.each(tests)(
     const user = userEvent.setup();
     const ctx = new MockAppContext();
     const rootCluster = makeRootCluster();
+    ctx.addRootCluster(rootCluster, { noActivate: true });
     ctx.configService.set('usageReporting.enabled', false);
 
     jest.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
@@ -81,11 +82,6 @@ test.each(tests)(
             requiresRequest: false,
           },
         ],
-      })
-    );
-    jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
-      new MockedUnaryCall({
-        clusters: [rootCluster],
       })
     );
     jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
@@ -164,6 +160,7 @@ test.each(tests)(
     const user = userEvent.setup();
     const ctx = new MockAppContext();
     const rootCluster = makeRootCluster();
+    ctx.addRootCluster(rootCluster, { noActivate: true });
     ctx.configService.set('usageReporting.enabled', false);
     ctx.statePersistenceService.putState({
       ...ctx.statePersistenceService.getState(),
@@ -179,11 +176,6 @@ test.each(tests)(
             requiresRequest: false,
           },
         ],
-      })
-    );
-    jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
-      new MockedUnaryCall({
-        clusters: [rootCluster],
       })
     );
     jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
@@ -242,13 +234,9 @@ test('launching VNet for the first time from the connections panel does not open
   const user = userEvent.setup();
   const ctx = new MockAppContext();
   const rootCluster = makeRootCluster();
+  ctx.addRootCluster(rootCluster, { noActivate: true });
   ctx.configService.set('usageReporting.enabled', false);
 
-  jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
-    new MockedUnaryCall({
-      clusters: [rootCluster],
-    })
-  );
   jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
     new MockedUnaryCall({
       appDnsZones: [proxyHostname(rootCluster.proxyHost)],
