@@ -1375,7 +1375,6 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
