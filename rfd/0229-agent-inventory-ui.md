@@ -54,12 +54,12 @@ The response will be a JSON object containing the page of agents requested.
       "agent": {
         "name": "server1",
         "version": "16.1.3",
-        "services": ["ssh", "db", "desktop"]
-      },
-      "upgrader": {
-        "type": "unit",
-        "version": "v2",
-        "group": "group1"
+        "services": ["ssh", "db", "desktop"],
+        "upgrader": {
+          "type": "unit",
+          "version": "v2",
+          "group": "group1"
+        }
       }
     },
     {
@@ -210,6 +210,8 @@ instances cache and bot instances cache (which is already implemented). To achie
 to iterate through both caches simultaneously and use a compare function that compares the names of the instances to ensure that
 the returned page is based on alphabetical order. The `next_key` will consist of the next keys in each cache separated by a comma,
 eg. `"server3,bot2"`, similar to the existing implementation for dual notifications streaming.
+
+The `tctl inventory` commands will remain unchanged, however it will be updated under the hood to utilize the new cache.
 
 Any requests made for instances will be rejected until the `InstancesCache` is initialized and healthy.
 
