@@ -551,7 +551,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "destination": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
@@ -2422,6 +2422,11 @@
     {
       "source": "/identity-security/crown-jewels/",
       "destination": "/identity-security/usage/crown-jewels/",
+      "permanent": true
+    },
+    {
+      "source": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     }
   ]

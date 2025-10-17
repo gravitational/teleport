@@ -1,27 +1,21 @@
 ---
-title: Run a Self-Hosted Demo Cluster 
-description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
-videoBanner: O0YOPpWsn8M
+title: "Step 1 - Deploy Teleport Community Edition"
+description: "Deploy a self-hosted Teleport Community Edition cluster using the Linux demo."
 tocDepth: 3
 tags:
- - get-started
- - platform-wide
+  - get-started
+  - platform-wide
 ---
 
-See how a self-hosted Teleport deployment works by completing the tutorial
-below. This shows you how to spin up a single-instance Teleport cluster on a
-Linux server (or a Linux container running locally) using Teleport Community
-Edition. Once you deploy the cluster, you can configure RBAC, register
-resources, and protect your small-scale demo environments or home lab.
+import Button from '@site/src/components/Button';
 
-You can also get started right away with a production-ready Teleport cluster by
-signing up for a [free trial of Teleport Enterprise
-Cloud](https://goteleport.com/signup/).
+This guide will walk you through deploying Teleport Community Edition. 
+
+You'll spin up a single-instance Teleport cluster on a Linux server, ideal for small-scale demos or home lab environments. Once deployed, you can move ahead in the guide to connecting your infrastructure, setting up role-based access control (RBAC), and auditing your access.
 
 ## How it works
 
-In this guide, we show you how to run the following Teleport services on a
-single Linux server:
+The Teleport cluster consists of two services:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
   issues certificates and conducts authentication challenges. The Auth Service
@@ -29,25 +23,24 @@ single Linux server:
 - **Teleport Proxy Service:** The cluster frontend, which handles user requests,
   forwards user credentials to the Auth Service, and communicates with Teleport
   instances that enable access to specific resources in your infrastructure.
-- **Teleport SSH Service:** An SSH server implementation that takes advantage of
-  Teleport's short-lived certificates, sophisticated RBAC, session recording,
-  and other features.
 
 ![Architecture of the setup you will complete in this
-guide](../img/linux-server-diagram.png)
+guide](../../img/linux-server-diagram.png)
+
+You can read more about the architecture of Teleport in the [Core Concepts](../core-concepts.mdx) page.
 
 ## Prerequisites
 
 You will need the following to deploy a demo Teleport cluster. If your
 environment doesn't meet the prerequisites, you can get started with Teleport by
 signing up for a [free trial of Teleport Enterprise
-Cloud](https://goteleport.com/signup/).
+Cloud](https://goteleport.com/signup/) and jumping ahead to [Step 2: Connect infrastructure](./connect.mdx).
 
-If you want to get a feel for Teleport commands and capabilities without setting
+Also, if you want to get a feel for Teleport commands and capabilities without setting
 up any infrastructure, take a look at the browser-based [Teleport
 Labs](https://goteleport.com/labs).
 
-You can follow this guide with either a remote virtual machine (e.g., an Amazon
+As for this guide, you can work through it with either a remote virtual machine (e.g., an Amazon
 EC2 instance) or a local Docker container. Make sure you have met the following
 requirements for your platform:
 
@@ -264,7 +257,7 @@ internet, a local container, or a private network:
 
    You should see a welcome screen similar to the following:
 
-   ![Teleport Welcome Screen](../img/quickstart/welcome.png)
+   ![Teleport Welcome Screen](../../img/quickstart/welcome.png)
 
 ## Step 3/4. Create a Teleport user and set up multi-factor authentication
 
@@ -310,7 +303,7 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
      will get authentication errors later in this tutorial.
    
      If a user does not already exist, you can create it with `adduser <login>` or
-     use [host user creation](enroll-resources/server-access/guides/host-user-creation.mdx).
+     use [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
    
      If you do not have the permission to create new users on the Linux host, run
      `tctl users update teleport-admin --logins=root,ubuntu,ec2-user,$(whoami)` to explicitly allow Teleport to
@@ -351,27 +344,23 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 
 </details>
 
-## Step 4/4. Enroll your infrastructure
+## Step 4/4. Access your server with Teleport
 
-Once you finish setting up your user, you will see your SSH server in the
-Teleport Web UI:
+Now that you have Teleport running and a user configured, you can access your Linux server through the Teleport Web UI (it will be automatically enrolled since Teleport is running on it).
 
-![Teleport Web UI showing an SSH server](../img/new-ssh-server.png)
+![Teleport Web UI showing an SSH server](../../img/new-ssh-server.png)
 
-With Teleport, you can protect all of the resources in your infrastructure
-behind a single identity-aware access proxy, including servers, databases,
-applications, Kubernetes clusters, Windows desktops, and cloud provider APIs.
+Click on `Connect` to access it via the web-based terminal, or use Teleport's [`tsh` CLI tool](../connect-your-client/tsh.mdx) to SSH into it:
 
-To enroll a resource with Teleport, visit the Web UI and click **Enroll New
-Resource**. The Web UI will show you the steps you can take to enroll your new
-resource.
+```code
+$ tsh ssh root@<server-name>
+```
 
 ## Next step: deploy Teleport Agents
 
-Teleport **Agents** proxy traffic to infrastructure resources like servers,
-databases, Kubernetes clusters, cloud provider APIs, and Windows desktops. 
+At this point, you've launched your own Teleport Community Edition cluster and created a user. You can now move on to the next step of connecting your infrastructure.
 
-Step 4 showed you how to install agents manually, and you can also launch agents
-and enroll resources with them using infrastructure-as-code tools. For example,
-you can use Terraform to declare a pool of Teleport Agents and configure them to
-proxy your infrastructure. Read [Protect Infrastructure with Teleport](enroll-resources/agents/agents.mdx) to get started.
+<div style={{ marginTop: 'var(--m-4)' }}>
+<Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Connect infrastructure <Icon name="arrowRight" inline size="sm"/> </Button>
+</div>
+
