@@ -122,11 +122,6 @@ const TitleContainer = styled(Flex)`
   gap: ${p => p.theme.space[2]}px;
 `;
 
-export const TitleText = styled(Text).attrs({
-  as: 'h2',
-  typography: 'h2',
-})``;
-
 const Divider = styled.div`
   height: 1px;
   flex-shrink: 0;
