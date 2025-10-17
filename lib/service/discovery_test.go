@@ -27,11 +27,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestTeleportProcessIntegrationsOnly(t *testing.T) {
@@ -164,6 +166,81 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			require.Equal(t, tt.want, accessGraphCfg)
 		})
 	}
+}
+func TestProcessPublicProxyAddr(t *testing.T) {
+	proxyServerWithPublicAddr := func(addr string) *types.ServerV2 {
+		return &types.ServerV2{
+			Spec: types.ServerSpecV2{
+				PublicAddrs: []string{addr},
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		config      *servicecfg.Config
+		proxyGetter proxiesGetter
+		wantAddr    string
+		errCheck    require.ErrorAssertionFunc
+	}{
+		{
+			name: "proxy server was set in config",
+			config: &servicecfg.Config{
+				ProxyServer: utils.NetAddr{Addr: "proxy.example.com:3080"},
+			},
+			wantAddr: "proxy.example.com:3080",
+			errCheck: require.NoError,
+		},
+		{
+			name: "proxy is running alongside discovery service",
+			config: &servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					PublicAddrs: []utils.NetAddr{
+						{Addr: "public.proxy.com:443"},
+					},
+				},
+			},
+			wantAddr: "public.proxy.com:443",
+			errCheck: require.NoError,
+		},
+		{
+			name:   "discovery service is running alongside auth, (no proxy server defined and no proxy service enabled)",
+			config: &servicecfg.Config{},
+			proxyGetter: &mockProxyGetter{
+				servers: []types.Server{proxyServerWithPublicAddr("proxy.example:8080")},
+			},
+			wantAddr: "proxy.example:8080",
+			errCheck: require.NoError,
+		},
+		{
+			name:   "no proxy available",
+			config: &servicecfg.Config{},
+			proxyGetter: &mockProxyGetter{
+				servers: []types.Server{},
+			},
+			errCheck: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			process := &TeleportProcess{
+				Config: tt.config,
+			}
+			addr, err := process.publicProxyAddr(tt.proxyGetter)
+			tt.errCheck(t, err)
+			require.Equal(t, tt.wantAddr, addr)
+		})
+	}
+}
+
+type mockProxyGetter struct {
+	servers []types.Server
+}
+
+func (f *mockProxyGetter) GetProxies() ([]types.Server, error) {
+	return f.servers, nil
 }
 
 type fakeClient struct {

@@ -41,6 +41,10 @@ const (
 	// that will be called when executing the SSM command.
 	AWSInstallerDocument = "TeleportDiscoveryInstaller"
 
+	// AWSSSMDocumentRunShellScript is the `AWS-RunShellScript` SSM Document name.
+	// It is available in all AWS accounts and does not need to be manually created.
+	AWSSSMDocumentRunShellScript = "AWS-RunShellScript"
+
 	// AWSAgentlessInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command .
 	AWSAgentlessInstallerDocument = "TeleportAgentlessDiscoveryInstaller"
