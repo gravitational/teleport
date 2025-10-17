@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/integration/autoupdate/tools/updater/tsh"
 	"github.com/gravitational/teleport/integration/helpers/archive"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,6 +64,11 @@ var (
 
 	toolsDir string
 	baseURL  string
+
+	// tshPath is the path to initial tsh binary version 1.0.0.
+	tshPath string
+	// tctlPath is the path to initial tctl binary version 1.0.0.
+	tctlPath string
 )
 
 func TestMain(m *testing.M) {
@@ -110,6 +116,24 @@ func TestMain(m *testing.M) {
 	baseURL = server.URL
 	if err := os.Setenv(autoupdate.BaseURLEnvVar, server.URL); err != nil {
 		log.Fatalf("failed to set base URL environment variable: %v", err)
+	}
+
+	// Initial fetch the updater binary un-archive and replace.
+	updater := tools.NewUpdater(
+		toolsDir,
+		testVersions[0],
+		tools.WithBaseURL(baseURL),
+	)
+	if err := updater.Update(ctx, testVersions[0]); err != nil {
+		log.Fatalf("failed to update: %v", err)
+	}
+	tshPath, err = updater.ToolPath(tools.DefaultClientTools()[0], testVersions[0])
+	if err != nil {
+		log.Fatalf("failed to get tsh path: %v", err)
+	}
+	tctlPath, err = updater.ToolPath(tools.DefaultClientTools()[1], testVersions[0])
+	if err != nil {
+		log.Fatalf("failed to get tctl path: %v", err)
 	}
 
 	// Run tests after binary is built.
