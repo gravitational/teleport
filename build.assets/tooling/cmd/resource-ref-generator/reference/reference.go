@@ -112,7 +112,7 @@ func Generate(conf GeneratorConfig) error {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	errs := GenerationError{messages: []error{}}
+	var errs GenerationError
 	for _, r := range conf.Resources {
 		k := resource.PackageInfo{
 			DeclName:    r.TypeName,
@@ -151,6 +151,7 @@ func Generate(conf GeneratorConfig) error {
 			errs.messages = append(errs.messages, fmt.Errorf("cannot create page at %v: %w", docpath, err))
 			continue
 		}
+		defer doc.Close()
 
 		if err := tmpl.Execute(doc, pc); err != nil {
 			errs.messages = append(errs.messages, fmt.Errorf("cannot populate the resource reference template: %w", err))
