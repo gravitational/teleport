@@ -158,7 +158,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 // TryRun attempts to run subcommands.
 func (c *BotsCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error) {
 	// If the `cmd` wont match a supported command, then exit before
-	// initialising the auth client
+	// initializing the auth client
 	if !c.match(cmd) {
 		return false, nil
 	}
