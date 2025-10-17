@@ -33,6 +33,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/gravitational/teleport/api/utils"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
@@ -47,7 +48,7 @@ const (
 type mockedEKSClient struct {
 	clusters                 []*ekstypes.Cluster
 	accessEntries            []*ekstypes.AccessEntry
-	associatedAccessPolicies []ekstypes.AssociatedAccessPolicy
+	associatedAccessPolicies map[string][]ekstypes.AssociatedAccessPolicy
 }
 
 func (m *mockedEKSClient) DescribeCluster(ctx context.Context, input *eks.DescribeClusterInput, optFns ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
@@ -74,7 +75,9 @@ func (m *mockedEKSClient) ListClusters(ctx context.Context, input *eks.ListClust
 func (m *mockedEKSClient) ListAccessEntries(ctx context.Context, input *eks.ListAccessEntriesInput, optFns ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error) {
 	accessEntries := make([]string, 0, len(m.accessEntries))
 	for _, accessEntry := range m.accessEntries {
-		accessEntries = append(accessEntries, aws.ToString(accessEntry.AccessEntryArn))
+		if *input.ClusterName == *accessEntry.ClusterName {
+			accessEntries = append(accessEntries, aws.ToString(accessEntry.AccessEntryArn))
+		}
 	}
 	return &eks.ListAccessEntriesOutput{
 		AccessEntries: accessEntries,
@@ -83,7 +86,7 @@ func (m *mockedEKSClient) ListAccessEntries(ctx context.Context, input *eks.List
 
 func (m *mockedEKSClient) ListAssociatedAccessPolicies(ctx context.Context, input *eks.ListAssociatedAccessPoliciesInput, optFns ...func(*eks.Options)) (*eks.ListAssociatedAccessPoliciesOutput, error) {
 	return &eks.ListAssociatedAccessPoliciesOutput{
-		AssociatedAccessPolicies: m.associatedAccessPolicies,
+		AssociatedAccessPolicies: m.associatedAccessPolicies[*input.ClusterName],
 	}, nil
 }
 
@@ -110,7 +113,7 @@ func TestPollAWSEKSClusters(t *testing.T) {
 		accountID = "12345678"
 	)
 	regions := []string{"eu-west-1"}
-	cluster := &accessgraphv1alpha.AWSEKSClusterV1{
+	cluster1 := &accessgraphv1alpha.AWSEKSClusterV1{
 		Name:      "cluster1",
 		Arn:       "arn:us-west1:eks:cluster1",
 		CreatedAt: timestamppb.New(date),
@@ -128,6 +131,24 @@ func TestPollAWSEKSClusters(t *testing.T) {
 		Region:    "eu-west-1",
 		AccountId: "12345678",
 	}
+	cluster2 := &accessgraphv1alpha.AWSEKSClusterV1{
+		Name:      "cluster2",
+		Arn:       "arn:us-west1:eks:cluster2",
+		CreatedAt: timestamppb.New(date),
+		Status:    "ACTIVE",
+		Tags: []*accessgraphv1alpha.AWSTag{
+			{
+				Key:   "tag1",
+				Value: wrapperspb.String("hello"),
+			},
+			{
+				Key:   "tag2",
+				Value: wrapperspb.String("val2"),
+			},
+		},
+		Region:    "eu-west-1",
+		AccountId: "12345678",
+	}
 	tests := []struct {
 		name string
 		want *Resources
@@ -136,11 +157,14 @@ func TestPollAWSEKSClusters(t *testing.T) {
 			name: "poll eks clusters",
 			want: &Resources{
 				EKSClusters: []*accessgraphv1alpha.AWSEKSClusterV1{
-					cluster,
+					cluster1, cluster2,
+				},
+				EKSAuditLogClusters: []*accessgraphv1alpha.AWSEKSClusterV1{
+					cluster2,
 				},
 				AccessEntries: []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1{
 					{
-						Cluster:          cluster,
+						Cluster:          cluster1,
 						AccessEntryArn:   "arn:iam:access_entry",
 						CreatedAt:        timestamppb.New(date),
 						KubernetesGroups: []string{"teleport"},
@@ -159,7 +183,7 @@ func TestPollAWSEKSClusters(t *testing.T) {
 				},
 				AssociatedAccessPolicies: []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1{
 					{
-						Cluster:      cluster,
+						Cluster:      cluster1,
 						PrincipalArn: principalARN,
 						Scope: &accessgraphv1alpha.AWSEKSAccessScopeV1{
 							Type:       string(ekstypes.AccessScopeTypeCluster),
@@ -202,6 +226,12 @@ func TestPollAWSEKSClusters(t *testing.T) {
 					Regions:      regions,
 					Integration:  accountID,
 					GetEKSClient: getEKSClient,
+					EKSAuditLogs: &EKSAuditLogs{
+						Tags: map[string]utils.Strings{
+							"tag1": utils.Strings{"hello", "world"},
+							"tag2": utils.Strings{"val*"},
+						},
+					},
 				},
 				lastResult: &Resources{},
 			}
@@ -236,6 +266,16 @@ func eksClusters() []*ekstypes.Cluster {
 				"tag2": "val2",
 			},
 		},
+		{
+			Name:      aws.String("cluster2"),
+			Arn:       aws.String("arn:us-west1:eks:cluster2"),
+			CreatedAt: aws.Time(date),
+			Status:    ekstypes.ClusterStatusActive,
+			Tags: map[string]string{
+				"tag1": "hello",
+				"tag2": "val2",
+			},
+		},
 	}
 }
 
@@ -257,16 +297,18 @@ func accessEntries() []*ekstypes.AccessEntry {
 	}
 }
 
-func associatedPolicies() []ekstypes.AssociatedAccessPolicy {
-	return []ekstypes.AssociatedAccessPolicy{
-		{
-			AccessScope: &ekstypes.AccessScope{
-				Namespaces: []string{"ns1"},
-				Type:       ekstypes.AccessScopeTypeCluster,
+func associatedPolicies() map[string][]ekstypes.AssociatedAccessPolicy {
+	return map[string][]ekstypes.AssociatedAccessPolicy{
+		"cluster1": {
+			{
+				AccessScope: &ekstypes.AccessScope{
+					Namespaces: []string{"ns1"},
+					Type:       ekstypes.AccessScopeTypeCluster,
+				},
+				ModifiedAt:   aws.Time(date),
+				AssociatedAt: aws.Time(date),
+				PolicyArn:    aws.String("policy_arn"),
 			},
-			ModifiedAt:   aws.Time(date),
-			AssociatedAt: aws.Time(date),
-			PolicyArn:    aws.String("policy_arn"),
 		},
 	}
 }
