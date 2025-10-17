@@ -515,14 +515,8 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if app.IsMCP() {
-		// TODO(greedy52) refactor and implement "tsh proxy mcp".
-		switch types.GetMCPServerTransportType(app.GetURI()) {
-		case types.MCPTransportHTTP:
-			// continue
-		default:
-			return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
-		}
+	if err := checkProxyMCPCompatibility(cf.command, app); err != nil {
+		return trace.Wrap(err)
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
@@ -552,6 +546,26 @@ func onProxyCommandApp(cf *CLIConf) error {
 	// Proxy connections until the client terminates the command.
 	<-cf.Context.Done()
 	return nil
+}
+
+func checkProxyMCPCompatibility(command string, app types.Application) error {
+	if !app.IsMCP() {
+		switch command {
+		case "proxy mcp":
+			return trace.BadParameter("%q is not an MCP application", app.GetName())
+		default:
+			// tsh proxy app
+			return nil
+		}
+	}
+
+	mcpTransport := types.GetMCPServerTransportType(app.GetURI())
+	switch mcpTransport {
+	case types.MCPTransportHTTP:
+		return nil
+	default:
+		return trace.BadParameter("MCP applications with %s transport are not supported. Please see 'tsh mcp config --help' for more details.", mcpTransport)
+	}
 }
 
 // onProxyCommandAWS creates local proxes for AWS apps.
