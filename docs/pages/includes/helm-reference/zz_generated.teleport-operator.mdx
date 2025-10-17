@@ -218,6 +218,22 @@ is false and the operator must use an existing `ServiceAccount`.
 This value can be set to `false` when deploying in constrained environments
 where the user deploying the operator is not allowed to edit RBAC resources.
 
+## `extraEnv`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraEnv` contains extra environment to be configured on the pod.
+
+## `extraArgs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraArgs` contains extra arguments to pass to the operator
+
 ## `imagePullPolicy`
 
 | Type | Default |

@@ -129,6 +129,12 @@ rbac:
   # where the user deploying the operator is not allowed to edit RBAC resources.
   create: true
 
+# extraEnv(list) -- contains extra environment to be configured on the pod.
+extraEnv: []
+
+# extraArgs(list) -- contains extra arguments to pass to the operator
+extraArgs: []
+
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 # for more details.
