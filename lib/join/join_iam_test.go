@@ -29,14 +29,19 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -698,5 +703,43 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 			AuthClient:                         nopClient,
 		})
 		tc.assertError(t, err)
+
+		// If the challenge-response is expected to fail, assert that a join
+		// failure event was emitted with an error message about the client
+		// giving up on the join attempt.
+		if tc.challengeResponseErr == nil {
+			return
+		}
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := lastEvent(ctx, tc.authServer.Auth(), tc.authServer.Auth().GetClock(), "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error: fmt.Sprintf(
+							"receiving challenge solution\n\tclient gave up on join attempt: challenge solution failed: creating signed sts:GetCallerIdentity request %s",
+							tc.challengeResponseErr,
+						),
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Role:      "Instance",
+					Method:    "iam",
+					NodeName:  "test-node",
+					TokenName: "test-token",
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID" || key == "TokenExpires"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond)
 	})
 }
