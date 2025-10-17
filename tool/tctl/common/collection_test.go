@@ -195,7 +195,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 			rdsDiscoveredNameLabel),
 	}
 	test := writeTextTest{
-		collection: &databaseCollection{databases: databases},
+		collection: resources.NewDatabaseCollection(databases),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Name", "Protocol", "URI", "Labels"},
