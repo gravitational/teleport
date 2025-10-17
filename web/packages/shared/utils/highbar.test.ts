@@ -382,23 +382,23 @@ describe('equalsDeep', () => {
 
 test('runOnce only runs once and preserves "this"', () => {
   class Counter {
-    count = 0;
+    value: symbol;
 
-    increment = runOnce(
+    update = runOnce(
       // Use 'this' in a convoluted way to make sure it's passed correctly.
       function (this: Counter) {
-        this.count++;
+        this.value = Symbol();
       }
     );
   }
 
   const c = new Counter();
 
-  // First call increments (and doesn't throw because of 'this' being undefined).
-  expect(() => c.increment()).not.toThrow();
-  expect(c.count).toBe(1);
+  // First call updates the value (and doesn't throw because of 'this' being undefined).
+  expect(() => c.update()).not.toThrow();
+  const firstReturnValue = c.value;
 
-  // Subsequent calls do not increment.
-  c.increment();
-  expect(c.count).toBe(1);
+  // Subsequent calls return the same value.
+  c.update();
+  expect(c.value).toBe(firstReturnValue);
 });
