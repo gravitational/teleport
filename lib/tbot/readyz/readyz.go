@@ -18,7 +18,10 @@
 
 package readyz
 
-import "sync"
+import (
+	"os"
+	"sync"
+)
 
 // NewRegistry returns a Registry to track the health of tbot's services.
 func NewRegistry() *Registry {
@@ -83,6 +86,7 @@ func (r *Registry) OverallStatus() *OverallStatus {
 
 	return &OverallStatus{
 		Status:   status,
+		PID:      os.Getpid(),
 		Services: services,
 	}
 }
@@ -107,6 +111,9 @@ type OverallStatus struct {
 	// Status of tbot overall. If any service isn't Healthy, the overall status
 	// will be Unhealthy.
 	Status Status `json:"status"`
+
+	// PID is the process PID.
+	PID int `json:"pid"`
 
 	// Services contains the service-specific statuses.
 	Services map[string]*ServiceStatus `json:"services"`

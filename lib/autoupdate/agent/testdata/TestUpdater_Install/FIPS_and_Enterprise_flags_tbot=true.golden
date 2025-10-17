@@ -5,10 +5,8 @@ spec:
     path: /usr/local/bin
     enabled: false
     pinned: false
-    selinux_ssh: true
 status:
     id_file: updater-id-file
     active:
         version: 16.3.0
-    backup:
-        version: old-version
+        flags: [Enterprise, FIPS]
