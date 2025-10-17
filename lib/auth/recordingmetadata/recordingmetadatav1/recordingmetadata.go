@@ -97,7 +97,7 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
-func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID) error {
+func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -106,8 +106,9 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	var startTime time.Time
 	var lastEvent apievents.AuditEvent
 	var lastActivityTime time.Time
+	var lastThumbnailTime time.Time
+	var thumbnailCount int
 
-	thumbnailInterval := 1 * time.Second
 	activeUsers := make(map[string]time.Duration)
 
 	vt := vt10x.New()
@@ -127,18 +128,52 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		})
 	}
 
-	sampler := newThumbnailBucketSampler(maxThumbnails, thumbnailInterval)
+	// an upload will be cancelled if there is an error during processing, so we don't
+	// leave incomplete files behind
+	w, cancelUpload, uploadErrs := s.startUpload(ctx, sessionID)
+	shouldCancelUpload := true
+
+	defer func() {
+		if shouldCancelUpload {
+			cancelUpload()
+			w.Close()
+		}
+	}()
+
+	interval := calculateThumbnailInterval(duration, maxThumbnails)
+	thumbnailIndex := getRandomThumbnailIndex(interval, duration)
 
 	recordThumbnail := func(start time.Time) {
 		cols, rows := vt.Size()
+		cursor := vt.Cursor()
 
-		sampler.add(&thumbnailState{
-			svg:           terminal.VtToSvg(vt),
-			cols:          cols,
-			rows:          rows,
-			cursorVisible: vt.CursorVisible(),
-			cursor:        vt.Cursor(),
-		}, start)
+		startOffset := start.Sub(startTime)
+		endOffset := start.Add(interval).Add(-1 * time.Millisecond).Sub(startTime)
+
+		thumbnail := &pb.SessionRecordingThumbnail{
+			Svg:           terminal.VtToSvg(vt),
+			Cols:          int32(cols),
+			Rows:          int32(rows),
+			CursorX:       int32(cursor.X),
+			CursorY:       int32(cursor.Y),
+			CursorVisible: vt.CursorVisible(),
+			StartOffset:   durationpb.New(startOffset),
+			EndOffset:     durationpb.New(endOffset),
+		}
+
+		if _, err := protodelim.MarshalTo(w, thumbnail); err != nil {
+			s.logger.WarnContext(ctx, "Failed to marshal thumbnail entry",
+				"session_id", sessionID, "error", err)
+		}
+
+		if thumbnailCount == thumbnailIndex {
+			if err := s.uploadThumbnail(ctx, sessionID, thumbnail); err != nil {
+				s.logger.WarnContext(ctx, "Failed to upload thumbnail",
+					"session_id", sessionID, "error", err)
+			}
+		}
+
+		thumbnailCount++
 	}
 
 	var hasSeenPrintEvent bool
@@ -189,7 +224,8 @@ loop:
 					addInactivityEvent(lastActivityTime, e.Time)
 				}
 
-				if sampler.shouldCapture(e.Time) {
+				if e.Time.Sub(lastThumbnailTime) >= interval {
+					lastThumbnailTime = e.Time
 					recordThumbnail(e.Time)
 				}
 
@@ -225,7 +261,8 @@ loop:
 					return trace.Errorf("writing data to terminal: %w", err)
 				}
 
-				if sampler.shouldCapture(e.Time) {
+				if e.Time.Sub(lastThumbnailTime) >= interval {
+					lastThumbnailTime = e.Time
 					recordThumbnail(e.Time)
 				}
 
@@ -260,6 +297,9 @@ loop:
 				vt.Resize(size.W, size.H)
 			}
 
+		case err := <-uploadErrs:
+			return trace.Wrap(err)
+
 		case err := <-errors:
 			if err != nil {
 				return trace.Wrap(err)
@@ -291,87 +331,100 @@ loop:
 	metadata.StartTime = timestamppb.New(startTime)
 	metadata.EndTime = timestamppb.New(lastEvent.GetTime())
 
-	thumbnails := sampler.result()
-
-	return s.upload(ctx, sessionID, metadata, thumbnails)
-}
-
-func (s *RecordingMetadataService) upload(ctx context.Context, sessionID session.ID, metadata *pb.SessionRecordingMetadata, thumbnails []*thumbnailEntry) error {
-	metadataBuf := &bytes.Buffer{}
-
-	if _, err := protodelim.MarshalTo(metadataBuf, metadata); err != nil {
+	if _, err := protodelim.MarshalTo(w, metadata); err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, t := range thumbnails {
-		if _, err := protodelim.MarshalTo(metadataBuf, thumbnailEntryToProto(t)); err != nil {
-			s.logger.WarnContext(ctx, "Failed to marshal thumbnail entry",
-				"session_id", sessionID, "error", err)
+	shouldCancelUpload = false
 
-			continue
-		}
-	}
-
-	path, err := s.uploadHandler.UploadMetadata(ctx, sessionID, metadataBuf)
-	if err != nil {
+	if err := w.Close(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.logger.DebugContext(ctx, "Uploaded session recording metadata", "path", path)
-
-	thumbnail := getRandomThumbnail(thumbnails)
-	if thumbnail != nil {
-		b, err := proto.Marshal(thumbnailEntryToProto(thumbnail))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		path, err := s.uploadHandler.UploadThumbnail(ctx, sessionID, bytes.NewReader(b))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		s.logger.DebugContext(ctx, "Uploaded session recording thumbnail", "path", path)
+	if err := <-uploadErrs; err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func thumbnailEntryToProto(t *thumbnailEntry) *pb.SessionRecordingThumbnail {
-	return &pb.SessionRecordingThumbnail{
-		Svg:           t.state.svg,
-		Cols:          int32(t.state.cols),
-		Rows:          int32(t.state.rows),
-		CursorX:       int32(t.state.cursor.X),
-		CursorY:       int32(t.state.cursor.Y),
-		CursorVisible: t.state.cursorVisible,
-		StartOffset:   durationpb.New(t.startOffset),
-		EndOffset:     durationpb.New(t.endOffset),
-	}
+func (s *RecordingMetadataService) startUpload(ctx context.Context, sessionID session.ID) (io.WriteCloser, context.CancelFunc, <-chan error) {
+	uploadCtx, cancel := context.WithCancel(ctx)
+	r, w := io.Pipe()
+	errs := make(chan error, 1)
+
+	go func() {
+		defer r.Close()
+
+		path, err := s.uploadHandler.UploadMetadata(uploadCtx, sessionID, r)
+		if err != nil {
+			errs <- trace.Wrap(err)
+			return
+		}
+
+		s.logger.DebugContext(ctx, "Uploaded session recording metadata", "path", path)
+		errs <- nil
+	}()
+
+	return w, cancel, errs
 }
 
-// getRandomThumbnail selects a random thumbnail from the middle 60% of the provided thumbnails slice.
-// This tries to get a thumbnail that is more representative of the session, avoiding the very start and end.
-func getRandomThumbnail(thumbnails []*thumbnailEntry) *thumbnailEntry {
-	if len(thumbnails) == 0 {
+func (s *RecordingMetadataService) uploadThumbnail(ctx context.Context, sessionID session.ID, thumbnail *pb.SessionRecordingThumbnail) error {
+	if thumbnail == nil {
 		return nil
 	}
 
-	if len(thumbnails) < 5 {
-		randomIndex := rand.IntN(len(thumbnails))
-		return thumbnails[randomIndex]
+	b, err := proto.Marshal(thumbnail)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	startIndex := int(float64(len(thumbnails)) * 0.2) // start at 20%
-	endIndex := int(float64(len(thumbnails)) * 0.8)   // end at 80%
+	path, err := s.uploadHandler.UploadThumbnail(ctx, sessionID, bytes.NewReader(b))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	s.logger.DebugContext(ctx, "Uploaded session recording thumbnail", "path", path)
+
+	return nil
+}
+
+// getRandomThumbnailIndex returns a random index for a thumbnail to be used as a preview.
+// It avoids the first and last 20% of the thumbnails to increase the chances of
+// getting a thumbnail with meaningful content.
+func getRandomThumbnailIndex(interval time.Duration, duration time.Duration) int {
+	numIntervals := int(duration / interval)
+	if numIntervals == 0 {
+		return 0
+	}
+
+	if numIntervals < 5 {
+		return rand.IntN(numIntervals)
+	}
+
+	startIndex := int(float64(numIntervals) * 0.2)
+	endIndex := int(float64(numIntervals) * 0.8)
 	if startIndex >= endIndex {
 		endIndex = startIndex + 1
 	}
 
 	rangeSize := endIndex - startIndex
 	randomOffset := rand.IntN(rangeSize)
-	randomIndex := startIndex + randomOffset
+	return startIndex + randomOffset
+}
 
-	return thumbnails[randomIndex]
+func calculateThumbnailInterval(duration time.Duration, maxThumbnails int) time.Duration {
+	interval := time.Second
+
+	if duration > time.Duration(maxThumbnails)*time.Second {
+		interval = duration / time.Duration(maxThumbnails)
+	}
+
+	interval = interval.Round(time.Second)
+
+	if interval < time.Second {
+		interval = time.Second
+	}
+
+	return interval
 }
