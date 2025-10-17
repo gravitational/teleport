@@ -20,11 +20,17 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"text/template"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 )
+
+const tmplBase = "reference.tmpl"
+
+var tmplPath = filepath.Join("reference", tmplBase)
 
 const configHelp string = `The path to a YAML configuration file (see the README)`
 
@@ -42,8 +48,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Invalid configuration file: %v\n", err)
 		os.Exit(1)
 	}
+	tmpl, err := template.New(tmplBase).ParseFiles(tmplPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Cannot open resource reference template at %v: %v\n", tmplPath, err)
+		os.Exit(1)
+	}
 
-	err = reference.Generate(genconf)
+	err = reference.Generate(genconf, tmpl)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the resource reference: %v\n", err)
 		os.Exit(1)

@@ -28,12 +28,6 @@ import (
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )
 
-var tmpl *template.Template
-
-func init() {
-	tmpl = template.Must(template.New("Main reference").Parse(referenceTemplate))
-}
-
 // pageContent represents a reference page for a single resource and its related
 // fields. Fields must be exported so we can use them in templates.
 type pageContent struct {
@@ -48,11 +42,6 @@ type resourceSection struct {
 	Kind    string
 	resource.ReferenceEntry
 }
-
-// Intended to be executed with a ReferenceContent.
-//
-//go:embed reference.tmpl
-var referenceTemplate string
 
 // TypeInfo represents the name and package name of an exported Go type. It
 // makes no guarantees about whether the type was actually declared within the
@@ -106,7 +95,7 @@ func (g GenerationError) Error() string {
 
 // Generate uses the provided user-facing configuration to write the resource
 // reference to fs.
-func Generate(conf GeneratorConfig) error {
+func Generate(conf GeneratorConfig, tmpl *template.Template) error {
 	sourceData, err := resource.NewSourceData(conf.SourcePath)
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
