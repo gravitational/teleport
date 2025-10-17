@@ -20,6 +20,7 @@ package accesslists
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -313,31 +314,35 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 			},
 		}
 
-		userAllRoles, err := types.NewUser(userName)
+		user, err := types.NewUser(userName)
 		require.NoError(t, err)
-		allRoles := append(
-			append(
-				rootList.Spec.MembershipRequires.Roles,
-				middleList.Spec.MembershipRequires.Roles...,
-			),
-			leafList.Spec.MembershipRequires.Roles...,
+		allRoles := slices.Concat(
+			rootList.Spec.MembershipRequires.Roles,
+			middleList.Spec.MembershipRequires.Roles,
+			leafList.Spec.MembershipRequires.Roles,
 		)
-		userAllRoles.SetRoles(allRoles)
+		user.SetRoles(allRoles)
 
-		typ, err := IsAccessListMember(ctx, userAllRoles, rootList, aclGetter, locks, clock)
+		typ, err := IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
 		require.NoError(t, err)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
 
-		// User missing middle role
-		missingMiddleRoles := append(
-			rootList.Spec.MembershipRequires.Roles,
-			leafList.Spec.MembershipRequires.Roles...,
-		)
-		userMissingMiddle, err := types.NewUser(userName)
+		typ, err = IsAccessListMember(ctx, user, middleList, aclGetter, locks, clock)
 		require.NoError(t, err)
-		userMissingMiddle.SetRoles(missingMiddleRoles)
+		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
 
-		typ, err = IsAccessListMember(ctx, userMissingMiddle, rootList, aclGetter, locks, clock)
+		typ, err = IsAccessListMember(ctx, user, leafList, aclGetter, locks, clock)
+		require.NoError(t, err)
+		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, typ)
+
+		// User missing middle role
+		missingMiddleRoles := slices.Concat(
+			rootList.Spec.MembershipRequires.Roles,
+			leafList.Spec.MembershipRequires.Roles,
+		)
+		user.SetRoles(missingMiddleRoles)
+
+		typ, err = IsAccessListMember(ctx, user, rootList, aclGetter, locks, clock)
 		require.Error(t, err)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
@@ -419,6 +424,14 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+		typ, err = IsAccessListMember(ctx, user, secondList, aclGetter, locks, clock)
+		require.Error(t, err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+		typ, err = IsAccessListMember(ctx, user, thirdList, aclGetter, locks, clock)
+		require.Error(t, err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
 	})
 
 	t.Run("cyclic graph, user membership", func(t *testing.T) {
@@ -454,6 +467,12 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		typ, err := IsAccessListMember(ctx, user, firstList, aclGetter, locks, clock)
 		require.NoError(t, err)
 		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
+		typ, err = IsAccessListMember(ctx, user, secondList, aclGetter, locks, clock)
+		require.NoError(t, err)
+		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, typ)
+		typ, err = IsAccessListMember(ctx, user, thirdList, aclGetter, locks, clock)
+		require.NoError(t, err)
+		require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, typ)
 	})
 }
 
