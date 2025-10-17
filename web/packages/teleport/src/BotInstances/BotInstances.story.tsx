@@ -99,17 +99,7 @@ const listBotInstancesSuccessHandler = listBotInstancesSuccess({
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [
-        listBotInstancesSuccessHandler,
-        getBotInstanceSuccess({
-          bot_instance: {
-            spec: {
-              instance_id: 'a55259e8-9b17-466f-9d37-ab390ca4024e',
-            },
-          },
-          yaml: 'kind: bot_instance\nversion: v1\n',
-        }),
-      ],
+      handlers: [listBotInstancesSuccessHandler, getBotInstanceSuccess()],
     },
   },
 };
