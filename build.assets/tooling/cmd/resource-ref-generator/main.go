@@ -43,6 +43,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Could not open the configuration file %v: %v\n", *conf, err)
 		os.Exit(1)
 	}
+	defer conffile.Close()
+
 	genconf := reference.GeneratorConfig{}
 	if err := yaml.NewDecoder(conffile).Decode(&genconf); err != nil {
 		fmt.Fprintf(os.Stderr, "Invalid configuration file: %v\n", err)
