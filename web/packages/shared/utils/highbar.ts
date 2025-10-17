@@ -133,22 +133,18 @@ export function isObject(checkVal: unknown): checkVal is object {
   return checkVal != null && (type == 'object' || type == 'function');
 }
 
-/**
- * Lodash <https://lodash.com/>
- * Copyright JS Foundation and other contributors <https://js.foundation/>
- * Released under MIT license <https://lodash.com/license>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- */
-export function runOnce<T extends (...args) => any>(func: T) {
-  let n = 2;
-  let result;
-  return function () {
-    if (--n > 0) {
-      // This implementation does not pass strictBindCallApply check.
-      result = func.apply(this, arguments as any);
-    }
-    if (n <= 1) {
+/** Runs the provided function only once. */
+export function runOnce<T extends (...args: any[]) => any>(func: T) {
+  let hasRun = false;
+  let result: ReturnType<T>;
+
+  // 'this' is a special TS parameter that is erased during compilation
+  // https://www.typescriptlang.org/docs/handbook/2/classes.html#this-parameters
+  return function (this: unknown, ...args: Parameters<T>) {
+    if (!hasRun) {
+      hasRun = true;
+      result = func.apply(this, args);
+      // Remove the reference, so it can be garbage-collected.
       func = undefined;
     }
     return result;
@@ -305,7 +301,7 @@ export function debounce<T extends (...args: any) => any>(
     return timerId === undefined ? result : trailingEdge(Date.now());
   }
 
-  function debounced() {
+  function debounced(this: unknown) {
     var time = Date.now(),
       isInvoking = shouldInvoke(time);
 
