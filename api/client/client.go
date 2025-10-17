@@ -81,6 +81,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -152,8 +153,8 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc AuthServiceClient
-	// JoinServiceClient is a client for the JoinService, which runs on both the
-	// auth and proxy.
+	// JoinServiceClient is a client for the legacy JoinService, which
+	// runs on both the auth and proxy.
 	*JoinServiceClient
 	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
@@ -929,6 +930,11 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
 
+// JoinV1Client returns an unadorned gRPC client for the new Join service.
+func (c *Client) JoinV1Client() joinv1.JoinServiceClient {
+	return joinv1.NewJoinServiceClient(c.conn)
+}
+
 // SummarizerServiceClient returns an unadorned client for the session
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
@@ -1564,6 +1570,27 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (c *Client) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSnowflakeSessions(ctx, &proto.ListSnowflakeSessionsRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	sessions := make([]types.WebSession, len(resp.Sessions))
+	for i := range resp.Sessions {
+		sessions[i] = resp.Sessions[i]
+	}
+	return sessions, resp.NextPageToken, nil
+}
+
+// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+func (c *Client) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListSnowflakeSessions, types.WebSession.GetName)
 }
 
 // CreateAppSession creates an application web session. Application web
@@ -3147,6 +3174,23 @@ func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoup
 	return resp, nil
 }
 
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (c *Client) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotInstanceReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.GetAutoUpdateBotInstanceReportRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+func (c *Client) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.DeleteAutoUpdateBotInstanceReportRequest{})
+	return trace.Wrap(err)
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -3468,6 +3512,27 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 		clusters[i] = items.KubernetesClusters[i]
 	}
 	return clusters, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
+	for i := range resp.KubernetesClusters {
+		kubeClusters[i] = resp.KubernetesClusters[i]
+	}
+	return kubeClusters, resp.NextPageToken, nil
+}
+
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListKubernetesClusters, types.KubeCluster.GetName)
 }
 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.

@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/event-handler
 
-go 1.24.7
+go 1.24.9
 
 require (
 	github.com/alecthomas/kong v1.10.0
@@ -33,7 +33,7 @@ require (
 	cloud.google.com/go/longrunning v0.6.7 // indirect
 	cloud.google.com/go/resourcemanager v1.10.6 // indirect
 	connectrpc.com/connect v1.18.1 // indirect
-	dario.cat/mergo v1.0.1 // indirect
+	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/age v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.11.0 // indirect
@@ -187,6 +187,7 @@ require (
 	github.com/google/go-tpm v0.9.4 // indirect
 	github.com/google/go-tpm-tools v0.4.5 // indirect
 	github.com/google/go-tspi v0.3.0 // indirect
+	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -350,7 +351,7 @@ require (
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	google.golang.org/api v0.248.0 // indirect

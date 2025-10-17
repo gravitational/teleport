@@ -53,12 +53,8 @@ func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*col
 				databaseNameIndex: types.Database.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Database, error) {
-			out, err := stream.Collect(upstream.RangeDatabases(ctx, "", ""))
-			// TODO(lokraszewski): DELETE IN v21.0.0
-			if trace.IsNotImplemented(err) {
-				out, err := upstream.GetDatabases(ctx)
-				return out, trace.Wrap(err)
-			}
+			// TODO(lokraszewski): DELETE IN v21.0.0 replace by regular clientutils.Resources
+			out, err := clientutils.CollectWithFallback(ctx, upstream.ListDatabases, upstream.GetDatabases)
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Database {
@@ -140,57 +136,30 @@ func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) (
 
 // RangeDatabases returns database resources within the range [start, end).
 func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	lister := genericLister[types.Database, databaseIndex]{
+		cache:        c,
+		collection:   c.collections.dbs,
+		index:        databaseNameIndex,
+		upstreamList: c.Config.Databases.ListDatabases,
+		nextToken:    types.Database.GetName,
+		// TODO(lokraszewski): DELETE IN v21.0.0
+		fallbackGetter: c.Config.Databases.GetDatabases,
+	}
+
 	return func(yield func(types.Database, error) bool) {
 		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabases")
 		defer span.End()
 
-		rg, err := acquireReadGuard(c, c.collections.dbs)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-		defer rg.Release()
-
-		if rg.ReadCache() {
-			for database := range rg.store.resources(databaseNameIndex, start, end) {
-				if !yield(database.Copy(), nil) {
-					return
-				}
-			}
-			return
-		}
-
-		rg.Release()
-
-		for database, err := range c.Config.Databases.RangeDatabases(ctx, start, end) {
-			if err != nil {
-				// TODO(lokraszewski): DELETE IN v21.0.0
-				if trace.IsNotImplemented(err) {
-					databases, err := c.Config.Databases.GetDatabases(ctx)
-					if err != nil {
-						yield(nil, err)
-						return
-					}
-
-					for _, database := range databases {
-						if !yield(database, nil) {
-							return
-						}
-					}
-
-					return
-				}
-
-				yield(nil, err)
+		for db, err := range lister.RangeWithFallback(ctx, start, end) {
+			if !yield(db, err) {
 				return
 			}
 
-			if !yield(database, nil) {
+			if err != nil {
 				return
 			}
 		}
 	}
-
 }
 
 type databaseServerIndex string

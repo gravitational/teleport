@@ -112,20 +112,14 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			ptv2,
-			initReq.JoinRequest,
-			validatedEK,
-			&workloadidentityv1pb.JoinAttrs{
-				Tpm: validatedEK.JoinAttrs(),
-			},
-		)
+		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, &workloadidentityv1pb.JoinAttrs{
+			Tpm: validatedEK.JoinAttrs(),
+		})
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}
-	certs, err := a.generateCerts(
-		ctx, ptv2, initReq.JoinRequest, validatedEK,
-	)
+	params := makeHostCertsParams(initReq.JoinRequest, validatedEK)
+	certs, err := a.GenerateHostCertsForJoin(ctx, ptv2, params)
 	return certs, trace.Wrap(err, "generating certs for host")
 }
 

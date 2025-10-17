@@ -2,9 +2,10 @@
 title: Encrypted Session Recordings
 description: How to enable encrypted session recordings using your CA key backend.
 tags:
-  - how-to
-  - zero-trust
-  - resiliency
+ - session-recording
+ - how-to
+ - zero-trust
+ - resiliency
 ---
 
 Encrypted session recordings allow Teleport users to enable at-rest encryption
@@ -59,6 +60,11 @@ are the default, but other backends can also be configured:
 - [AWS KMS](../../../../zero-trust-access/deploy-a-cluster/aws-kms.mdx)
 - [Google Cloud KMS](../../../../zero-trust-access/deploy-a-cluster/gcp-kms.mdx)
 - [HSM](../../../../zero-trust-access/deploy-a-cluster/hsm.mdx)
+
+If your cluster is already configured to use any of these backends, you should
+ensure Teleport has permission to use their decryption functions. For example,
+the AWS KMS backend will require adding the `kms:Decrypt` action to Teleport's
+role policy.
 
 It is required that all Teleport Auth Service instances have access to the
 exact same encryption keys in order to ensure all recorded sessions are always

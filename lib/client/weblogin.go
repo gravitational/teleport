@@ -66,6 +66,8 @@ type SSOLoginConsoleReq struct {
 	CertTTL       time.Duration `json:"cert_ttl"`
 	ConnectorID   string        `json:"connector_id"`
 	Compatibility string        `json:"compatibility,omitempty"`
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string `json:"scope,omitempty"`
 	// RouteToCluster is an optional cluster name to route the response
 	// credentials to.
 	RouteToCluster string
@@ -184,37 +186,6 @@ func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateRe
 	return protoResp, trace.Wrap(err)
 }
 
-// CreateSSHCertReq is passed by tsh to authenticate a local user without MFA
-// and receive short-lived certificates.
-type CreateSSHCertReq struct {
-	// User is a teleport username
-	User string `json:"user"`
-	// Password is user's pass
-	Password string `json:"password"`
-	// OTPToken is second factor token
-	OTPToken string `json:"otp_token"`
-	// HeadlessAuthenticationID is a headless authentication resource id.
-	HeadlessAuthenticationID string `json:"headless_id"`
-	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
-	// should be used as the subject of issued certificates, and optional
-	// hardware key attestation statements for each key.
-	UserPublicKeys
-	TTL time.Duration `json:"ttl"`
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string `json:"compatibility,omitempty"`
-	// RouteToCluster is an optional cluster name to route the response
-	// credentials to.
-	RouteToCluster string
-	// KubernetesCluster is an optional k8s cluster name to route the response
-	// credentials to.
-	KubernetesCluster string
-}
-
-// CheckAndSetDefaults checks and sets default values.
-func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
-	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
-}
-
 // HeadlessLoginReq is a headless login request for /webapi/headless/login.
 type HeadlessLoginReq struct {
 	// User is a teleport username
@@ -289,6 +260,8 @@ type AuthenticateSSHUserRequest struct {
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string `json:"scope,omitempty"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
 	// RouteToCluster is an optional cluster name to route the response
@@ -334,6 +307,8 @@ type SSHLogin struct {
 	Insecure bool
 	// Pool is x509 cert pool to use for server certificate verification
 	Pool *x509.CertPool
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
 	// RouteToCluster is an optional cluster name to route the response
@@ -515,41 +490,6 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 	return clt, u, nil
 }
 
-// SSHAgentLogin is used by tsh to fetch local user credentials.
-func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:     login.User,
-		Password: login.Password,
-		OTPToken: login.OTPToken,
-		UserPublicKeys: UserPublicKeys{
-			SSHPubKey:               login.SSHPubKey,
-			TLSPubKey:               login.TLSPubKey,
-			SSHAttestationStatement: login.SSHAttestationStatement,
-			TLSAttestationStatement: login.TLSAttestationStatement,
-		},
-		TTL:               login.TTL,
-		Compatibility:     login.Compatibility,
-		RouteToCluster:    login.RouteToCluster,
-		KubernetesCluster: login.KubernetesCluster,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var out authclient.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &out, nil
-}
-
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
 func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
@@ -569,7 +509,8 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 			SSHAttestationStatement: login.SSHAttestationStatement,
 			TLSAttestationStatement: login.TLSAttestationStatement,
 		},
-		TTL:               login.TTL,
+		TTL: login.TTL,
+		// TODO(fspmarshall/scopes): add scope support to headless login
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
@@ -656,6 +597,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 			},
 			TTL:               login.TTL,
 			Compatibility:     login.Compatibility,
+			Scope:             login.Scope,
 			RouteToCluster:    login.RouteToCluster,
 			KubernetesCluster: login.KubernetesCluster,
 		})
@@ -696,6 +638,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,
+		Scope:             login.Scope,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
 	}
