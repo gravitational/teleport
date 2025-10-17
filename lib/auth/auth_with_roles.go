@@ -3588,6 +3588,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
+		requesterName:                    req.RequesterName,
 		kubernetesCluster:                req.KubernetesCluster,
 		dbService:                        req.RouteToDatabase.ServiceName,
 		dbProtocol:                       req.RouteToDatabase.Protocol,
