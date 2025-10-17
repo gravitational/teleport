@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -235,21 +234,13 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 			proto.CloneOf[*kubewaitingcontainerv1.KubernetesWaitingContainer],
 			map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
 				kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
-					return u.GetMetadata().GetName()
+					spec := u.GetSpec()
+					return kubernetesWaitingContainerCacheKey(spec)
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListKubernetesWaitingContainers))
 			return out, trace.Wrap(err)
-		},
-		headerTransform: func(hdr *types.ResourceHeader) *kubewaitingcontainerv1.KubernetesWaitingContainer {
-			return &kubewaitingcontainerv1.KubernetesWaitingContainer{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
-					Name: hdr.Metadata.Name,
-				},
-			}
 		},
 		watch: w,
 	}, nil
@@ -269,7 +260,7 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 		upstreamList: c.Config.KubeWaitingContainers.ListKubernetesWaitingContainers,
 		nextToken: func(t *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
 			spec := t.GetSpec()
-			return spec.GetUsername() + "/" + spec.GetCluster() + "/" + spec.GetNamespace() + "/" + spec.GetPodName() + "/" + t.GetMetadata().GetName()
+			return kubernetesWaitingContainerCacheKey(spec)
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
@@ -293,7 +284,19 @@ func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewait
 		},
 	}
 
-	name := req.GetUsername() + "/" + req.GetCluster() + "/" + req.GetNamespace() + "/" + req.GetPodName() + "/" + req.GetContainerName()
+	name := kubernetesWaitingContainerCacheKey(req)
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+type kubernetesWaitingContainerCacheKeyFieldGetter interface {
+	GetUsername() string
+	GetCluster() string
+	GetNamespace() string
+	GetPodName() string
+	GetContainerName() string
+}
+
+func kubernetesWaitingContainerCacheKey(c kubernetesWaitingContainerCacheKeyFieldGetter) string {
+	return c.GetUsername() + "/" + c.GetCluster() + "/" + c.GetNamespace() + "/" + c.GetPodName() + "/" + c.GetContainerName()
 }

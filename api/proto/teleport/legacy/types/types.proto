@@ -9130,6 +9130,17 @@ message AccessGraphAWSSyncCloudTrailLogs {
   string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
 }
 
+// AccessGraphAWSSyncEKSAuditLogs defines the settings for ingesting Kubernetes apiserver
+// audit logs from EKS clusters.
+message AccessGraphAWSSyncEKSAuditLogs {
+  // The tags of EKS clusters for which apiserver audit logs should be fetched.
+  wrappers.LabelValues Tags = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -9140,6 +9151,7 @@ message AccessGraphAWSSync {
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
   // Configuration settings for collecting AWS CloudTrail logs via an SQS queue.
   AccessGraphAWSSyncCloudTrailLogs cloud_trail_logs = 5 [(gogoproto.jsontag) = "cloud_trail_logs,omitempty"];
+  AccessGraphAWSSyncEKSAuditLogs eks_audit_logs = 6 [(gogoproto.jsontag) = "eks_audit_logs,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

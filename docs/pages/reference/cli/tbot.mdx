@@ -288,7 +288,9 @@ specific section for details when using a YAML config file or legacy output.
 | `--[no-]oneshot`        | If set, quit after the first renewal. |
 | `--diag-addr`           | If set and the bot is in debug mode, a diagnostics service will listen on specified address. |
 | `--storage`             | A destination URI for tbot's internal storage, e.g. `file:///foo/bar`. See [Destination URIs](#destination-uris) for more info. |
-| `--registration-secret` | An optional joining secret to use on first join with the `bound_keypair` join method. |
+| `--registration-secret` | An optional joining secret to use on first join with the `bound_keypair` join method. This can also be provided via the `TBOT_REGISTRATION_SECRET` environment variable. |
+| `--registration-secret-path` | An optional path to a file containing a joining secret to use on first join with the `bound_keypair` join method. |
+| `--static-key-path`     | An optional path to a file containing a static private key for use with the `bound_keypair` join method. A base64-encoded key can also be provided via the `TBOT_BOUND_KEYPAIR_STATIC_KEY` environment variable. |
 
 ## tbot start legacy
 
@@ -727,9 +729,12 @@ new keypair.
 
 | Flag | Description |
 |------|-------------|
-| `--storage`      | A destination URI to be used for bot internal storage. Required. |
-| `--proxy-server` | A Teleport Proxy Service address. Required. |
-| `--overwrite`    | If set, always generate a new key. If unset, the existing public key will be printed if one already exists in the destination specified by `--storage` |
+| `--storage`         | A destination URI to be used for bot internal storage. Required. |
+| `--proxy-server`    | A Teleport Proxy Service address. Required. |
+| `--overwrite`       | If set, always generate a new key. If unset, the existing public key will be printed if one already exists in the destination specified by `--storage`. |
+| `--static`          | If set, generates a static keypair. For more information, see [the static key guide](../machine-workload-identity/machine-id/bound-keypair/static-keys.mdx). |
+| `--static-key-path` | If set with `--static`, writes the static keypair to a file. |
+| `--format`          | Override the output format, supported values: `text`, `json`. |
 
 ### Examples
 
