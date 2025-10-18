@@ -855,15 +855,15 @@ func NewPresetMCPUserRole() types.Role {
 	return role
 }
 
-// NewPresetHealthCheckConfig returns a preset default health_check_config that
-// enables health checks for all resources.
-func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
+// NewPresetHealthCheckConfigDB returns a preset health_check_config
+// enabling health checks for all databases resources.
+func NewPresetHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
 	return &healthcheckconfigv1.HealthCheckConfig{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:        teleport.PresetDefaultHealthCheckConfigName,
-			Description: "Enables all health checks by default",
+			Name:        teleport.PresetDefaultHealthCheckConfigDBName,
+			Description: "Enables health checks for all databases by default",
 			Namespace:   apidefaults.Namespace,
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.PresetResource,
@@ -873,6 +873,32 @@ func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
 			Match: &healthcheckconfigv1.Matcher{
 				// match all databases
 				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
+			},
+		},
+	}
+}
+
+// NewPresetHealthCheckConfigKube returns a preset health_check_config
+// enabling health checks for all Kubernetes resources.
+func NewPresetHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
+	return &healthcheckconfigv1.HealthCheckConfig{
+		Kind:    types.KindHealthCheckConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:        teleport.PresetDefaultHealthCheckConfigKubeName,
+			Description: "Enables health checks for all Kubernetes clusters by default",
+			Namespace:   apidefaults.Namespace,
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
+				// match all kubernetes clusters
+				KubernetesLabels: []*labelv1.Label{{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
 				}},

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -680,11 +682,11 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 		span.AddEvent("completed creating database object import rules")
 
-		span.AddEvent("creating preset health check config")
-		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
+		span.AddEvent("creating preset health check configs")
+		if err := createPresetHealthCheckConfigs(ctx, asrv); err != nil {
 			return trace.Wrap(err)
 		}
-		span.AddEvent("completed creating preset health check config")
+		span.AddEvent("completed creating preset health check configs")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1486,23 +1488,40 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
-// createPresetHealthCheckConfig creates a default preset health check config
-// resource that enables health checks on all resources.
-func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
-	page, _, err := svc.ListHealthCheckConfigs(ctx, 0, "")
+// NewPresetHealthFunc is a function that creates a new HealthCheckConfig preset.
+type NewPresetHealthFunc func() *healthcheckconfigv1.HealthCheckConfig
+
+// newHealthPresets maps preset health names to preset creator functions.
+var newHealthPresets = map[string]NewPresetHealthFunc{
+	teleport.PresetDefaultHealthCheckConfigDBName:   services.NewPresetHealthCheckConfigDB,
+	teleport.PresetDefaultHealthCheckConfigKubeName: services.NewPresetHealthCheckConfigKube,
+}
+
+// createPresetHealthCheckConfigs creates a preset health check config
+// for each resource using the healthcheck package.
+func createPresetHealthCheckConfigs(ctx context.Context, svc services.HealthCheckConfig) error {
+	// The choice to create a preset per-resource is motivated by:
+	// - Supporting existing Teleport clusters already using health checks with some resources
+	// - Avoiding migration of the backend database, which avoids downtime and headaches
+	// - Easing the adoption of health checks for new resources as they are developed over time
+	exists := make(map[string]bool)
+	cfgs, err := stream.Collect(clientutils.Resources(ctx, svc.ListHealthCheckConfigs))
 	if err != nil {
-		return trace.Wrap(err, "failed listing available health check configs")
+		return trace.Wrap(err, "unable to list health check configs")
 	}
-	if len(page) > 0 {
-		return nil
+	for _, cfg := range cfgs {
+		exists[cfg.GetMetadata().GetName()] = true
 	}
-	preset := services.NewPresetHealthCheckConfig()
-	_, err = svc.CreateHealthCheckConfig(ctx, preset)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err,
-			"failed creating preset health_check_config %s",
-			preset.GetMetadata().GetName(),
-		)
+	var errs []error
+	for name, newPreset := range newHealthPresets {
+		if !exists[name] {
+			if _, err = svc.CreateHealthCheckConfig(ctx, newPreset()); err != nil && !trace.IsAlreadyExists(err) {
+				errs = append(errs, err)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return trace.NewAggregate(errs...)
 	}
 	return nil
 }
