@@ -219,17 +219,40 @@ const (
 	inferencePolicyPrefix = "inference_policies"
 )
 
+// SummarizerServiceConfig provides data necessary to initialize a
+// [SummarizerService].
+type SummarizerServiceConfig struct {
+	// Backend is the resource storage backend.
+	Backend backend.Backend
+	// EnableBedrock enables access to Amazon Bedrock models. Currently, this
+	// should only be turned on outside Teleport Cloud. Setting it to true allows
+	// creating inference_model resources that use the Bedrock inference
+	// provider.
+	EnableBedrock bool
+}
+
 // NewSummarizerService returns a service that manages summarization
 // configuration resources in the backend.
-func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
+func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, error) {
+	validateInferenceModel := func(m *summarizerv1.InferenceModel) error {
+		err := summarizer.ValidateInferenceModel(m)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !cfg.EnableBedrock && m.GetSpec().GetBedrock() != nil {
+			return trace.BadParameter("Amazon Bedrock models are unavailable in Teleport Cloud")
+		}
+		return nil
+	}
+
 	modelService, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*summarizerv1.InferenceModel]{
-			Backend:       b,
+			Backend:       cfg.Backend,
 			ResourceKind:  types.KindInferenceModel,
 			BackendPrefix: backend.NewKey(inferenceModelPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferenceModel],
 			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.InferenceModel],
-			ValidateFunc:  summarizer.ValidateInferenceModel,
+			ValidateFunc:  validateInferenceModel,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +260,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 
 	secretService, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*summarizerv1.InferenceSecret]{
-			Backend:       b,
+			Backend:       cfg.Backend,
 			ResourceKind:  types.KindInferenceSecret,
 			BackendPrefix: backend.NewKey(inferenceSecretPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferenceSecret],
@@ -250,7 +273,7 @@ func NewSummarizerService(b backend.Backend) (*SummarizerService, error) {
 
 	policyService, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*summarizerv1.InferencePolicy]{
-			Backend:       b,
+			Backend:       cfg.Backend,
 			ResourceKind:  types.KindInferencePolicy,
 			BackendPrefix: backend.NewKey(inferencePolicyPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.InferencePolicy],

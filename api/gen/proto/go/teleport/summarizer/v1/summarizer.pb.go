@@ -180,6 +180,7 @@ type InferenceModelSpec struct {
 	// Types that are valid to be assigned to Provider:
 	//
 	//	*InferenceModelSpec_Openai
+	//	*InferenceModelSpec_Bedrock
 	Provider isInferenceModelSpec_Provider `protobuf_oneof:"provider"`
 	// MaxSessionLengthBytes is the maximum session length that can be sent to
 	// inference provider. Currently, it's determined by the size of model's
@@ -247,6 +248,15 @@ func (x *InferenceModelSpec) GetOpenai() *OpenAIProvider {
 	return nil
 }
 
+func (x *InferenceModelSpec) GetBedrock() *BedrockProvider {
+	if x != nil {
+		if x, ok := x.Provider.(*InferenceModelSpec_Bedrock); ok {
+			return x.Bedrock
+		}
+	}
+	return nil
+}
+
 func (x *InferenceModelSpec) GetMaxSessionLengthBytes() int64 {
 	if x != nil {
 		return x.MaxSessionLengthBytes
@@ -264,7 +274,15 @@ type InferenceModelSpec_Openai struct {
 	Openai *OpenAIProvider `protobuf:"bytes,1,opt,name=openai,proto3,oneof"`
 }
 
+type InferenceModelSpec_Bedrock struct {
+	// Bedrock indicates that this model uses Amazon Bedrock as the inference
+	// provider and specifies Bedrock-specific parameters.
+	Bedrock *BedrockProvider `protobuf:"bytes,3,opt,name=bedrock,proto3,oneof"`
+}
+
 func (*InferenceModelSpec_Openai) isInferenceModelSpec_Provider() {}
+
+func (*InferenceModelSpec_Bedrock) isInferenceModelSpec_Provider() {}
 
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
 // configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
@@ -344,6 +362,71 @@ func (x *OpenAIProvider) GetBaseUrl() string {
 	return ""
 }
 
+// BedrockProvider specifies parameters specific to Amazon Bedrock.
+type BedrockProvider struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Region is the AWS region which will be used for inference.
+	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
+	// BedrockModelId specifies a model ID or an inference profile as understood
+	// by the Bedrock API.
+	BedrockModelId string `protobuf:"bytes,2,opt,name=bedrock_model_id,json=bedrockModelId,proto3" json:"bedrock_model_id,omitempty"`
+	// Temperature controls the randomness of the model's output.
+	Temperature   float32 `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BedrockProvider) Reset() {
+	*x = BedrockProvider{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BedrockProvider) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BedrockProvider) ProtoMessage() {}
+
+func (x *BedrockProvider) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BedrockProvider.ProtoReflect.Descriptor instead.
+func (*BedrockProvider) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *BedrockProvider) GetRegion() string {
+	if x != nil {
+		return x.Region
+	}
+	return ""
+}
+
+func (x *BedrockProvider) GetBedrockModelId() string {
+	if x != nil {
+		return x.BedrockModelId
+	}
+	return ""
+}
+
+func (x *BedrockProvider) GetTemperature() float32 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
 // InferenceSecret resource stores session summarization inference provider
 // secrets, such as API keys. They need to be referenced by appropriate
 // provider configuration inside `InferenceModelSpec`.
@@ -365,7 +448,7 @@ type InferenceSecret struct {
 
 func (x *InferenceSecret) Reset() {
 	*x = InferenceSecret{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[3]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -377,7 +460,7 @@ func (x *InferenceSecret) String() string {
 func (*InferenceSecret) ProtoMessage() {}
 
 func (x *InferenceSecret) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[3]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -390,7 +473,7 @@ func (x *InferenceSecret) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InferenceSecret.ProtoReflect.Descriptor instead.
 func (*InferenceSecret) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{3}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InferenceSecret) GetKind() string {
@@ -439,7 +522,7 @@ type InferenceSecretSpec struct {
 
 func (x *InferenceSecretSpec) Reset() {
 	*x = InferenceSecretSpec{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[4]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -451,7 +534,7 @@ func (x *InferenceSecretSpec) String() string {
 func (*InferenceSecretSpec) ProtoMessage() {}
 
 func (x *InferenceSecretSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[4]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -464,7 +547,7 @@ func (x *InferenceSecretSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InferenceSecretSpec.ProtoReflect.Descriptor instead.
 func (*InferenceSecretSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{4}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *InferenceSecretSpec) GetValue() string {
@@ -491,7 +574,7 @@ type InferencePolicy struct {
 
 func (x *InferencePolicy) Reset() {
 	*x = InferencePolicy{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[5]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -503,7 +586,7 @@ func (x *InferencePolicy) String() string {
 func (*InferencePolicy) ProtoMessage() {}
 
 func (x *InferencePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[5]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -516,7 +599,7 @@ func (x *InferencePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InferencePolicy.ProtoReflect.Descriptor instead.
 func (*InferencePolicy) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{5}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *InferencePolicy) GetKind() string {
@@ -572,7 +655,7 @@ type InferencePolicySpec struct {
 
 func (x *InferencePolicySpec) Reset() {
 	*x = InferencePolicySpec{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[6]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -584,7 +667,7 @@ func (x *InferencePolicySpec) String() string {
 func (*InferencePolicySpec) ProtoMessage() {}
 
 func (x *InferencePolicySpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[6]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -597,7 +680,7 @@ func (x *InferencePolicySpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InferencePolicySpec.ProtoReflect.Descriptor instead.
 func (*InferencePolicySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{6}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *InferencePolicySpec) GetKinds() []string {
@@ -658,7 +741,7 @@ type Summary struct {
 
 func (x *Summary) Reset() {
 	*x = Summary{}
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[7]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -670,7 +753,7 @@ func (x *Summary) String() string {
 func (*Summary) ProtoMessage() {}
 
 func (x *Summary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[7]
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -683,7 +766,7 @@ func (x *Summary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Summary.ProtoReflect.Descriptor instead.
 func (*Summary) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{7}
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Summary) GetSessionId() string {
@@ -752,9 +835,10 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
-	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"\x9b\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.InferenceModelSpecR\x04spec\"\xe0\x01\n" +
 	"\x12InferenceModelSpec\x12@\n" +
-	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x127\n" +
+	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x12C\n" +
+	"\abedrock\x18\x03 \x01(\v2'.teleport.summarizer.v1.BedrockProviderH\x00R\abedrock\x127\n" +
 	"\x18max_session_length_bytes\x18\x02 \x01(\x03R\x15maxSessionLengthBytesB\n" +
 	"\n" +
 	"\bprovider\"\xa2\x01\n" +
@@ -762,7 +846,11 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x0fopenai_model_id\x18\x01 \x01(\tR\ropenaiModelId\x12 \n" +
 	"\vtemperature\x18\x02 \x01(\x01R\vtemperature\x12+\n" +
 	"\x12api_key_secret_ref\x18\x03 \x01(\tR\x0fapiKeySecretRef\x12\x19\n" +
-	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\"\xd5\x01\n" +
+	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\"u\n" +
+	"\x0fBedrockProvider\x12\x16\n" +
+	"\x06region\x18\x01 \x01(\tR\x06region\x12(\n" +
+	"\x10bedrock_model_id\x18\x02 \x01(\tR\x0ebedrockModelId\x12 \n" +
+	"\vtemperature\x18\x03 \x01(\x02R\vtemperature\"\xd5\x01\n" +
 	"\x0fInferenceSecret\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -811,38 +899,40 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(SummaryState)(0),             // 0: teleport.summarizer.v1.SummaryState
 	(*InferenceModel)(nil),        // 1: teleport.summarizer.v1.InferenceModel
 	(*InferenceModelSpec)(nil),    // 2: teleport.summarizer.v1.InferenceModelSpec
 	(*OpenAIProvider)(nil),        // 3: teleport.summarizer.v1.OpenAIProvider
-	(*InferenceSecret)(nil),       // 4: teleport.summarizer.v1.InferenceSecret
-	(*InferenceSecretSpec)(nil),   // 5: teleport.summarizer.v1.InferenceSecretSpec
-	(*InferencePolicy)(nil),       // 6: teleport.summarizer.v1.InferencePolicy
-	(*InferencePolicySpec)(nil),   // 7: teleport.summarizer.v1.InferencePolicySpec
-	(*Summary)(nil),               // 8: teleport.summarizer.v1.Summary
-	(*v1.Metadata)(nil),           // 9: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),       // 11: google.protobuf.Struct
+	(*BedrockProvider)(nil),       // 4: teleport.summarizer.v1.BedrockProvider
+	(*InferenceSecret)(nil),       // 5: teleport.summarizer.v1.InferenceSecret
+	(*InferenceSecretSpec)(nil),   // 6: teleport.summarizer.v1.InferenceSecretSpec
+	(*InferencePolicy)(nil),       // 7: teleport.summarizer.v1.InferencePolicy
+	(*InferencePolicySpec)(nil),   // 8: teleport.summarizer.v1.InferencePolicySpec
+	(*Summary)(nil),               // 9: teleport.summarizer.v1.Summary
+	(*v1.Metadata)(nil),           // 10: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 12: google.protobuf.Struct
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	9,  // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	10, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
 	2,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
 	3,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	9,  // 3: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
-	5,  // 4: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	9,  // 5: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 6: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
-	0,  // 7: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	10, // 8: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	10, // 9: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	11, // 10: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	4,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	10, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	6,  // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	10, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	8,  // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
+	0,  // 8: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
+	11, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	11, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	12, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -852,6 +942,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 	}
 	file_teleport_summarizer_v1_summarizer_proto_msgTypes[1].OneofWrappers = []any{
 		(*InferenceModelSpec_Openai)(nil),
+		(*InferenceModelSpec_Bedrock)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -859,7 +950,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
