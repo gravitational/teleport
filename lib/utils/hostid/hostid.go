@@ -74,7 +74,8 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		types.JoinMethodGCP,
 		types.JoinMethodTPM,
 		types.JoinMethodTerraformCloud,
-		types.JoinMethodOracle:
+		types.JoinMethodOracle,
+		types.JoinMethodEnv0:
 		// Checking error instead of the usual uuid.New() in case uuid generation
 		// fails due to not enough randomness. It's been known to happen happen when
 		// Teleport starts very early in the node initialization cycle and /dev/urandom

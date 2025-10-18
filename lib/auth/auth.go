@@ -117,7 +117,9 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/env0"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -803,6 +805,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if as.env0IDTokenValidator == nil {
+		validator, err := env0.NewIDTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.env0IDTokenValidator = validator
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
@@ -1288,6 +1299,10 @@ type Server struct {
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
 	createBoundKeypairValidator joinboundkeypair.CreateBoundKeypairValidator
+
+	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
+	// override the implementation used in tests.
+	env0IDTokenValidator join.Env0TokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool

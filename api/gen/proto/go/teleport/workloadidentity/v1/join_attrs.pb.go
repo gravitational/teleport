@@ -66,7 +66,9 @@ type JoinAttrs struct {
 	// Attributes that are specific to the Oracle (`oracle`) join method.
 	Oracle *JoinAttrsOracle `protobuf:"bytes,13,opt,name=oracle,proto3" json:"oracle,omitempty"`
 	// Attributes that are specific to the Azure Devops (`azure_devops`) join method.
-	AzureDevops   *JoinAttrsAzureDevops `protobuf:"bytes,14,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
+	AzureDevops *JoinAttrsAzureDevops `protobuf:"bytes,14,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
+	// Attributes that are specific to the Env0 (`env0`) join method.
+	Env0          *JoinAttrsEnv0 `protobuf:"bytes,15,opt,name=env0,proto3" json:"env0,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -195,6 +197,13 @@ func (x *JoinAttrs) GetOracle() *JoinAttrsOracle {
 func (x *JoinAttrs) GetAzureDevops() *JoinAttrsAzureDevops {
 	if x != nil {
 		return x.AzureDevops
+	}
+	return nil
+}
+
+func (x *JoinAttrs) GetEnv0() *JoinAttrsEnv0 {
+	if x != nil {
+		return x.Env0
 	}
 	return nil
 }
@@ -1717,11 +1726,176 @@ func (x *JoinAttrsAzureDevopsPipeline) GetRunId() string {
 	return ""
 }
 
+// Attributes that are specific to the Env0 (`env0`) join method.
+type JoinAttrsEnv0 struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The `sub` claim of an Env0 OIDC token.
+	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	// The unique organization identifier, corresponding to `organizationId` in an
+	// Env0 OIDC token.
+	OrganizationId string `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	// The unique project identifier, corresponding to `projectId` in an Env0 OIDC
+	// token.
+	ProjectId string `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// The name of the project under which the job was run corresponding to
+	// `projectName` in an Env0 OIDC token.
+	ProjectName string `protobuf:"bytes,4,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	// The unique identifier of the Env0 template, corresponding to `templateId`
+	// in an Env0 OIDC token.
+	TemplateId string `protobuf:"bytes,5,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	// The name of the Env0 template, corresponding to `templateName` in an Env0
+	// OIDC token.
+	TemplateName string `protobuf:"bytes,6,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"`
+	// The unique identifier of the Env0 environment, corresponding to
+	// `environmentId` in an Env0 OIDC token.
+	EnvironmentId string `protobuf:"bytes,7,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
+	// The name of the Env0 environment, corresponding to `environmentName` in an
+	// Env0 OIDC token.
+	EnvironmentName string `protobuf:"bytes,8,opt,name=environment_name,json=environmentName,proto3" json:"environment_name,omitempty"`
+	// The name of the Env0 workspace, corresponding to `workspaceName` in an Env0
+	// OIDC token.
+	WorkspaceName string `protobuf:"bytes,9,opt,name=workspace_name,json=workspaceName,proto3" json:"workspace_name,omitempty"`
+	// A unique ID for this deployment, corresponding to `deploymentLogId` in an
+	// Env0 OIDC token.
+	DeploymentLogId string `protobuf:"bytes,10,opt,name=deployment_log_id,json=deploymentLogId,proto3" json:"deployment_log_id,omitempty"`
+	// The env0 deployment type, such as "deploy", "destroy", etc. Corresponds to
+	// `deploymentType` in an Env0 OIDC token.
+	DeploymentType string `protobuf:"bytes,11,opt,name=deployment_type,json=deploymentType,proto3" json:"deployment_type,omitempty"`
+	// The email of the person that triggered the deployment, corresponding to
+	// `deployerEmail` in an Env0 OIDC token.
+	DeployerEmail string `protobuf:"bytes,12,opt,name=deployer_email,json=deployerEmail,proto3" json:"deployer_email,omitempty"`
+	// A custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
+	Env0Tag       string `protobuf:"bytes,13,opt,name=env0_tag,json=env0Tag,proto3" json:"env0_tag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinAttrsEnv0) Reset() {
+	*x = JoinAttrsEnv0{}
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAttrsEnv0) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAttrsEnv0) ProtoMessage() {}
+
+func (x *JoinAttrsEnv0) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinAttrsEnv0.ProtoReflect.Descriptor instead.
+func (*JoinAttrsEnv0) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *JoinAttrsEnv0) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetProjectName() string {
+	if x != nil {
+		return x.ProjectName
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetTemplateName() string {
+	if x != nil {
+		return x.TemplateName
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetEnvironmentName() string {
+	if x != nil {
+		return x.EnvironmentName
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetWorkspaceName() string {
+	if x != nil {
+		return x.WorkspaceName
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetDeploymentLogId() string {
+	if x != nil {
+		return x.DeploymentLogId
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetDeploymentType() string {
+	if x != nil {
+		return x.DeploymentType
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetDeployerEmail() string {
+	if x != nil {
+		return x.DeployerEmail
+	}
+	return ""
+}
+
+func (x *JoinAttrsEnv0) GetEnv0Tag() string {
+	if x != nil {
+		return x.Env0Tag
+	}
+	return ""
+}
+
 var File_teleport_workloadidentity_v1_join_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\x99\b\n" +
+	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\xda\b\n" +
 	"\tJoinAttrs\x12?\n" +
 	"\x04meta\x18\x01 \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsMetaR\x04meta\x12E\n" +
 	"\x06gitlab\x18\x02 \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsGitLabR\x06gitlab\x12E\n" +
@@ -1739,7 +1913,8 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"kubernetes\x18\f \x01(\v21.teleport.workloadidentity.v1.JoinAttrsKubernetesR\n" +
 	"kubernetes\x12E\n" +
 	"\x06oracle\x18\r \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsOracleR\x06oracle\x12U\n" +
-	"\fazure_devops\x18\x0e \x01(\v22.teleport.workloadidentity.v1.JoinAttrsAzureDevopsR\vazureDevops\"X\n" +
+	"\fazure_devops\x18\x0e \x01(\v22.teleport.workloadidentity.v1.JoinAttrsAzureDevopsR\vazureDevops\x12?\n" +
+	"\x04env0\x18\x0f \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsEnv0R\x04env0\"X\n" +
 	"\rJoinAttrsMeta\x12&\n" +
 	"\x0fjoin_token_name\x18\x01 \x01(\tR\rjoinTokenName\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -1862,7 +2037,24 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x12repository_version\x18\t \x01(\tR\x11repositoryVersion\x12%\n" +
 	"\x0erepository_ref\x18\n" +
 	" \x01(\tR\rrepositoryRef\x12\x15\n" +
-	"\x06run_id\x18\v \x01(\tR\x05runIdBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\x06run_id\x18\v \x01(\tR\x05runId\"\xe2\x03\n" +
+	"\rJoinAttrsEnv0\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12'\n" +
+	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x03 \x01(\tR\tprojectId\x12!\n" +
+	"\fproject_name\x18\x04 \x01(\tR\vprojectName\x12\x1f\n" +
+	"\vtemplate_id\x18\x05 \x01(\tR\n" +
+	"templateId\x12#\n" +
+	"\rtemplate_name\x18\x06 \x01(\tR\ftemplateName\x12%\n" +
+	"\x0eenvironment_id\x18\a \x01(\tR\renvironmentId\x12)\n" +
+	"\x10environment_name\x18\b \x01(\tR\x0fenvironmentName\x12%\n" +
+	"\x0eworkspace_name\x18\t \x01(\tR\rworkspaceName\x12*\n" +
+	"\x11deployment_log_id\x18\n" +
+	" \x01(\tR\x0fdeploymentLogId\x12'\n" +
+	"\x0fdeployment_type\x18\v \x01(\tR\x0edeploymentType\x12%\n" +
+	"\x0edeployer_email\x18\f \x01(\tR\rdeployerEmail\x12\x19\n" +
+	"\benv0_tag\x18\r \x01(\tR\aenv0TagBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var (
 	file_teleport_workloadidentity_v1_join_attrs_proto_rawDescOnce sync.Once
@@ -1876,7 +2068,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP() []byte {
 	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescData
 }
 
-var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrs)(nil),                         // 0: teleport.workloadidentity.v1.JoinAttrs
 	(*JoinAttrsMeta)(nil),                     // 1: teleport.workloadidentity.v1.JoinAttrsMeta
@@ -1897,6 +2089,7 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrsOracle)(nil),                   // 16: teleport.workloadidentity.v1.JoinAttrsOracle
 	(*JoinAttrsAzureDevops)(nil),              // 17: teleport.workloadidentity.v1.JoinAttrsAzureDevops
 	(*JoinAttrsAzureDevopsPipeline)(nil),      // 18: teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
+	(*JoinAttrsEnv0)(nil),                     // 19: teleport.workloadidentity.v1.JoinAttrsEnv0
 }
 var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	1,  // 0: teleport.workloadidentity.v1.JoinAttrs.meta:type_name -> teleport.workloadidentity.v1.JoinAttrsMeta
@@ -1913,15 +2106,16 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	15, // 11: teleport.workloadidentity.v1.JoinAttrs.kubernetes:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetes
 	16, // 12: teleport.workloadidentity.v1.JoinAttrs.oracle:type_name -> teleport.workloadidentity.v1.JoinAttrsOracle
 	17, // 13: teleport.workloadidentity.v1.JoinAttrs.azure_devops:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevops
-	11, // 14: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
-	14, // 15: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
-	13, // 16: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
-	18, // 17: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	19, // 14: teleport.workloadidentity.v1.JoinAttrs.env0:type_name -> teleport.workloadidentity.v1.JoinAttrsEnv0
+	11, // 15: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
+	14, // 16: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
+	13, // 17: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
+	18, // 18: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_join_attrs_proto_init() }
@@ -1935,7 +2129,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

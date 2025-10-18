@@ -87,6 +87,8 @@ const (
 	// JoinMethodBoundKeypair indicates the node will join using the Bound
 	// Keypair join method. See lib/boundkeypair for more.
 	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
+	// JoinMethodEnv0 indicates the node will join using the env0 join method.
+	JoinMethodEnv0 JoinMethod = "env0"
 )
 
 var JoinMethods = []JoinMethod{
@@ -106,6 +108,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
 	JoinMethodBoundKeypair,
+	JoinMethodEnv0,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -449,6 +452,14 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 
 		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bound_keypair: failed validation")
+		}
+	case JoinMethodEnv0:
+		if p.Spec.Env0 == nil {
+			p.Spec.Env0 = &ProvisionTokenSpecV2Env0{}
+		}
+
+		if err := p.Spec.Env0.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.env0: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -1070,6 +1081,26 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 
 	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
 	// ("") is mapped to RecoveryModeStandard.
+
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodEnv0)
+	}
+
+	for i, allowRule := range a.Allow {
+		projectSet := allowRule.ProjectID != "" || allowRule.ProjectName != ""
+
+		if allowRule.OrganizationID == "" {
+			return trace.BadParameter("allow[%d]: organization_id must be set", i)
+		}
+
+		if !projectSet {
+			return trace.BadParameter("allow[%d]: at least one of ['project_id', 'project_name'] must be set", i)
+		}
+	}
 
 	return nil
 }

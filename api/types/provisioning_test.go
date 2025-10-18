@@ -1496,6 +1496,156 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			desc: "env0 success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID:  "organization-id",
+								ProjectID:       "project-id",
+								ProjectName:     "project-name",
+								TemplateID:      "template-id",
+								TemplateName:    "template-name",
+								EnvironmentID:   "environment-id",
+								EnvironmentName: "environment-name",
+								WorkspaceName:   "workspace-name",
+								DeploymentType:  "deployment-type",
+								DeployerEmail:   "deployer-email",
+								Env0Tag:         "custom-tag",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID:  "organization-id",
+								ProjectID:       "project-id",
+								ProjectName:     "project-name",
+								TemplateID:      "template-id",
+								TemplateName:    "template-name",
+								EnvironmentID:   "environment-id",
+								EnvironmentName: "environment-name",
+								WorkspaceName:   "workspace-name",
+								DeploymentType:  "deployment-type",
+								DeployerEmail:   "deployer-email",
+								Env0Tag:         "custom-tag",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "env0 multiple rules - success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID: "organization-id",
+								ProjectID:      "project-id",
+							},
+							{
+								OrganizationID: "organization-id",
+								ProjectName:    "project-name",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID: "organization-id",
+								ProjectID:      "project-id",
+							},
+							{
+								OrganizationID: "organization-id",
+								ProjectName:    "project-name",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "env0 missing organization",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								ProjectName:  "test",
+								TemplateName: "test",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "env0 missing project",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID: "test",
+								TemplateName:   "test",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

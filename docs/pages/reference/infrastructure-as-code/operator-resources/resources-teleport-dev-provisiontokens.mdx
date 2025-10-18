@@ -42,6 +42,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
 |bound_keypair|[object](#specbound_keypair)|BoundKeypair allows the configuration of options specific to the "bound_keypair" join method.|
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
+|env0|[object](#specenv0)|Env0 allows the configuration of options specific to the "env0" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
@@ -150,6 +151,28 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |context_id|string||
 |project_id|string||
+
+### spec.env0
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specenv0allow-items)|Allow is a list of Rules, jobs using this token must match at least one allow rule to use this token.|
+
+### spec.env0.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|deployer_email|string||
+|deployment_type|string||
+|env0_tag|string||
+|environment_id|string||
+|environment_name|string||
+|organization_id|string||
+|project_id|string||
+|project_name|string||
+|template_id|string||
+|template_name|string||
+|workspace_name|string||
 
 ### spec.gcp
 
