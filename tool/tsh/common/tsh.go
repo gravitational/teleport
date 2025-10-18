@@ -1632,6 +1632,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		defer runtimetrace.Stop()
 	}
 
+	// print tsh version when --debug flag is set
+	// to diagnose potential client version mismatch
+	if cf.Debug && command != ver.FullCommand() {
+		logger.InfoContext(ctx, "Initializing tsh",
+			"version", slog.GroupValue(
+				slog.String("teleport", teleport.Version),
+				slog.String("teleport_git", teleport.Gitref),
+				slog.String("go", runtime.Version()),
+			),
+		)
+	}
+
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
