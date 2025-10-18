@@ -64,7 +64,7 @@ Administrators can **enroll** infrastructure resources with a Teleport cluster
 to provide secure access, RBAC, and auditing. There are three ways to enroll
 infrastructure resources with a Teleport cluster:
 
-- **Teleport Agents** proxy traffic from human users to and from
+- **Teleport Agents** proxy traffic from users to and from
   Teleport-protected infrastructure resources.
 - **Machine ID Bots** receive short-lived credentials from the `tbot` binary so
   service accounts can access infrastructure.
@@ -74,7 +74,7 @@ infrastructure resources with a Teleport cluster:
 
 ### Teleport Agents
 
-Teleport Agents proxy traffic from users to resources in your infrastructure.
+Teleport Agents proxy traffic from users, human or machine, to resources in your infrastructure.
 Agents are instances of the `teleport` binary configured to run certain
 services, e.g., the Teleport SSH Service and Teleport Kubernetes Service, and
 administrators deploy Agents on their own infrastructure.

@@ -152,26 +152,6 @@ func (s *serverCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSONArray(w, s.servers)
 }
 
-type userCollection struct {
-	users []types.User
-}
-
-func (u *userCollection) Resources() (r []types.Resource) {
-	for _, resource := range u.users {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (u *userCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"User"})
-	for _, user := range u.users {
-		t.AddRow([]string{user.GetName()})
-	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
-}
-
 type authorityCollection struct {
 	cas []types.CertAuthority
 }
@@ -706,41 +686,6 @@ func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
-}
-
-type databaseCollection struct {
-	databases []types.Database
-}
-
-func (c *databaseCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.databases {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *databaseCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, database := range c.databases {
-		labels := common.FormatLabels(database.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(database, verbose),
-			database.GetProtocol(),
-			database.GetURI(),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Protocol", "URI", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type lockCollection struct {

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
@@ -312,6 +314,19 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		ID:      resp.ID,
 		Result:  listResult,
 	}
+}
+
+func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) {
+	// Add in JWT headers. By default, JWT is not put into "Authorization"
+	// headers since the auth token can also come from the client and Teleport
+	// just pass it through. If the remote MCP server does verify the auth token
+	// signed by Teleport, the server can take the token from the
+	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
+	// as "Bearer" in "Authorization".
+	r.Header.Set(teleport.AppJWTHeader, s.jwt)
+	// Add headers from rewrite configuration.
+	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, s.traitsForRewriteHeaders, s.logger)
 }
 
 func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {

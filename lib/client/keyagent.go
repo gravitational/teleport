@@ -664,7 +664,7 @@ func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		agentSigners = append(signers, sshAgentSigners...)
+		agentSigners = append(agentSigners, sshAgentSigners...)
 	}
 
 	// Filter out non-certificates (like regular public SSH keys stored in the SSH agent).

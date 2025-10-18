@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
@@ -243,9 +244,13 @@ func newFakeAuthService(t *testing.T) *fakeAuthService {
 }
 
 func (s *fakeAuthService) lastEvent(ctx context.Context, eventType string) (apievents.AuditEvent, error) {
-	events, _, err := s.Auth().SearchEvents(ctx, events.SearchEventsRequest{
-		From:       s.Auth().GetClock().Now().Add(-time.Hour),
-		To:         s.Auth().GetClock().Now().Add(time.Hour),
+	return lastEvent(ctx, s.Auth(), s.Auth().GetClock(), eventType)
+}
+
+func lastEvent(ctx context.Context, auditLog events.AuditLogger, clock clockwork.Clock, eventType string) (apievents.AuditEvent, error) {
+	events, _, err := auditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       clock.Now().Add(-time.Hour),
+		To:         clock.Now().Add(time.Hour),
 		EventTypes: []string{eventType},
 		Limit:      1,
 		Order:      types.EventOrderDescending,

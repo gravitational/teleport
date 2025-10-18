@@ -1,7 +1,7 @@
-CREATE PROCEDURE teleport_revoke_roles(IN username VARCHAR(80))
+CREATE PROCEDURE teleport_revoke_roles(IN username TEXT)
 BEGIN
-    DECLARE cur_user CHAR(128);
-    DECLARE cur_role CHAR(128);
+    DECLARE cur_user TEXT;
+    DECLARE cur_role TEXT;
     DECLARE done INT DEFAULT FALSE;
     -- Revoke all roles assigned to the all-in-one role, and all roles assigned
     -- to the username (expect 'teleport-auto-user')

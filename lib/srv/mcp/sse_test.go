@@ -20,9 +20,12 @@ package mcp
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,12 +37,26 @@ import (
 )
 
 func Test_handleStdioToSSE(t *testing.T) {
-	testServerSSEEndpoint := mcptest.MustStartSSETestServer(t)
+	sseServer := mcpserver.NewSSEServer(mcptest.NewServer())
+	sseServerWithAuth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify rewrite headers.
+		if r.Header.Get("Authorization") != "Bearer app-token-for-ai" {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+		sseServer.ServeHTTP(w, r)
+	}))
+	t.Cleanup(sseServerWithAuth.Close)
 
 	app, err := types.NewAppV3(types.Metadata{
 		Name: "test-sse",
 	}, types.AppSpecV3{
-		URI: fmt.Sprintf("mcp+sse+%s", testServerSSEEndpoint),
+		URI: fmt.Sprintf("mcp+sse+%s", sseServerWithAuth.URL+"/sse"),
+		Rewrite: &types.Rewrite{
+			Headers: []*types.Header{{
+				Name:  "Authorization",
+				Value: "Bearer {{internal.jwt}}",
+			}},
+		},
 	})
 	require.NoError(t, err)
 

@@ -278,6 +278,28 @@ func TestLoadKey(t *testing.T) {
 	}
 }
 
+func TestSigners(t *testing.T) {
+	s := makeSuite(t)
+	keyAgent := s.newKeyAgent(t)
+
+	// add the key to the local and system agent.
+	err := keyAgent.AddKeyRing(s.keyRing)
+	require.NoError(t, err)
+
+	// Check that the ssh cert (signer) appears three times:
+	// - from the client store
+	// - from the local agent
+	// - from the system agent
+	signers, err := keyAgent.Signers()
+	require.NoError(t, err)
+	require.Len(t, signers, 3)
+
+	// non ssh certs should be filtered out
+	for i, signer := range signers {
+		require.True(t, sshutils.IsSSHCertType(signer.PublicKey().Type()), "signer %d has unexpected type %s", i, signer.PublicKey().Type())
+	}
+}
+
 type caType struct {
 	signer       ssh.Signer
 	trustedCerts authclient.TrustedCerts

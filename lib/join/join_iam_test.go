@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"bytes"
@@ -29,19 +29,25 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/join/iam"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func responseFromAWSIdentity(id auth.AWSIdentity) string {
+func responseFromAWSIdentity(id iamjoin.AWSIdentity) string {
 	return fmt.Sprintf(`{
 		"GetCallerIdentityResponse": {
 			"GetCallerIdentityResult": {
@@ -109,21 +115,38 @@ func withChallenge(challenge string) challengeResponseOption {
 	}
 }
 
-func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
+type iamJoinTestCase struct {
+	desc                     string
+	authServer               *authtest.Server
+	tokenName                string
+	requestTokenName         string
+	tokenSpec                types.ProvisionTokenSpecV2
+	stsClient                utils.HTTPDoClient
+	challengeResponseOptions []challengeResponseOption
+	challengeResponseErr     error
+	assertError              require.ErrorAssertionFunc
+}
+
+func TestJoinIAM(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	p, err := newTestPack(ctx, t.TempDir())
+	regularServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
 	require.NoError(t, err)
-	a := p.a
+	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
 
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:  t.TempDir(),
+			FIPS: true,
+		},
+	})
 	require.NoError(t, err)
-
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
-	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -132,19 +155,10 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
 
-	testCases := []struct {
-		desc                     string
-		tokenName                string
-		requestTokenName         string
-		tokenSpec                types.ProvisionTokenSpecV2
-		stsClient                utils.HTTPDoClient
-		iamRegisterOptions       []auth.IAMRegisterOption
-		challengeResponseOptions []challengeResponseOption
-		challengeResponseErr     error
-		assertError              require.ErrorAssertionFunc
-	}{
+	testCases := []iamJoinTestCase{
 		{
 			desc:             "basic passing case",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -159,7 +173,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -168,6 +182,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wildcard arn 1",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -182,7 +197,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-test",
 				}),
@@ -191,6 +206,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wildcard arn 2",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -205,7 +221,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-123",
 				}),
@@ -214,6 +230,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "arn assumed role",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -228,7 +245,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "123456789012",
 					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
 				}),
@@ -237,6 +254,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wildcard arn assumed role",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -251,7 +269,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "123456789012",
 					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
 				}),
@@ -260,6 +278,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wildcard 2 arn assumed role",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -274,7 +293,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "123456789012",
 					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
 				}),
@@ -283,6 +302,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong wildcard arn assumed role",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -297,7 +317,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "123456789012",
 					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-002-test-role/my-session-name",
 				}),
@@ -306,6 +326,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong wildcard 2 arn assumed role",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -320,7 +341,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "123456789012",
 					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-002-test-role/my-session-name2",
 				}),
@@ -329,6 +350,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong token",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "wrong-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -343,7 +365,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -352,6 +374,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "challenge response error",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -366,7 +389,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -376,6 +399,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong arn",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -390,7 +414,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-1234",
 				}),
@@ -399,6 +423,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong challenge",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -413,7 +438,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -425,6 +450,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong account",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -439,7 +465,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "5678",
 					Arn:     "arn:aws::1111",
 				}),
@@ -448,6 +474,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "sts api error",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -468,6 +495,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "wrong sts host",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -482,7 +510,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -494,6 +522,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "regional sts endpoint",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -508,7 +537,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -520,6 +549,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "unsigned challenge header",
+			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -534,7 +564,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -546,6 +576,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		},
 		{
 			desc:             "fips pass",
+			authServer:       fipsServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -560,14 +591,10 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
-			},
-			iamRegisterOptions: []auth.IAMRegisterOption{
-				auth.WithFIPS(true),
-				auth.WithAuthVersion(&semver.Version{Major: 12}),
 			},
 			challengeResponseOptions: []challengeResponseOption{
 				withHost("sts-fips.us-east-1.amazonaws.com"),
@@ -575,7 +602,8 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "non-fips client fail v12",
+			desc:             "non-fips client fail",
+			authServer:       fipsServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -590,14 +618,10 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
-			},
-			iamRegisterOptions: []auth.IAMRegisterOption{
-				auth.WithFIPS(true),
-				auth.WithAuthVersion(&semver.Version{Major: 12}),
 			},
 			challengeResponseOptions: []challengeResponseOption{
 				withHost("sts.us-east-1.amazonaws.com"),
@@ -608,41 +632,114 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			// Set mock client.
-			a.SetHTTPClientForAWSSTS(tc.stsClient)
-
-			// add token to auth server
-			token, err := types.NewProvisionTokenFromSpec(
-				tc.tokenName,
-				time.Now().Add(time.Minute),
-				tc.tokenSpec)
-			require.NoError(t, err)
-			require.NoError(t, a.UpsertToken(ctx, token))
-			defer func() {
-				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
-			}()
-
-			_, err = a.RegisterUsingIAMMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-				templateInput := defaultIdentityRequestTemplateInput(challenge)
-				for _, opt := range tc.challengeResponseOptions {
-					opt(&templateInput)
-				}
-				var identityRequest bytes.Buffer
-				require.NoError(t, identityRequestTemplate.Execute(&identityRequest, templateInput))
-
-				req := &proto.RegisterUsingIAMMethodRequest{
-					RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-						Token:        tc.requestTokenName,
-						HostID:       "test-node",
-						Role:         types.RoleNode,
-						PublicSSHKey: sshPublicKey,
-						PublicTLSKey: tlsPublicKey,
-					},
-					StsIdentityRequest: identityRequest.Bytes(),
-				}
-				return req, tc.challengeResponseErr
-			}, tc.iamRegisterOptions...)
-			tc.assertError(t, err)
+			testIAMJoin(t, &tc)
 		})
 	}
+}
+
+func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
+	ctx := t.Context()
+	// Set mock client.
+	tc.authServer.Auth().SetHTTPClientForAWSSTS(tc.stsClient)
+
+	// Add token to auth server.
+	token, err := types.NewProvisionTokenFromSpec(
+		tc.tokenName,
+		time.Now().Add(time.Minute),
+		tc.tokenSpec)
+	require.NoError(t, err)
+	require.NoError(t, tc.authServer.Auth().UpsertToken(ctx, token))
+	t.Cleanup(func() {
+		assert.NoError(t, tc.authServer.Auth().DeleteToken(ctx, token.GetName()))
+	})
+
+	// Make an unauthenticated auth client that will be used for the join.
+	nopClient, err := tc.authServer.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer nopClient.Close()
+
+	createSignedSTSIdentityRequest := func(ctx context.Context, challenge string, opts ...iam.STSIdentityRequestOption) ([]byte, error) {
+		if tc.challengeResponseErr != nil {
+			return nil, trace.Wrap(tc.challengeResponseErr)
+		}
+		templateInput := defaultIdentityRequestTemplateInput(challenge)
+		for _, opt := range tc.challengeResponseOptions {
+			opt(&templateInput)
+		}
+		var identityRequest bytes.Buffer
+		if err := identityRequestTemplate.Execute(&identityRequest, templateInput); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return identityRequest.Bytes(), nil
+	}
+
+	// Test joining via the legacy join service.
+	//
+	// TODO(nklaassen): DELETE IN 20 when removing the legacy join service.
+	t.Run("legacy", func(t *testing.T) {
+		_, err := joinclient.LegacyJoin(ctx, joinclient.JoinParams{
+			Token:      tc.requestTokenName,
+			JoinMethod: types.JoinMethodIAM,
+			ID: state.IdentityID{
+				Role:     types.RoleInstance,
+				HostUUID: "test-uuid",
+				NodeName: "test-node",
+			},
+			CreateSignedSTSIdentityRequestFunc: createSignedSTSIdentityRequest,
+			AuthClient:                         nopClient,
+		})
+		tc.assertError(t, err)
+	})
+
+	// Tests joining via the new join service with auth-assigned host UUIDs.
+	t.Run("new", func(t *testing.T) {
+		_, err := joinclient.Join(ctx, joinclient.JoinParams{
+			Token: tc.requestTokenName,
+			ID: state.IdentityID{
+				Role:     types.RoleInstance,
+				NodeName: "test-node",
+			},
+			CreateSignedSTSIdentityRequestFunc: createSignedSTSIdentityRequest,
+			AuthClient:                         nopClient,
+		})
+		tc.assertError(t, err)
+
+		// If the challenge-response is expected to fail, assert that a join
+		// failure event was emitted with an error message about the client
+		// giving up on the join attempt.
+		if tc.challengeResponseErr == nil {
+			return
+		}
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := lastEvent(ctx, tc.authServer.Auth(), tc.authServer.Auth().GetClock(), "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error: fmt.Sprintf(
+							"receiving challenge solution\n\tclient gave up on join attempt: challenge solution failed: creating signed sts:GetCallerIdentity request %s",
+							tc.challengeResponseErr,
+						),
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Role:      "Instance",
+					Method:    "iam",
+					NodeName:  "test-node",
+					TokenName: "test-token",
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID" || key == "TokenExpires"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond)
+	})
 }
