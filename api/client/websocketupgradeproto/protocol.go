@@ -1,0 +1,439 @@
+/*
+Copyright 2025 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package websocketupgradeproto
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"net"
+	"slices"
+	"sync"
+	"time"
+
+	"github.com/gobwas/ws"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
+)
+
+const (
+	ComponentTeleport = "teleport"
+	ComponentClient   = "client"
+)
+
+// connectionType represents the side of the connection.
+// It can be either a server or a client connection.
+// This is used to determine how to handle WebSocket frames, especially
+// for the ping/pong frames.
+type connectionType int
+
+const (
+	// serverConnection indicates that this is a server-side connection.
+	serverConnection connectionType = iota + 1
+	// clientConnection indicates that this is a client-side connection.
+	clientConnection
+)
+
+var _ net.Conn = (*WebsocketUpgradeConn)(nil)
+
+// WebsocketUpgradeConn is a WebSocket connection that supports the WebSocket
+// upgrade protocol. It implements the net.Conn interface and provides methods
+// to read and write WebSocket frames. It also supports the WebSocket close
+// protocol, allowing it to gracefully close the connection with a close frame.
+type WebsocketUpgradeConn struct {
+	conn       net.Conn
+	readBuffer []byte
+	readError  error
+	readMutex  sync.Mutex
+	writeMutex sync.Mutex
+
+	logContext context.Context
+	logger     *slog.Logger
+	// closeMessageOnce is used to ensure that the close message is sent only once.
+	// There are two different paths that can lead to sending a close frame:
+	// 1. When the connection is closed using the Close method - initiated by the
+	// 	local actor.
+	// 2. When a close frame is received from the other side - initiated by the
+	// 	remote actor.
+	// In both cases, the behavior is didferent:
+	// - In the first case, we send a close frame and wait for a close frame.
+	// - In the second case, we just send a close frame and do not wait for a response.
+	// The closeMessageOnce ensures that the two paths do not interfere with each other,
+	// and we do not send multiple close frames.
+	closeMessageOnce      sync.Once
+	supportsCloseProtocol bool
+	connType              connectionType
+	protocol              string
+
+	// Buffered channel for queued frames, used for best-effort writes.
+	frameQueue chan ws.Frame
+}
+
+// newWebsocketUpgradeConnConfig holds the configuration for creating a new
+// WebsocketUpgradeConn. It includes the context, connection, logger, handshake
+// information, and the type of connection (server or client).
+type newWebsocketUpgradeConnConfig struct {
+	ctx      context.Context
+	conn     net.Conn
+	logger   *slog.Logger
+	hs       ws.Handshake
+	connType connectionType
+}
+
+// newWebsocketUpgradeConn creates a new WebsocketUpgradeConn instance.
+// It initializes the connection with the provided configuration, including
+// the context, connection, logger, and handshake information.
+func newWebsocketUpgradeConn(cfg newWebsocketUpgradeConnConfig) *WebsocketUpgradeConn {
+	return &WebsocketUpgradeConn{
+		logContext:            cfg.ctx,
+		logger:                cfg.logger,
+		conn:                  cfg.conn,
+		supportsCloseProtocol: cfg.hs.Protocol == constants.WebAPIConnUpgradeProtocolWebSocketClose,
+		connType:              cfg.connType,
+		protocol:              cfg.hs.Protocol,
+		// Buffered channel for a single pong frame.
+		frameQueue: make(chan ws.Frame, 1),
+	}
+}
+
+func (c *WebsocketUpgradeConn) NetConn() net.Conn {
+	return c.conn
+}
+
+func (c *WebsocketUpgradeConn) Read(b []byte) (int, error) {
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
+
+	n, err := c.readLocked(b)
+
+	// Timeout errors can be temporary. For example, when this connection is
+	// passed to the kube TLS server, it may get "hijacked" again. During the
+	// hijack, the SetReadDeadline is called with a past timepoint to fail this
+	// Read so that the HTTP server's background read can be stopped. In such
+	// cases, return the original net.Error and clear the cached read error.
+	var netError net.Error
+	if errors.As(err, &netError) && netError.Timeout() {
+		c.readError = nil
+		return n, netError
+	}
+	return n, err
+}
+
+func (c *WebsocketUpgradeConn) readLocked(b []byte) (int, error) {
+	if len(c.readBuffer) > 0 {
+		n := copy(b, c.readBuffer)
+		if n < len(c.readBuffer) {
+			c.readBuffer = c.readBuffer[n:]
+		} else {
+			c.readBuffer = nil
+		}
+		return n, nil
+	}
+
+	// Stop reading if any previous read err.
+	if c.readError != nil {
+		return 0, c.readError
+	}
+
+	for {
+		frame, err := ws.ReadFrame(c.conn)
+		if err != nil {
+			c.readError = err
+			return 0, err
+		}
+
+		// All client frames should be masked.
+		if frame.Header.Masked {
+			frame = ws.UnmaskFrame(frame)
+		}
+
+		switch frame.Header.OpCode {
+		case ws.OpClose:
+			// If we receive a close frame, we should respond with a close frame.
+			if c.supportsCloseProtocol {
+				// Run the close protocol only once to avoid sending frames again
+				// when closing the connection.
+				c.closeMessageOnce.Do(func() {
+					if err := c.writeFrame(
+						ws.NewCloseFrame(
+							ws.NewCloseFrameBody(ws.StatusNormalClosure, ""),
+						),
+					); err != nil {
+						if !isOkNetworkErrOrTimeout(err) {
+							c.logger.DebugContext(c.logContext, "error writing close frame", "error", err)
+						}
+					}
+				})
+			}
+			c.readError = io.EOF
+			return 0, io.EOF
+		case ws.OpBinary:
+			c.readBuffer = frame.Payload
+			return c.readLocked(b)
+		case ws.OpPong:
+			// Receives Pong as response to Ping. Nothing to do.
+		case ws.OpPing:
+			pongFrame := ws.NewPongFrame(frame.Payload)
+			// Attempt to write the Pong frame as a best-effort response to a Ping.
+			// If the client is currently locked and the write would block due to a stalled read,
+			// we skip sending the Pong and queue it. This avoids blocking the read loop.
+			if err := c.tryWriteFrameBestEffort(pongFrame); err != nil {
+				c.logger.DebugContext(c.logContext, "error writing Pong frame", "error", err)
+				return 0, err
+			}
+		}
+	}
+}
+
+// websocketCloseProtocol implements the WebSocket close protocol.
+// It sends a close frame to the client and waits for a close frame response.
+// This is important to ensure that the client receives the close frame and
+// can gracefully close the connection.
+// If the client does not respond, the connection will be closed after a deadline expires.
+// The acquireReadLock parameter indicates whether to acquire the read lock
+// before waiting for the close frame response. This is useful to prevent
+// concurrent reads while waiting for the close frame.
+func (c *WebsocketUpgradeConn) websocketCloseProtocol(closeCode ws.StatusCode, closeText string) {
+	if !c.supportsCloseProtocol {
+		return
+	}
+	c.closeMessageOnce.Do(func() {
+		// Set a deadline to reset any previously set deadline.
+		// Also, this is important to ensure that the connection
+		// won't hang indefinitely if the client does not respond to the close frame.
+		const deadline = 3 * time.Second
+		if err := c.SetDeadline(time.Now().Add(deadline)); err != nil {
+			if !isOkNetworkErrOrTimeout(err) {
+				c.logger.DebugContext(c.logContext, "error setting read deadline", "error", err)
+			}
+			return
+		}
+		// Per RFC 6455, the side initiating the close should send a close frame
+		// and then wait for the close frame from the other side.
+		// If the other side does not respond, the connection will be closed after
+		// the deadline expires.
+		closeFrame := ws.NewCloseFrame(
+			ws.NewCloseFrameBody(closeCode, closeText),
+		)
+
+		if err := c.writeFrame(closeFrame); err != nil {
+			if !isOkNetworkErrOrTimeout(err) {
+				c.logger.DebugContext(c.logContext, "error writing close frame", "error", err)
+			}
+			return
+		}
+	})
+
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
+	// Wait for the close frame from the other side.
+	// This will block until the close frame is received or the deadline expires.
+	// We will collect all data from the connection until we receive a close frame
+	// or an error occurs. This is important to ensure that we read all data
+	// from the connection before closing it.
+	var (
+		tmpData  [1024]byte
+		fullData []byte
+	)
+	for {
+		n, err := c.readLocked(tmpData[:])
+		// If we received a binary frame, we should append it to the fullData slice.
+		if n > 0 {
+			fullData = append(fullData, tmpData[:n]...)
+		}
+		if err != nil {
+			break
+		}
+	}
+	c.readBuffer = fullData
+}
+
+// writeFrame writes a WebSocket frame to the connection.
+// It locks the write mutex to ensure that only one goroutine can write to the
+// connection at a time. This is important to prevent
+// concurrent writes between the ping goroutine and the main connection
+// handling goroutine.
+func (c *WebsocketUpgradeConn) writeFrame(frame ws.Frame) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+
+	// Defer sending any queued Pong frames after writing the new frame
+	// to catch cases where the tryWriteFrameBestEffort function couldn't
+	// acquire the write mutex and had to queue the frame while this same
+	// exact function was already writing a separate frame.
+	defer c.sendAnyQueuedPongFramesLocked()
+
+	err := c.writeFrameLocked(frame)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// sendAnyQueuedPongFramesLocked attempts to send any queued Pong frames.
+func (c *WebsocketUpgradeConn) sendAnyQueuedPongFramesLocked() {
+	// Attempt to send any queued Pong frames.
+	select {
+	case frame := <-c.frameQueue:
+		if err := c.writeFrameLocked(frame); err != nil {
+			c.logger.DebugContext(c.logContext, "error writing queued Pong frame", "error", err)
+		}
+	default:
+		// No queued frames to send.
+	}
+}
+
+// writeFrameLocked writes a WebSocket frame to the connection without acquiring
+// the write mutex. This is used when we already hold the write mutex.
+func (c *WebsocketUpgradeConn) writeFrameLocked(frame ws.Frame) error {
+	// If the connection is a client connection, we should mask the frame.
+	frame.Header.Masked = c.connType == clientConnection
+
+	// There is no need to mask from server to client.
+	return ws.WriteFrame(c.conn, frame)
+}
+
+// tryWriteFrameBestEffort attempts a non-blocking write of a WebSocket frame to the connection,
+// but only if no other goroutine is currently writing. If the write mutex is already
+// locked, it returns immediately after queuing the frame.
+// This is particularly useful for handling Ping frames without stalling the read loop,
+// especially when the write buffer is full and write operations would otherwise block.
+func (c *WebsocketUpgradeConn) tryWriteFrameBestEffort(frame ws.Frame) error {
+	if !c.writeMutex.TryLock() {
+		// Make a copy of the payload to avoid unintended modifications.
+		frame.Payload = slices.Clone(frame.Payload)
+
+		// If the write mutex is already locked, another goroutine is writing.
+		// In that case, we enqueue the frame to be sent later.
+		// This is the only place where frames are enqueued,
+		// so we can safely assume the queue only contains frames added sequentially by this function.
+
+	retry:
+		select {
+		case c.frameQueue <- frame:
+			// Successfully enqueued the frame.
+		default:
+			// Queue is full. Drop the oldest frame to make room for the new one.
+			select {
+			case <-c.frameQueue:
+			default:
+				// If dropping a frame fails for some reason, retry the whole process.
+				goto retry
+			}
+			goto retry
+		}
+
+		// Attempt to acquire the write mutex.
+		// If it's already locked, another goroutine will handle writing the queued frame,
+		// so we exit early.
+		if !c.writeMutex.TryLock() {
+			return nil
+		}
+
+		// We've acquired the write mutex, but it's possible another goroutine already
+		// wrote the frame while we were waiting.
+		// We dequeue the frame to check.
+		select {
+		case queuedFrame := <-c.frameQueue:
+			// A frame was still in the queue, so we proceed to write it.
+			frame = queuedFrame
+		default:
+			// Queue is empty, meaning the frame was already written.
+			// Release the mutex and exit.
+			c.writeMutex.Unlock()
+			return nil
+		}
+	}
+	defer c.writeMutex.Unlock()
+	return c.writeFrameLocked(frame)
+}
+
+// Write writes a binary frame to the connection.
+func (c *WebsocketUpgradeConn) Write(b []byte) (n int, err error) {
+	binaryFrame := ws.NewBinaryFrame(b)
+	if err := c.writeFrame(binaryFrame); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+// WritePing sends a Ping frame to the client.
+func (c *WebsocketUpgradeConn) WritePing() error {
+	if c.connType == clientConnection {
+		return nil
+	}
+
+	pingFrame := ws.NewPingFrame([]byte(ComponentTeleport))
+	return trace.Wrap(c.writeFrame(pingFrame))
+}
+
+// Close closes the connection gracefully with a normal closure status.
+// This method is used to close the connection without any specific status code
+// or message, indicating that the connection is being closed normally.
+func (c *WebsocketUpgradeConn) Close() error {
+	return c.CloseWithStatus(ws.StatusNormalClosure, "")
+}
+
+// CloseWithStatus closes the connection with a specific status code and message.
+// This method is used to gracefully close the connection, ensuring that the
+// client receives a close frame if it supports the WebSocket close protocol.
+func (c *WebsocketUpgradeConn) CloseWithStatus(status ws.StatusCode, message string) error {
+	// If the client supports the close protocol, we should send a close frame
+	// before closing the connection. This is important to ensure that the client
+	// receives the close frame and can gracefully close the connection.
+	c.websocketCloseProtocol(status, message)
+
+	// Close the underlying connection. This will also cancel the ping goroutine
+	// if it is running.
+	if err := c.conn.Close(); err != nil && !isOkNetworkErrOrTimeout(err) {
+		c.logger.DebugContext(c.logContext, "error closing connection", "error", err)
+		return err
+	}
+	return nil
+}
+
+// SetDeadline sets the deadline for the connection.
+func (c *WebsocketUpgradeConn) SetDeadline(t time.Time) error {
+	return c.conn.SetDeadline(t)
+}
+
+// SetWriteDeadline sets the write deadline for the connection.
+func (c *WebsocketUpgradeConn) SetWriteDeadline(t time.Time) error {
+	return c.conn.SetWriteDeadline(t)
+}
+
+// SetReadDeadline sets the read deadline for the connection.
+func (c *WebsocketUpgradeConn) SetReadDeadline(t time.Time) error {
+	return c.conn.SetReadDeadline(t)
+}
+
+// LocalAddr returns the local address of the connection.
+func (c *WebsocketUpgradeConn) LocalAddr() net.Addr {
+	return c.conn.LocalAddr()
+}
+
+// RemoteAddr returns the remote address of the connection.
+func (c *WebsocketUpgradeConn) RemoteAddr() net.Addr {
+	return c.conn.RemoteAddr()
+}
+
+// Protocol returns the WebSocket subprotocol negotiated during the handshake.
+func (c *WebsocketUpgradeConn) Protocol() string {
+	return c.protocol
+}

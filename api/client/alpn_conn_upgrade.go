@@ -17,13 +17,11 @@ limitations under the License.
 package client
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
 	"log/slog"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/websocketupgradeproto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -188,83 +187,36 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 
 // DialContext implements ContextDialer
 func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	tlsConn, err := tlsutils.TLSDial(ctx, d.dialer, network, addr, d.tlsConfig.Clone())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	upgradeURL := url.URL{
 		Host:   addr,
-		Scheme: "https",
+		Scheme: "wss",
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	conn, err := websocketupgradeproto.NewWebSocketALPNClientConn(
+		ctx,
+		websocketupgradeproto.WebSocketALPNClientConnConfig{
+			URL:       &upgradeURL,
+			Dialer:    d.dialer.DialContext,
+			TLSConfig: d.tlsConfig,
+			Protocols: d.upgradeTypes(),
+			Logger: slog.With(
+				"component", websocketupgradeproto.ComponentClient,
+				"network", network,
+				"address", addr,
+				"upgrade_protocols", d.upgradeTypes(),
+			),
+		},
+	)
 	if err != nil {
-		return nil, trace.NewAggregate(tlsConn.Close(), err)
+		return nil, trace.Wrap(err, "failed to create WebSocket ALPN client connection")
 	}
 	return conn, nil
 }
 
-func (d *alpnConnUpgradeDialer) upgradeType() string {
+func (d *alpnConnUpgradeDialer) upgradeTypes() []string {
 	if d.withPing {
-		return constants.WebAPIConnUpgradeTypeALPNPing
+		return []string{constants.WebAPIConnUpgradeProtocolWebSocketClose, constants.WebAPIConnUpgradeTypeALPNPing}
 	}
-	return constants.WebAPIConnUpgradeTypeALPN
-}
-
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
-	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challengeKey, err := generateWebSocketChallengeKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyWebSocketUpgradeHeaders(req, alpnUpgradeType, challengeKey)
-
-	// Set "Connection" header to meet RFC spec:
-	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
-	// Quote: "the upgrade keyword MUST be supplied within a Connection header
-	// field (section 14.10) whenever Upgrade is present in an HTTP/1.1
-	// message."
-	//
-	// Some L7 load balancers/reverse proxies like "ngrok" and "tailscale"
-	// require this header to be set to complete the upgrade flow. The header
-	// must be set on both the upgrade request here and the 101 Switching
-	// Protocols response from the server.
-	req.Header.Set(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
-
-	// Send the request and check if upgrade is successful.
-	if err = req.Write(conn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-
-	if http.StatusSwitchingProtocols != resp.StatusCode {
-		if http.StatusNotFound == resp.StatusCode {
-			return nil, trace.NotImplemented(
-				"connection upgrade call to %q with upgrade type %v failed with status code %v. Please upgrade the server and try again.",
-				constants.WebAPIConnUpgrade,
-				alpnUpgradeType,
-				resp.StatusCode,
-			)
-		}
-		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
-	}
-
-	// Handle WebSocket.
-	logger := slog.With("hostname", api.Host)
-	if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	logger.DebugContext(req.Context(), "Performing ALPN WebSocket connection upgrade.")
-	return newWebSocketALPNClientConn(conn), nil
+	return []string{constants.WebAPIConnUpgradeProtocolWebSocketClose, constants.WebAPIConnUpgradeTypeALPN}
 }
