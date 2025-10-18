@@ -583,23 +583,21 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				},
 			})
 			require.NoError(t, err)
-			require.Len(t, sessionEvents, 4)
 
-			startEvent, ok := sessionEvents[0].(*apievents.SessionStart)
-			require.True(t, ok, "Expected session start event but got %s", sessionEvents[0].GetType())
-			require.Equal(t, sessionID, startEvent.SessionID)
+			// Check that the events found above in the session stream show up in the backend.
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == start.GetID()
+			}), "expected session events to contain session.start event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == end.GetID()
+			}), "expected session events to contain session.end event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == leave.GetID()
+			}), "expected session events to contain session.leave event")
 
-			endEvent, ok := sessionEvents[1].(*apievents.SessionEnd)
-			require.True(t, ok, "Expected session end event but got %s", sessionEvents[1].GetType())
-			require.Equal(t, sessionID, endEvent.SessionID)
-
-			leaveEvent, ok := sessionEvents[2].(*apievents.SessionLeave)
-			require.True(t, ok, "Expected session leave event but got %s", sessionEvents[2].GetType())
-			require.Equal(t, sessionID, leaveEvent.SessionID)
-
-			dataEvent, ok := sessionEvents[3].(*apievents.SessionData)
-			require.True(t, ok, "Expected session data event but got %s", sessionEvents[3].GetType())
-			require.Equal(t, sessionID, dataEvent.SessionID)
+			// Ensure there are no duplicate events, e.g. from proxy recording mode.
+			// The "session data" event may or may not be available yet, so the length may be 3 or 4.
+			require.True(t, len(sessionEvents) <= 4, "%d unexpected duplicate events", len(sessionEvents)-4)
 		})
 	}
 }
