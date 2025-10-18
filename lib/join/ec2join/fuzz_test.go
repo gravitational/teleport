@@ -1,0 +1,71 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package ec2join
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func FuzzParseAndVerifyIID(f *testing.F) {
+	f.Add([]byte(`MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADCABgkqhkiG9w0BBwGggCSABIIB
+23sKICAiYWNjb3VudElkIiA6ICIyNzg1NzYyMjA0NTMiLAogICJhcmNoaXRlY3R1cmUiIDogIng4
+Nl82NCIsCiAgImF2YWlsYWJpbGl0eVpvbmUiIDogInVzLXdlc3QtMmEiLAogICJiaWxsaW5nUHJv
+ZHVjdHMiIDogbnVsbCwKICAiZGV2cGF5UHJvZHVjdENvZGVzIiA6IG51bGwsCiAgIm1hcmtldHBs
+YWNlUHJvZHVjdENvZGVzIiA6IG51bGwsCiAgImltYWdlSWQiIDogImFtaS0wZmE5ZTFmNjQxNDJj
+ZGUxNyIsCiAgImluc3RhbmNlSWQiIDogImktMDc4NTE3Y2E4YTcwYTFkZGUiLAogICJpbnN0YW5j
+ZVR5cGUiIDogInQyLm1lZGl1bSIsCiAgImtlcm5lbElkIiA6IG51bGwsCiAgInBlbmRpbmdUaW1l
+IiA6ICIyMDIxLTA5LTAzVDIxOjI1OjQ0WiIsCiAgInByaXZhdGVJcCIgOiAiMTAuMC4wLjIwOSIs
+CiAgInJhbWRpc2tJZCIgOiBudWxsLAogICJyZWdpb24iIDogInVzLXdlc3QtMiIsCiAgInZlcnNp
+b24iIDogIjIwMTctMDktMzAiCn0AAAAAAAAxggIvMIICKwIBATBpMFwxCzAJBgNVBAYTAlVTMRkw
+FwYDVQQIExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0dGxlMSAwHgYDVQQKExdBbWF6
+b24gV2ViIFNlcnZpY2VzIExMQwIJALZL3lrQCSTMMA0GCWCGSAFlAwQCAQUAoIGYMBgGCSqGSIb3
+DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIxMDkwMzIxMjU0N1owLQYJKoZIhvcN
+AQk0MSAwHjANBglghkgBZQMEAgEFAKENBgkqhkiG9w0BAQsFADAvBgkqhkiG9w0BCQQxIgQgCH2d
+JiKmdx9uhxlm8ObWAvFOhqJb7k79+DW/T3ezwVUwDQYJKoZIhvcNAQELBQAEggEANWautigs/qZ6
+w8g5/EfWsAFj8kHgUD+xqsQ1HDrBUx3IQ498NMBZ78379B8RBfuzeVjbaf+yugov0fYrDbGvSRRw
+myy49TfZ9gdlpWQXzwSg3OPMDNToRoKw00/LQjSxcTCaPP4vMDEIjYMUqZ3i4uWYJJJ0Lb7fDMDk
+Anu7yHolVfbnvIAuZe8lGpc7ofCSBG5wulm+/pqzO25YPMH1cLEvOadE+3N2GxK6gRTLJoE98rsm
+LDp6OuU/b2QfaxU0ec6OogdtSJto/URI0/ygHmNAzBis470A29yh5nVwm6AkY4krjPsK7uiBIRhs
+lr5x0X6+ggQfF2BKAJ/BRcAHNgAAAAAAAA==`))
+	f.Add([]byte(`MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADCABgkqhkiG9w0BBwGggCSABIIB
+3XsKICAiYWNjb3VudElkIiA6ICI4ODM0NzQ2NjI4ODgiLAogICJhcmNoaXRlY3R1cmUiIDogIng4
+Nl82NCIsCiAgImF2YWlsYWJpbGl0eVpvbmUiIDogInVzLXdlc3QtMWMiLAogICJiaWxsaW5nUHJv
+ZHVjdHMiIDogbnVsbCwKICAiZGV2cGF5UHJvZHVjdENvZGVzIiA6IG51bGwsCiAgIm1hcmtldHBs
+YWNlUHJvZHVjdENvZGVzIiA6IG51bGwsCiAgImltYWdlSWQiIDogImFtaS0wY2UzYzU1YTMxZDI5
+MDQwZSIsCiAgImluc3RhbmNlSWQiIDogImktMDFiOTQwYzQ1ZmQxMWZlNzQiLAogICJpbnN0YW5j
+ZVR5cGUiIDogInQyLm1pY3JvIiwKICAia2VybmVsSWQiIDogbnVsbCwKICAicGVuZGluZ1RpbWUi
+IDogIjIwMjEtMDktMTFUMDA6MTQ6MThaIiwKICAicHJpdmF0ZUlwIiA6ICIxNzIuMzEuMTIuMjUx
+IiwKICAicmFtZGlza0lkIiA6IG51bGwsCiAgInJlZ2lvbiIgOiAidXMtd2VzdC0xIiwKICAidmVy
+c2lvbiIgOiAiMjAxNy0wOS0zMCIKfQAAAAAAADGCAi8wggIrAgEBMGkwXDELMAkGA1UEBhMCVVMx
+GTAXBgNVBAgTEFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcTB1NlYXR0bGUxIDAeBgNVBAoTF0Ft
+YXpvbiBXZWIgU2VydmljZXMgTExDAgkA00+QilzIS0gwDQYJYIZIAWUDBAIBBQCggZgwGAYJKoZI
+hvcNAQkDMQsGCSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMjEwOTExMDAxNDIyWjAtBgkqhkiG
+9w0BCTQxIDAeMA0GCWCGSAFlAwQCAQUAoQ0GCSqGSIb3DQEBCwUAMC8GCSqGSIb3DQEJBDEiBCDS
+1gNvxbYnEL6plVu8X/QmKPJFJwIJfi+2hIVjyKAOtjANBgkqhkiG9w0BAQsFAASCAQABKmghATg8
+VXkdiIGcTIPfKrc2v/zEIdLUAi+Ew5lrGUVjnNqrP9irGK4d9sVtcu/8UKp9RDoeJOQ6I/pRcwvT
+PJVHlhGnLyybr5ZVqkxiC09GASNnPe12dzCKkKD2rvW6mGR91cxpM94Xqi5UA/ZRqiXwpHo3LECN
+Gu38Hpdv6sBgD/av2Ohd+vEH2zvYVkp7ZfnFuDLWRSBQZgmKwVKVdOjrMmP32vb3vzhMBuOj+jbQ
+RwEmYIkRaEGNbrZgatjMJYmTWuLG26zws3avOK6kL6u38DV3wJPVB/G0Ira5MvC/ojGya+DrVngW
+VUP+3jgenPrd7OyCWPSwOoOBMhSlAAAAAAAA`))
+	f.Fuzz(func(t *testing.T, iidBytes []byte) {
+		require.NotPanics(t, func() {
+			parseAndVerifyIID(iidBytes)
+		})
+	})
+}
