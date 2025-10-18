@@ -159,7 +159,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken, types.JoinMethodBoundKeypair, types.JoinMethodIAM:
+	case types.JoinMethodToken, types.JoinMethodBoundKeypair, types.JoinMethodIAM, types.JoinMethodEnv0:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -244,6 +244,8 @@ func joinWithMethod(
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodEnv0:
+		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{

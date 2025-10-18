@@ -73,6 +73,7 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetEnv0IDTokenValidator() Env0TokenValidator
 }
 
 // ServerConfig holds configuration parameters for [Server].
@@ -208,6 +209,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, provisionToken)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, provisionToken)
+	case types.JoinMethodEnv0:
+		return s.handleEnv0Join(stream, authCtx, clientInit, provisionToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)

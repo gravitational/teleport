@@ -194,6 +194,22 @@ func (k *PublicKeys) check() error {
 	return nil
 }
 
+// OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
+//
+// The join flow for all OIDC-based join methods is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: OIDCInit
+// 4. server->client: Result
+type OIDCInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// IDToken is the OIDC identity token.
+	IDToken []byte
+}
+
 // BoundKeypairInit is sent from the client in response to the ServerInit
 // message for the bound keypair join method.
 // The server is expected to respond with a BoundKeypairChallenge.
