@@ -209,6 +209,10 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	case types.DatabaseTypeMongoAtlas:
 		return []string{
 			filepath.Join(s.cfg.DataDir, filepath.Base(isrgRootX1URL)),
+			filepath.Join(s.cfg.DataDir, filepath.Base(gtsRootR1URL)),
+			filepath.Join(s.cfg.DataDir, filepath.Base(gtsRootR2URL)),
+			filepath.Join(s.cfg.DataDir, filepath.Base(gtsRootR3URL)),
+			filepath.Join(s.cfg.DataDir, filepath.Base(gtsRootR4URL)),
 		}, nil
 	}
 
@@ -334,7 +338,18 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 	case types.DatabaseTypeAWSKeyspaces:
 		return d.downloadFromURL(amazonKeyspacesCAURL)
 	case types.DatabaseTypeMongoAtlas:
-		return d.downloadFromURL(isrgRootX1URL)
+		if strings.HasSuffix(isrgRootX1URL, hint) {
+			return d.downloadFromURL(isrgRootX1URL)
+		} else if strings.HasSuffix(gtsRootR1URL, hint) {
+			return d.downloadFromURL(gtsRootR1URL)
+		} else if strings.HasSuffix(gtsRootR2URL, hint) {
+			return d.downloadFromURL(gtsRootR2URL)
+		} else if strings.HasSuffix(gtsRootR3URL, hint) {
+			return d.downloadFromURL(gtsRootR3URL)
+		} else if strings.HasSuffix(gtsRootR4URL, hint) {
+			return d.downloadFromURL(gtsRootR4URL)
+		}
+		return nil, nil, trace.BadParameter("unknown MongoDB Atlas CA %q", hint)
 	}
 	return nil, nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -527,9 +542,13 @@ const (
 	// isrgRootX1URL is the URL to download ISRG Root X1 CA for Let's Encrypt. See:
 	// https://letsencrypt.org/certificates/
 	//
-	// MongoDB Atlas uses certificates signed by Let's Encrypt:
+	// MongoDB Atlas uses certificates signed by Let's Encrypt and Google Trust Services:
 	// https://www.mongodb.com/docs/atlas/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-tls-certificates-
 	isrgRootX1URL = "https://letsencrypt.org/certs/isrgrootx1.pem"
+	gtsRootR1URL = "https://i.pki.goog/r1.pem"
+	gtsRootR2URL = "https://i.pki.goog/r2.pem"
+	gtsRootR3URL = "https://i.pki.goog/r3.pem"
+	gtsRootR4URL = "https://i.pki.goog/r4.pem"
 
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.
