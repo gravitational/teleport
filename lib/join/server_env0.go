@@ -19,13 +19,14 @@ package join
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/trace"
 )
 
 type Env0TokenValidator interface {

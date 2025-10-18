@@ -21,9 +21,10 @@ package env0
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 const (

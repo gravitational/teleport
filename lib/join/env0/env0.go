@@ -32,37 +32,37 @@ type IDTokenClaims struct {
 
 	// OrganizationID is a unique identifier for the organization. Corresponds
 	// to `organizationId`.
-	OrganizationID  string `json:"organizationId"`
+	OrganizationID string `json:"organizationId"`
 	// ProjectID is a unique identifier for the project. Corresponds to
 	// `projectId`.
-	ProjectID       string `json:"projectId"`
+	ProjectID string `json:"projectId"`
 	// ProjectName is the name of the project. Corresponds to `projectName`.
-	ProjectName     string `json:"projectName"`
+	ProjectName string `json:"projectName"`
 	// TemplateID is a unique identifier for the template. Corresponds to
 	// `templateId`.
-	TemplateID      string `json:"templateId"`
+	TemplateID string `json:"templateId"`
 	// TemplateName is the name of the template. Corresponds to `templateName`.
-	TemplateName    string `json:"templateName"`
+	TemplateName string `json:"templateName"`
 	// EnvironmentID is a unique identifier for the environment. Corresponds to
 	// `environmentId`.
-	EnvironmentID   string `json:"environmentId"`
+	EnvironmentID string `json:"environmentId"`
 	// EnvironmentName is the name of the environment. Corresponds to
 	// `environmentName`.
 	EnvironmentName string `json:"environmentName"`
 	// WorkspaceName is the name of the workspace. Corresponds to
 	// `workspaceName`.
-	WorkspaceName   string `json:"workspaceName"`
+	WorkspaceName string `json:"workspaceName"`
 	// DeploymentLogID is a unique identifier for this deployment. Corresponds
 	// to `deploymentLogId`.
 	DeploymentLogID string `json:"deploymentLogId"`
 	// DeploymentType is the type of this deployment. Corresponds to
 	// `deploymentType`.
-	DeploymentType  string `json:"deploymentType"`
+	DeploymentType string `json:"deploymentType"`
 	// DeployerEmail is the email of the user that started this deployment.
 	// Corresponds to `deployerEmail`.
-	DeployerEmail   string `json:"deployerEmail"`
+	DeployerEmail string `json:"deployerEmail"`
 	// Env0Tag is an optional custom tag. Corresponds to `env0Tag`.
-	Env0Tag         string `json:"env0Tag"`
+	Env0Tag string `json:"env0Tag"`
 }
 
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsEnv0 {
