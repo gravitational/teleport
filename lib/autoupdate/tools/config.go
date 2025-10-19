@@ -62,6 +62,8 @@ type ClientToolsConfig struct {
 	// MaxTools defines the maximum number of tools allowed in the tools directory.
 	// Any tools exceeding this limit will be removed during the next installation.
 	MaxTools int `json:"max_tools"`
+	// Disabled disables managed updates for all clusters.
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 // AddTool adds a tool to the collection in the configuration, always placing it at the top.
@@ -136,6 +138,19 @@ func (c *Tool) PackageNames() []string {
 		}
 	}
 	return packageNames
+}
+
+// UpdateLocalMode stores the local disable mode for all clusters in the configuration.
+// It overrides the version advertised by the cluster configuration for client tools managed updates.
+func UpdateLocalMode(toolsDir string, disabled bool) error {
+	err := updateToolsConfig(toolsDir, func(ctc *ClientToolsConfig) error {
+		ctc.Disabled = disabled
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // getToolsConfig reads the configuration file for client tools managed updates,

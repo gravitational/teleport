@@ -271,6 +271,40 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	matchVersion(t, string(out), testVersions[1])
 }
 
+// TestUpdateDisabledInConfiguration verifies that managed updates can be locally disabled,
+// regardless of the version advertised by the cluster.
+func TestUpdateDisabledInConfiguration(t *testing.T) {
+	testToolsDir := t.TempDir()
+	t.Setenv(types.HomeEnvVar, testToolsDir)
+	ctx := context.Background()
+
+	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
+	updater := tools.NewUpdater(
+		testToolsDir,
+		testVersions[0],
+		tools.WithBaseURL(baseURL),
+	)
+	err := updater.Update(ctx, testVersions[0])
+	require.NoError(t, err)
+
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+
+	// Set local mode to disabled state.
+	cmd := exec.CommandContext(ctx, tshPath, "update", "--mode", "disabled")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run())
+
+	// Verify that the installed version is not equal to requested one in disabled mode.
+	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	matchVersion(t, string(out), testVersions[0])
+}
+
 func matchVersion(t *testing.T, output string, version string) {
 	t.Helper()
 	matches := pattern.FindStringSubmatch(output)

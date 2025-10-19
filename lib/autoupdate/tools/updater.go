@@ -74,6 +74,10 @@ const (
 var (
 	// pattern is template for response on version command for client tools {tsh, tctl}.
 	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
+	// ErrUpdateDisabled is error for local disabling managed updates.
+	ErrUpdateDisabled = errors.New("client tools managed updates are manually disabled locally, " +
+		"the required cluster version differs from the installed version and may not work correctly, " +
+		"run `tsh update --mode=enable` to re-enable managed updates")
 )
 
 // UpdateResponse contains information about after update process.
@@ -224,6 +228,12 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
+		if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+			ctc.SetConfig(proxyHost, u.localVersion, true)
+			return nil
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
@@ -293,6 +303,9 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 // existing one and cleanups the previous downloads with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 	err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		if ctc.Disabled {
+			return ErrUpdateDisabled
+		}
 		// ignoreTools is the list of tools installed and tracked by the config.
 		// They should be preserved during cleanup. If we have more than [defaultSizeStoredVersion]
 		// versions, the updater will forget about the least used version.

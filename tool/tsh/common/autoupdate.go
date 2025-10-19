@@ -25,6 +25,11 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 )
 
+const (
+	modeCTMUEnabled  = "enabled"
+	modeCTMUDisabled = "disabled"
+)
+
 type autoUpdateCommand struct {
 	update *managedUpdatesUpdateCommand
 }
@@ -36,7 +41,13 @@ func newUpdateCommand(app *kingpin.Application) *autoUpdateCommand {
 
 	root.update.CmdClause = app.Command("update",
 		"Update client tools (tsh, tctl) to the latest version defined by the cluster configuration.")
-	root.update.CmdClause.Flag("clear", "Removes locally installed client tools updates from the Teleport home directory.").BoolVar(&root.update.clear)
+	root.update.CmdClause.Flag("clear",
+		"Removes locally installed client tools updates from the Teleport home directory.").
+		BoolVar(&root.update.clear)
+	root.update.CmdClause.Flag("mode",
+		"Mode: enabled, disabled. Changes the mode of local tools managed updates (tsh, tctl). "+
+			"When disabled, updates are ignored and a warning is displayed.").
+		EnumVar(&root.update.mode, modeCTMUEnabled, modeCTMUDisabled)
 
 	return root
 }
@@ -46,14 +57,23 @@ func newUpdateCommand(app *kingpin.Application) *autoUpdateCommand {
 type managedUpdatesUpdateCommand struct {
 	*kingpin.CmdClause
 	clear bool
+	mode  string
 }
 
 func (c *managedUpdatesUpdateCommand) run(cf *CLIConf) error {
-	if c.clear {
-		toolsDir, err := tools.Dir()
-		if err != nil {
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if c.mode != "" {
+		if err := tools.UpdateLocalMode(toolsDir, c.mode == modeCTMUDisabled); err != nil {
 			return trace.Wrap(err)
 		}
+		return nil
+	}
+
+	if c.clear {
 		if err := tools.CleanUp(toolsDir, tools.DefaultClientTools()); err != nil {
 			return trace.Wrap(err)
 		}
