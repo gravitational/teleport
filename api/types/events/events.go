@@ -2698,32 +2698,65 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	return out
 }
 
+func (c *SCIMCommonData) nonEmptyFields() int {
+	acc := nonEmptyStrs(c.Integration, c.ResourceType)
+	if r := c.Request; r != nil {
+		acc += nonEmptyStrs(r.ID, r.SourceAddress, r.Method, r.Path, r.Query, r.UserAgent)
+	}
+	return acc
+}
+
+func (c *SCIMCommonData) trimFields(maxFieldLen int) {
+	if c == nil {
+		return
+	}
+
+	c.ResourceType = trimStr(c.ResourceType, maxFieldLen)
+	c.Integration = trimStr(c.Integration, maxFieldLen)
+
+	if r := c.Request; r != nil {
+		r.ID = trimStr(r.ID, maxFieldLen)
+		r.SourceAddress = trimStr(r.SourceAddress, maxFieldLen)
+		r.UserAgent = trimStr(r.UserAgent, maxFieldLen)
+		r.Method = trimStr(r.Method, maxFieldLen)
+		r.Path = trimStr(r.Path, maxFieldLen)
+		r.Query = trimStr(r.Query, maxFieldLen)
+	}
+}
+
 func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	if m.Size() <= maxSize {
 		return m
 	}
 	trimmed := utils.CloneProtoMsg(m)
-	if trimmed.Request != nil {
-		trimmed.Request.Body = nil
-	}
+
+	maxSize = adjustedMaxSize(trimmed, maxSize)
+	trimmableFieldCount := trimmed.Status.nonEmptyStrs() +
+		trimmed.SCIMCommonData.nonEmptyFields() +
+		nonEmptyStrs(
+			trimmed.TeleportID,
+			trimmed.ExternalID,
+			trimmed.Display)
+	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+
+	trimmed.SCIMCommonData.trimFields(maxFieldsSize)
+	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
+	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
+
 	if trimmed.Size() <= maxSize {
 		return trimmed
 	}
 
-	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := trimmed.Status.nonEmptyStrs() + nonEmptyStrs(
-		trimmed.Integration,
-		trimmed.ResourceType,
-		trimmed.TeleportID,
-		trimmed.ExternalID,
-		trimmed.Display)
-	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+	if trimmed.Request != nil {
+		trimmed.Request.Body = MustEncodeMap(map[string]any{"trimmed": true})
+		if trimmed.Size() <= maxSize {
+			return trimmed
+		}
+	}
 
-	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
-	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
-	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
+	if trimmed.Response != nil {
+		trimmed.Response.Body = MustEncodeMap(map[string]any{"trimmed": true})
+	}
 
 	return trimmed
 }
@@ -2734,23 +2767,25 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	trimmed := utils.CloneProtoMsg(m)
 
+	trimmableFieldCount := trimmed.Status.nonEmptyStrs() +
+		trimmed.SCIMCommonData.nonEmptyFields() +
+		nonEmptyStrs(m.Filter)
+	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+
+	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	trimmed.SCIMCommonData.trimFields(maxFieldsSize)
+	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+
 	if trimmed.Request != nil {
-		trimmed.Request.Body = nil
-	}
-	if trimmed.Size() <= maxSize {
-		return trimmed
+		trimmed.Request.Body = MustEncodeMap(map[string]any{"trimmed": true})
+		if trimmed.Size() <= maxSize {
+			return trimmed
+		}
 	}
 
-	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := m.Status.nonEmptyStrs() + nonEmptyStrs(
-		trimmed.Integration,
-		trimmed.ResourceType,
-		m.Filter)
-	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
-	trimmed.Status = m.Status.trimToMaxSize(maxFieldsSize)
-	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
-	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+	if trimmed.Response != nil {
+		trimmed.Response.Body = MustEncodeMap(map[string]any{"trimmed": true})
+	}
 
 	return trimmed
 }
