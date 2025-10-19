@@ -18,7 +18,21 @@
 
 package readyz
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+	ServiceStatusGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "tbot_service_status",
+			// TODO: (noah) Make this help string useful.
+			Help: "The status label indicates the current status of the service (healthy, unhealthy, initializing, unknown).",
+		}, []string{"service", "status"},
+	)
+)
 
 // NewRegistry returns a Registry to track the health of tbot's services.
 func NewRegistry() *Registry {
@@ -36,6 +50,9 @@ type Registry struct {
 // AddService adds a service to the registry so that its health will be reported
 // from our readyz endpoints. It returns a Reporter the service can use to report
 // status changes.
+//
+// If the service has already been registered, it returns a copy of the existing
+// Reporter that is safe to use concurrently with the original.
 func (r *Registry) AddService(name string) Reporter {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -44,8 +61,13 @@ func (r *Registry) AddService(name string) Reporter {
 	if !ok {
 		status = &ServiceStatus{}
 		r.services[name] = status
+		// Set prometheus status to Initializing
+		ServiceStatusGauge.WithLabelValues(
+			name, Initializing.MetricLabelValue(),
+		).Set(1)
 	}
 	return &reporter{
+		name:   name,
 		mu:     &r.mu,
 		status: status,
 	}
