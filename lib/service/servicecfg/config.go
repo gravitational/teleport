@@ -85,6 +85,10 @@ type Config struct {
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
 
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay time.Duration
+
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 
