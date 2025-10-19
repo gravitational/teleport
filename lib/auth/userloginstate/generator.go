@@ -431,8 +431,34 @@ func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService ser
 	user.SetRoles(uls.GetRoles())
 	user.SetTraits(uls.GetTraits())
 
-	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
+	// TODO(smallinsky) In case of unhealthy cached in best case we will still do 1 api call in worst case 2 api calls.
+	// So this optimization make sense only if cache is healthy.
+	// Right now cache interface is not exposing the healthy state.
+	// We should rework this and do 1 Upsert call is cache is down.
+	uls, err = maybeUpdateUserLoginState(ctx, ulsService, uls)
 	return uls, trace.Wrap(err)
+}
+
+// maybeUpdateUserLoginState will update the user login state in the backend only if it has changed.
+// We don't need to update the state if the cache state is the same as the existing state.
+// That allows to save the write capacity on the backend.
+// TODO(smallinsky) Consider removing user login state entirely.
+func maybeUpdateUserLoginState(ctx context.Context, ulsService services.UserLoginStates, newState *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error) {
+	existing, err := ulsService.GetUserLoginState(ctx, newState.GetName())
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		out, err := ulsService.UpsertUserLoginState(ctx, newState)
+		return out, trace.Wrap(err)
+	}
+	newState.SetRevision(existing.GetRevision())
+	if existing.IsEqual(newState) {
+		// The cache object state is the same. No need to call the backend.
+		return existing, nil
+	}
+	out, err := ulsService.UpsertUserLoginState(ctx, newState)
+	return out, trace.Wrap(err)
 }
 
 // LoginHook creates a login hook from the Generator and the user login state service.
