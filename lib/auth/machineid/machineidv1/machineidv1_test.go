@@ -663,7 +663,8 @@ func TestUpdateBot(t *testing.T) {
 			Kind:    types.KindBot,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: "pre-existing",
+				Name:        "pre-existing",
+				Description: "before",
 			},
 			Spec: &machineidv1pb.BotSpec{
 				Roles: []string{beforeRole.GetName()},
@@ -708,7 +709,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: preExistingBot.Metadata.Name,
+						Name:        preExistingBot.Metadata.Name,
+						Description: "after",
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{afterRole.GetName()},
@@ -728,7 +730,7 @@ func TestUpdateBot(t *testing.T) {
 					},
 				},
 				UpdateMask: &fieldmaskpb.FieldMask{
-					Paths: []string{"spec.roles", "spec.traits", "spec.max_session_ttl"},
+					Paths: []string{"spec.roles", "spec.traits", "spec.max_session_ttl", "metadata.description"},
 				},
 			},
 
@@ -737,7 +739,8 @@ func TestUpdateBot(t *testing.T) {
 				Kind:    types.KindBot,
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
-					Name: preExistingBot.Metadata.Name,
+					Name:        preExistingBot.Metadata.Name,
+					Description: "after",
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{afterRole.GetName()},
@@ -764,8 +767,9 @@ func TestUpdateBot(t *testing.T) {
 				Kind:    types.KindUser,
 				Version: types.V2,
 				Metadata: types.Metadata{
-					Name:      preExistingBot.Status.UserName,
-					Namespace: defaults.Namespace,
+					Name:        preExistingBot.Status.UserName,
+					Description: "after",
+					Namespace:   defaults.Namespace,
 					Labels: map[string]string{
 						types.BotLabel:           preExistingBot.Metadata.Name,
 						types.BotGenerationLabel: "1337",
@@ -821,7 +825,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: "valid-bot",
+						Name:        "valid-bot",
+						Description: preExistingBot.Metadata.Description,
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
@@ -854,7 +859,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: "bernard-lowe",
+						Name:        "bernard-lowe",
+						Description: "before",
 					},
 					Spec: nil,
 				},
@@ -895,7 +901,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: "",
+						Name:        "",
+						Description: preExistingBot.Metadata.Description,
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
@@ -918,7 +925,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: "foo",
+						Name:        "foo",
+						Description: "before",
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
@@ -939,7 +947,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: "foo",
+						Name:        "foo",
+						Description: preExistingBot.Metadata.Description,
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
@@ -962,7 +971,8 @@ func TestUpdateBot(t *testing.T) {
 					Kind:    types.KindBot,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
-						Name: preExistingBot.Metadata.Name,
+						Name:        preExistingBot.Metadata.Name,
+						Description: preExistingBot.Metadata.Description,
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles:  []string{"foo", "", "bar"},
