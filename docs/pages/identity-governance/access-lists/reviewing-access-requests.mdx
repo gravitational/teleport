@@ -1,0 +1,127 @@
+---
+title: Reviewing Access Requests
+description: Learn how Access List owners review Access Requests
+tags:
+ - get-started
+ - identity-governance
+ - privileged-access
+ - access-lists
+ - access-requests
+---
+
+Access list owners can be automatically assigned as suggested reviewers to
+resource-based access requests that include resources granted by their access
+list. In this guide we will walk through an example and the configuration of
+this use-case.
+
+## Prerequisites
+
+- Teleport cluster with a connected resource e.g. an SSH node.
+- Teleport user (`alice` in this guide) with an `editor` or equivalent administrative role.
+- Teleport user (`bob` in this guide) acting as a low-privileged requester user.
+
+## Step 1/5. Create roles
+
+First, let's create 3 roles:
+
+- Role that grants access to SSH nodes with a particular label
+- Role that allows users to request access to SSH nodes with that label
+- Role that allows users to review access requests for SSH nodes with that label
+
+The `ssh-access` role allows access to SSH nodes with a label `env: prod`:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: ssh-access
+spec:
+  allow:
+    logins:
+    - ubuntu
+    node_labels:
+      'env': 'prod'
+```
+
+The `ssh-access-requester` role allows to request access to such SSH nodes:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: ssh-access-requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - ssh-access
+```
+
+The `ssh-access-reviewer` role allows to review such access requests:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: ssh-access-reviewer
+spec:
+  allow:
+    review_requests:
+      roles:
+      - ssh-access
+      preview_as_roles:
+      - ssh-access
+```
+
+## Step 2/5. Assign requester role
+
+Assign the `ssh-access-requester` role to `bob`.
+
+![bob user roles](../../../img/identity-governance/access-lists/bob-user-roles.png)
+
+This role will allow `bob` to issue access requests to SSH nodes with `env: prod`
+labels.
+
+## Step 3/5. Create access list
+
+Now, let's create an access list that allows its owner to review requests to
+these SSH nodes.
+
+On the Identity Governance / Access Lists web UI page select "Create New Access
+List" and create a new one with the following parameters:
+
+- List name: `SSH Access`
+- Permissions granted to list owners: `ssh-access-reviewer`
+- Permissions granted to list members: `ssh-access`
+- List owner: `alice`
+
+![access list owners](../../../img/identity-governance/access-lists/ssh-access-list-owners.png)
+
+You can fill out the rest of the parameters as desired.
+
+## Step 4/5. Submit access request
+
+Once you log into Teleport as `bob`, you should be able to see your SSH node(-s)
+as requestable resources.
+
+On the access request checkout dialog, you should see that `alice` has been
+prepopulated as a suggested reviewer because she is an owner of the access
+list that grants access to the requested SSH node.
+
+![alice is suggested reviewer](../../../img/identity-governance/access-lists/bob-submit-request.png)
+
+Submit the request.
+
+## Step 5/5. Review access request
+
+Once the request is submitted, log in as `alice` and go to the Identity Governance /
+Access Requests page to see `bob`'s pending request and review it:
+
+![alice is suggested reviewer](../../../img/identity-governance/access-lists/alice-review-request.png)
+
+That's it! `alice` as an owner of the "SSH Access" list has successfully reviewed
+`bob`'s request to an SSH node that's granted by her access list.
+
+## Next steps
+
+- Learn more about [resource access requests](../access-requests/resource-requests.mdx).
