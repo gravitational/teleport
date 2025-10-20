@@ -1598,7 +1598,7 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 		)
 
 		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal OIDC Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
 				"error", err,
 			)
