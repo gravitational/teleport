@@ -570,13 +570,10 @@ func (p ProcessGroup) Reload(ctx context.Context) error {
 // Sync syncs only the first process in the group, and fails if no processes are present.
 // The systemctl daemon-reload command is global, so we only need to sync once.
 func (p ProcessGroup) Sync(ctx context.Context) error {
-	for _, process := range p {
-		if err := process.Sync(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
+	if len(p) == 0 {
+		return trace.Errorf("no services to sync")
 	}
-	return trace.Errorf("no services to sync")
+	return trace.Wrap(p[0].Sync(ctx))
 }
 
 // IsEnabled returns true if any processes in the group are enabled.
