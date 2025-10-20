@@ -277,7 +277,7 @@ func TestEC2Watcher(t *testing.T) {
 	})
 
 	fetchersFn := func() []Fetcher {
-		fetchers, err := matchersToEC2InstanceFetchers(MatcherParamsToEC2Fetcher{
+		fetchers, err := matchersToEC2InstanceFetchers(MatcherToEC2FetcherParams{
 			Matchers:        matchers,
 			PublicProxyAddr: "proxy.example.com:3080",
 		}, getClient)
@@ -347,7 +347,7 @@ func TestMatchersToEC2InstanceFetchers(t *testing.T) {
 		SSM:     &types.AWSSSM{},
 	}}
 
-	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherParamsToEC2Fetcher{
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
 		Matchers:        matchers,
 		EC2ClientGetter: ec2ClientGetter,
 	})
