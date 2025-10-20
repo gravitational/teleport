@@ -2009,14 +2009,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
-	case types.KindWorkloadIdentityX509Revocation:
-		if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
-			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
-				Name: rc.ref.Name,
-			}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Workload identity X509 revocation %q has been deleted\n", rc.ref.Name)
 	case types.KindWorkloadIdentityX509IssuerOverride:
 		c := client.WorkloadIdentityX509OverridesClient()
 		if _, err := c.DeleteX509IssuerOverride(
@@ -3017,32 +3009,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &spiffeFederationCollection{items: resources}, nil
-	case types.KindWorkloadIdentityX509Revocation:
-		if rc.ref.Name != "" {
-			resource, err := client.
-				WorkloadIdentityRevocationServiceClient().
-				GetWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
-					Name: rc.ref.Name,
-				})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &workloadIdentityX509RevocationCollection{items: []*workloadidentityv1pb.WorkloadIdentityX509Revocation{resource}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentityX509Revocation, string, error) {
-			resp, err := client.WorkloadIdentityRevocationServiceClient().ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{
-				PageSize:  int32(limit),
-				PageToken: pageToken,
-			})
-
-			return resp.GetWorkloadIdentityX509Revocations(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &workloadIdentityX509RevocationCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>

@@ -133,7 +133,7 @@ func createWorkloadIdentity(
 		}
 	}
 
-	fmt.Printf("Workload identity %q has been created\n", in.GetMetadata().GetName())
+	fmt.Printf("Workload Identity %q has been created\n", in.GetMetadata().GetName())
 
 	return nil
 }
@@ -150,6 +150,6 @@ func deleteWorkloadIdentity(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Workload identity %q has been deleted\n", ref.Name)
+	fmt.Printf("Workload Identity %q has been deleted\n", ref.Name)
 	return nil
 }
