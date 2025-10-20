@@ -319,6 +319,7 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 			entitlements.UsageReporting:             {Enabled: true, Limit: 222},
 			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 222},
 			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 222},
+			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 222},
 		},
 	}
 
@@ -369,6 +370,7 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 			"UsageReporting":             {Enabled: true, Limit: 222},
 			"LicenseAutoUpdate":          {Enabled: true, Limit: 222},
 			"UnrestrictedManagedUpdates": {Enabled: true, Limit: 222},
+			"ClientIPRestrictions":       {Enabled: true, Limit: 222},
 		},
 	})
 	require.NoError(t, err)

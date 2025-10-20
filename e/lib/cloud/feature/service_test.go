@@ -225,6 +225,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.UsageReporting:             {},
 			entitlements.LicenseAutoUpdate:          {},
 			entitlements.UnrestrictedManagedUpdates: {},
+			entitlements.ClientIPRestrictions:       {},
 		},
 	})
 
@@ -278,6 +279,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.UsageReporting:             {},
 			entitlements.LicenseAutoUpdate:          {},
 			entitlements.UnrestrictedManagedUpdates: {},
+			entitlements.ClientIPRestrictions:       {},
 		},
 	})
 
@@ -323,6 +325,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.UsageReporting:             {},
 			entitlements.LicenseAutoUpdate:          {},
 			entitlements.UnrestrictedManagedUpdates: {},
+			entitlements.ClientIPRestrictions:       {},
 		},
 	})
 
@@ -372,6 +375,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.UsageReporting:             {},
 			entitlements.LicenseAutoUpdate:          {},
 			entitlements.UnrestrictedManagedUpdates: {},
+			entitlements.ClientIPRestrictions:       {},
 		},
 	})
 
@@ -419,6 +423,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.UsageReporting:             {},
 			entitlements.LicenseAutoUpdate:          {},
 			entitlements.UnrestrictedManagedUpdates: {},
+			entitlements.ClientIPRestrictions:       {},
 		},
 	})
 
@@ -467,6 +472,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.UsageReporting:             {},
 			entitlements.LicenseAutoUpdate:          {},
 			entitlements.UnrestrictedManagedUpdates: {},
+			entitlements.ClientIPRestrictions:       {},
 		},
 	})
 }

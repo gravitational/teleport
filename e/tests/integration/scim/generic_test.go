@@ -253,7 +253,7 @@ func TestSCIMPluginWebHandler(t *testing.T) {
 		err = json.NewDecoder(resp.Body).Decode(&uiResp)
 		require.NoError(t, err)
 
-		gotPlugin, err := auth.GetPlugin(t.Context(), uiResp.Name, false)
+		gotPlugin, err := auth.Services.GetPlugin(t.Context(), uiResp.Name, false)
 		require.NoError(t, err)
 		vPlugin, ok := gotPlugin.(*types.PluginV1)
 		require.True(t, ok)

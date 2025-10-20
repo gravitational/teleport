@@ -39,6 +39,7 @@ func TestGetCloudEntitlements(t *testing.T) {
 		entitlements.UsageReporting:             {Enabled: false},
 		entitlements.LicenseAutoUpdate:          {Enabled: false},
 		entitlements.UnrestrictedManagedUpdates: {Enabled: false},
+		entitlements.ClientIPRestrictions:       {Enabled: false},
 	}
 
 	e := map[string]*cloudapi.EntitlementInfo{
@@ -80,6 +81,7 @@ func TestGetLicenseEntitlements(t *testing.T) {
 		entitlements.UsageReporting:             {Enabled: false},
 		entitlements.LicenseAutoUpdate:          {Enabled: false},
 		entitlements.UnrestrictedManagedUpdates: {Enabled: false},
+		entitlements.ClientIPRestrictions:       {Enabled: false},
 	}
 
 	e := map[string]types.EntitlementInfo{
