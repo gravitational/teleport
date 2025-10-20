@@ -34,6 +34,7 @@ import (
 func Handlers() map[string]Handler {
 	return map[string]Handler{
 		types.KindBot:                            botHandler(),
+		types.KindBotInstance:                    botInstanceHandler(),
 		types.KindRole:                           roleHandler(),
 		types.KindUser:                           userHandler(),
 		types.KindDatabase:                       databaseHandler(),

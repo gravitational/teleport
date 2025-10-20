@@ -3009,38 +3009,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &spiffeFederationCollection{items: resources}, nil
-	case types.KindBotInstance:
-		if rc.ref.Name != "" && rc.ref.SubKind != "" {
-			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
-			bi, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
-				BotName:    rc.ref.SubKind,
-				InstanceId: rc.ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &botInstanceCollection{items: []*machineidv1pb.BotInstance{bi}}, nil
-		}
-
-		instances, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
-			// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
-			//nolint:staticcheck // SA1019
-			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
-				PageSize:  int32(limit),
-				PageToken: pageToken,
-
-				// Note: empty filter lists all bot instances
-				FilterBotName: rc.ref.Name,
-			})
-
-			return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &botInstanceCollection{items: instances}, nil
 	case types.KindStaticHostUser:
 		hostUserClient := client.StaticHostUserClient()
 		if rc.ref.Name != "" {
