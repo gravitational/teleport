@@ -30,11 +30,13 @@ import (
 type Resource struct {
 	// ResourceHeader is embedded to implement types.Resource
 	types.ResourceHeader
-	// Spec is the login rule specification
+	// Spec holds the okta_assignment spec.
 	Spec spec `json:"spec"`
+	// Status holds the okta_assignment status.
+	Status types.OktaAssignmentStatus `json:"status,omitempty"`
 }
 
-// spec holds the Okta assignment spec.
+// spec holds the okta_assignment spec.
 type spec struct {
 	CleanupTime    time.Time `json:"cleanup_time"`
 	Finalized      bool      `json:"finalized"`
@@ -78,5 +80,6 @@ func ToResource(assignment types.OktaAssignment) *Resource {
 			Status:         assignment.GetStatus(),
 			Targets:        resourceTargets,
 		},
+		Status: assignment.GetResourceStatus(),
 	}
 }

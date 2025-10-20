@@ -8541,13 +8541,19 @@ message OktaAssignmentV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status of the Okta assignment.
+  OktaAssignmentStatusV1 Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status,omitempty"
+  ];
 }
 
 // OktaAssignmentSpecV1 is a Okta assignment specification.
 message OktaAssignmentSpecV1 {
   // User is the user that these actions will be applied to.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Targets is a list of Okta targets to take on a user.
+  // Targets is a list of Okta targets to assign the user to.
   repeated OktaAssignmentTargetV1 Targets = 2 [(gogoproto.jsontag) = "targets"];
   // CleanupTime is an optional field that notes when the assignment should be cleaned up.
   // If absent, the assignment will never be cleaned up.
@@ -8586,9 +8592,9 @@ message OktaAssignmentSpecV1 {
   bool Finalized = 6 [(gogoproto.jsontag) = "finalized"];
 }
 
-// OktaAssignmentTargetV1 is a target of an Okta assignment.
+// OktaAssignmentTargetV1 describes a target Okta resource to assign the user to.
 message OktaAssignmentTargetV1 {
-  // OktaAssignmentTargetType is the type of Okta object that an assignment is targeting.
+  // OktaAssignmentTargetType is the type of targeted Okta resource.
   enum OktaAssignmentTargetType {
     // UNKNOWN indicates the target is unknown.
     UNKNOWN = 0;
@@ -8598,10 +8604,77 @@ message OktaAssignmentTargetV1 {
     GROUP = 2;
   }
 
-  // Type is the type of Okta resource this assignment is targeting.
+  // Type is the type of targeted Okta resource.
   OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
-  // ID is the ID of the Okta resource that's being targeted.
+  // ID is the ID of the targeted Okta resource.
   string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// OktaAssignmentStatusV1 is the status of the Okta assignment.
+message OktaAssignmentStatusV1 {
+  // Phase of the assignment. It can be:
+  // - "processed" - all the assignment targets are in either "created", "imported", "cleared" or
+  //   "referenced" phase
+  // - "failed" - one or more of the assignment targets are in either "error", "unauthorized" or
+  //   "dangling" phase
+  // TODO(kopiczko): replace spec.status and spec.finalized with this status.phase; this will most likely need a new "provisioning" phase
+  string phase = 1 [(gogoproto.jsontag) = "phase,omitempty"];
+  // ProcessedAt is the time the resource was processed.
+  google.protobuf.Timestamp ProcessedAt = 2 [
+    (gogoproto.jsontag) = "processed_at,omitempty",
+    (gogoproto.nullable) = true,
+    (gogoproto.stdtime) = true
+  ];
+  // Targets status information.
+  OktaAssignmentStatusTargetsV1 targets = 3 [(gogoproto.jsontag) = "targets,omitempty"];
+}
+
+// OktaAssignmentStatusTargetsV1 is assignment's targets status information.
+message OktaAssignmentStatusTargetsV1 {
+  // Stats of the targets.
+  OktaAssignmentStatusTargetsStatsV1 stats = 1 [(gogoproto.jsontag) = "stats,omitempty"];
+  // Status is a list of individual targets' statuses.
+  repeated OktaAssignmentStatusTargetStatusV1 status = 2 [(gogoproto.jsontag) = "status,omitempty"];
+}
+
+// OktaAssignmentStatusTargetsStatsV1 encapsulates assignment's targets statistics.
+message OktaAssignmentStatusTargetsStatsV1 {
+  // Total is the number of all targets.
+  int64 total = 1 [(gogoproto.jsontag) = "total,omitempty"];
+  // Provisioned is the number of targets in "created" or "imported" phase.
+  int64 provisioned = 2 [(gogoproto.jsontag) = "provisioned,omitempty"];
+  // Failed is the number of targets in "error", "unauthorized" or "dangling" phase.
+  int64 failed = 3 [(gogoproto.jsontag) = "failed,omitempty"];
+}
+
+// OktaAssignmentStatusTargetStatusV1 describes provisioning status of a target Okta resource to
+// assign the user to.
+message OktaAssignmentStatusTargetStatusV1 {
+  // Type is the type of targeted Okta resource. Can be either "application" or "group".
+  string type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+  // ID is the ID of the targeted Okta resource.
+  string id = 2 [(gogoproto.jsontag) = "id,omitempty"];
+  // Phase of this assignment target. It can be:
+  // - "created" - target assignment was successfully created in Okta
+  // - "imported" -  assignment for the target is originated from Okta (i.e. was created in
+  //   Okta and not Teleport) and should not be provisioned by Teleport to not overwrite
+  //   Okta-side changes
+  // - "error" - unexpected error during target provisioning
+  // - "unauthorized" - target is not managed by Okta integration or there was a failure
+  //   establishing if it is managed by the Okta service;  this should not happen and
+  //   probably indicates a bug
+  // - "dangling" -  corresponding Teleport resource (app_server or user_group) was not
+  //   found; the resource should be eventually synced back by the App and Group sync
+  string phase = 3 [(gogoproto.jsontag) = "phase,omitempty"];
+  // ProcessedAt is the time the target was processed.
+  google.protobuf.Timestamp ProcessedAt = 4 [
+    (gogoproto.jsontag) = "processed_at,omitempty",
+    (gogoproto.nullable) = true,
+    (gogoproto.stdtime) = true
+  ];
+  // FailedAttempts is only relevant if the target's phase is "failed" and then it is the
+  // number of failed processing attempts made to provision this target.
+  int64 failed_attempts = 5 [(gogoproto.jsontag) = "failed_attempts,omitempty"];
 }
 
 // IntegrationV1 represents a connection between Teleport and some other 3rd party system.

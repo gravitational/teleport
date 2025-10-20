@@ -155,12 +155,18 @@ func (o *OktaService) GetOktaAssignment(ctx context.Context, name string) (types
 
 // CreateOktaAssignment creates a new Okta assignment resource.
 func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	if err := types.ValidateOktaAssignment(assignment); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	created, err := o.assignmentSvc.CreateResource(ctx, assignment)
 	return created, trace.Wrap(err)
 }
 
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	if err := types.ValidateOktaAssignment(assignment); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	updated, err := o.assignmentSvc.UpdateResource(ctx, assignment)
 	return updated, trace.Wrap(err)
 }
