@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MutationFunction } from '@tanstack/react-query';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
@@ -139,6 +141,11 @@ export async function fetchRoles(
     signal
   );
 }
+
+export const editBotMutationFunction: MutationFunction<
+  FlatBot,
+  { botName: string; req: EditBotRequest }
+> = vars => editBot(vars);
 
 export async function editBot(
   variables: { botName: string; req: EditBotRequest },
