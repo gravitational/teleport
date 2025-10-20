@@ -401,8 +401,10 @@ func (s *Service) Run(ctx context.Context) error {
 	// etc)
 	storageDestination := s.cfg.Destination
 
-	// Keep retrying renewal if it failed on startup.
-	if !s.IsReady() {
+	if s.IsReady() {
+		s.cfg.StatusReporter.Report(readyz.Healthy)
+	} else {
+		// Keep retrying renewal if it failed on startup.
 		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 			Driver: retryutils.NewExponentialDriver(1 * time.Second),
 			Max:    1 * time.Minute,

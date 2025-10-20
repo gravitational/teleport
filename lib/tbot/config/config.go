@@ -103,6 +103,10 @@ type BotConfig struct {
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
 
+	// Testing is set in unit tests to attach a faux service which exposes the
+	// bot's underlying identity and client so we can make assertions on it.
+	Testing bool `yaml:"-"`
+
 	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
 	// Do not use in production.
 	Insecure bool `yaml:"insecure,omitempty"`
