@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.7.8"
+const Version = "17.7.9-dev.smartcarderrorhandling.1"
 
 const VersionMajor = 17
 const VersionMinor = 7
-const VersionPatch = 8
-const VersionPreRelease = ""
+const VersionPatch = 9
+const VersionPreRelease = "dev.smartcarderrorhandling.1"
 const VersionMetadata = ""
