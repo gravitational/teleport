@@ -130,8 +130,8 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		Logger:     log,
 		Onboarding: *onboarding,
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
-			crlCache.BuildService,
+			trustBundleCache.Builder(),
+			crlCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
