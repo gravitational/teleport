@@ -20,7 +20,10 @@ import { EventEmitter } from 'events';
 
 import Logger, { NullService } from 'teleterm/logger';
 
-import { AwaitableSender } from './awaitableSender';
+import {
+  AwaitableSender,
+  MessageAcknowledgementError,
+} from './awaitableSender';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -76,7 +79,7 @@ test('dispose removes listeners, resolves pending messages, clears map, and reso
   const disposedPromise = sender.whenDisposed();
 
   // The pending send promise should resolve after dispose
-  await expect(sendPromise).resolves.toBeUndefined();
+  await expect(sendPromise).rejects.toThrow(MessageAcknowledgementError);
   await expect(disposedPromise).resolves.toBeUndefined();
 });
 
