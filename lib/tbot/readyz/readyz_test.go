@@ -146,3 +146,32 @@ func TestReadyz(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rsp.StatusCode)
 	})
 }
+
+func TestAllServicesReported(t *testing.T) {
+	reg := readyz.NewRegistry()
+
+	a := reg.AddService("a")
+	b := reg.AddService("b")
+
+	select {
+	case <-reg.AllServicesReported():
+		t.Fatal("AllServicesReported should be blocked")
+	default:
+	}
+
+	a.Report(readyz.Healthy)
+
+	select {
+	case <-reg.AllServicesReported():
+		t.Fatal("AllServicesReported should be blocked")
+	default:
+	}
+
+	b.Report(readyz.Unhealthy)
+
+	select {
+	case <-reg.AllServicesReported():
+	default:
+		t.Fatal("AllServicesReported should not be blocked")
+	}
+}
