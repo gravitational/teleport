@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -211,6 +212,56 @@ func convertLDAPError(err error) error {
 	return err
 }
 
+func (c *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) ([]*ldap.Entry, []string, error) {
+	c.Logger.DebugContext(ctx, "Executing paged query", "filter", searchRequest.Filter, "baseDN", searchRequest.BaseDN)
+	res, err := client.SearchWithPaging(searchRequest, searchPageSize)
+	if err != nil {
+		var ldapErr *ldap.Error
+		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
+			referrals := extractReferrals(ldapErr)
+			c.Logger.DebugContext(ctx, "Got referrals from paged query error", "referrals", referrals)
+			return nil, referrals, nil
+		} else {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+	if len(res.Entries) > 0 {
+		c.Logger.DebugContext(ctx, "Got results from paged query", "count", len(res.Entries))
+		return res.Entries, nil, nil
+	}
+	if len(res.Referrals) > 0 {
+		c.Logger.DebugContext(ctx, "Got referrals from paged query", "referrals", res.Referrals)
+		return nil, res.Referrals, nil
+	}
+	// No results can mean that there are referrals to follow but AD doesn't send them when using paging.
+	// Let's try again with sync search.
+	c.Logger.DebugContext(ctx, "Paged query returned 0 entries, retrying with sync search")
+
+	c.Logger.DebugContext(ctx, "Executing sync query", "filter", searchRequest.Filter, "baseDN", searchRequest.BaseDN)
+	res, err = client.SearchWithPaging(searchRequest, searchPageSize)
+	if err != nil {
+		var ldapErr *ldap.Error
+		if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
+			referrals := extractReferrals(ldapErr)
+			c.Logger.DebugContext(ctx, "Got referrals from sync query error", "referrals", referrals)
+			return nil, referrals, nil
+		} else {
+			return nil, nil, err
+		}
+	}
+	if len(res.Entries) > 0 {
+		c.Logger.DebugContext(ctx, "Got results from sync query", "count", len(res.Entries))
+		return res.Entries, nil, nil
+	}
+	if len(res.Referrals) > 0 {
+		c.Logger.DebugContext(ctx, "Got referrals from sync query", "referrals", res.Referrals)
+		return nil, res.Referrals, nil
+	}
+
+	c.Logger.DebugContext(ctx, "Got 0 entries and 0 referrals from both paged and sync query")
+	return nil, nil, nil
+}
+
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
 func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
@@ -229,54 +280,50 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	res, err := c.client.SearchWithPaging(req, searchPageSize)
-
-	if err == nil {
-		if len(res.Entries) > 0 {
-			return res.Entries, nil
-		}
-		// No results can mean that there are referrals to follow but AD doesn't send them when using paging.
-		// Let's try again with sync search.
-		c.Logger.DebugContext(ctx, "Paged query returned 0 entries, retrying with sync search")
-		res, err = c.client.Search(req)
-		if err == nil {
-			return res.Entries, nil
-		}
+	entries, referrals, err := c.search(ctx, c.client, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	var ldapErr *ldap.Error
-	if errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
-		referrals := extractReferrals(ldapErr)
-		for i := 0; i < len(referrals); i++ {
-			c.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
-			slash := strings.LastIndexByte(referrals[i], '/')
-			if slash < len("ldaps://") {
-				c.Logger.DebugContext(ctx, "Referral format is invalid", "referral", referrals[i])
+	if len(entries) > 0 {
+		return entries, nil
+	}
+
+	if len(referrals) == 0 {
+		return nil, trace.NotFound("no entries found and no referrals were provided")
+	}
+
+	visited := make(map[string]struct{})
+	for i := 0; i < len(referrals); i++ {
+		c.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
+		visited[referrals[i]] = struct{}{}
+		slash := strings.LastIndexByte(referrals[i], '/')
+		if slash < len("ldaps://") {
+			c.Logger.DebugContext(ctx, "Referral format is invalid", "referral", referrals[i])
+			continue
+		}
+		addr := referrals[i][:slash]
+		if conn, err := c.connectionCreator(addr); err == nil {
+			req.BaseDN = referrals[i][slash+1:]
+			entries, newReferrals, err := c.search(ctx, conn, req)
+			if err != nil {
+				c.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
 				continue
 			}
-			addr := referrals[i][:slash]
-			if conn, err := c.connectionCreator(addr); err == nil {
-				req.BaseDN = referrals[i][slash+1:]
-				res, err := conn.SearchWithPaging(req, searchPageSize)
-				if err == nil {
-					return res.Entries, nil
-				} else if len(referrals) < 10 && errors.As(err, &ldapErr) && ldapErr.ResultCode == ldap.LDAPResultReferral {
-					c.Logger.DebugContext(ctx, "LDAP search failed, extracting referrals", "referral", referrals[i], "error", err)
-					newReferrals := extractReferrals(ldapErr)
-					referrals = append(referrals, newReferrals...)
-				} else {
-					c.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
-				}
-			} else {
-				c.Logger.DebugContext(ctx, "Can't connect to referral", "referral", referrals[i], "error", err)
+			if len(entries) > 0 {
+				return entries, nil
 			}
+			if len(referrals) < 10 {
+				referrals = append(referrals, newReferrals...)
+			}
+		} else {
+			c.Logger.DebugContext(ctx, "Can't connect to referral", "referral", referrals[i], "error", err)
 		}
-		return nil, trace.BadParameter("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ","))
-	} else if err != nil {
-		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
 	}
 
-	return res.Entries, nil
+	keys := maps.Keys(visited)
+	referrals = slices.AppendSeq([]string{}, keys)
+	return nil, trace.BadParameter("no referral provided by LDAP server can execute the query, tried: %s", referrals)
 }
 
 // Read fetches an LDAP entry at path and its children, if any. Only
