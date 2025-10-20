@@ -1,4 +1,4 @@
-.version: &version "17.7.8"
+.version: &version "17.7.9-rhammonds.smartcarderrorhandling.1"
 
 name: teleport-cluster
 apiVersion: v2

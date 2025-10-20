@@ -29,6 +29,6 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-msteams
-        app.kubernetes.io/version: 17.7.8
-        helm.sh/chart: teleport-plugin-msteams-17.7.8
+        app.kubernetes.io/version: 17.7.9-rhammonds.smartcarderrorhandling.1
+        helm.sh/chart: teleport-plugin-msteams-17.7.9-rhammonds.smartcarderrorhandling
       name: RELEASE-NAME-teleport-plugin-msteams
