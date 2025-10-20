@@ -190,7 +190,7 @@ No changes to privacy are expected.
 
 #### Decision Service
 
-The Decision service will return a new field in `SSHAccessPermit` to indicate whether MFA verification is required as a
+The Decision service will return a new field called `preconditions` in `SSHAccessPermit` to indicate that MFA is a
 condition of access. It is up to the SSH service to enforce the MFA requirement during session establishment.
 
 ```proto
@@ -199,8 +199,20 @@ condition of access. It is up to the SSH service to enforce the MFA requirement 
 message SSHAccessPermit {
   // ... existing fields ...
 
-  // MFARequired indicates whether MFA verification is required as a condition of access.
-  proto.MFARequired mfa_required = 25;
+  // Preconditions is a list of conditions that must be satisfied before access is granted.
+  repeated Precondition preconditions = 25;
+}
+
+// PreconditionKind defines the types of preconditions that can be specified.
+enum PreconditionKind {
+  // PreconditionPerSessionMFA requires per-session MFA to be completed.
+  PRECONDITION_PER_SESSION_MFA = 1;
+}
+
+// Precondition represents a condition that must be satisfied before access is granted.
+message Precondition {
+  // Kind specifies the type of precondition.
+  PreconditionKind kind = 1;
 }
 ```
 
@@ -369,7 +381,7 @@ The following are assumed to be completed before starting work on this RFD:
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
-1. Update the Decision service to return a permit containing a `mfa_required` field.
+1. Update the Decision service to return a permit containing a `preconditions` field.
 1. Update the Auth service to support creating and validating MFA challenges tied to specific user actions.
 1. Update the SSH service to implement the in-band MFA flow during session establishment.
 1. Update modern clients to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
