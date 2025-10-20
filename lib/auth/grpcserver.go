@@ -5879,7 +5879,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer:         cfg.Authorizer,
 		AuthService:        cfg.AuthServer,
 		ScopedTokenService: cfg.AuthServer.Services,
-		Clock:              cfg.AuthServer.clock,
+		Clock:              cfg.AuthServer.GetClock(),
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
