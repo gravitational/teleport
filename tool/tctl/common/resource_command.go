@@ -29,7 +29,6 @@ import (
 	"reflect"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -137,7 +136,6 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindUser:                               rc.createUser,
 		types.KindTrustedCluster:                     rc.createTrustedCluster,
 		types.KindGithubConnector:                    rc.createGithubConnector,
 		types.KindCertAuthority:                      rc.createCertAuthority,
@@ -151,7 +149,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindNetworkRestrictions:                rc.createNetworkRestrictions,
 		types.KindApp:                                rc.createApp,
 		types.KindAppServer:                          rc.createAppServer,
-		types.KindDatabase:                           rc.createDatabase,
 		types.KindKubernetesCluster:                  rc.createKubeCluster,
 		types.KindToken:                              rc.createToken,
 		types.KindInstaller:                          rc.createInstaller,
@@ -197,7 +194,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindUser:                               rc.updateUser,
 		types.KindGithubConnector:                    rc.updateGithubConnector,
 		types.KindOIDCConnector:                      rc.updateOIDCConnector,
 		types.KindSAMLConnector:                      rc.updateSAMLConnector,
@@ -455,7 +451,8 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 				}
 				return trace.Wrap(err)
 			}
-			return nil
+			// continue to next resource
+			continue
 		}
 		// Else fallback to the legacy logic
 
@@ -566,44 +563,6 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 	return nil
 }
 
-// createUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) createUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	userName := user.GetName()
-	existingUser, err := client.GetUser(ctx, userName, false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists {
-		if !rc.force {
-			return trace.AlreadyExists("user %q already exists", userName)
-		}
-
-		// Unmarshalling user sets createdBy to zero values which will overwrite existing data.
-		// This field should not be allowed to be overwritten.
-		user.SetCreatedBy(existingUser.GetCreatedBy())
-
-		if _, err := client.UpsertUser(ctx, user); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been updated\n", userName)
-
-	} else {
-		if _, err := client.CreateUser(ctx, user); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been created\n", userName)
-	}
-
-	return nil
-}
-
 func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	bot := &machineidv1pb.Bot{}
 	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
@@ -673,21 +632,6 @@ func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 	fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
-	return nil
-}
-
-// updateUser implements `tctl create user.yaml` command.
-func (rc *ResourceCommand) updateUser(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	user, err := services.UnmarshalUser(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateUser(ctx, user); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("user %q has been updated\n", user.GetName())
-
 	return nil
 }
 
@@ -1322,29 +1266,6 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) createDatabase(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	database, err := services.UnmarshalDatabase(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	database.SetOrigin(types.OriginDynamic)
-	if err := client.CreateDatabase(ctx, database); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("database %q already exists", database.GetName())
-			}
-			if err := client.UpdateDatabase(ctx, database); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("database %q has been updated\n", database.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("database %q has been created\n", database.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	token, err := services.UnmarshalProvisionToken(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1829,11 +1750,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
-	case types.KindUser:
-		if err = client.DeleteUser(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
 	case types.KindToken:
 		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1931,8 +1847,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		resDesc := "database server"
-		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
+		name, err := resources.GetOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1953,22 +1869,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabase:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		databases, err := clientutils.CollectWithFallback(ctx, client.ListDatabases, client.GetDatabases)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "database"
-		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(databases, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteDatabase(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindKubernetesCluster:
 		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
 		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
@@ -1976,8 +1876,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		resDesc := "Kubernetes cluster"
-		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+		clusters = resources.FilterByNameOrDiscoveredName(clusters, rc.ref.Name)
+		name, err := resources.GetOneResourceNameToDelete(clusters, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2052,8 +1952,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		resDesc := "Kubernetes server"
-		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := getOneResourceNameToDelete(servers, rc.ref, resDesc)
+		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
+		name, err := resources.GetOneResourceNameToDelete(servers, rc.ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2449,19 +2349,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	// The resource hasn't been migrated yet, falling back to the old logic.
 
 	switch rc.ref.Kind {
-	case types.KindUser:
-		if rc.ref.Name == "" {
-			users, err := client.GetUsers(ctx, rc.withSecrets)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &userCollection{users: users}, nil
-		}
-		user, err := client.GetUser(ctx, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &userCollection{users: services.Users{user}}, nil
 	case types.KindConnectors:
 		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
 		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
@@ -2720,7 +2607,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &databaseServerCollection{servers: servers}, nil
 		}
 
-		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name)
+		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
 		if len(servers) == 0 {
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
@@ -2736,7 +2623,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		altNameFn := func(r types.KubeServer) string {
 			return r.GetHostname()
 		}
-		servers = filterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
+		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
 		if len(servers) == 0 {
 			return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
 		}
@@ -2783,21 +2670,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
-	case types.KindDatabase:
-		// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
-		databases, err := clientutils.CollectWithFallback(ctx, client.ListDatabases, client.GetDatabases)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if rc.ref.Name == "" {
-			return &databaseCollection{databases: databases}, nil
-		}
-		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
-		if len(databases) == 0 {
-			return nil, trace.NotFound("database %q not found", rc.ref.Name)
-		}
-		return &databaseCollection{databases: databases}, nil
 	case types.KindKubernetesCluster:
 		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
 		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
@@ -2807,7 +2679,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if rc.ref.Name == "" {
 			return &kubeClusterCollection{clusters: clusters}, nil
 		}
-		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+		clusters = resources.FilterByNameOrDiscoveredName(clusters, rc.ref.Name)
 		if len(clusters) == 0 {
 			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
 		}
@@ -3800,105 +3672,6 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 	}
 
 	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
-}
-
-// keepFn is a predicate function that returns true if a resource should be
-// retained by filterResources.
-type keepFn[T types.ResourceWithLabels] func(T) bool
-
-// filterResources takes a list of resources and returns a filtered list of
-// resources for which the `keep` predicate function returns true.
-func filterResources[T types.ResourceWithLabels](resources []T, keep keepFn[T]) []T {
-	out := make([]T, 0, len(resources))
-	for _, r := range resources {
-		if keep(r) {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
-// altNameFn is a func that returns an alternative name for a resource.
-type altNameFn[T types.ResourceWithLabels] func(T) string
-
-// filterByNameOrDiscoveredName filters resources by name or "discovered name".
-// It prefers exact name filtering first - if none of the resource names match
-// exactly (i.e. all of the resources are filtered out), then it retries and
-// filters the resources by "discovered name" of resource name instead, which
-// comes from an auto-discovery label.
-func filterByNameOrDiscoveredName[T types.ResourceWithLabels](resources []T, prefixOrName string, extra ...altNameFn[T]) []T {
-	// prefer exact names
-	out := filterByName(resources, prefixOrName, extra...)
-	if len(out) == 0 {
-		// fallback to looking for discovered name label matches.
-		out = filterByDiscoveredName(resources, prefixOrName)
-	}
-	return out
-}
-
-// filterByName filters resources by exact name match.
-func filterByName[T types.ResourceWithLabels](resources []T, name string, altNameFns ...altNameFn[T]) []T {
-	return filterResources(resources, func(r T) bool {
-		if r.GetName() == name {
-			return true
-		}
-		for _, altName := range altNameFns {
-			if altName(r) == name {
-				return true
-			}
-		}
-		return false
-	})
-}
-
-// filterByDiscoveredName filters resources that have a "discovered name" label
-// that matches the given name.
-func filterByDiscoveredName[T types.ResourceWithLabels](resources []T, name string) []T {
-	return filterResources(resources, func(r T) bool {
-		discoveredName, ok := r.GetLabel(types.DiscoveredNameLabel)
-		return ok && discoveredName == name
-	})
-}
-
-// getOneResourceNameToDelete checks a list of resources to ensure there is
-// exactly one resource name among them, and returns that name or an error.
-// Heartbeat resources can have the same name but different host ID, so this
-// still allows a user to delete multiple heartbeats of the same name, for
-// example `$ tctl rm db_server/someDB`.
-func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services.Ref, resDesc string) (string, error) {
-	seen := make(map[string]struct{})
-	for _, r := range rs {
-		seen[r.GetName()] = struct{}{}
-	}
-	switch len(seen) {
-	case 1: // need exactly one.
-		return rs[0].GetName(), nil
-	case 0:
-		return "", trace.NotFound("%v %q not found", resDesc, ref.Name)
-	default:
-		names := make([]string, 0, len(rs))
-		for _, r := range rs {
-			names = append(names, r.GetName())
-		}
-		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter("%s", msg)
-	}
-}
-
-// formatAmbiguousDeleteMessage returns a formatted message when a user is
-// attempting to delete multiple resources by an ambiguous prefix of the
-// resource names.
-func formatAmbiguousDeleteMessage(ref services.Ref, resDesc string, names []string) string {
-	slices.Sort(names)
-	// choose an actual resource for the example in the error.
-	exampleRef := ref
-	exampleRef.Name = names[0]
-	return fmt.Sprintf(`%s matches multiple auto-discovered %vs:
-%v
-
-Use the full resource name that was generated by the Teleport Discovery service, for example:
-$ tctl rm %s`,
-		ref.String(), resDesc, strings.Join(names, "\n"), exampleRef.String())
 }
 
 func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {

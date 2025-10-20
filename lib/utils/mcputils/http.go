@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
@@ -76,7 +77,11 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processor Ser
 			return trace.Wrap(err)
 		}
 		resp.Body = io.NopCloser(bytes.NewReader(respToClientAsBody))
+
+		// Make sure content length in both the response field and the header
+		// are updated.
 		resp.ContentLength = int64(len(respToClientAsBody))
+		resp.Header.Set("Content-Length", strconv.FormatInt(int64(len(respToClientAsBody)), 10))
 		return nil
 
 	case "text/event-stream":
@@ -88,6 +93,11 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processor Ser
 			SSEResponseReader: NewSSEResponseReader(resp.Body),
 			processor:         processor,
 		}
+
+		// Content-Length should be -1 from server for streams. Force to -1 again just to
+		// be sure.
+		resp.ContentLength = -1
+		resp.Header.Del("Content-Length")
 		return nil
 	default:
 		return trace.BadParameter("unsupported response type %s", mediaType)
