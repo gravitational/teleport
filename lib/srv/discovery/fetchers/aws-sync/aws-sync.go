@@ -235,9 +235,9 @@ type Resources struct {
 	// KMSKeys is a list of KMS keys.
 	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
 
-	// EKSAuditLogClusters is a subset of EKSClusters for which audit logs
-	// are fetched. This is not reconciled here or sent to access graph
-	// with the other resources.
+	// EKSAuditLogClusters is a subset of the clusters in the field EKSClusters.
+	// These are the clusters for which apiserver audit logs should be fetched.
+	// These are not sent to access graph with the other resources.
 	EKSAuditLogClusters []*accessgraphv1alpha.AWSEKSClusterV1
 }
 

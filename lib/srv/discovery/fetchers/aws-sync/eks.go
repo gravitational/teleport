@@ -111,7 +111,8 @@ func (a *Fetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClusters
 		eG.Go(func() error {
 			eksClient, err := a.GetEKSClient(ctx, region, a.getAWSOptions()...)
 			if err != nil {
-				collectClusters(nil, nil, nil, false, trace.Wrap(err))
+				fetchAuditLogs := false
+				collectClusters(nil, nil, nil, fetchAuditLogs, trace.Wrap(err))
 				return nil
 			}
 

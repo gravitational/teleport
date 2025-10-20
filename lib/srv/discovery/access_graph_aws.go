@@ -138,10 +138,10 @@ func (s *Server) reconcileAccessGraph(
 		}
 		if fetcherResult.result != nil {
 			results = append(results, fetcherResult.result)
-		}
-		for _, cluster := range fetcherResult.result.EKSAuditLogClusters {
-			fetcherCluster := eksAuditLogCluster{fetcherResult.fetcher, cluster}
-			auditLogClusters = append(auditLogClusters, fetcherCluster)
+			for _, cluster := range fetcherResult.result.EKSAuditLogClusters {
+				fetcherCluster := eksAuditLogCluster{fetcherResult.fetcher, cluster}
+				auditLogClusters = append(auditLogClusters, fetcherCluster)
+			}
 		}
 	}
 	// Aggregate all errors into a single error.
@@ -154,9 +154,8 @@ func (s *Server) reconcileAccessGraph(
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
 
-	// Send the clusters for which audit logs should be fetched to the audit log
-	// fetcher so it can ensure it is fetching them. It will reconcile this against
-	// the last set sent.
+	// Send the updated list of clusters requiring audit logs to the fetcher.
+	// The fetcher reconciles this list against the last set sent.
 	select {
 	case eksAuditLogClustersCh <- auditLogClusters:
 	default:
