@@ -577,7 +577,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherParamsToEC2Fetcher{
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
 		Matchers:        ec2Matchers,
 		EC2ClientGetter: s.GetEC2Client,
 		PublicProxyAddr: s.PublicProxyAddress,
@@ -700,7 +700,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherParamsToEC2Fetcher{
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
 		Matchers:            serverMatchers,
 		EC2ClientGetter:     s.GetEC2Client,
 		DiscoveryConfigName: discoveryConfigName,

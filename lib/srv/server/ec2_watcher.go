@@ -201,9 +201,9 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 // EC2ClientGetter gets an AWS EC2 client for the given region.
 type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
 
-// MatcherParamsToEC2Fetcher contains parameters for converting AWS EC2 Matchers
+// MatcherToEC2FetcherParams contains parameters for converting AWS EC2 Matchers
 // into AWS EC2 Fetchers.
-type MatcherParamsToEC2Fetcher struct {
+type MatcherToEC2FetcherParams struct {
 	// Matchers is a list of AWS EC2 Matchers.
 	Matchers []types.AWSMatcher
 	// EC2ClientGetter gets an AWS EC2.
@@ -218,7 +218,7 @@ type MatcherParamsToEC2Fetcher struct {
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherParamsToEC2Fetcher) ([]Fetcher, error) {
+func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher, error) {
 	return matchersToEC2InstanceFetchers(matcherParams, func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		if matcher == nil {
 			return matcherParams.EC2ClientGetter(ctx, region, opts...)
@@ -248,7 +248,7 @@ func (g matcherEC2ClientGetter) withMatcher(matcher *types.AWSMatcher) EC2Client
 	}
 }
 
-func matchersToEC2InstanceFetchers(matcherParams MatcherParamsToEC2Fetcher, getEC2Client matcherEC2ClientGetter) ([]Fetcher, error) {
+func matchersToEC2InstanceFetchers(matcherParams MatcherToEC2FetcherParams, getEC2Client matcherEC2ClientGetter) ([]Fetcher, error) {
 	ret := []Fetcher{}
 	for _, matcher := range matcherParams.Matchers {
 		for _, region := range matcher.Regions {
@@ -365,7 +365,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			})
 		}
 	} else {
-		slog.DebugContext(context.Background(), "Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
+		slog.DebugContext(context.Background(), "Not setting any tag filters as there is a '*:...' tag present and AWS doesn't allow globbing on keys")
 	}
 
 	if cfg.Matcher.AssumeRole == nil {
@@ -426,10 +426,14 @@ func ssmRunCommandParameters(cfg ec2FetcherConfig) map[string]string {
 
 	publicProxyAddr := cmp.Or(cfg.Matcher.Params.PublicProxyAddr, cfg.ProxyPublicAddr)
 
+	safeProxyAddr := shsprintf.EscapeDefaultContext(publicProxyAddr)
+	safeScriptName := shsprintf.EscapeDefaultContext(cfg.Matcher.Params.ScriptName)
+	safeJoinToken := shsprintf.EscapeDefaultContext(cfg.Matcher.Params.JoinToken)
+
 	command := fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%s | bash -s %s",
-		publicProxyAddr,
-		cfg.Matcher.Params.ScriptName,
-		cfg.Matcher.Params.JoinToken,
+		safeProxyAddr,
+		safeScriptName,
+		safeJoinToken,
 	)
 
 	if len(envVars) > 0 {

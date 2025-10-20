@@ -168,7 +168,7 @@ func (process *TeleportProcess) publicProxyAddr(accessPoint proxiesGetter) (stri
 		}
 	}
 
-	return "", trace.NotFound("could not find the proxy public address for server discovery")
+	return "", trace.NotFound("could not find the public proxy address for server discovery")
 }
 
 // integrationOnlyCredentials indicates whether the DiscoveryService must only use Cloud APIs credentials using an integration.
