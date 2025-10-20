@@ -222,6 +222,22 @@ message IAMChallengeSolution {
   bytes sts_identity_request = 1;
 }
 
+// EC2Init is sent from the client in response to the ServerInit message for
+// the EC2 join method.
+//
+// The EC2 method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: EC2Init
+// 4. server->client: Result
+message EC2Init {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // Document is a signed EC2 Instance Identity Document used to prove the
+  // identity of a joining EC2 instance.
+  bytes document = 2;
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 message ChallengeSolution {
   oneof payload {
@@ -263,6 +279,7 @@ message JoinRequest {
     ChallengeSolution solution = 4;
     IAMInit iam_init = 5;
     GivingUp giving_up = 6;
+    EC2Init ec2_init = 7;
   }
 }
 
