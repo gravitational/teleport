@@ -1001,29 +1001,29 @@ func indentString(s string, indent string) string {
 // aggregateServiceHealth returns the least healthy status from the list of
 // services provided. Priority; unhealthy, unspecified, initializing, healthy
 func aggregateServiceHealth(services []*machineidv1pb.BotInstanceServiceHealth) machineidv1pb.BotInstanceHealthStatus {
-	if services != nil {
-		hasUnhealthy := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
-			return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
-		})
-		if hasUnhealthy {
-			return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
-		}
-
-		hasUnknown := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
-			return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
-		})
-		if hasUnknown {
-			return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
-		}
-
-		hasInitializing := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
-			return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
-		})
-		if hasInitializing {
-			return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
-		}
-
+	if services == nil {
 		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
+	}
+
+	hasUnhealthy := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
+		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+	})
+	if hasUnhealthy {
+		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+	}
+
+	hasUnknown := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
+		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
+	})
+	if hasUnknown {
+		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
+	}
+
+	hasInitializing := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
+		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+	})
+	if hasInitializing {
+		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
 	}
 
 	return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
