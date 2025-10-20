@@ -34,10 +34,10 @@ shortcomings that this proposal aims to address:
 1. A per-session MFA certificate is a single credential, representing multiple factors of authentication for a user. If
    an attacker were to gain possession, it could be used to bypass all forms of authentication checks, including MFA.
 1. When connecting to multiple SSH hosts as part of a single user action (e.g., using `tsh ssh root@env=example
-uptime`), the current design only evaluates MFA requirements once on the first host matching the label, and if MFA
-   was required, the per-session MFA certificate was used for all subsequent hosts without further MFA checks. This
-   could lead to situations where MFA is not enforced on all target hosts as intended. For example, if the first host
-   does not require MFA but subsequent hosts do, the user would be able to access those hosts without completing MFA.
+uptime`), the current design only evaluates MFA requirements once on the first host matching the label, and if MFA was
+   required, the per-session MFA certificate was used for all subsequent hosts without further MFA checks. This could
+   lead to situations where MFA is not enforced on all target hosts as intended. For example, if the first host does not
+   require MFA but subsequent hosts do, the user would be able to access those hosts without completing MFA.
 
 By moving MFA enforcement to the SSH service during session establishment, this new design directly addresses the above
 issues by:
@@ -89,13 +89,16 @@ during session establishment, which increases security.
 The client will first dial its target SSH host using the Proxy and its standard Teleport client certificate. The Proxy
 will then resolve the target cluster and host, and open a connection to the respective cluster's SSH service.
 
-The SSH service will authenticate the client using the provided client certificate and evaluate if MFA is required for
-the session by invoking the `EvaluateSSHAccess` RPC of the Decision service. If MFA is not required, the
-`EvaluateSSHAccess` RPC will return a permit and the SSH service can then proceed to establish the SSH session.
+The SSH service will authenticate the client using the provided client certificate and determine authorization by
+invoking the `EvaluateSSHAccess` RPC of the Decision service. If the client is authorized, the `EvaluateSSHAccess` will
+return a permit. The SSH service will then check if MFA is required for the session by examining the Decision service's
+permit response.
 
-If MFA is required, the Decision service will respond with a message indicating that MFA is needed. The SSH service will
-then send a JSON encoded keyboard-interactive question containing the action ID via the SSH keyboard-interactive channel
-to inform the client that MFA is needed. The MFA keyboard-interactive question will follow this schema:
+If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
+
+If MFA _is required_, the SSH service will then send a JSON encoded question containing the action ID via the SSH
+[keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. The MFA
+keyboard-interactive question will follow this schema:
 
 ```json
 {
@@ -109,13 +112,12 @@ to inform the client that MFA is needed. The MFA keyboard-interactive question w
 The client must then invoke the `CreateAuthenticateChallenge` RPC of the Auth service, providing the action ID along
 with existing request metadata. The Auth service will respond to the client with a challenge that must be solved. The
 client must solve the MFA challenge and send a base64 encoded `MFAAuthenticateResponse` message to the SSH service via
-the keyboard-interactive channel. Protobuf messages must be base64 encoded to ensure they can be safely transmitted over
-the SSH keyboard-interactive channel.
+the keyboard-interactive channel. The Protobuf message must be base64 encoded to ensure they can be safely transmitted
+over the SSH keyboard-interactive channel.
 
-Once the MFA challenge response is received, the SSH service will invoke the `EvaluateSSHAccess` RPC again with the
-action ID, the client's MFA challenge response, and any other relevant metadata. If the second `EvaluateSSHAccess` RPC
-confirms that MFA has been satisfied, a permit is returned and the SSH service will proceed to establish the SSH session
-with the client and the target host.
+Once the MFA challenge response is received, the SSH service will invoke the `ValidateAuthenticateChallenge` RPC with
+the action ID, the client's MFA challenge response, and any other relevant metadata. If the response is valid, the SSH
+service will proceed to establish the SSH session. If the response is invalid, the SSH service will deny the connection.
 
 ```mermaid
 sequenceDiagram
@@ -124,27 +126,26 @@ sequenceDiagram
   participant Client
   participant Proxy as Proxy Service
   participant Auth as Auth Service
-  participant Decision Service
   participant SSH as SSH Service
+  participant Decision Service
   participant Host as Target SSH Host
 
   Client->>Proxy: Dial SSH (client cert)
   Proxy->>SSH: Proxy SSH connection
   SSH->>Decision Service: EvaluateSSHAccess(client cert)
+  Decision Service-->>SSH: Permit
+  SSH->>SSH: Is MFA required?
 
   alt MFA required
-    Decision Service-->>SSH: MFA required
     SSH->>Client: Keyboard-interactive (MFA required, action ID)
     Client->>Auth: CreateAuthenticateChallenge (client cert, action ID)
     Auth-->>Client: MFA challenge
     Client->>Client: Solve MFA challenge
     Client->>SSH: Keyboard-interactive (MFA response)
-    SSH->>Decision Service: EvaluateSSHAccess (client cert, action ID, MFA response)
-    Decision Service->>Auth: ValidateAuthenticateChallenge (action ID, MFA response)
-    Auth-->>Decision Service: MFA valid
+    SSH->>Auth: ValidateAuthenticateChallenge (action ID, MFA response)
+    Auth-->>SSH: MFA valid
   end
 
-  Decision Service->>SSH: Permit
   SSH->>Host: Establish SSH connection
   Host-->>SSH: SSH connection established
   SSH-->>Proxy: SSH connection established
@@ -189,37 +190,17 @@ No changes to privacy are expected.
 
 #### Decision Service
 
-The Decision service will be updated to support evaluating SSH access requests with MFA challenge responses. This
-follows the existing pattern in Teleport where RPCs accept MFA challenge responses as part of a request to indicate that
-MFA has been satisfied and the RPC service must validate the response before granting access.
-
-If the `mfa_response` field is not present, the Decision service will evaluate if MFA is required for the request based
-on the user's MFA configuration and the access control policies. If MFA is required, the service will return a denial
-with a `DenialMetadataReason` of `REASON_MFA_REQUIRED`. If MFA is not required, the service will return a permit.
+The Decision service will return a new field in `SSHAccessPermit` to indicate whether MFA verification is required as a
+condition of access. It is up to the SSH service to enforce the MFA requirement during session establishment.
 
 ```proto
-// EvaluateSSHAccessRequest describes a request to evaluate whether or not a
-// given ssh access attempt should be permitted.
-message EvaluateSSHAccessRequest {
+// SSHAccessPermit describes the parameters/constraints of a permissible SSH
+// access attempt.
+message SSHAccessPermit {
   // ... existing fields ...
 
-  // MFAAuthenticateResponse is an optional field that contains the MFA challenge response provided by the user. If
-  // present, the service must validate the response before granting access.
-  proto.MFAAuthenticateResponse mfa_response = 6;
-}
-
-// Metadata for access denials.
-message DenialMetadata {
-  // ... existing fields ...
-
-  // Reason is a structured reason for the denial.
-  DenialMetadataReason reason = 4;
-}
-
-// DenialMetadataReason represents structured reasons for denial.
-enum DenialMetadataReason {
-  DENIAL_METADATA_REASON_UNSPECIFIED = 0; // Default value, unspecified reason.
-  DENIAL_METADATA_REASON_MFA_REQUIRED = 1; // Indicates that MFA is required for access but not provided.
+  // MFARequired indicates whether MFA verification is required as a condition of access.
+  proto.MFARequired mfa_required = 25;
 }
 ```
 
@@ -348,7 +329,7 @@ modern agents.
 
 The `CreateAuthenticateChallenge` RPC event will be updated to include the `action_id` in the request metadata.
 
-The `ValidateAuthenticateChallenge` RPC event will be added to log when an MFA challenge response is validated.
+A `ValidateAuthenticateChallenge` RPC event will be emitted when an MFA challenge response is validated.
 
 ### Observability
 
@@ -384,12 +365,11 @@ The following are assumed to be completed before starting work on this RFD:
    and relocate implementation
    1. Decision service has a way for deriving user/session metadata from incoming requests without relying on client
       certificates.
-   1. There exists a structured way to determine if MFA is required for a given SSH session based on the Decision API
-      response.
+   1. `EvaluateSSHAccess` RPC should no longer return an error if MFA is required but not satisfied.
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
-1. Update the Decision service to support evaluating SSH access requests with MFA challenge responses.
+1. Update the Decision service to return a permit containing a `mfa_required` field.
 1. Update the Auth service to support creating and validating MFA challenges tied to specific user actions.
 1. Update the SSH service to implement the in-band MFA flow during session establishment.
 1. Update modern clients to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
