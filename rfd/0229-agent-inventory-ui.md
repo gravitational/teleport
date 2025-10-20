@@ -110,78 +110,57 @@ The response will be a JSON object containing the page of agents requested.
 
 ```protobuf
 service InventoryService {
-  // ListInstances returns a page of Agents and Bot Instances.
-  rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
+  // ListUnifiedInstances returns a page of Agents and Bot Instances. This API will refuse any requests when the cache is unhealthy or not yet
+  // fully initialized.
+  rpc ListUnifiedInstances(ListUnifiedInstancesRequest) returns (ListUnifiedInstancesResponse);
 }
 
-// ListInstancesRequest is the request for listing instances.
-message ListInstancesRequest {
+// ListUnifiedInstancesRequest is the request for listing instances.
+message ListUnifiedInstancesRequest {
   // page_size is the size of the page to return.
   int32 page_size = 1;
-  // page_token is the next_page_token value returned from a previous ListInstances request, if any.
+  // page_token is the next_page_token value returned from a previous ListUnifiedInstances request, if any.
   string page_token = 2;
   // filters specify optional search criteria to limit which instances should be returned.
-  ListInstancesFilter filter = 3;
+  ListUnifiedInstancesFilter filter = 3;
 }
 
-// ListInstancesResponse is the response from listing instances.
-message ListInstancesResponse {
-  // instances is the instances returned.
-  repeated Instance instances = 1;
+// ListUnifiedInstancesResponse is the response from listing instances.
+message ListUnifiedInstancesResponse {
+  // items is the list of instances (agents or bot instances) returned.
+  repeated UnifiedInstanceItem items = 1;
   // next_page_token contains the next page token to use as the start key for the next page of instances.
   string next_page_token = 2;
-  // total_count is the total number of agents and bot instances in the cache.
+  // total_count is the total number of agents and bot instances in the cache. This value is calculated upon initializing the cache and
+  // is only included here only because the API refuses requests when the cache is unhealthy. This pattern should not be used under
+  // typical circumstances.
   int32 total_count = 3;
 }
 
-// ListInstancesFilter provides a mechanism to refine ListInstances results.
-message ListInstancesFilter {
-  // search is a basic string search query which will filter results by `Instance.Spec.Name`.
+// ListUnifiedInstancesFilter provides a mechanism to refine ListUnifiedInstances results.
+message ListUnifiedInstancesFilter {
+  // search is a basic string search query which will filter results by name (hostname for agents, bot name for bot instances).
   string search = 1;
   // advanced_search is an advanced search query using predicate language.
   string advanced_search = 2;
-  // types is the types of instances to return (`instance` and/or `bot_instance`). If ommitted, both types will be returned.
-  repeated string types = 3;
-  // services is the list of services to filter agents by. If ommitted, agents with any services will be returned.
-  repeated string types = 4;
-  // updater_groups is the list of updater groups to filter instances by.
+  // kinds is the kinds of instances to return. If ommitted, both agent instances and bot instances will be returned.
+  repeated string kinds = 3;
+  // services is the list of services to filter agents by. Only applicable to agent instances.
+  repeated string services = 4;
+  // updater_groups is the list of updater groups to filter instances by. Only applicable to agent instances.
   repeated string updater_groups = 5;
-  // upgraders is the list of upgraders to filter instances by.
+  // upgraders is the list of upgraders to filter instances by. Only applicable to agent instances.
   repeated string upgraders = 6;
 }
 
-// Instance represents either an agent or a bot instance item with the necessary information for the client.
-message Instance {
-  // id is the is the id of the instance, for agents this represents the `serverId`.
-  string id = 1;
-  // sub_kind represents the kind of instance this is, either `instance` or `bot_instance`.
-  string sub_kind = 2;
-  // metadata is common metadata that all resources share.
-  teleport.header.v1.Metadata metadata = 3;
-  // spec is the instance specification.
-  InstanceSpec spec = 4;
-}
-
-// InstanceSpec is the instance specification.
-message InstanceSpec {
-  // name is the name this instance most recently advertised. `hostname` for agents and `bot_name` for bot instances.
-  string name = 1;
-  // version is the version of teleport this instance most recently advertised.
-  string version = 2;
-  // services is the list of active services this instance most recently advertised, if applicable.
-  repeated string services = 3;
-  // upgrader_info contains information about the external upgrader and update configuration for this instance, if applicable.
-  InstanceUpgraderInfo upgrader_info = 4;
-}
-
-// InstanceUpgraderInfo contains information about the external upgrader configuration for an instance.
-message InstanceUpgraderInfo {
-  // upgrader identifies the external upgrader type (e.g. 'kube', 'unit'). Empty if no upgrader is defined.
-  string upgrader = 1;
-  // upgrader_version identifies the external upgrader version. Empty if no upgrader is defined.
-  string upgrader_version = 2;
-  // update_group is the update group for the teleport installation on this instance.
-  string update_group = 3;
+// UnifiedInstanceItem represents either an agent instance or a bot instance.
+message UnifiedInstanceItem {
+  oneof instance {
+    // agent_instance is the canonical agent instance type from the Instance heartbeat system.
+    types.InstanceV1 agent_instance = 1;
+    // bot_instance is the canonical bot instance type.
+    machineidv1.BotInstance bot_instance = 2;
+  }
 }
 ```
 
