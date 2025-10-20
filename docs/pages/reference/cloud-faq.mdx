@@ -3,8 +3,8 @@ title: Teleport Enterprise Cloud FAQ
 description: Teleport cloud frequently asked questions.
 tocDepth: 3
 tags:
- - faq
- - platform-wide
+  - faq
+  - platform-wide
 ---
 
 This page provides answers to frequently asked questions about Teleport
@@ -68,6 +68,7 @@ Access Controls Reference](access-controls/roles.mdx).
 
 Teleport components communicate with themselves using mTLS, with a separate certificate authority for each tenant. Connections to AWS services, such as DynamoDB and
 S3, are established using encryption provided by AWS, both at rest and in transit. Each tenant has its own credentials that isolate it to interacting with only its own data.
+
 ## Connecting resources
 
 ### How do I add resources to Teleport Enterprise Cloud?
@@ -83,6 +84,7 @@ There is no need to open any ports on your infrastructure for inbound traffic.
 If you plan on connecting more than 10,000 nodes or agents, please contact your account executive or customer support to ensure your tenant is properly scaled.
 
 ### Should we use Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
+
 (!docs/pages/includes/ent-vs-community-faq.mdx!)
 
 ### Are dynamic node tokens available?
@@ -275,7 +277,6 @@ We're currently researching whether this can be done, so please contact support 
 
 FIPS is not currently an option for Teleport Enterprise Cloud clusters.
 
-
 ## Performance and reliability
 
 ### Can I use Teleport Enterprise Cloud in production?
@@ -291,7 +292,7 @@ this number reflects risks in our architecture that we will improve over time.
 ### Is there a status page available?
 
 Check the current and historical status of Teleport Cloud at
-[status.teleport.sh](https://status.teleport.sh).  From the status page, click **Subscribe to Updates**
+[status.teleport.sh](https://status.teleport.sh). From the status page, click **Subscribe to Updates**
 to get email notifications about scheduled maintenances or updates in service health.
 
 ### Can I get push notifications of Teleport Enterprise Cloud downtime?
@@ -320,3 +321,36 @@ codes](../../img/cloud/recovery-codes.png)
 Save the recovery codes into a safe location, such as your organization's
 password manager. You can use these codes to reset your account if you lose
 your password or multi-factor authentication credentials.
+
+### How do I update my security and business contacts?
+
+Teleport Cloud users can configure up to 3 security contacts and 3 business contacts for their cluster. It's important to
+keep these up to date so that we always know who to notify of important updates and alerts.
+
+To do this, log in to your Teleport Cloud account with the email address of the user that created the initial Cloud tenant. Open
+the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the contacts sections.
+Once you add a contact, they will receive an invitation email which they must accept within 14 days.
+
+![Web UI view showing security and business contacts options](../../img/cloud/security-business-contacts.png)
+
+If you don't see the contacts lists on the Help & Support page, ensure that your user has the required permissions to see and update contacts. You
+can also create a separate role that grants these permissions and assign it to your user and any other desired users:
+
+```yaml
+version: v6
+kind: role
+metadata:
+  description: Edit Contacts
+  name: contact-editor
+spec:
+  allow:
+    rules:
+      - resources:
+          - contact
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+```
