@@ -171,7 +171,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindVnetConfig:                         rc.createVnetConfig,
 		types.KindAccessGraphSettings:                rc.upsertAccessGraphSettings,
 		types.KindPlugin:                             rc.createPlugin,
-		types.KindSPIFFEFederation:                   rc.createSPIFFEFederation,
 		types.KindStaticHostUser:                     rc.createStaticHostUser,
 		types.KindUserTask:                           rc.createUserTask,
 		types.KindAutoUpdateConfig:                   rc.createAutoUpdateConfig,
@@ -970,23 +969,6 @@ func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclien
 		}
 		fmt.Printf("user task %q has been created\n", resource.GetMetadata().GetName())
 	}
-
-	return nil
-}
-
-func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalSPIFFEFederation(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.SPIFFEFederationServiceClient()
-	if _, err := c.CreateSPIFFEFederation(ctx, &machineidv1pb.CreateSPIFFEFederationRequest{
-		SpiffeFederation: in,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("SPIFFE Federation %q has been created\n", in.GetMetadata().GetName())
 
 	return nil
 }
@@ -2000,15 +1982,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
-	case types.KindSPIFFEFederation:
-		if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
-			ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
-				Name: rc.ref.Name,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
 	case types.KindWorkloadIdentityX509IssuerOverride:
 		c := client.WorkloadIdentityX509OverridesClient()
 		if _, err := c.DeleteX509IssuerOverride(
@@ -2979,36 +2952,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &accessGraphSettings{accessGraphSettings: rec}, nil
-	case types.KindSPIFFEFederation:
-		if rc.ref.Name != "" {
-			resource, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
-				Name: rc.ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &spiffeFederationCollection{items: []*machineidv1pb.SPIFFEFederation{resource}}, nil
-		}
-
-		var resources []*machineidv1pb.SPIFFEFederation
-		pageToken := ""
-		for {
-			resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
-				PageToken: pageToken,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			resources = append(resources, resp.SpiffeFederations...)
-
-			if resp.NextPageToken == "" {
-				break
-			}
-			pageToken = resp.NextPageToken
-		}
-
-		return &spiffeFederationCollection{items: resources}, nil
 	case types.KindStaticHostUser:
 		hostUserClient := client.StaticHostUserClient()
 		if rc.ref.Name != "" {

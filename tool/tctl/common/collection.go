@@ -40,7 +40,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -1580,41 +1579,6 @@ func (c *pluginCollection) WriteText(w io.Writer, verbose bool) error {
 			plugin.GetStatus().GetCode().String(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type spiffeFederationCollection struct {
-	items []*machineidv1pb.SPIFFEFederation
-}
-
-func (c *spiffeFederationCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
-	}
-	return r
-}
-
-func (c *spiffeFederationCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "Last synced at"}
-
-	var rows [][]string
-	for _, item := range c.items {
-		lastSynced := "never"
-		if t := item.GetStatus().GetCurrentBundleSyncedAt().AsTime(); !t.IsZero() {
-			lastSynced = t.Format(time.RFC3339)
-		}
-		rows = append(rows, []string{
-			item.Metadata.Name,
-			lastSynced,
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

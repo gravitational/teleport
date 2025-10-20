@@ -41,6 +41,7 @@ func Handlers() map[string]Handler {
 		types.KindNode:                           serverHandler(),
 		types.KindAuthServer:                     authHandler(),
 		types.KindProxy:                          proxyHandler(),
+		types.KindSPIFFEFederation:               spiffeFederationHandler(),
 		types.KindWorkloadIdentity:               workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509Revocation: workloadIdentityX509RevocationHandler(),
 	}
