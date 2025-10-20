@@ -116,11 +116,11 @@ with the name of the role you just created:
 $ tctl bots update example --add-roles example-role
 ```
 
-## Step 2/3. Configure a Kubernetes `tbot` output
+## Step 2/3. Configure a Kubernetes `tbot` output service
 
-Now, `tbot` needs to be configured with an output to produce the Kubernetes
-credentials and client configuration file. This is done using the `kubernetes`
-output type.
+Now, `tbot` needs to be configured with an output service to produce the
+Kubernetes credentials and client configuration file. This is done using the
+`kubernetes` service type.
 
 The Kubernetes cluster you want the credentials to have access to must
 be specified using the `kubernetes_cluster` field. In this example,
@@ -132,16 +132,16 @@ At this time, each output can only contain credentials for a single Kubernetes
 cluster. If your bot needs to connect to multiple Kubernetes clusters,
 create an output for each cluster.
 
-Outputs must also be configured with a destination. In this example, the
+Output services must also be configured with a destination. In this example, the
 `directory` type will be used. This will write artifacts to a specified
 directory on disk. Ensure that this directory can be written to by the Linux
 user that `tbot` runs as, and that it can be read by the Linux user that will
 be accessing the Kubernetes cluster.
 
-Modify your `tbot` configuration to add a `kubernetes` output:
+Modify your `tbot` configuration to add a `kubernetes` service:
 
 ```yaml
-outputs:
+services:
   - type: kubernetes
     # Specify the name of the Kubernetes cluster you wish the credentials to
     # grant access to.
@@ -149,8 +149,8 @@ outputs:
     destination:
       type: directory
           # For this guide, /opt/machine-id is used as the destination directory.
-          # You may wish to customize this. Multiple outputs cannot share the same
-          # destination.
+          # You may wish to customize this. Multiple output services cannot
+          # share the same destination.
       path: /opt/machine-id
 ```
 
@@ -162,7 +162,7 @@ one-shot mode, it must be executed before you attempt to use the credentials.
 
 ## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
 
-Once `tbot` has been run with the new output configured, a file called
+Once `tbot` has been run with the new service configured, a file called
 `kubeconfig.yaml` should have been generated in the destination directory
 you specified. This contains all the information necessary for `kubectl` to
 connect to the Kubernetes cluster through the Teleport Proxy.
