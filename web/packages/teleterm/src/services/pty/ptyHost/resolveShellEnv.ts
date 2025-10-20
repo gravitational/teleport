@@ -44,15 +44,19 @@
 
 import { spawn } from 'child_process';
 
-import { memoize } from 'shared/utils/highbar';
-
 import Logger from 'teleterm/logger';
 import { unique } from 'teleterm/ui/utils/uid';
 
-const logger = new Logger('resolveShellEnv()');
+const logger = new Logger('resolveShellEnv');
 const resolveShellMaxTime = 10_000; // 10s
 
-export const resolveShellEnvCached = memoize(resolveShellEnv);
+const cache = new Map<string, Promise<typeof process.env | undefined>>();
+export function resolveShellEnvCached(shell: string) {
+  if (!cache.has(shell)) {
+    cache.set(shell, resolveShellEnv(shell));
+  }
+  return cache.get(shell);
+}
 
 export class ResolveShellEnvTimeoutError extends Error {}
 
