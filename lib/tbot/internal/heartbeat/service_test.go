@@ -61,7 +61,7 @@ func TestHeartbeatService(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		log := logtest.NewLogger()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		fhs := &fakeHeartbeatSubmitter{
