@@ -143,6 +143,7 @@ func TestUpdateBotLogins(t *testing.T) {
 
 // mockAPIClient is a minimal API client used for testing
 type mockRoleGetterClient struct {
+	*authclient.Client
 	roles []string
 }
 
@@ -264,8 +265,6 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 
-	authClient := &authClient{client}
-
 	t.Cleanup(func() { _ = client.Close() })
 
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
@@ -294,7 +293,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 		format:  teleport.JSON,
 		botName: bot.Metadata.Name,
 	}
-	require.NoError(t, cmd.AddBotInstance(ctx, authClient))
+	require.NoError(t, cmd.AddBotInstance(ctx, client))
 
 	response := botJSONResponse{}
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response))
@@ -304,7 +303,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 
 	// Run the command again to ensure multiple distinct tokens can be created.
 	buf.Reset()
-	require.NoError(t, cmd.AddBotInstance(ctx, authClient))
+	require.NoError(t, cmd.AddBotInstance(ctx, client))
 
 	response2 := botJSONResponse{}
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response2))
@@ -337,8 +336,6 @@ func TestListBotInstances(t *testing.T) {
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 
-	authClient := &authClient{client}
-
 	t.Cleanup(func() { _ = client.Close() })
 
 	instance0 := createBotInstance(t, ctx, process)
@@ -366,7 +363,7 @@ func TestListBotInstances(t *testing.T) {
 			format: teleport.JSON,
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, authClient))
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -382,7 +379,7 @@ func TestListBotInstances(t *testing.T) {
 			botName: "test-bot-1",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, authClient))
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -400,7 +397,7 @@ func TestListBotInstances(t *testing.T) {
 			search: "test-hostname-2",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, authClient))
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -417,7 +414,7 @@ func TestListBotInstances(t *testing.T) {
 			query:  `status.latest_heartbeat.hostname == "test-hostname-2"`,
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, authClient))
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -434,7 +431,7 @@ func TestListBotInstances(t *testing.T) {
 			sortIndex: "version_latest",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, authClient))
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -454,7 +451,7 @@ func TestListBotInstances(t *testing.T) {
 			sortOrder: "descending",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, authClient))
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -525,7 +522,7 @@ func TestListBotInstancesFallback(t *testing.T) {
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 
-	authClient := &fallbackAuthClient{
+	authClient := &mockBotInstanceListerClient{
 		Client: client,
 	}
 
@@ -551,17 +548,40 @@ func TestListBotInstancesFallback(t *testing.T) {
 	})
 }
 
-type fallbackAuthClient struct {
+// mockBotInstanceListerClient is a client which returns NotImplemented for
+// ListBotInstancesV2 to simulate a service running an older version.
+type mockBotInstanceListerClient struct {
 	*authclient.Client
 }
 
-func (c *fallbackAuthClient) ListBotInstances(ctx context.Context, in *machineidv1pb.ListBotInstancesRequest, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
-	//nolint:staticcheck // SA1019
-	return c.BotInstanceServiceClient().ListBotInstances(ctx, in, opts...)
+func (c *mockBotInstanceListerClient) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
+	return &mockBotInstanceListV2ErrorClient{
+		BotInstanceServiceClient: c.Client.BotInstanceServiceClient(),
+		errV1:                    nil,
+		errV2:                    trace.NotImplemented("not implemeted in mock"),
+	}
 }
 
-func (c *fallbackAuthClient) ListBotInstancesV2(ctx context.Context, in *machineidv1pb.ListBotInstancesV2Request, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
-	return nil, trace.NotImplemented("not implemeted in mock")
+type mockBotInstanceListV2ErrorClient struct {
+	machineidv1pb.BotInstanceServiceClient
+	errV1 error
+	errV2 error
+}
+
+func (c *mockBotInstanceListV2ErrorClient) ListBotInstances(ctx context.Context, in *machineidv1pb.ListBotInstancesRequest, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
+	if c.errV1 == nil {
+		// Needed for backwards compatibility
+		//nolint:staticcheck // SA1019
+		return c.BotInstanceServiceClient.ListBotInstances(ctx, in, opts...)
+	}
+	return nil, c.errV2
+}
+
+func (c *mockBotInstanceListV2ErrorClient) ListBotInstancesV2(ctx context.Context, in *machineidv1pb.ListBotInstancesV2Request, opts ...grpc.CallOption) (*machineidv1pb.ListBotInstancesResponse, error) {
+	if c.errV2 == nil {
+		return c.BotInstanceServiceClient.ListBotInstancesV2(ctx, in, opts...)
+	}
+	return nil, c.errV2
 }
 
 func ptr[T any](v T) *T { return &v }
