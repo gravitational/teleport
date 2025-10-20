@@ -23,9 +23,9 @@ Argo CD supports declaratively managing clusters using Kubernetes secrets (see
 the [Argo CD
 documentation](https://argo-cd.readthedocs.io/en/latest/operator-manual/declarative-setup/#clusters).
 The Argo CD application controller reads these secrets in order to retrieve
-cluster credentials. When configured to use the Argo CD output, `tbot` writes
-Teleport-signed Kubernetes cluster credentials into secrets that Argo CD can
-then use to access Teleport-protected Kubernetes clusters.
+cluster credentials. When configured to use the Argo CD output service, `tbot`
+writes Teleport-signed Kubernetes cluster credentials into secrets that Argo CD
+can then use to access Teleport-protected Kubernetes clusters.
 
 ## Prerequisite
 
