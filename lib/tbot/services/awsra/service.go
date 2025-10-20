@@ -49,7 +49,7 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/awsra")
 
 func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -60,11 +60,12 @@ func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
 			reloadCh:           deps.ReloadCh,
 			identityGenerator:  deps.IdentityGenerator,
 			clientBuilder:      deps.ClientBuilder,
+			log:                deps.Logger,
+			statusReporter:     deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(ServiceType, cfg.Name, buildFn)
 }
 
 // Service is a service that retrieves X.509 certificates and exchanges them for
