@@ -69,7 +69,7 @@ func workloadIdentityHandler() Handler {
 		deleteHandler: deleteWorkloadIdentity,
 		createHandler: createWorkloadIdentity,
 		singleton:     false,
-		mfaRequired:   true,
+		mfaRequired:   false,
 		description:   "Configures the issuance of SPIFFE SVIDs to workloads.",
 	}
 }

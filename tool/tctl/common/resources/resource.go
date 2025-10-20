@@ -33,6 +33,7 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	return map[string]Handler{
+		types.KindAutoUpdateBotInstanceReport:    autoUpdateBotInstanceReportHandler(),
 		types.KindBot:                            botHandler(),
 		types.KindBotInstance:                    botInstanceHandler(),
 		types.KindRole:                           roleHandler(),

@@ -74,7 +74,7 @@ func workloadIdentityX509RevocationHandler() Handler {
 		getHandler:    getWorkloadIdentityX509Revocation,
 		deleteHandler: deleteWorkloadIdentityX509Revocation,
 		description:   "Controls the revocation of issued X.509 SVIDs",
-		mfaRequired:   true,
+		mfaRequired:   false,
 		singleton:     false,
 	}
 }

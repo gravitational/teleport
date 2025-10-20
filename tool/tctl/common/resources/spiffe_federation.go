@@ -72,7 +72,7 @@ func spiffeFederationHandler() Handler {
 		createHandler: createSPIFFEFederation,
 		deleteHandler: deleteSPIFFEFederation,
 		singleton:     false,
-		mfaRequired:   true,
+		mfaRequired:   false,
 		description:   "Manages SPIFFE federation relationships between this Teleport cluster and other trust domains.",
 	}
 }
