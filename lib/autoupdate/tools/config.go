@@ -20,17 +20,20 @@ package tools
 
 import (
 	"context"
+	"debug/buildinfo"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,9 +69,9 @@ type ClientToolsConfig struct {
 
 // AddTool adds a tool to the collection in the configuration, always placing it at the top.
 // The collection size is limited by the `defaultSizeStoredVersion` constant.
-func (ctc *ClientToolsConfig) AddTool(tool Tool) {
+func (ctc *ClientToolsConfig) AddTool(toolsDir string, tool Tool) {
 	for _, t := range ctc.Tools {
-		if t.Version == tool.Version {
+		if t.IsEqual(toolsDir, tool.Version, tool.OS, tool.Arch) {
 			maps.Copy(t.PathMap, tool.PathMap)
 			return
 		}
@@ -94,9 +97,9 @@ func (ctc *ClientToolsConfig) SetConfig(proxy string, version string, disabled b
 }
 
 // SelectVersion lookups the version and re-order by last recently used.
-func (ctc *ClientToolsConfig) SelectVersion(version string) *Tool {
+func (ctc *ClientToolsConfig) SelectVersion(toolsDir, version, os, arch string) *Tool {
 	for i, tool := range ctc.Tools {
-		if tool.Version == version {
+		if tool.IsEqual(toolsDir, version, os, arch) {
 			ctc.Tools = append([]Tool{tool}, append(ctc.Tools[:i], ctc.Tools[i+1:]...)...)
 			return &tool
 		}
@@ -105,9 +108,9 @@ func (ctc *ClientToolsConfig) SelectVersion(version string) *Tool {
 }
 
 // HasVersion check that specific version present in collection.
-func (ctc *ClientToolsConfig) HasVersion(version string) bool {
-	return slices.ContainsFunc(ctc.Tools, func(s Tool) bool {
-		return version == s.Version
+func (ctc *ClientToolsConfig) HasVersion(toolsDir, version, os, arch string) bool {
+	return slices.ContainsFunc(ctc.Tools, func(tool Tool) bool {
+		return tool.IsEqual(toolsDir, version, os, arch)
 	})
 }
 
@@ -121,15 +124,19 @@ type ClusterConfig struct {
 type Tool struct {
 	// Version is the version of the tools (tsh, tctl) as defined in the PathMap.
 	Version string `json:"version"`
+	// OS is the operating system of the installed package.
+	OS string `json:"os"`
+	// Arch is architecture of the installed package.
+	Arch string `json:"arch"`
 	// PathMap stores the relative path (within the tools directory) for each tool binary.
 	// For example: {"tctl": "package-id/tctl"}.
 	PathMap map[string]string `json:"path"`
 }
 
 // PackageNames returns the package names extracted from the tool path map.
-func (c *Tool) PackageNames() []string {
+func (t *Tool) PackageNames() []string {
 	var packageNames []string
-	for _, path := range c.PathMap {
+	for _, path := range t.PathMap {
 		dir := strings.SplitN(path, string(filepath.Separator), 2)
 		if len(dir) > 0 {
 			packageNames = append(packageNames, dir[0])
@@ -138,9 +145,45 @@ func (c *Tool) PackageNames() []string {
 	return packageNames
 }
 
-// getToolsConfig reads the configuration file for client tools managed updates,
+// IsEqual verifies that specific tool matches version, operating system and architecture.
+func (t *Tool) IsEqual(toolsDir, version, os, arch string) bool {
+	// If OS version is not defined in configuration we should check it by binary headers.
+	// TODO(vapopov): DELETE IN v21.0.0 - OS and Arch must be supported for all version.
+	if t.OS == "" {
+		path, ok := t.PathMap[DefaultClientTools()[0]]
+		if !ok {
+			return false
+		}
+		info, err := buildinfo.ReadFile(filepath.Join(toolsDir, path))
+		if err != nil {
+			slog.WarnContext(context.Background(), "Failed to read build info.", "error", err)
+			return version == t.Version
+		}
+		var binOS, binArch string
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "GOOS":
+				binOS = s.Value
+			case "GOARCH":
+				binArch = s.Value
+			}
+		}
+		if binOS == "" || binArch == "" {
+			return version == t.Version
+		}
+		// macOS binaries are always built with universal architecture support (arm64, amd64).
+		if runtime.GOOS == constants.DarwinOS {
+			return version == t.Version && os == binOS
+		}
+		return version == t.Version && os == binOS && arch == binArch
+	}
+
+	return version == t.Version && os == t.OS && arch == t.Arch
+}
+
+// GetToolsConfig reads the configuration file for client tools managed updates,
 // and acquires a filesystem lock until the configuration is read and deserialized.
-func getToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
+func GetToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
 	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -167,9 +210,9 @@ func getToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
 	return ctc, nil
 }
 
-// updateToolsConfig creates or opens the configuration file for client tools managed updates,
+// UpdateToolsConfig creates or opens the configuration file for client tools managed updates,
 // and acquires a filesystem lock until the configuration is written and closed.
-func updateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) error) (err error) {
+func UpdateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) error) (err error) {
 	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
