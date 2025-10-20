@@ -32,13 +32,15 @@ import (
 // This map will be filled as we convert existing resources
 // to the Handler format.
 func Handlers() map[string]Handler {
+	// When adding resources, please keep the map alphabetically ordered.
 	return map[string]Handler{
+		types.KindAuthServer: authHandler(),
+		types.KindDatabase:   databaseHandler(),
+		types.KindLock:       lockHandler(),
+		types.KindNode:       serverHandler(),
+		types.KindProxy:      proxyHandler(),
 		types.KindRole:       roleHandler(),
 		types.KindUser:       userHandler(),
-		types.KindDatabase:   databaseHandler(),
-		types.KindNode:       serverHandler(),
-		types.KindAuthServer: authHandler(),
-		types.KindProxy:      proxyHandler(),
 	}
 }
 
