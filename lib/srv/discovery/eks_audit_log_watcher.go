@@ -64,8 +64,8 @@ type eksAuditLogCluster struct {
 
 // initEKSAuditLogWatcher starts the EKS audit log watcher if there are any
 // static or dynamic configurations specifying to collect EKS audit logs.
-// If there are none, it waits for discover changes to the dynamic
-// DiscoverConfig resources, and if any configurations for EKS audit logs
+// If there are none, it waits for discovery config changes to the dynamic
+// DiscoveryConfig resources, and if any configurations for EKS audit logs
 // appear, it then starts the EKS audit log watcher. If the EKS audit log
 // watcher completes, we start it again if there is an active configuration.
 func (s *Server) initEKSAuditLogWatcher(ctx context.Context, eksAuditLogClustersCh chan []eksAuditLogCluster) {
@@ -88,7 +88,7 @@ func (s *Server) initEKSAuditLogWatcher(ctx context.Context, eksAuditLogClusters
 		if errors.Is(err, errTAGFeatureNotEnabled) {
 			break
 		} else if err != nil {
-			s.Log.WarnContext(ctx, "Error initializing and EKS Audit Log Watcher", "error", err)
+			s.Log.WarnContext(ctx, "Error initializing EKS Audit Log Watcher", "error", err)
 		}
 		s.Log.DebugContext(ctx, "EKS Audit Log Watcher stopped")
 

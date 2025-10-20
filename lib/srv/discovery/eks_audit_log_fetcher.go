@@ -46,9 +46,9 @@ type eksAuditLogFetcher struct {
 	cancel  context.CancelFunc
 }
 
-// Run starts continuously polling AWS Cloud Watch Logs for Kubernetes apiserver
-// audit logs for the configured cluster, feeding the logs retrieved to the
-// configured grpc stream. It runs until the given context is canceled.
+// Run continuously polls AWS Cloud Watch Logs for Kubernetes apiserver
+// audit logs for the configured cluster. It feeds the logs retrieved to the
+// configured grpc stream, running until the given context is canceled.
 func (f *eksAuditLogFetcher) Run(ctx context.Context) error {
 	f.log = f.log.With("cluster", f.cluster.Arn)
 
@@ -87,11 +87,11 @@ func (f *eksAuditLogFetcher) Run(ctx context.Context) error {
 
 // fetchLogs fetches a batch of logs from AWS Cloud Watch Logs after the given
 // cursor position and unmarshals them into the protobuf Struct well-known
-// type. It returns those log entries and a cursor that can be used in the next
-// call to fetchLogs to get the logs after the ones returned. If an error
-// occurs, it is logged and no logs and the cursor passed in is returned. This
-// allows the called to continue to try to fetch logs until the fetcher is
-// terminated.
+// type.
+//
+// It returns the fetched log entries and a new cursor for the next call. If an
+// error occurs, it is logged, and the function returns nil logs and the
+// original input cursor. This allows the caller to retry the operation.
 func (f *eksAuditLogFetcher) fetchLogs(ctx context.Context, cursor *accessgraphv1alpha.KubeAuditLogCursor) ([]*structpb.Struct, *accessgraphv1alpha.KubeAuditLogCursor) {
 	awsEvents, err := f.fetcher.FetchEKSAuditLogs(ctx, f.cluster, cursor)
 	if err != nil {
