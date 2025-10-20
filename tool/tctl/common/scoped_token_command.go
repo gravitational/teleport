@@ -21,12 +21,11 @@ package common
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -61,7 +59,7 @@ type ScopedTokensCommand struct {
 	// format is the output format, e.g. text or json
 	format string
 
-	// tokenType is the type of token. For example, "trusted_cluster".
+	// tokenType is the type of token. For example, "node".
 	tokenType string
 
 	// Value is the value of the token. Can be used to either act on a
@@ -101,7 +99,7 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 
 	// tctl scoped tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a scoped invitation token.")
-	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db,proxy,etc").Required().StringVar(&c.tokenType)
+	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
 		int(defaults.ProvisioningTokenTTL/time.Minute))).
@@ -116,7 +114,7 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
 
 	// "tctl scoped tokens ls"
-	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
+	c.tokenList = tokens.Command("ls", "List invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 
@@ -286,12 +284,6 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 
 // List is called to execute "tokens ls" command.
 func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
-		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-		return trace.Wrap(err)
-	}
-
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
 		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
 			Limit:  uint32(pageSize),
@@ -313,8 +305,8 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 	}
 
 	// Sort by expire time.
-	sort.Slice(tokens, func(i, j int) bool {
-		return tokens[i].GetMetadata().GetExpires().AsTime().Before(tokens[j].GetMetadata().GetExpires().AsTime())
+	slices.SortStableFunc(tokens, func(left, right *joiningv1.ScopedToken) int {
+		return left.GetMetadata().GetExpires().AsTime().Compare(right.GetMetadata().GetExpires().AsTime())
 	})
 
 	nameFunc := func(tok *joiningv1.ScopedToken) string {
