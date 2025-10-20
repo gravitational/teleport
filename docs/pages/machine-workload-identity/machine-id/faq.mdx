@@ -50,12 +50,12 @@ options:
   that includes the `{{ internal.logins }}` role variable. This is usually done
   by providing the `--logins` parameter when creating the bot.
 
-For simpler scenarios — where you only expect the bot to use a single output
+For simpler scenarios — where you only expect the bot to use a single service
 or role — you can add the login to the logins trait of the bot user. This
 approach allows you to leverage default roles like `access`.
 
 For situations where your bot is producing certificates for different roles in
-different outputs, it is important to consider whether using a login trait
+different services, it is important to consider whether using a login trait
 grants access to resources that you didn't intend. To prevent a login trait from
 granting access you didn't intend, we recommend that you create bespoke roles
 that explicitly specify the logins that should be included in the certificates.
@@ -101,7 +101,7 @@ short-lived renewable certificates.
 ## Can Machine ID be used to connect to multiple Kubernetes clusters?
 
 This is possible in Teleport v17.2.7 or higher, using the new `kubernetes/v2`
-output type in `tbot`. This service can expose many clusters at once via
+output service type in `tbot`. This service can expose many clusters at once via
 contexts in the generated `kubeconfig.yaml`, and if label selectors are used,
 will dynamically add contexts as clusters are added and removed in Teleport.
 

@@ -76,7 +76,7 @@ the credentials to the connection, meaning that the client does not need to
 support client certificates. However, this does mean that the `tbot` process
 must be running for the client to access the application.
 
-The second option is the `application` output. This will write TLS credentials
+The second option is the `application` output service. This will write TLS credentials
 to a destination where your client will read them from. The client must support
 client certificates and reloading them from disk when they are renewed. In
 addition, this option is not compatible with a TLS-terminating load-balancer
@@ -113,17 +113,17 @@ tunnel will not start in this mode.
 
 Restart `tbot` to apply the new configuration.
 </TabItem>
-<TabItem label="application output">
-Outputs must be configured with a destination. In this example, the `directory`
-destination will be used. This will write artifacts to a specified directory on
-disk. Ensure that this directory can be written to by the Linux user that
-`tbot` runs as, and that it can be read by the Linux user that will be accessing
-applications.
+<TabItem label="application service">
+Output services must be configured with a destination. In this example, the
+`directory` destination will be used. This will write artifacts to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that will be
+accessing applications.
 
-Modify your `tbot` configuration to add an `application` output:
+Modify your `tbot` configuration to add an `application` service:
 
 ```yaml
-outputs:
+services:
 - type: application
   # specify the name of the application you wish the credentials to grant
   # access to.
@@ -131,8 +131,8 @@ outputs:
   destination:
     type: directory
     # For this guide, /opt/machine-id is used as the destination directory.
-    # You may wish to customize this. Multiple outputs cannot share the same
-    # destination.
+    # You may wish to customize this. Multiple output services cannot share the
+    # same destination.
     path: /opt/machine-id
 ```
 
@@ -157,7 +157,7 @@ For example, to access the application using `curl`:
 $ curl http://127.0.0.1:1234/
 ```
 </TabItem>
-<TabItem label="application output">
+<TabItem label="application service">
 Once `tbot` has been run, credentials will be output to the directory specified
 in the destination. Using the example of `/opt/machine-id`:
 
@@ -194,10 +194,11 @@ will be redirected to the Teleport login page when attempting to access the app.
 ### Client application requires certificates with standard extensions
 
 If your automated service requires TLS certificates with a specific file
-extension, you may also enable the `specific_tls_naming` option for the output:
+extension, you may also enable the `specific_tls_naming` option for the output
+service:
 
 ```yaml
-outputs:
+services:
 - type: application
   destination:
     type: directory
