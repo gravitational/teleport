@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1488,15 +1487,6 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
-// NewPresetHealthFunc is a function that creates a new HealthCheckConfig preset.
-type NewPresetHealthFunc func() *healthcheckconfigv1.HealthCheckConfig
-
-// newHealthPresets maps preset health names to preset creator functions.
-var newHealthPresets = map[string]NewPresetHealthFunc{
-	teleport.PresetDefaultHealthCheckConfigDBName:   services.NewPresetHealthCheckConfigDB,
-	teleport.PresetDefaultHealthCheckConfigKubeName: services.NewPresetHealthCheckConfigKube,
-}
-
 // createPresetHealthCheckConfigs creates a preset health check config
 // for each resource using the healthcheck package.
 func createPresetHealthCheckConfigs(ctx context.Context, svc services.HealthCheckConfig) error {
@@ -1504,20 +1494,17 @@ func createPresetHealthCheckConfigs(ctx context.Context, svc services.HealthChec
 	// - Supporting existing Teleport clusters already using health checks with some resources
 	// - Avoiding migration of the backend database, which avoids downtime and headaches
 	// - Easing the adoption of health checks for new resources as they are developed over time
-	exists := make(map[string]bool)
-	cfgs, err := stream.Collect(clientutils.Resources(ctx, svc.ListHealthCheckConfigs))
-	if err != nil {
-		return trace.Wrap(err, "unable to list health check configs")
-	}
-	for _, cfg := range cfgs {
-		exists[cfg.GetMetadata().GetName()] = true
+
+	// Attempt to create each preset instead of loading all cfgs and checking existence.
+	// For cases of large quantities of cfgs, it's more efficient to attempt an insert.
+	var newHealthPresets = []func() *healthcheckconfigv1.HealthCheckConfig{
+		services.NewPresetHealthCheckConfigDB,
+		services.NewPresetHealthCheckConfigKube,
 	}
 	var errs []error
-	for name, newPreset := range newHealthPresets {
-		if !exists[name] {
-			if _, err = svc.CreateHealthCheckConfig(ctx, newPreset()); err != nil && !trace.IsAlreadyExists(err) {
-				errs = append(errs, err)
-			}
+	for _, newPreset := range newHealthPresets {
+		if _, err := svc.CreateHealthCheckConfig(ctx, newPreset()); err != nil && !trace.IsAlreadyExists(err) {
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
