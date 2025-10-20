@@ -34,7 +34,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -61,6 +60,8 @@ const (
 	// teleportToolsDirsEnv overrides Teleport tools directory for saving updated
 	// versions.
 	teleportToolsDirsEnv = "TELEPORT_TOOLS_DIR"
+	// teleportToolsPathReExecEnv is env used for passing original execution path to re-executed version.
+	teleportToolsPathReExecEnv = "TELEPORT_TOOLS_PATH_REEXEC"
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after downloading archives.
 	reservedFreeDisk = 10 * 1024 * 1024 // 10 Mb
@@ -171,7 +172,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	// We should acquire and release the lock before checking the version
 	// by executing the binary, as it might block tool execution until the version
 	// check is completed, which can take several seconds.
-	ctc, err := getToolsConfig(u.toolsDir)
+	ctc, err := GetToolsConfig(u.toolsDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +195,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		return nil, trace.Wrap(err)
 	}
 
-	if !ctc.HasVersion(toolsVersion) {
+	if !ctc.HasVersion(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
 		if err := migrateV1AndUpdateConfig(u.toolsDir, u.tools); err != nil {
 			// Execution should not be interrupted if migration fails. Instead, it's better to
 			// re-download the version that was supposed to be migrated but failed for some reason.
@@ -214,13 +215,19 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	proxyHost := utils.TryHost(proxyAddr)
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
+	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
+	// are disabling execution too aggressively and this causes stuck updates.
+	// If "off" was set by the user, we would not be re-executed.
+	if requestedVersion == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) != "" {
+		requestedVersion = ""
+	}
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 			ctc.SetConfig(proxyHost, requestedVersion, false)
 			return nil
 		}); err != nil {
@@ -237,7 +244,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		// If the environment variable is set during a remote check,
 		// prioritize this version for the current host and use it as the default
 		// for all commands under the current profile.
-		if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 			ctc.SetConfig(proxyHost, requestedVersion, false)
 			return nil
 		}); err != nil {
@@ -272,7 +279,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
 	}
 
-	if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 		ctc.SetConfig(proxyHost, updateResp.Version, updateResp.Disabled)
 		return nil
 	}); err != nil {
@@ -285,7 +292,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 // Update acquires filesystem lock, downloads requested version package, unarchive, replace
 // existing one and cleanups the previous downloads with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
-	err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+	err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 		// ignoreTools is the list of tools installed and tracked by the config.
 		// They should be preserved during cleanup. If we have more than [defaultSizeStoredVersion]
 		// versions, the updater will forget about the least used version.
@@ -294,7 +301,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 			// If the version of the running binary or the version downloaded to
 			// tools directory is the same as the requested version of client tools,
 			// nothing to be done, exit early.
-			if tool.Version == toolsVersion {
+			if tool.IsEqual(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
 				return nil
 			}
 			ignoreTools = append(ignoreTools, tool.PackageNames()...)
@@ -376,7 +383,7 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 	for key, val := range toolsMap {
 		toolsMap[key] = filepath.Join(pkgName, val)
 	}
-	ctc.AddTool(Tool{Version: pkg.Version, PathMap: toolsMap})
+	ctc.AddTool(u.toolsDir, Tool{Version: pkg.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, PathMap: toolsMap})
 
 	return nil
 }
@@ -384,8 +391,8 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 // ToolPath loads full path from config file to specific tool and version.
 func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error) {
 	var tool *Tool
-	if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
-		tool = ctc.SelectVersion(toolVersion)
+	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		tool = ctc.SelectVersion(u.toolsDir, toolVersion, runtime.GOOS, runtime.GOARCH)
 		return nil
 	}); err != nil {
 		return "", trace.Wrap(err)
@@ -412,28 +419,30 @@ func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) 
 		return 0, trace.Wrap(err)
 	}
 
-	for _, unset := range []string{
+	env := filterEnvs(os.Environ(), []string{
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
-	} {
-		if err := os.Unsetenv(unset); err != nil {
-			return 0, trace.Wrap(err)
-		}
+		teleportToolsPathReExecEnv,
+	})
+	env = append(env, teleportToolsVersionReExecEnv+"="+u.localVersion)
+	env = append(env, teleportToolsDirsEnv+"="+u.toolsDir)
+	// If tsh or tctl has already been re-executed with the original path,
+	// we need to pass that path to the next re-execution.
+	if reExecPath := GetReExecPath(); reExecPath != "" {
+		env = append(env, teleportToolsPathReExecEnv+"="+reExecPath)
+	} else {
+		env = append(env, teleportToolsPathReExecEnv+"="+executablePath)
 	}
-	env := append(os.Environ(), fmt.Sprintf("%s=%s", teleportToolsDirsEnv, u.toolsDir))
 	// To prevent re-execution loop we have to disable update logic for re-execution,
-	// by unsetting current tools version env variable and setting it to "off".
-	// The re-execution path and tools directory are absolute. Since the v2 logic
-	// no longer uses a static path, any re-execution from the tools directory
-	// must disable further re-execution.
-	if path == executablePath || strings.HasPrefix(path, u.toolsDir) {
-		if err := os.Unsetenv(teleportToolsVersionEnv); err != nil {
-			return 0, trace.Wrap(err)
-		}
+	// by unsetting current tools version env variable and setting it to "off"
+	// if same version is requested to be re-executed.
+	// We should also prevent further re-execution if the current version is run from
+	// the deprecated `~/.tsh/bin/tsh` path; otherwise, a downgrade could result in a loop.
+	if path == executablePath || executablePath == filepath.Join(u.toolsDir, filepath.Base(executablePath)) {
+		env = filterEnvs(env, []string{teleportToolsVersionEnv})
 		env = append(env, teleportToolsVersionEnv+"="+teleportToolsVersionEnvDisabled)
-		slog.DebugContext(ctx, "Disable next re-execution")
+		slog.DebugContext(ctx, "Disable re-execution")
 	}
-	env = append(env, fmt.Sprintf("%s=%s", teleportToolsVersionReExecEnv, u.localVersion))
 
 	slog.DebugContext(ctx, "Re-execute updated version", "execute", path, "from", executablePath)
 	if runtime.GOOS == constants.WindowsOS {

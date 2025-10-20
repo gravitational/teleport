@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -75,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -742,9 +742,12 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 	defer newProxy.Close()
 
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(ct, err)
+	newClient := func() *authclient.Client {
+		return testSrv.CloneClient(t, newProxy)
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = newClient().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:
@@ -789,9 +792,9 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients with new creds will no longer work as soon as backend modification event propagates.
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-		assert.Error(ct, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := newClient().GetNodes(ctx, apidefaults.Namespace)
+		require.Error(t, err)
 	}, time.Second*15, time.Millisecond*100)
 
 	// clients with old creds will still work
@@ -3610,9 +3613,8 @@ func TestTLSFailover(t *testing.T) {
 	}
 }
 
-// TestRegisterCAPin makes sure that registration only works with a valid
-// CA pin.
-func TestRegisterCAPin(t *testing.T) {
+// TestJoinCAPin makes sure that joining only works with a valid CA pin.
+func TestJoinCAPin(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -3636,14 +3638,13 @@ func TestRegisterCAPin(t *testing.T) {
 	require.Len(t, caPins, 1)
 	caPin := caPins[0]
 
-	// Attempt to register with valid CA pin, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with valid CA pin, should work.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{caPin},
@@ -3651,15 +3652,14 @@ func TestRegisterCAPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Attempt to register with multiple CA pins where the auth server only
+	// Attempt to join with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123", caPin},
@@ -3667,14 +3667,13 @@ func TestRegisterCAPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Attempt to register with invalid CA pin, should fail.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with invalid CA pin, should fail.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123"},
@@ -3682,14 +3681,13 @@ func TestRegisterCAPin(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	// Attempt to register with multiple invalid CA pins, should fail.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with multiple invalid CA pins, should fail.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123", "sha256:456"},
@@ -3716,14 +3714,13 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, caPins, 2)
 
-	// Attempt to register with multiple CA pins, should work
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with multiple CA pins, should work
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               caPins,
@@ -3732,9 +3729,9 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestRegisterCAPath makes sure registration only works with a valid CA
+// TestJoinCAPath makes sure joining only works with a valid CA
 // file on disk.
-func TestRegisterCAPath(t *testing.T) {
+func TestJoinCAPath(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -3751,14 +3748,13 @@ func TestRegisterCAPath(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Attempt to register with nothing at the CA path, should work.
-	_, err := join.Register(ctx, join.RegisterParams{
+	// Attempt to join with nothing at the CA path, should work.
+	_, err := joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		Clock:                clock,
@@ -3778,14 +3774,13 @@ func TestRegisterCAPath(t *testing.T) {
 	err = os.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
 	require.NoError(t, err)
 
-	// Attempt to register with valid CA path, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with valid CA path, should work.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPath:               caPath,

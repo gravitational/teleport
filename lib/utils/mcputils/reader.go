@@ -184,7 +184,7 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 
 	r.cfg.Logger.Log(ctx, logutils.TraceLevel, "Trace read", "raw", rawMessage)
 
-	var base baseJSONRPCMessage
+	var base BaseJSONRPCMessage
 	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
 		if err := r.cfg.OnParseError(ctx, mcp.NewRequestId(nil), parseError); err != nil {
 			return trace.Wrap(err, "handling JSON unmarshal error")
@@ -192,18 +192,18 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 	}
 
 	switch {
-	case base.isNotification():
-		return trace.Wrap(r.cfg.OnNotification(ctx, base.makeNotification()), "handling notification")
-	case base.isRequest():
+	case base.IsNotification():
+		return trace.Wrap(r.cfg.OnNotification(ctx, base.MakeNotification()), "handling notification")
+	case base.IsRequest():
 		if r.cfg.OnRequest != nil {
-			return trace.Wrap(r.cfg.OnRequest(ctx, base.makeRequest()), "handling request")
+			return trace.Wrap(r.cfg.OnRequest(ctx, base.MakeRequest()), "handling request")
 		}
 		// Should not happen. Log something just in case.
 		r.cfg.Logger.DebugContext(ctx, "Skipping request", "id", base.ID)
 		return nil
-	case base.isResponse():
+	case base.IsResponse():
 		if r.cfg.OnResponse != nil {
-			return trace.Wrap(r.cfg.OnResponse(ctx, base.makeResponse()), "handling response")
+			return trace.Wrap(r.cfg.OnResponse(ctx, base.MakeResponse()), "handling response")
 		}
 		// Should not happen. Log something just in case.
 		r.cfg.Logger.DebugContext(ctx, "Skipping response", "id", base.ID)
@@ -224,13 +224,24 @@ func ReadOneResponse(ctx context.Context, reader TransportReader) (*JSONRPCRespo
 		return nil, trace.Wrap(err)
 	}
 
-	var base baseJSONRPCMessage
-	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
-		return nil, trace.Wrap(parseError)
-	}
+	return unmarshalResponse(rawMessage)
+}
 
-	if !base.isResponse() {
-		return nil, trace.BadParameter("message is not a response")
-	}
-	return base.makeResponse(), nil
+// NewForwardMessageReader creates a MessageReader that simply forwards every
+// message read from the provided reader to the provided writer.
+func NewForwardMessageReader(logger *slog.Logger, reader TransportReader, writer MessageWriter) (*MessageReader, error) {
+	return NewMessageReader(MessageReaderConfig{
+		Logger:    logger,
+		Transport: reader,
+		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
+			return trace.Wrap(writer.WriteMessage(ctx, notification))
+		},
+		OnRequest: func(ctx context.Context, request *JSONRPCRequest) error {
+			return trace.Wrap(writer.WriteMessage(ctx, request))
+		},
+		OnResponse: func(ctx context.Context, response *JSONRPCResponse) error {
+			return trace.Wrap(writer.WriteMessage(ctx, response))
+		},
+		OnParseError: LogAndIgnoreParseError(logger),
+	})
 }

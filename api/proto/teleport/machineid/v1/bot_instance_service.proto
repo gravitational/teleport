@@ -50,6 +50,39 @@ message ListBotInstancesRequest {
   types.SortBy sort = 5;
 }
 
+// Request for ListBotInstancesV2.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list
+message ListBotInstancesV2Request {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The page_token value returned from a previous ListBotInstancesV2 request,
+  // if any.
+  string page_token = 2;
+  // The sort field to use for the results. If empty, the default sort field is
+  // used.
+  string sort_field = 3;
+  // The sort order to use for the results. If empty, the default sort order is
+  // used.
+  bool sort_desc = 4;
+  // Fields used to filter the results
+  Filters filter = 5;
+
+  // Filters contains fields to be used to filter the results.
+  message Filters {
+    // The name of the Bot to list BotInstances for. If non-empty, only
+    // BotInstances for that bot will be listed.
+    string bot_name = 1;
+    // A search term used to filter the results. If non-empty, it's used to
+    // match against supported fields.
+    string search_term = 2;
+    // A Teleport predicate language query used to filter the results.
+    string query = 3;
+  }
+}
+
 // Response for ListBotInstances.
 message ListBotInstancesResponse {
   // BotInstance that matched the search.
@@ -83,7 +116,12 @@ service BotInstanceService {
   // GetBotInstance returns the specified BotInstance resource.
   rpc GetBotInstance(GetBotInstanceRequest) returns (BotInstance);
   // ListBotInstances returns a page of BotInstance resources.
-  rpc ListBotInstances(ListBotInstancesRequest) returns (ListBotInstancesResponse);
+  // Deprecated: Use ListBotInstancesV2 instead
+  rpc ListBotInstances(ListBotInstancesRequest) returns (ListBotInstancesResponse) {
+    option deprecated = true;
+  }
+  // ListBotInstancesV2 returns a page of BotInstance resources.
+  rpc ListBotInstancesV2(ListBotInstancesV2Request) returns (ListBotInstancesResponse);
   // DeleteBotInstance hard deletes the specified BotInstance resource.
   rpc DeleteBotInstance(DeleteBotInstanceRequest) returns (google.protobuf.Empty);
   // SubmitHeartbeat submits a heartbeat for a BotInstance.

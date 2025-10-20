@@ -289,7 +289,7 @@ func (a *Server) newWebSession(
 		ttl:            sessionTTL,
 		sshPublicKey:   sshAuthorizedKey,
 		tlsPublicKey:   tlsPublicKeyPEM,
-		checker:        checker,
+		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
 		traits:         req.Traits,
 		activeRequests: req.AccessRequests,
 	}
@@ -313,6 +313,9 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
+	if idleTimeout > 0 {
+		bearerTokenTTL = min(sessionTTL, idleTimeout)
+	}
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
@@ -385,7 +388,7 @@ func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+	if err := a.UpsertWebToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -562,7 +565,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		user:           user,
 		loginIP:        req.LoginIP,
 		tlsPublicKey:   tlsPublicKey,
-		checker:        checker,
+		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
 		activeRequests: req.AccessRequests,
@@ -752,7 +755,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		compatibility:                    req.Compatibility,
-		checker:                          checker,
+		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to CreateSessionCerts.
 		traits:                           req.UserState.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

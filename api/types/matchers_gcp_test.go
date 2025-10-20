@@ -148,6 +148,28 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			errCheck: isBadParameterErr,
 		},
+		{
+			name: "invalid install suffix",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Params: &InstallerParams{
+					Suffix: "$SHELL",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid update groups",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Params: &InstallerParams{
+					UpdateGroup: "$SHELL",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.in.CheckAndSetDefaults()

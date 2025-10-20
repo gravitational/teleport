@@ -108,6 +108,9 @@ const (
 	// TagUpgrader is a metric tag for upgraders.
 	TagUpgrader = "upgrader"
 
+	// TagUpgraderStatus is propagated status from the upgrader.
+	TagUpgraderStatus = "status"
+
 	// MetricsAccessRequestsCreated provides total number of created access requests.
 	MetricAccessRequestsCreated = "access_requests_created"
 	// TagRoles is a number of roles requested as a part of access request.
@@ -263,6 +266,9 @@ const (
 	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServers = "registered_servers"
 
+	// MetricBotInstances tracks the number of bot instances across the entire cluster, labeled by version
+	MetricBotInstances = "bot_instances"
+
 	// MetricRegisteredServersByInstallMethods tracks the number of Teleport servers, and their installation method,
 	// that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServersByInstallMethods = "registered_servers_by_install_methods"
@@ -312,6 +318,10 @@ const (
 
 	// TagVersion is a prometheus label for version of Teleport built
 	TagVersion = "version"
+
+	// TagOS is a prometheus label for indicating the Operating System
+	// where agent is running (e.g. Darwin, Linux).
+	TagOS = "os"
 
 	// TagGitref is a prometheus label for the gitref of Teleport built
 	TagGitref = "gitref"

@@ -37,12 +37,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -401,8 +401,10 @@ func (s *Service) Run(ctx context.Context) error {
 	// etc)
 	storageDestination := s.cfg.Destination
 
-	// Keep retrying renewal if it failed on startup.
-	if !s.IsReady() {
+	if s.IsReady() {
+		s.cfg.StatusReporter.Report(readyz.Healthy)
+	} else {
+		// Keep retrying renewal if it failed on startup.
 		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 			Driver: retryutils.NewExponentialDriver(1 * time.Second),
 			Max:    1 * time.Minute,
@@ -644,6 +646,43 @@ func botIdentityFromAuth(
 	return newIdentity, nil
 }
 
+func initBoundKeypairClientState(
+	ctx context.Context,
+	log *slog.Logger,
+	cfg Config,
+	joinSecret string,
+) (boundkeypair.ClientState, error) {
+	staticKey, err := cfg.Onboarding.BoundKeypair.StaticPrivateKeyBytes()
+	if err != nil {
+		log.WarnContext(
+			ctx,
+			"Could not load the configured bound keypair static key, will attempt to fall back to a standard filesystem keypair",
+			"error", err,
+		)
+	} else if staticKey != nil {
+		log.InfoContext(ctx, "A static keypair was configured and will be used instead of mutable internal key storage")
+		return boundkeypair.NewStaticClientState(staticKey), nil
+	}
+
+	adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
+	state, err := boundkeypair.LoadClientState(ctx, adapter)
+	if trace.IsNotFound(err) && joinSecret != "" {
+		log.InfoContext(ctx, "No existing client state found, will attempt "+
+			"to join with provided registration secret")
+		state = boundkeypair.NewEmptyFSClientState(adapter)
+	} else if err != nil {
+		log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
+			"no local credentials are available and no registration secret "+
+			"was provided. To continue, either generate a keypair with "+
+			"`tbot keypair create` and register it with Teleport, or "+
+			"generate a registration secret in Teleport and provide it with "+
+			"the `--registration-secret` flag.")
+		return nil, trace.Wrap(err, "loading bound keypair client state")
+	}
+
+	return state, nil
+}
+
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
 //
@@ -672,7 +711,7 @@ func botIdentityFromToken(
 	}
 
 	expires := time.Now().Add(cfg.TTL)
-	params := join.RegisterParams{
+	params := joinclient.JoinParams{
 		Token: token,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -710,42 +749,36 @@ func botIdentityFromToken(
 	}
 
 	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairState *boundkeypair.ClientState
+	var boundKeypairState boundkeypair.ClientState
 
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
-		params.AzureParams = join.AzureParams{
+		params.AzureParams = joinclient.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	case types.JoinMethodTerraformCloud:
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
 	case types.JoinMethodGitLab:
-		params.GitlabParams = join.GitlabParams{
+		params.GitlabParams = joinclient.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
-		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
-
-		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
-		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
-		if trace.IsNotFound(err) && joinSecret != "" {
-			log.InfoContext(ctx, "No existing client state found, will attempt "+
-				"to join with provided registration secret")
-			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
-		} else if err != nil {
-			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
-				"no local credentials are available and no registration secret "+
-				"was provided. To continue, either generate a keypair with "+
-				"`tbot keypair create` and register it with Teleport, or "+
-				"generate a registration secret on Teleport and provide it with"+
-				"the `--registration-secret` flag.")
-			return nil, trace.Wrap(err, "loading bound keypair client state")
+		joinSecret, err := cfg.Onboarding.BoundKeypair.RegistrationSecret()
+		if err != nil {
+			return nil, trace.Wrap(err, "loading registration secret from disk")
 		}
 
-		params.BoundKeypairParams = boundKeypairState.ToJoinParams(joinSecret)
+		boundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		}
+
+		params.BoundKeypairParams = boundKeypairState.ToJoinParams(boundkeypair.ClientParams{
+			RegistrationSecret: joinSecret,
+		})
 	}
 
-	result, err := join.Register(ctx, params)
+	result, err := joinclient.Join(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

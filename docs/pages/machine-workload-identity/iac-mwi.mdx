@@ -58,4 +58,4 @@ When your IaC runs, Teleport generates a short-lived credential compatible with:
 The cloud provider issues a temporary credential linked to an IAM role, which allows the IaC workflow to perform its tasks. This credential exists only for the duration of the run and automatically expires once it completes. 
 By design, this minimizes the risk of credential exposure and eliminates the need for manual rotation or long-term management. Because all major cloud providers support this method of authentication, IaC pipelines that manage resources across multiple clouds can rely on a single mechanism instead of juggling separate credential processes. 
 
-Teleport further enhances this model by recording every credential issuance in a comprehensive [audit log](/reference/monitoring/audit.mdx), simplifying compliance and reporting.
+Teleport further enhances this model by recording every credential issuance in a comprehensive [audit log](../reference/deployment/monitoring/audit.mdx), simplifying compliance and reporting.

@@ -132,12 +132,14 @@ import (
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/inventory"
-	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -318,6 +320,13 @@ const (
 
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
+	// This event is used as a sync point to wait for all services to be started
+	// before kicking off new operations.
+	// This must not be confused as a Kube readiness check, checking the process
+	// ability to handle requests. The event can be emitted even while one or
+	// many services are not ready to process requests.
+	// If one need to measure readiness, they should rely on [process.state]
+	// and heartbeats.
 	TeleportReadyEvent = "TeleportReady"
 
 	// ServiceExitedWithErrorEvent is emitted whenever a service
@@ -330,6 +339,12 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+
+	// TeleportStartingEvent is emitted when a service starts but is not ready yet.
+	// This helps with tracking that a service is expected to report ready.
+	// Without this Teleport will report ready as soon as the first service
+	// is registered and ready, even when other services are still starting up.
+	TeleportStartingEvent = "TeleportStarting"
 )
 
 func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
@@ -704,6 +719,8 @@ type TeleportProcess struct {
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
+
+	tsrv reversetunnelclient.Server
 }
 
 // processIndex is an internal process index
@@ -713,6 +730,17 @@ var processID int32
 
 func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
+}
+
+// GetReverseTunnelServer returns the process's reverse tunnel server
+// or an error if it is not configured.
+// Reverse tunnel server is used by proxies to accept incoming
+// reverse tunnels from nodes/clusters.
+func (process *TeleportProcess) GetReverseTunnelServer() (reversetunnelclient.Server, error) {
+	if process.tsrv != nil {
+		return process.tsrv, nil
+	}
+	return nil, trace.BadParameter("reverse tunnel server not configured")
 }
 
 // GetAuthServer returns the process' auth server
@@ -739,6 +767,17 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
 	}
+}
+
+// ExpectService is used to advertise a service that should be running in the process.
+// Calling ExpectService while starting a service prevents the process from
+// turning ready while the service is not done starting.
+// After calling ExpectService for a component, one must call the OnHeartbeat callback
+// for the same component at least once to mark the service as running.
+// ExpectService should be called just before starting the service with
+// process.RegisterFunc or process.RegisterCriticalFunc.
+func (process *TeleportProcess) ExpectService(component string) {
+	process.BroadcastEvent(Event{Name: TeleportStartingEvent, Payload: component})
 }
 
 func (process *TeleportProcess) findStaticIdentity(role types.SystemRole) (*state.Identity, error) {
@@ -2509,10 +2548,12 @@ func (process *TeleportProcess) initAuthService() error {
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+
+	authorizerOpts := authz.AuthorizerOpts{
 		ClusterName:         clusterName,
 		AccessPoint:         authServer,
 		ReadOnlyAccessPoint: authServer,
+		ScopedRoleReader:    authServer.ScopedAccessCache,
 		MFAAuthenticator:    authServer,
 		LockWatcher:         lockWatcher,
 		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
@@ -2523,10 +2564,17 @@ func (process *TeleportProcess) initAuthService() error {
 			DisableGlobalMode: true,
 			DisableRoleMode:   true,
 		},
-	})
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var accessGraphCAData []byte
 	if cfg.AccessGraph.Enabled && cfg.AccessGraph.CA != "" {
 		accessGraphCAData, err = os.ReadFile(cfg.AccessGraph.CA)
@@ -2535,12 +2583,13 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 	apiConf := &auth.APIConfig{
-		AuthServer:     authServer,
-		Authorizer:     authorizer,
-		AuditLog:       process.auditLog,
-		PluginRegistry: process.PluginRegistry,
-		Emitter:        authServer,
-		MetadataGetter: uploadHandler,
+		AuthServer:       authServer,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: scopedAuthorizer,
+		AuditLog:         process.auditLog,
+		PluginRegistry:   process.PluginRegistry,
+		Emitter:          authServer,
+		MetadataGetter:   uploadHandler,
 		AccessGraph: auth.AccessGraphConfig{
 			Enabled:  cfg.AccessGraph.Enabled,
 			Address:  cfg.AccessGraph.Addr,
@@ -2555,6 +2604,72 @@ func (process *TeleportProcess) initAuthService() error {
 		if err := c.Start(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	// We mark the process state as starting until the auth backend is ready.
+	// If cache is enabled, this will wait for the cache to be populated.
+	// We don't want auth to say its ready until its cache is populated,
+	// else a rollout might progress too quickly and cause backend pressure
+	// and outages.
+	{
+		component := teleport.Component(teleport.ComponentAuth, "backend")
+		process.ExpectService(component)
+		process.RegisterFunc("auth.wait-for-event-stream", func() error {
+			start := process.Clock.Now()
+
+			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  0,
+				Driver: retryutils.NewLinearDriver(5 * time.Second),
+				Max:    time.Minute,
+				Jitter: retryutils.DefaultJitter,
+				Clock:  process.Clock,
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating the backend watch retry (this is a bug)")
+			}
+			log := process.logger.With(teleport.ComponentLabel, component)
+			var attempt int
+
+			// The wait logic is retried until it is successful or a termination is triggered.
+			for {
+				attempt++
+				select {
+				case <-process.GracefulExitContext().Done():
+					return trace.Wrap(err, "context canceled while backing off (attempt %d)", attempt)
+				case <-retry.After():
+					retry.Inc()
+				}
+
+				w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
+					Name: "auth.wait-for-backend",
+					Kinds: []types.WatchKind{
+						{Kind: types.KindClusterName},
+					},
+				})
+				if err != nil {
+					log.ErrorContext(process.ExitContext(), "Failed to create watcher", "kind", types.KindClusterName, "attempt", attempt, "error", err)
+					continue
+				}
+
+				select {
+				case evt := <-w.Events():
+					w.Close()
+					if evt.Type != types.OpInit {
+						log.ErrorContext(process.ExitContext(), "expected init event, got something else (this is a bug)", "kind", types.KindClusterName, "attempt", attempt, "error", err, "event_type", evt.Type)
+						continue
+					}
+					process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
+					process.OnHeartbeat(component)(nil)
+					return nil
+				case <-w.Done():
+					log.ErrorContext(process.ExitContext(), "watcher closed while waiting for backend init", "kind", types.KindClusterName, "attempt", attempt, "error", w.Error())
+					continue
+				case <-process.GracefulExitContext().Done():
+					w.Close()
+					return trace.Wrap(err, "context canceled while waiting for backendf init event")
+				}
+			}
+		})
 	}
 
 	// Register TLS endpoint of the auth service
@@ -2620,6 +2735,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)
 
@@ -2710,6 +2826,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.ExpectService(teleport.ComponentAuth)
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
 	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
@@ -2734,6 +2851,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.RegisterFunc("auth.autoupdate_agent_rollout_controller", func() error {
 		return trace.Wrap(agentRolloutController.Run(process.GracefulExitContext()), "running autoupdate_agent_rollout controller")
+	})
+	process.RegisterFunc("auth.autoupdate_bot_instance_version_reporter", func() error {
+		return trace.Wrap(authServer.BotInstanceVersionReporter.Run(process.GracefulExitContext()))
 	})
 
 	process.RegisterFunc("auth.server_info", func() error {
@@ -2896,7 +3016,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.UserLoginStates = services.UserLoginStates
 	cfg.Users = services.Identity
 	cfg.WebSession = services.Identity.WebSessions()
-	cfg.WebToken = services.Identity.WebTokens()
+	cfg.WebToken = services.Identity
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
@@ -2950,7 +3070,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.UserLoginStates = client.UserLoginStateClient()
 	cfg.Users = client
 	cfg.WebSession = client.WebSessions()
-	cfg.WebToken = client.WebTokens()
+	cfg.WebToken = client
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
@@ -3215,6 +3335,7 @@ func (process *TeleportProcess) initSSH() error {
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 	relayInfoHolder := new(relaytunnel.InfoHolder)
 
+	process.ExpectService(teleport.ComponentNode)
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		// restartingOnGracefulShutdown will be set to true before the function
 		// exits if the function is exiting because Teleport is gracefully
@@ -3419,6 +3540,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
+		var relayTunnelClient *relaytunnel.Client
 		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
@@ -3504,10 +3626,32 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), "Service is configured for relay tunnel mode but the agent is running in direct connection mode, so the configured relay will be ignored.")
 		}
 		if conn.UseTunnel() && cfg.RelayServer != "" {
-			// TODO(espadolini): replace this with the relay tunnel client
-			// implementation, which will make use of SetRelayInfo
-			_ = relayInfoHolder.SetRelayInfo
-			panic("relay tunnel mode is not implemented")
+			var serverHandler reversetunnel.ServerHandler = s
+			if resumableServer != nil {
+				serverHandler = resumableServer
+			}
+
+			relayTunnelClient, err = relaytunnel.NewClient(relaytunnel.ClientConfig{
+				Log: logger,
+
+				GetCertificate: conn.ClientGetCertificate,
+				GetPool:        conn.ClientGetPool,
+				Ciphersuites:   cfg.CipherSuites,
+
+				TunnelType: types.NodeTunnel,
+				RelayAddr:  cfg.RelayServer,
+
+				HandleConnection: serverHandler.HandleConnection,
+				RelayInfoSetter:  relayInfoHolder.SetRelayInfo,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := relayTunnelClient.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			defer relayTunnelClient.Close()
+			logger.InfoContext(process.ExitContext(), "Service is starting in relay tunnel mode.")
 		}
 
 		// Broadcast that the node has started.
@@ -3536,6 +3680,9 @@ func (process *TeleportProcess) initSSH() error {
 		s.Wait()
 		agentPool.Stop()
 		agentPool.Wait()
+		if relayTunnelClient != nil {
+			relayTunnelClient.Close()
+		}
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -3592,7 +3739,7 @@ func waitForInstanceConnector(process *TeleportProcess, log *slog.Logger) (*Conn
 			}
 			return result.c, nil
 		case <-t.C:
-			log.WarnContext(process.ExitContext(), "The Instance connector is still not available, process-wide services such as session uploading will not function")
+			log.WarnContext(process.ExitContext(), "The Instance connector is still not available, process-wide services will not function")
 		}
 	}
 }
@@ -3871,6 +4018,7 @@ func (process *TeleportProcess) newProcessStateMachine() (*processState, error) 
 		eventCh := make(chan Event, 1024)
 		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
 		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportStartingEvent, eventCh)
 
 		for {
 			select {
@@ -4095,11 +4243,7 @@ func (process *TeleportProcess) initTracingService() error {
 	return nil
 }
 
-// getAdditionalPrincipals returns a list of additional principals to add
-// to role's service certificates.
-func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) ([]string, []string, error) {
-	var principals []string
-	var dnsNames []string
+func (process *TeleportProcess) instanceAdditionalPrincipals() (principals []string, dnsNames []string) {
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
 		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
@@ -4107,12 +4251,25 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			principals = append(principals, lh)
 		}
 	}
-	var addrs []utils.NetAddr
-
 	// Add default DNSNames to the dnsNames list.
-	// For identities generated by teleport <= v6.1.6 the teleport.cluster.local DNS is not present
+	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(types.RoleInstance)...)
+	return principals, dnsNames
+}
+
+// getAdditionalPrincipals returns a list of additional principals to add
+// to role's service certificates.
+func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) (principals []string, dnsNames []string, err error) {
+	if process.Config.Hostname != "" {
+		principals = append(principals, process.Config.Hostname)
+		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
+			// openssh expects all hostnames to be lowercase
+			principals = append(principals, lh)
+		}
+	}
+	// Add default DNSNames to the dnsNames list.
 	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(role)...)
 
+	var addrs []utils.NetAddr
 	switch role {
 	case types.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
@@ -4228,6 +4385,7 @@ func (process *TeleportProcess) initProxy() error {
 		}
 	}
 	process.RegisterWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
+	process.ExpectService(teleport.ComponentProxy)
 	process.RegisterCriticalFunc("proxy.init", func() error {
 		conn, err := process.WaitForConnector(ProxyIdentityEvent, process.logger)
 		if conn == nil {
@@ -4240,10 +4398,6 @@ func (process *TeleportProcess) initProxy() error {
 		}
 
 		return nil
-	})
-	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
-		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels)
-		return trace.Wrap(err)
 	})
 	return nil
 }
@@ -4783,6 +4937,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnServer               *alpnproxy.Proxy
 		reverseTunnelALPNServer  *alpnproxy.Proxy
 		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+		healthCheckManager       healthcheck.Manager
 		// initShutdownMtx ensures that shutdown only occurs after the full
 		// setup has been completed.
 		//
@@ -4858,6 +5013,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
 			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
+			}
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
 			ctx := payloadContext(payload)
@@ -4922,6 +5080,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
+			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 			}
 		}
 		if peerQUICTransport != nil {
@@ -5019,6 +5180,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.tsrv = tsrv
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -5231,7 +5393,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
 		}
-		webHandler, err := web.NewHandler(webConfig)
+		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5619,6 +5781,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// Register TLS endpoint of the Kube proxy service
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+
 		kubeServiceType := kubeproxy.ProxyService
 		if cfg.Proxy.Kube.LegacyKubeProxy {
 			kubeServiceType = kubeproxy.LegacyProxyService
@@ -5636,6 +5799,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			KubernetesServerGetter: accessPoint,
 		})
 		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Create a health check manager.
+		healthCheckManager, err = healthcheck.NewManager(
+			process.ExitContext(),
+			healthcheck.ManagerConfig{
+				Component:               component,
+				Events:                  accessPoint,
+				HealthCheckConfigReader: accessPoint,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -5679,10 +5858,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
 			ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
+			HealthCheckManager:       healthCheckManager,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.ExpectService(component)
 		process.RegisterCriticalFunc("proxy.kube", func() error {
 			logger := process.logger.With(teleport.ComponentKey, component)
 
@@ -5910,6 +6091,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 	}
+
+	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
+		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels, accessPoint)
+		return trace.Wrap(err)
+	})
 
 	return nil
 }
@@ -6325,6 +6511,7 @@ func (process *TeleportProcess) initApps() {
 	component := teleport.Component(teleport.ComponentApp, process.id)
 	logger := process.logger.With(teleport.ComponentKey, component)
 
+	process.ExpectService(teleport.ComponentApp)
 	process.RegisterCriticalFunc("apps.start", func() error {
 		conn, err := process.WaitForConnector(AppsIdentityEvent, logger)
 		if conn == nil {
@@ -6996,8 +7183,10 @@ func (process *TeleportProcess) initPublicGRPCServer(
 		}),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+	joinServiceServer := legacyjoin.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
+	joinv1.RegisterProxyForwardingJoinServiceServer(server, conn.Client.JoinV1Client())
 
 	accessGraphProxySvc, err := secretsscannerproxy.New(
 		secretsscannerproxy.ServiceConfig{

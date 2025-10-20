@@ -113,6 +113,8 @@ export interface Acl {
   gitServers: Access;
   accessGraphSettings: Access;
   botInstances: Access;
+  workloadIdentity: Access;
+  clientIpRestriction: Access;
 }
 
 // AllTraits represent all the traits defined for a user.

@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // DatabaseService manages database resources in the backend.
@@ -69,27 +69,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 
 // ListDatabases returns a page of database resources.
 func (s *DatabaseService) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
-	// Adjust page size, so it can't be too large.
-	if limit <= 0 || limit > defaults.DefaultChunkSize {
-		limit = defaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := stream.Collect(
-		stream.TakeWhile(
-			s.RangeDatabases(ctx, startKey, ""),
-			func(db types.Database) bool {
-				if seen < limit {
-					seen++
-					return true
-				}
-				next = db.GetName()
-				return false
-			},
-		),
-	)
-	return out, next, trace.Wrap(err)
+	return generic.CollectPageAndCursor(s.RangeDatabases(ctx, startKey, ""), limit, types.Database.GetName)
 }
 
 // RangeDatabases returns database resources within the range [start, end).

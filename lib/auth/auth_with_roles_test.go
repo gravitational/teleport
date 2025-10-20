@@ -2692,8 +2692,8 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 			Limit:      1,
 			Order:      types.EventOrderDescending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+		require.NoError(t, err)
+		require.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
 	}, 5*time.Second, 200*time.Millisecond)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -3045,10 +3045,22 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
@@ -3059,8 +3071,16 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
 		// Discovery service cannot delete non-cloud clusters.
 		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
@@ -5529,9 +5549,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 				StartKey:      start,
 			})
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 
 			results = append(results, resp.Resources...)
 			start = resp.NextKey
@@ -5542,9 +5560,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		if !assert.Len(t, results, 20) {
-			return
-		}
+		require.Len(t, results, 20)
 		resultsC <- results
 	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources")
 
@@ -6356,9 +6372,9 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		assert.NoError(t, err)
-		assert.Empty(t, resp.NextKey)
-		assert.Len(t, resp.Resources, 6)
+		require.NoError(t, err)
+		require.Empty(t, resp.NextKey)
+		require.Len(t, resp.Resources, 6)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
@@ -6387,8 +6403,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
-		assert.Nil(t, resp)
+		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		require.Nil(t, resp)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -8991,6 +9007,56 @@ func TestGetSnowflakeSessions(t *testing.T) {
 			test.assertErr(t, err)
 		})
 	}
+}
+
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {

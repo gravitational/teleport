@@ -137,6 +137,8 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	// TODO(zmb3): with a large number of resources, this can return a lengthy
+	// error message that is difficult to parse
 	return trace.NewAggregate(errs...)
 }
 
@@ -152,8 +154,12 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r.logger.InfoContext(ctx, "Resource was removed, deleting", "name", key)
+	r.logger.InfoContext(ctx, "Resource was removed, deleting", "kind", kind, "name", key)
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
+		if trace.IsNotFound(err) {
+			r.logger.Log(ctx, logutils.TraceLevel, "Failed to delete resource", "kind", kind, "name", key, "err", err)
+			return nil
+		}
 		return trace.Wrap(err, "failed to delete  %v %v", kind, key)
 	}
 
@@ -172,13 +178,13 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 			return trace.Wrap(err)
 		}
 		if r.cfg.Matcher(newT) {
-			r.logger.InfoContext(ctx, "New resource matches, creating", "name", key)
+			r.logger.InfoContext(ctx, "New resource matches, creating", "kind", kind, "name", key)
 			if err := r.cfg.OnCreate(ctx, newT); err != nil {
 				return trace.Wrap(err, "failed to create %v %v", kind, key)
 			}
 			return nil
 		}
-		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "name", key)
+		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "kind", kind, "name", key)
 		return nil
 	}
 
@@ -193,8 +199,9 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 			return trace.Wrap(err)
 		}
 		if registeredOrigin != newOrigin {
+			kind, _ := types.GetKind(newT)
 			r.logger.WarnContext(ctx, "New resource has different origin, not updating",
-				"name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
+				"kind", kind, "name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
 			return nil
 		}
 	}
@@ -215,6 +222,10 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 		}
 		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
+			if trace.IsNotFound(err) {
+				r.logger.Log(ctx, logutils.TraceLevel, "Failed to delete resource", "kind", kind, "name", key, "err", err)
+				return nil
+			}
 			return trace.Wrap(err, "failed to delete %v %v", kind, key)
 		}
 		return nil

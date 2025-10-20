@@ -19,13 +19,17 @@
 package utils
 
 import (
+	"crypto/tls"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/fixtures"
 )
 
 func TestRejectsInvalidPEMData(t *testing.T) {
@@ -59,4 +63,50 @@ func TestNewCertPoolFromPath(t *testing.T) {
 	require.NoError(t, err)
 	//nolint:staticcheck // Pool not returned by SystemCertPool
 	require.Len(t, pool.Subjects(), 1)
+}
+
+func TestVerifyTLSCertLeafExpiry(t *testing.T) {
+	tlsCert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+	emptyCert := tls.Certificate{}
+
+	tests := []struct {
+		name        string
+		input       tls.Certificate
+		fakeTime    time.Time
+		checkResult require.ErrorAssertionFunc
+	}{
+		{
+			name:        "empty",
+			input:       emptyCert,
+			fakeTime:    time.Now(),
+			checkResult: require.Error,
+		},
+		{
+			name:        "valid",
+			input:       tlsCert,
+			fakeTime:    fixtures.TLSCACertNotAfter.Add(-time.Minute),
+			checkResult: require.NoError,
+		},
+		{
+			name:        "not valid yet",
+			input:       tlsCert,
+			fakeTime:    fixtures.TLSCACertNotBefore.Add(-time.Minute),
+			checkResult: require.Error,
+		},
+		{
+			name:        "expired",
+			input:       tlsCert,
+			fakeTime:    fixtures.TLSCACertNotAfter.Add(time.Minute),
+			checkResult: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := clockwork.NewFakeClockAt(tt.fakeTime)
+			err := VerifyTLSCertLeafExpiry(tt.input, clock)
+			tt.checkResult(t, err)
+		})
+	}
 }

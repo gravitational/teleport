@@ -271,7 +271,7 @@ Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
 by adding the following to the `tbot` configuration file:
 
 ```yaml
-outputs:
+services:
   - type: workload-identity-x509
     destination:
       type: directory
@@ -349,5 +349,5 @@ The official AWS documentation for Roles Anywhere.
 Workload Identity.
 - [Best Practices](./best-practices.mdx): Best practices for using Workload
 Identity in Production.
-- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
 all the available configuration options.

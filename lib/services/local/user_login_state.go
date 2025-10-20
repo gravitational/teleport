@@ -58,6 +58,7 @@ func NewUserLoginStateService(b backend.Backend) (*UserLoginStateService, error)
 }
 
 // GetUserLoginStates returns the all user login state resources.
+// deprecated: Use paginated version ListUserLoginStates
 func (u *UserLoginStateService) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	states, err := u.svc.GetResources(ctx)
 	return states, trace.Wrap(err)
@@ -83,4 +84,10 @@ func (u *UserLoginStateService) DeleteUserLoginState(ctx context.Context, name s
 // DeleteAllUserLoginStates removes all user login state resources.
 func (u *UserLoginStateService) DeleteAllUserLoginStates(ctx context.Context) error {
 	return trace.Wrap(u.svc.DeleteAllResources(ctx))
+}
+
+// ListUserLoginStates returns a paginated list of user login state resources.
+func (u *UserLoginStateService) ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error) {
+	items, token, err := u.svc.ListResources(ctx, pageSize, nextToken)
+	return items, token, trace.Wrap(err)
 }

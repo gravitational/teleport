@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -30,11 +31,14 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -59,6 +63,15 @@ type SessionCtx struct {
 
 	// mcpSessionID is the MCP session ID tracked by remote MCP server.
 	mcpSessionID atomicString
+
+	// jwt is the jwt token signed for this identity by Auth server.
+	jwt string
+
+	// traitsForRewriteHeaders are user traits used for rewriting headers.
+	traitsForRewriteHeaders wrappers.Traits
+
+	// transport is the transport type of the MCP server.
+	transport string
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {
@@ -74,8 +87,18 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 	if c.Identity.Username == "" {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()
 	}
+	if c.transport == "" {
+		c.transport = types.GetMCPServerTransportType(c.App.GetURI())
+	}
 	if c.sessionID == "" {
-		c.sessionID = session.NewID()
+		if types.MCPTransportHTTP == c.transport {
+			// A single HTTP request is handled at a time so take session ID
+			// from cert.
+			c.sessionID = session.ID(c.Identity.RouteToApp.SessionID)
+		}
+		if c.sessionID == "" {
+			c.sessionID = session.NewID()
+		}
 	}
 	return nil
 }
@@ -87,6 +110,11 @@ func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.Acce
 	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
 	state.IsBot = c.Identity.IsBot()
 	return state
+}
+
+func (c *SessionCtx) generateJWTAndTraits(ctx context.Context, auth AuthClient) (err error) {
+	c.jwt, c.traitsForRewriteHeaders, err = appcommon.GenerateJWTAndTraits(ctx, &c.Identity, c.App, auth)
+	return trace.Wrap(err)
 }
 
 type sessionHandlerConfig struct {
@@ -176,7 +204,8 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 }
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
-	s.emitNotificationEvent(ctx, notification)
+	s.emitNotificationEvent(ctx, notification, nil)
+	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
@@ -198,6 +227,7 @@ func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWrit
 
 func (s *sessionHandler) onServerNotification(clientResponseWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
 	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		s.processServerNotification(ctx, notification)
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, notification))
 	}
 }
@@ -218,25 +248,44 @@ const (
 
 func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
 	s.idTracker.PushRequest(req)
+	reply, authErr := s.processClientRequestNoAudit(ctx, req)
+	s.emitRequestEvent(ctx, req, authErr)
+
+	// Not forwarding to server. Just send the auth error to client.
+	if authErr != nil {
+		return reply, replyToClient
+	}
+	return reply, replyToServer
+}
+
+func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
+
+	s.idTracker.PushRequest(req)
 	switch req.Method {
 	case mcp.MethodToolsCall:
 		methodName, _ := req.Params.GetName()
 		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
-			s.emitRequestEvent(ctx, req, authErr)
-			return makeToolAccessDeniedResponse(req, authErr), replyToClient
+			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
 		}
 	}
-	s.emitRequestEvent(ctx, req, nil)
-	return req, replyToServer
+	return req, nil
 }
 
 func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
 	method, _ := s.idTracker.PopByID(response.ID)
+	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
+
 	switch method {
 	case mcp.MethodToolsList:
 		return s.makeToolsCallResponse(ctx, response)
 	}
 	return response
+}
+
+func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+	s.logger.DebugContext(ctx, "Received server notification.", "method", notification.Method)
+	messagesFromServer.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
@@ -265,6 +314,19 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		ID:      resp.ID,
 		Result:  listResult,
 	}
+}
+
+func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) {
+	// Add in JWT headers. By default, JWT is not put into "Authorization"
+	// headers since the auth token can also come from the client and Teleport
+	// just pass it through. If the remote MCP server does verify the auth token
+	// signed by Teleport, the server can take the token from the
+	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
+	// as "Bearer" in "Authorization".
+	r.Header.Set(teleport.AppJWTHeader, s.jwt)
+	// Add headers from rewrite configuration.
+	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, s.traitsForRewriteHeaders, s.logger)
 }
 
 func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {

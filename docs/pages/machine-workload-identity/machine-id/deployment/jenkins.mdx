@@ -2,6 +2,7 @@
 title: Deploying tbot on Jenkins
 description: How to install and configure Machine ID on Jenkins
 tags:
+ - ci-cd
  - how-to
  - mwi
  - infrastructure-identity
@@ -149,7 +150,7 @@ onboarding:
 storage:
   type: directory
   path: /var/lib/teleport/bot
-outputs:
+services:
   - type: identity
     destination:
       type: directory
@@ -177,5 +178,5 @@ to a machine identity that can be rotated, audited, and controlled with access c
 
 ## Next steps
 
-[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)
 

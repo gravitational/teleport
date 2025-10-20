@@ -44,6 +44,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -430,7 +431,7 @@ func (a *Server) checkAzureRequest(
 }
 
 func generateAzureChallenge() (string, error) {
-	challenge, err := generateChallenge(base64.RawURLEncoding, 24)
+	challenge, err := joinutils.GenerateChallenge(base64.RawURLEncoding, 24)
 	return challenge, trace.Wrap(err)
 }
 
@@ -487,23 +488,14 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			provisionToken,
-			req.RegisterUsingTokenRequest,
-			nil,
-			&workloadidentityv1pb.JoinAttrs{
-				Azure: joinAttrs,
-			},
-		)
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, &workloadidentityv1pb.JoinAttrs{
+			Azure: joinAttrs,
+		})
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 		return certs, trace.Wrap(err)
 	}
-	certs, err = a.generateCerts(
-		ctx,
-		provisionToken,
-		req.RegisterUsingTokenRequest,
-		nil,
-	)
+	params := makeHostCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
 	return certs, trace.Wrap(err)
 }
 

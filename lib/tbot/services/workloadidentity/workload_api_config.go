@@ -64,6 +64,11 @@ func (o *WorkloadAPIConfig) GetName() string {
 	return o.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *WorkloadAPIConfig) SetName(name string) {
+	o.Name = name
+}
+
 // Type returns the type of the service.
 func (o *WorkloadAPIConfig) Type() string {
 	return WorkloadAPIServiceType

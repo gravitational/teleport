@@ -61,6 +61,8 @@ export default function InputSearch({
         <ChildWrapperBackground>
           <ChildWrapper>{children}</ChildWrapper>
         </ChildWrapperBackground>
+        {/* Required to submit a form with multiple inputs using keyboard [ENTER] */}
+        <input type="submit" style={{ display: 'none' }} />
       </Form>
     </WrapperBackground>
   );

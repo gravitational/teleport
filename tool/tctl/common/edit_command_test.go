@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -183,7 +184,7 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := &roleCollection{roles: []types.Role{expected}}
+		collection := resources.NewRoleCollection([]types.Role{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -222,7 +223,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetCreatedBy(created.GetCreatedBy())
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := &userCollection{users: []types.User{expected}}
+		collection := resources.NewUserCollection([]types.User{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -723,7 +724,7 @@ func TestMultipleRoles(t *testing.T) {
 			role.SetLogins(types.Allow, []string{"abcdef"})
 		}
 
-		collection := &roleCollection{roles: roles}
+		collection := resources.NewRoleCollection(roles)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 

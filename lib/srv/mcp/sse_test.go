@@ -20,9 +20,12 @@ package mcp
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,12 +37,26 @@ import (
 )
 
 func Test_handleStdioToSSE(t *testing.T) {
-	testServerSSEEndpoint := mcptest.MustStartSSETestServer(t)
+	sseServer := mcpserver.NewSSEServer(mcptest.NewServer())
+	sseServerWithAuth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify rewrite headers.
+		if r.Header.Get("Authorization") != "Bearer app-token-for-ai" {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+		sseServer.ServeHTTP(w, r)
+	}))
+	t.Cleanup(sseServerWithAuth.Close)
 
 	app, err := types.NewAppV3(types.Metadata{
 		Name: "test-sse",
 	}, types.AppSpecV3{
-		URI: fmt.Sprintf("mcp+sse+%s", testServerSSEEndpoint),
+		URI: fmt.Sprintf("mcp+sse+%s", sseServerWithAuth.URL+"/sse"),
+		Rewrite: &types.Rewrite{
+			Headers: []*types.Header{{
+				Name:  "Authorization",
+				Value: "Bearer {{internal.jwt}}",
+			}},
+		},
 	})
 	require.NoError(t, err)
 
@@ -51,6 +68,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -66,20 +84,19 @@ func Test_handleStdioToSSE(t *testing.T) {
 	// ID.
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
 	var startEvent *apievents.MCPSessionStart
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var ok bool
 		event := emitter.LastEvent()
 		startEvent, ok = event.(*apievents.MCPSessionStart)
-		assert.True(collect, ok)
+		require.True(t, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 	require.NotEmpty(t, startEvent.McpSessionId)
 
-	resp, err := mcptest.InitializeClient(ctx, stdioClient)
-	require.NoError(t, err)
+	resp := mcptest.MustInitializeClient(t, stdioClient)
 	require.Equal(t, "test-server", resp.ServerInfo.Name)
 
 	// Make a tools call.
-	mcptest.MustCallServerTool(t, ctx, stdioClient)
+	mcptest.MustCallServerTool(t, stdioClient)
 
 	// Now close the client.
 	stdioClient.Close()

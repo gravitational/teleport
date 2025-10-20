@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React, { ComponentPropsWithoutRef } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -33,6 +34,15 @@ import { ThemeProvider } from './ThemeProvider';
 import { ConnectionsContextProvider } from './TopBar/Connections/connectionsContext';
 import { VnetContextProvider } from './Vnet/vnetContext';
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
+
 export const App: React.FC<{
   ctx: AppContext;
   launchDeepLink?: ComponentPropsWithoutRef<typeof DeepLinks>['launchDeepLink'];
@@ -42,19 +52,21 @@ export const App: React.FC<{
       <StyledApp>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
-            <AppUpdaterContextProvider>
-              <ResourcesContextProvider>
-                <ConnectionsContextProvider>
-                  <VnetContextProvider>
-                    <ThemeProvider>
-                      <DeepLinks launchDeepLink={launchDeepLink} />
+            <QueryClientProvider client={queryClient}>
+              <AppUpdaterContextProvider>
+                <ResourcesContextProvider>
+                  <ConnectionsContextProvider>
+                    <VnetContextProvider>
+                      <ThemeProvider>
+                        <DeepLinks launchDeepLink={launchDeepLink} />
 
-                      <AppInitializer />
-                    </ThemeProvider>
-                  </VnetContextProvider>
-                </ConnectionsContextProvider>
-              </ResourcesContextProvider>
-            </AppUpdaterContextProvider>
+                        <AppInitializer />
+                      </ThemeProvider>
+                    </VnetContextProvider>
+                  </ConnectionsContextProvider>
+                </ResourcesContextProvider>
+              </AppUpdaterContextProvider>
+            </QueryClientProvider>
           </AppContextProvider>
         </DndProvider>
       </StyledApp>

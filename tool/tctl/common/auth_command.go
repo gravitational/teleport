@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // authCommandClient is aggregated client interface for auth command.
@@ -478,17 +479,17 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{servers}
+	sc := resources.NewServerCollection(servers)
 
 	switch a.format {
 	case teleport.Text:
 		// auth servers don't have labels.
 		verbose := false
-		return sc.writeText(os.Stdout, verbose)
+		return sc.WriteText(os.Stdout, verbose)
 	case teleport.YAML:
-		return writeYAML(sc, os.Stdout)
+		return sc.WriteYAML(os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, os.Stdout)
+		return sc.WriteJSON(os.Stdout)
 	}
 
 	return nil

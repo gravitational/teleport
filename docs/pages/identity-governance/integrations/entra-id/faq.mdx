@@ -1,0 +1,50 @@
+---
+title: Entra ID Integration FAQ
+description: Frequently asked questions on the Teleport Entra ID integration.
+sidebar_position: 6
+tags:
+ - identity-governance
+ - azure
+ - privileged-access
+---
+
+This page provides answers to frequently asked questions about Teleport Entra ID integration. 
+
+## What resources are imported to Teleport?
+
+Teleport imports users, user groups and its members from the Microsoft Entra ID 
+directory.
+
+If Teleport Identity Security integration is enabled, Teleport will import 
+applications and policies as well. 
+
+You can control which groups from Microsoft Entra ID gets imported to Teleport 
+by configuring [group filters](advanced-options.mdx#group-filters). 
+
+## How does it work with nested Access Lists?
+
+If an Entra ID group is assigned as a member to another group, Teleport preserves this assignment 
+as a nested Access List. 
+
+However, note that Teleport does not support recursive groups where group A is a member of group B
+and group B is also a member of group A.
+
+## What permissions does Teleport need to authenticate with the Microsoft Graph API?
+
+At minimum, Teleport needs read access to users, groups and the main enterprise application 
+for which the integration is configured.
+```code 
+- Application.ReadWrite.OwnedBy
+- Group.Read.All
+- User.Read.All
+```
+
+If you enable the Identity Security integration, you will need a broader set of permissions.
+```code
+- Application.Read.All # instead of Application.ReadWrite.OwnedBy
+- Directory.Read.All # instead of User.Read.All and Group.Read.All
+- Policy.Read.All
+```
+
+By default, the guided configuration script sets up a broader scoped permission, which 
+is required by the Identity Security product to perform policy and access path analysis.

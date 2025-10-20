@@ -99,7 +99,7 @@ func MultiplexerServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 	clientMetrics *grpcprom.ClientMetrics,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -115,11 +115,12 @@ func MultiplexerServiceBuilder(
 			reloadCh:                  deps.ReloadCh,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(MultiplexerServiceType, cfg.Name, buildFn)
 }
 
 // MultiplexerService is a long-lived local SSH proxy. It listens on a local Unix
@@ -354,6 +355,7 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 	// Create Proxy and Auth clients
 	proxyClient := newCyclingHostDialClient(100, proxyclient.ClientConfig{
 		ProxyAddress:      proxyAddr,
+		RelayAddress:      s.cfg.RelayAddress,
 		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			cfg, err := s.identity.TLSConfig()

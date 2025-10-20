@@ -1,7 +1,9 @@
 ---
 title: Session Recording Summaries
+sidebar_label: Summarize Session Recordings with AI
 description: Describes how to use Teleport Identity security to summarize session recordings with a language model.
-labels:
+tags:
+  - session-recording
   - conceptual
   - identity-security
   - ai
@@ -12,11 +14,24 @@ summaries for shell and database sessions. This allows you to see at a glance
 what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
 
-<Admonition type="warning">
-This feature is powered by AI, and as such, its accuracy may vary.
+<Admonition type="note">
+**Session Recording Summaries and AI Usage**
+Session Recording Summaries are available to Teleport Enterprise customers with Teleport Identity Security.
 
-Teleport doesn't currently support any spend controls; controlling the LLM
-token budget is your responsibility.
+**Important**: AI-powered summarization is **disabled by default** in all Teleport deployments 
+(both self-hosted and cloud). No AI processing occurs unless you explicitly enable this feature. 
+
+When you choose to enable summarization:
+
+- For Teleport Enterprise (Self-hosted): You configure and manage your own AI integration. Using OpenAI or 
+OpenAI compatible LLMs gateways such as Lite LMM.
+- For Teleport Enterprise (Cloud) with Identity Security: Session Recording Summarization can be enabled 
+with your own OpenAI key. Later this year, Teleport Enterprise (Cloud) will provide summarization via Amazon Bedrock. 
+
+This ensures you have complete control over whether and how AI is used with your session recordings.
+
+Existing customers will never have AI features automatically enabled without explicit consent.
+Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
 </Admonition>
 
 ## How it works
@@ -44,10 +59,18 @@ There are three fundamental concepts to that underpin session summarization:
 - **Inference policies** indicate *what* gets summarized and which inference
   model is used in given case.
 
+<Admonition type="warning">
+This feature is powered by AI leveraging a Large Language Model, and as such,
+its accuracy may vary.
+
+Teleport doesn't currently support any spend controls; controlling the LLM
+token budget is your responsibility.
+</Admonition>
+
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v18.2.0 or later with Identity Security
-  enabled.
+- A running Teleport Enterprise (Self-Hosted) cluster v18.2.0 or later with Identity 
+  Security enabled.
 - Access to OpenAI or OpenAI-compatible inference API, either public or
   self-hosted.
 
@@ -180,11 +203,11 @@ To create the required configuration resources:
    ```
 
 For full description of the inference configuration resources, see appropriate
-sections of [Teleport Resources Reference](../reference/resources.mdx):
+sections of [Teleport Resources Reference](../reference/infrastructure-as-code/resources.mdx):
 
-- [`inference_model`](../reference/resources.mdx#inference-model)
-- [`inference_secret`](../reference/resources.mdx#inference-secret)
-- [`inference_policy`](../reference/resources.mdx#inference-policy)
+- [`inference_model`](../reference/infrastructure-as-code/resources.mdx#inference-model)
+- [`inference_secret`](../reference/infrastructure-as-code/resources.mdx#inference-secret)
+- [`inference_policy`](../reference/infrastructure-as-code/resources.mdx#inference-policy)
 
 ## Step 3/4: Configure access to session summaries
 
@@ -371,7 +394,7 @@ Here's what you need to do:
 
 1. Set up [LiteLLM Proxy Server (LLM
    Gateway)](https://docs.litellm.ai/docs/#litellm-proxy-server-llm-gateway) on a
-   host accessible from the Teleport Auth server.
+   host accessible from the Teleport Auth Service.
 2. Add a model of your choice to the LiteLLM configuration. In this example,
    let's call it `my-custom-model`.
 3. Configure a Teleport inference model. Use `spec.openai.base_url` property to
@@ -412,5 +435,5 @@ Teleport exposes a couple of useful Prometheus metrics that can be used to
 monitor the session summarizer. Metrics are labeled by inference model name,
 and in case of OpenAI errors — additionally with the OpenAI API error code. See
 the [Teleport Metrics
-reference](../reference/monitoring/metrics.mdx#session-recording-summarizer)
+reference](../reference/deployment/monitoring/metrics.mdx#session-recording-summarizer)
 for details.

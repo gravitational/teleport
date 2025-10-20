@@ -5,6 +5,7 @@ videoBanner: j8Ze7HhjFGw
 tags:
  - conceptual
  - zero-trust
+ - resiliency
 ---
 
 Teleport supports requiring additional multi-factor authentication checks
@@ -227,8 +228,7 @@ window, a new MFA check will be requested for new connections.
 
 Current limitations for this feature are:
 
-- For SSH connections besides the Web UI, the `tsh` or Teleport Connect client must be used for per-session MFA.
-  (The OpenSSH `ssh` client does not work with per-session MFA).
+- VNet SSH must be used for per-session MFA when using an OpenSSH client (`ssh`, `scp`).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - For desktop access, only WebAuthn devices are supported.
 - When accessing a

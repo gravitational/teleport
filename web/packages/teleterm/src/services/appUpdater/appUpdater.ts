@@ -19,24 +19,24 @@
 import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import process from 'process';
 
 import { app } from 'electron';
 import {
   autoUpdater,
   DebUpdater,
+  UpdateInfo as ElectronUpdateInfo,
   MacUpdater,
   AppUpdater as NativeUpdater,
   NsisUpdater,
   ProgressInfo,
   RpmUpdater,
   UpdateCheckResult,
-  UpdateInfo,
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
 import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { AbortError } from 'shared/utils/error';
+import { compare } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -52,7 +52,7 @@ import {
   ClientToolsVersionGetter,
 } from './clientToolsUpdateProvider';
 
-const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
+export const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
 
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
@@ -69,6 +69,7 @@ export class AppUpdater {
     private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
     readonly getDownloadBaseUrl: () => Promise<string>,
     private readonly emit: (event: AppUpdateEvent) => void,
+    private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
     private nativeUpdater: NativeUpdater = autoUpdater
   ) {
@@ -324,11 +325,10 @@ export class AppUpdater {
   }
 
   private async refreshAutoUpdatesStatus(): Promise<void> {
-    const versionEnvVar = process.env[TELEPORT_TOOLS_VERSION_ENV_VAR];
     const { managingClusterUri } = this.storage.get();
 
     this.autoUpdatesStatus = await resolveAutoUpdatesStatus({
-      versionEnvVar,
+      versionEnvVar: this.versionEnvVar,
       managingClusterUri,
       getClusterVersions: this.getClusterVersions,
     });
@@ -378,6 +378,11 @@ export class AppUpdater {
   }
 }
 
+export interface UpdateInfo extends ElectronUpdateInfo {
+  /** Indicates whether the update version is newer or older than the current app version. */
+  updateKind: 'upgrade' | 'downgrade';
+}
+
 export interface AppUpdaterStorage<
   T = {
     /** User-selected cluster managing updates. */
@@ -404,11 +409,17 @@ function registerEventHandlers(
       autoUpdatesStatus: getAutoUpdatesStatus(),
     });
   };
-  const onUpdateAvailable = (update: UpdateInfo) => {
-    updateInfo = update;
+  const onUpdateAvailable = (update: ElectronUpdateInfo) => {
+    updateInfo = {
+      ...update,
+      updateKind:
+        compare(update.version, app.getVersion()) === 1
+          ? 'upgrade'
+          : 'downgrade',
+    };
     emit({
       kind: 'update-available',
-      update,
+      update: updateInfo,
       autoDownload: getAutoDownload(),
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });

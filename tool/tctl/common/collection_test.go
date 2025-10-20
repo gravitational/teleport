@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 var (
@@ -72,7 +73,7 @@ func TestDatabaseResourceMatchersToString(t *testing.T) {
 }
 
 type writeTextTest struct {
-	collection          ResourceCollection
+	collection          resources.Collection
 	wantVerboseTable    func() string
 	wantNonVerboseTable func() string
 }
@@ -82,7 +83,7 @@ func (test *writeTextTest) run(t *testing.T) {
 	t.Run("verbose mode", func(t *testing.T) {
 		t.Helper()
 		w := &bytes.Buffer{}
-		err := test.collection.writeText(w, true)
+		err := test.collection.WriteText(w, true)
 		require.NoError(t, err)
 		diff := cmp.Diff(test.wantVerboseTable(), w.String())
 		require.Empty(t, diff)
@@ -90,7 +91,7 @@ func (test *writeTextTest) run(t *testing.T) {
 	t.Run("non-verbose mode", func(t *testing.T) {
 		t.Helper()
 		w := &bytes.Buffer{}
-		err := test.collection.writeText(w, false)
+		err := test.collection.WriteText(w, false)
 		require.NoError(t, err)
 		diff := cmp.Diff(test.wantNonVerboseTable(), w.String())
 		require.Empty(t, diff)
@@ -194,7 +195,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 			rdsDiscoveredNameLabel),
 	}
 	test := writeTextTest{
-		collection: &databaseCollection{databases: databases},
+		collection: resources.NewDatabaseCollection(databases),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Name", "Protocol", "URI", "Labels"},
@@ -441,7 +442,7 @@ type autoUpdateConfigBrokenCollection struct {
 	autoUpdateConfigCollection
 }
 
-func (c *autoUpdateConfigBrokenCollection) resources() []types.Resource {
+func (c *autoUpdateConfigBrokenCollection) Resources() []types.Resource {
 	// We use Resource153ToLegacy instead of ProtoResource153ToLegacy.
 	return []types.Resource{types.Resource153ToLegacy(c.config)}
 }

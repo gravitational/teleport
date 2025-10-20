@@ -137,6 +137,10 @@ const MAX_ITERATIONS = 10000;
  * default to disabling it.
  */
 function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
+  if (!text) {
+    return [];
+  }
+
   const activeParsers = parsers.filter(p => {
     if (!p.condition) return true;
     return p.condition(options);

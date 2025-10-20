@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // ProxyCommand returns information about connected proxies
@@ -57,17 +58,17 @@ func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.C
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{proxies}
+	sc := resources.NewServerCollection(proxies)
 
 	switch p.format {
 	case teleport.Text:
 		// proxies don't have labels.
 		verbose := false
-		return sc.writeText(os.Stdout, verbose)
+		return sc.WriteText(os.Stdout, verbose)
 	case teleport.YAML:
-		return writeYAML(sc, os.Stdout)
+		return sc.WriteYAML(os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, os.Stdout)
+		return sc.WriteJSON(os.Stdout)
 	}
 
 	return nil

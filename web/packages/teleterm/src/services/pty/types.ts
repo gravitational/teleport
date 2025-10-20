@@ -17,7 +17,10 @@
  */
 
 import { Shell } from 'teleterm/mainProcess/shell';
-import { IPtyProcess, PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
+import {
+  PtyProcessOptions,
+  IPtyProcess as SharedProcessIPtyProcess,
+} from 'teleterm/sharedProcess/ptyHost';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
@@ -32,7 +35,7 @@ export interface PtyHostClient {
 
   getCwd(ptyId: string): Promise<string>;
 
-  exchangeEvents(ptyId: string): PtyEventsStreamHandler;
+  managePtyProcess(ptyId: string): PtyEventsStreamHandler;
 }
 
 export type PtyServiceClient = {
@@ -43,6 +46,15 @@ export type PtyServiceClient = {
     shell: Shell;
   }>;
 };
+
+/**
+ * IPtyProcess is a client-side only interface which extends IPtyProcess from the shared process.
+ */
+export interface IPtyProcess extends SharedProcessIPtyProcess {
+  start(cols: number, rows: number): Promise<void>;
+  write(data: string): Promise<void>;
+  resize(cols: number, rows: number): Promise<void>;
+}
 
 /**
  * Pty information for Windows.

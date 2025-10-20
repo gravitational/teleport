@@ -136,7 +136,7 @@ test('add cluster does not overwrite the existing cluster', async () => {
   );
 });
 
-test('remove cluster', async () => {
+test('remove gateways', async () => {
   const { removeGateway } = getClientMocks();
   const service = createService({ removeGateway });
   const gatewayFromRootCluster = makeDatabaseGateway({
@@ -164,14 +164,11 @@ test('remove cluster', async () => {
     ]);
   });
 
-  await service.removeClusterAndResources(clusterUri);
+  await service.removeClusterGateways(clusterUri);
 
-  expect(service.findCluster(clusterUri)).toBeUndefined();
-  expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
   expect(service.state.gateways).toEqual(
     new Map([[gatewayFromOtherCluster.uri, gatewayFromOtherCluster]])
   );
-
   expect(removeGateway).toHaveBeenCalledWith({
     gatewayUri: gatewayFromRootCluster.uri,
   });
@@ -194,13 +191,7 @@ test('sync root cluster', async () => {
 
   await service.syncAndWatchRootClusterWithErrorHandling(clusterUri);
 
-  const clusterMockWithRequests = {
-    ...clusterMock,
-    loggedInUser: { ...clusterMock.loggedInUser, assumedRequests: {} },
-  };
-  expect(service.findCluster(clusterUri)).toStrictEqual(
-    clusterMockWithRequests
-  );
+  expect(service.findCluster(clusterUri)).toStrictEqual(clusterMock);
   expect(service.findCluster(leafClusterMock.uri)).toStrictEqual(
     leafClusterMock
   );
@@ -228,8 +219,8 @@ test('logout from cluster', async () => {
 
   expect(logout).toHaveBeenCalledWith({ clusterUri });
   expect(removeCluster).toHaveBeenCalledWith({ clusterUri });
-  expect(service.findCluster(clusterMock.uri).connected).toBe(false);
-  expect(service.findCluster(leafClusterMock.uri).connected).toBe(false);
+  expect(service.findCluster(clusterMock.uri)).toBeUndefined();
+  expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
 });
 
 test('create a gateway', async () => {

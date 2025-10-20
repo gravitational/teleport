@@ -111,6 +111,8 @@ type instanceMetricsPeriodic struct {
 
 // instanceMetadata contains instance metadata to be exported.
 type instanceMetadata struct {
+	// os is instance Operating System.
+	os string
 	// version specifies the version of the Teleport instance
 	version string
 	// installMethod specifies the Teleport agent installation method
@@ -119,6 +121,8 @@ type instanceMetadata struct {
 	upgraderType string
 	// upgraderVersion specifies the upgrader version
 	upgraderVersion string
+	// upgraderStatus is status from the upgrader.
+	upgraderStatus string
 }
 
 func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
@@ -136,16 +140,23 @@ func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventor
 		installMethod = strings.Join(installMethods, ",")
 	}
 
+	var upgraderStatus string
+	if instance.GetUpdaterInfo() != nil {
+		upgraderStatus = instance.GetUpdaterInfo().UpdaterStatus.String()
+	}
 	iMetadata := instanceMetadata{
+		os:              metadata.GetOS(),
 		version:         instance.GetVersion(),
 		installMethod:   installMethod,
 		upgraderType:    instance.GetExternalUpgrader(),
 		upgraderVersion: instance.GetExternalUpgraderVersion(),
+		upgraderStatus:  upgraderStatus,
 	}
 	i.metadata = append(i.metadata, iMetadata)
 }
 
 type registeredAgent struct {
+	os               string
 	version          string
 	automaticUpdates string
 }
@@ -160,6 +171,7 @@ func (i *instanceMetricsPeriodic) RegisteredAgentsCount() map[registeredAgent]in
 		}
 
 		agent := registeredAgent{
+			os:               metadata.os,
 			version:          metadata.version,
 			automaticUpdates: automaticUpdates,
 		}
@@ -180,6 +192,7 @@ func (i *instanceMetricsPeriodic) InstallMethodCounts() map[string]int {
 type upgrader struct {
 	upgraderType string
 	version      string
+	status       string
 }
 
 // UpgraderCounts returns the count for the different upgrader version and type combinations.
@@ -194,6 +207,7 @@ func (i *instanceMetricsPeriodic) UpgraderCounts() map[upgrader]int {
 		upgrader := upgrader{
 			upgraderType: metadata.upgraderType,
 			version:      metadata.upgraderVersion,
+			status:       metadata.upgraderStatus,
 		}
 		result[upgrader]++
 	}

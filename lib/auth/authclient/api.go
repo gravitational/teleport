@@ -170,6 +170,10 @@ type ReadProxyAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	// HealthCheckConfigReader defines methods for fetching health check config
+	// resources.
+	services.HealthCheckConfigReader
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -196,6 +200,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetUIConfig returns configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context) (types.UIConfig, error)
+
+	// GetToken finds and returns token by ID
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -299,6 +306,10 @@ type ReadProxyAccessPoint interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -330,6 +341,9 @@ type ReadProxyAccessPoint interface {
 	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
 	// ListRelayServers returns a paginated list of relay server heartbeats.
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+
+	// ListIntegrations returns a paginated list of all integration resources.
+	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -473,6 +487,10 @@ type ReadKubernetesAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	// HealthCheckConfigReader defines methods for fetching health check config
+	// resources.
+	services.HealthCheckConfigReader
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -521,6 +539,10 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
@@ -767,6 +789,10 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
@@ -1099,6 +1125,15 @@ type Cache interface {
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 
+	// GetSnowflakeSessions returns all Snowflake session resources.
+	GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error)
+
+	// ListSnowflakeSessions returns a page of Snowflake session resources.
+	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
+
+	// RangeSnowflakeSessions returns Snowflake session resources within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
+
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
 
@@ -1195,6 +1230,10 @@ type Cache interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -1276,6 +1315,9 @@ type Cache interface {
 	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
 
+	// GetAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport from the backend.
+	GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1289,7 +1331,7 @@ type Cache interface {
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
 	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1314,10 +1356,13 @@ type Cache interface {
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 
+	// PluginGetter defines methods for fetching plugins.
+	services.PluginGetter
+
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
 
-	// HealthCheckConfigReader defines methods for fetching health checkc config
+	// HealthCheckConfigReader defines methods for fetching health check config
 	// resources.
 	services.HealthCheckConfigReader
 
@@ -1330,10 +1375,16 @@ type Cache interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)
 
 	// ListProvisionTokens returns a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
+
+	// UserLoginStatesGetter defines methods for fetching user login states.
+	services.UserLoginStatesGetter
+
+	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
+	services.DiscoveryConfigsGetter
 }
 
 type NodeWrapper struct {
