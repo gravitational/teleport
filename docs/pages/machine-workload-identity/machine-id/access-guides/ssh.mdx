@@ -73,22 +73,22 @@ with the name of the role you just created:
 $ tctl bots update example --add-roles example-role
 ```
 
-## Step 2/3. Configure the `tbot` output
+## Step 2/3. Configure the `tbot` output service
 
-Now, `tbot` needs to be configured with an output that will produce an
-SSH certificate and OpenSSH configuration. For this we use the `identity` output
-type.
+Now, `tbot` needs to be configured with a service that will produce an SSH
+certificate and OpenSSH configuration. For this we use the `identity` output
+service type.
 
-Outputs must be configured with a destination. In this example, the `directory`
-destination will be used. This will write these credentials to a specified
-directory on disk. Ensure that this directory can be written to by the Linux
-user that `tbot` runs as, and that it can be read by the Linux user that needs
-to use SSH.
+Output services must be configured with a destination. In this example, the
+`directory` destination will be used. This will write these credentials to a
+specified directory on disk. Ensure that this directory can be written to by the
+Linux user that `tbot` runs as, and that it can be read by the Linux user that
+needs to use SSH.
 
-Modify your `tbot` configuration to add an `identity` output:
+Modify your `tbot` configuration to add an `identity` service:
 
 ```yaml
-outputs:
+services:
 - type: identity
   destination:
     type: directory
@@ -123,7 +123,7 @@ tools like `ssh` and `sftp`.
 
 ### Connecting using `tsh`
 
-To use `tsh` with a `tbot` identity output, the path to the `identity` file
+To use `tsh` with a `tbot` identity service the path to the `identity` file
 must be specified using the `-i` flag. In addition, `--proxy` must be used to
 specify the address of the Teleport Proxy Service that should be used when making
 connections.
@@ -138,7 +138,7 @@ my-host
 
 ### Connecting using OpenSSH
 
-To use OpenSSH with the identity output, the path to the `ssh_config` should be
+To use OpenSSH with the identity service, the path to the `ssh_config` should be
 provided to `ssh` with the `-F` flag.
 
 With the generated `ssh_config` you must append the name of the Teleport cluster

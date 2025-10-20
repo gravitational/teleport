@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { arrayObjectIsEqual, equalsDeep, mergeDeep } from './highbar';
+import { arrayObjectIsEqual, equalsDeep, mergeDeep, runOnce } from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -367,4 +367,30 @@ describe('equalsDeep', () => {
       })
     ).toBe(false);
   });
+});
+
+test('runOnce only runs once and preserves "this"', () => {
+  class Class {
+    private value: symbol;
+
+    update = runOnce(function (this: Class) {
+      const value = Symbol();
+      // Store the value to make sure 'this' is passed correctly through runOnce,
+      // even when used in that complex way.
+      this.value = value;
+      return value;
+    });
+  }
+
+  const c = new Class();
+
+  // First call updates the value (and doesn't throw because of 'this' being undefined).
+  let firstReturnValue: symbol;
+  expect(() => {
+    firstReturnValue = c.update();
+  }).not.toThrow();
+
+  // Subsequent calls return the same value.
+  const secondReturnValue = c.update();
+  expect(secondReturnValue).toBe(firstReturnValue);
 });

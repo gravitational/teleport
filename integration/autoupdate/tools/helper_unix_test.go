@@ -22,10 +22,17 @@ package tools_test
 
 import (
 	"errors"
+	"os/exec"
 	"syscall"
 
 	"github.com/gravitational/trace"
 )
+
+// newCommand creates command depends on platform.
+func newCommand(path string, args ...string) *exec.Cmd {
+	cmd := exec.Command(path, args...)
+	return cmd
+}
 
 // sendInterrupt sends a SIGINT to the process.
 func sendInterrupt(pid int) error {
