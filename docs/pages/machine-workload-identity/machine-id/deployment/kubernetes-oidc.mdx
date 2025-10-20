@@ -251,7 +251,7 @@ $ kubectl logs deployment/tbot
 
 With this complete, `tbot` is now successfully deployed to your cluster.
 
-## Step 5/5. Configure outputs
+## Step 5/5. Configure services
 
 By default, the `tbot` Helm chart is configured to write an identity file to a
 Kubernetes Secret called `tbot-out` in the namespace where `tbot` has been
@@ -288,7 +288,7 @@ spec:
 ```
 
 If you wish to use `tbot` for a different kind of access, you can override the
-type of output using the `services` value of the Helm chart and setting
+type of service using the `services` value of the Helm chart and setting
 `defaultOutput.enabled` to `false`.
 
 Follow one of the [access guides](../access-guides/access-guides.mdx) to find
