@@ -37,6 +37,16 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
+const (
+	// Maximum amount of time we'll wait for services to report their initial
+	// status before sending the first heartbeat.
+	serviceHealthMaxWait = 30 * time.Second
+
+	// Maximum amount of time the one-shot heartbeat can take once the bot has
+	// started shutting down.
+	shutdownHeartbeatTimeout = 5 * time.Second
+)
+
 // Client for the heartbeat service.
 type Client interface {
 	SubmitHeartbeat(
@@ -162,7 +172,7 @@ func (s *Service) OneShot(ctx context.Context) error {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(
 			context.WithoutCancel(ctx),
-			5*time.Second,
+			shutdownHeartbeatTimeout,
 		)
 		defer cancel()
 	}
@@ -188,7 +198,7 @@ func (s *Service) waitForServiceHealth(ctx context.Context) (shuttingDown bool) 
 	case <-s.cfg.StatusRegistry.AllServicesReported():
 		// All services have reported their status, we're ready!
 		return false
-	case <-time.After(30 * time.Second):
+	case <-time.After(serviceHealthMaxWait):
 		// It's taking too long, give up and start sending heartbeats.
 		return false
 	case <-ctx.Done():
