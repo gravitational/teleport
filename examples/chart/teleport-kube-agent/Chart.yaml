@@ -1,4 +1,4 @@
-.version: &version "16.5.18-dev.nrel.3"
+.version: &version "16.5.18-dev.nrel.4"
 
 name: teleport-kube-agent
 apiVersion: v2
