@@ -33,18 +33,19 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	return map[string]Handler{
-		types.KindAutoUpdateBotInstanceReport:    autoUpdateBotInstanceReportHandler(),
-		types.KindBot:                            botHandler(),
-		types.KindBotInstance:                    botInstanceHandler(),
-		types.KindRole:                           roleHandler(),
-		types.KindUser:                           userHandler(),
-		types.KindDatabase:                       databaseHandler(),
-		types.KindNode:                           serverHandler(),
-		types.KindAuthServer:                     authHandler(),
-		types.KindProxy:                          proxyHandler(),
-		types.KindSPIFFEFederation:               spiffeFederationHandler(),
-		types.KindWorkloadIdentity:               workloadIdentityHandler(),
-		types.KindWorkloadIdentityX509Revocation: workloadIdentityX509RevocationHandler(),
+		types.KindAutoUpdateBotInstanceReport:        autoUpdateBotInstanceReportHandler(),
+		types.KindBot:                                botHandler(),
+		types.KindBotInstance:                        botInstanceHandler(),
+		types.KindRole:                               roleHandler(),
+		types.KindUser:                               userHandler(),
+		types.KindDatabase:                           databaseHandler(),
+		types.KindNode:                               serverHandler(),
+		types.KindAuthServer:                         authHandler(),
+		types.KindProxy:                              proxyHandler(),
+		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
+		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
+		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
+		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
 	}
 }
 
