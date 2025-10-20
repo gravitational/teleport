@@ -339,23 +339,28 @@ impl ScardBackend {
         call: TransmitCall,
     ) -> PduResult<()> {
         let cmd =
-            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
-                pdu_other_err!(
-                    "",
-                    source:SmartcardBackendError(format!(
-                        "failed to parse smartcard command {:?}: {:?}",
-                        &call.send_buffer, err
-                    ))
-                )
-            })?;
+            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer);
 
-        let card = self.contexts.get_card(&call.handle)?;
-        let resp = card.handle(cmd)?;
+        match cmd {
+            Ok(cmd) => {
+                let card = self.contexts.get_card(&call.handle)?;
+                let resp = card.handle(cmd)?;
 
-        self.send_device_control_response(
-            req,
-            TransmitReturn::new(ReturnCode::Success, None, resp.encode()),
-        )
+                self.send_device_control_response(
+                    req,
+                    TransmitReturn::new(ReturnCode::Success, None, resp.encode()),
+                )?;
+            }
+            Err(err) => {
+                warn!("Error parsing smart card command: {:?} - {:?}", call, err);
+                self.send_device_control_response(
+                    req,
+                    TransmitReturn::new(ReturnCode::InvalidValue, None, Vec::new()),
+                )?;
+            }
+        }
+        Ok(())
+
     }
 
     fn handle_status(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
