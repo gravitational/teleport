@@ -333,47 +333,54 @@ func TestAggregateServiceHealth(t *testing.T) {
 	}
 
 	tcs := []struct {
-		name     string
-		services []*machineidv1pb.BotInstanceServiceHealth
-		status   machineidv1pb.BotInstanceHealthStatus
+		name      string
+		services  []*machineidv1pb.BotInstanceServiceHealth
+		hasStatus bool
+		status    machineidv1pb.BotInstanceHealthStatus
 	}{
 		{
-			name:     "nil",
-			services: nil,
-			status:   machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+			name:      "nil",
+			services:  nil,
+			hasStatus: false,
+			status:    0,
 		},
 		{
-			name:     "empty",
-			services: []*machineidv1pb.BotInstanceServiceHealth{},
-			status:   machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+			name:      "empty",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{},
+			hasStatus: false,
+			status:    0,
 		},
 		{
 			name: "one item - healthy",
 			services: []*machineidv1pb.BotInstanceServiceHealth{
 				&healthy,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 		},
 		{
 			name: "one item - unhealthy",
 			services: []*machineidv1pb.BotInstanceServiceHealth{
 				&unhealthy,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 		},
 		{
 			name: "one item - initializing",
 			services: []*machineidv1pb.BotInstanceServiceHealth{
 				&initializing,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
 		},
 		{
 			name: "one item - unknown",
 			services: []*machineidv1pb.BotInstanceServiceHealth{
 				&unknown,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
 		},
 		{
 			name: "multiple items - healthy",
@@ -381,7 +388,8 @@ func TestAggregateServiceHealth(t *testing.T) {
 				&healthy,
 				&healthy,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 		},
 		{
 			name: "multiple items - unhealthy",
@@ -391,7 +399,8 @@ func TestAggregateServiceHealth(t *testing.T) {
 				&initializing,
 				&unknown,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 		},
 		{
 			name: "multiple items - unknown",
@@ -400,7 +409,8 @@ func TestAggregateServiceHealth(t *testing.T) {
 				&initializing,
 				&unknown,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
 		},
 		{
 			name: "multiple items - initializing",
@@ -408,14 +418,16 @@ func TestAggregateServiceHealth(t *testing.T) {
 				&healthy,
 				&initializing,
 			},
-			status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
+			hasStatus: true,
+			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := aggregateServiceHealth(tc.services)
-			assert.Equal(t, tc.status, actual)
+			has, status := aggregateServiceHealth(tc.services)
+			assert.Equal(t, tc.hasStatus, has)
+			assert.Equal(t, tc.status, status)
 		})
 	}
 }

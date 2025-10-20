@@ -687,12 +687,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			}
 		}
 
-		status := aggregateServiceHealth(i.GetStatus().GetServiceHealth())
-		statusText := formatStatus(status, false) // Disable color, it messes with the table layout
+		healthStatus := "-"
+		if hasStatus, status := aggregateServiceHealth(i.GetStatus().GetServiceHealth()); hasStatus {
+			healthStatus = formatStatus(status, false) // Disable color, it messes with the table layout
+		}
 
 		t.AddRow([]string{
 			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
-			version, hostname, statusText, lastSeen.Format(time.RFC3339),
+			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
 	fmt.Fprintln(c.stdout, t.AsBuffer().String())
@@ -827,7 +829,11 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		heartbeatTable = "No heartbeat records."
 	}
 
-	healthStatus := aggregateServiceHealth(instance.GetStatus().GetServiceHealth())
+	healthStatus := "-"
+	if hasStatus, status := aggregateServiceHealth(instance.GetStatus().GetServiceHealth()); hasStatus {
+		healthStatus = formatStatus(status, true)
+	}
+
 	servicesTable := "  No reported services."
 	if instance.GetStatus().GetServiceHealth() != nil {
 		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
@@ -839,7 +845,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		"initial_authentication_table": initialAuthenticationTable,
 		"latest_authentication_table":  latestAuthenticationTable,
 		"heartbeat_table":              heartbeatTable,
-		"health_status":                formatStatus(healthStatus, true),
+		"health_status":                healthStatus,
 		"services_table":               servicesTable,
 	}
 
@@ -1038,31 +1044,31 @@ func indentString(s string, indent string) string {
 
 // aggregateServiceHealth returns the least healthy status from the list of
 // services provided. Priority; unhealthy, unspecified, initializing, healthy
-func aggregateServiceHealth(services []*machineidv1pb.BotInstanceServiceHealth) machineidv1pb.BotInstanceHealthStatus {
-	if services == nil {
-		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
+func aggregateServiceHealth(services []*machineidv1pb.BotInstanceServiceHealth) (bool, machineidv1pb.BotInstanceHealthStatus) {
+	if len(services) == 0 {
+		return false, 0
 	}
 
 	hasUnhealthy := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
 		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
 	})
 	if hasUnhealthy {
-		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+		return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
 	}
 
 	hasUnknown := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
 		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
 	})
 	if hasUnknown {
-		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
+		return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
 	}
 
 	hasInitializing := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
 		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
 	})
 	if hasInitializing {
-		return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+		return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
 	}
 
-	return machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
+	return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
 }
