@@ -176,7 +176,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "rollout_target_major",
-			Help:      "Metric describing the agent target major version from the autoupdate_gent_rollout resource.",
+			Help:      "Metric describing the target major version from the autoupdate_agent_rollout resource.",
 		}),
 		buildInfoMajor: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
