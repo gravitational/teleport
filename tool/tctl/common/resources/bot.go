@@ -75,9 +75,9 @@ func getBot(
 	ref services.Ref,
 	opts GetOpts,
 ) (Collection, error) {
-	remote := client.BotServiceClient()
+	c := client.BotServiceClient()
 	if ref.Name != "" {
-		bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
+		bot, err := c.GetBot(ctx, &machineidv1pb.GetBotRequest{
 			BotName: ref.Name,
 		})
 		if err != nil {
@@ -88,7 +88,7 @@ func getBot(
 	}
 
 	bots, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*machineidv1pb.Bot, string, error) {
-		resp, err := remote.ListBots(ctx, &machineidv1pb.ListBotsRequest{
+		resp, err := c.ListBots(ctx, &machineidv1pb.ListBotsRequest{
 			PageSize:  int32(limit),
 			PageToken: token,
 		})
@@ -119,7 +119,7 @@ func createBot(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
+		fmt.Printf("Bot %q has been created\n", bot.Metadata.Name)
 		return nil
 	}
 
@@ -129,7 +129,7 @@ func createBot(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
+	fmt.Printf("Bot %q has been created\n", bot.Metadata.Name)
 	return nil
 }
 
@@ -144,6 +144,6 @@ func deleteBot(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("bot %q has been deleted\n", ref.Name)
+	fmt.Printf("Bot %q has been deleted\n", ref.Name)
 	return nil
 }

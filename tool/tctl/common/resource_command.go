@@ -172,7 +172,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAccessGraphSettings:                rc.upsertAccessGraphSettings,
 		types.KindPlugin:                             rc.createPlugin,
 		types.KindSPIFFEFederation:                   rc.createSPIFFEFederation,
-		types.KindWorkloadIdentity:                   rc.createWorkloadIdentity,
 		types.KindStaticHostUser:                     rc.createStaticHostUser,
 		types.KindUserTask:                           rc.createUserTask,
 		types.KindAutoUpdateConfig:                   rc.createAutoUpdateConfig,
@@ -988,32 +987,6 @@ func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *a
 		return trace.Wrap(err)
 	}
 	fmt.Printf("SPIFFE Federation %q has been created\n", in.GetMetadata().GetName())
-
-	return nil
-}
-
-func (rc *ResourceCommand) createWorkloadIdentity(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalWorkloadIdentity(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.WorkloadIdentityResourceServiceClient()
-	if rc.force {
-		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
-			WorkloadIdentity: in,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		if _, err := c.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
-			WorkloadIdentity: in,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	fmt.Printf("Workload identity %q has been created\n", in.GetMetadata().GetName())
 
 	return nil
 }
@@ -2036,14 +2009,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
-	case types.KindWorkloadIdentity:
-		if _, err := client.WorkloadIdentityResourceServiceClient().DeleteWorkloadIdentity(
-			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
-				Name: rc.ref.Name,
-			}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Workload identity %q has been deleted\n", rc.ref.Name)
 	case types.KindWorkloadIdentityX509Revocation:
 		if _, err := client.WorkloadIdentityRevocationServiceClient().DeleteWorkloadIdentityX509Revocation(
 			ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
@@ -3052,30 +3017,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &spiffeFederationCollection{items: resources}, nil
-	case types.KindWorkloadIdentity:
-		if rc.ref.Name != "" {
-			resource, err := client.WorkloadIdentityResourceServiceClient().GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
-				Name: rc.ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-			resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesRequest{
-				PageSize:  int32(limit),
-				PageToken: pageToken,
-			})
-
-			return resp.GetWorkloadIdentities(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &workloadIdentityCollection{items: resources}, nil
 	case types.KindWorkloadIdentityX509Revocation:
 		if rc.ref.Name != "" {
 			resource, err := client.

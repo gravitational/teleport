@@ -1650,37 +1650,6 @@ func (c *spiffeFederationCollection) WriteText(w io.Writer, verbose bool) error 
 	return trace.Wrap(err)
 }
 
-type workloadIdentityCollection struct {
-	items []*workloadidentityv1pb.WorkloadIdentity
-}
-
-func (c *workloadIdentityCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.ProtoResource153ToLegacy(resource))
-	}
-	return r
-}
-
-func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "SPIFFE ID"}
-
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{
-			item.Metadata.Name,
-			item.GetSpec().GetSpiffe().GetId(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type workloadIdentityX509RevocationCollection struct {
 	items []*workloadidentityv1pb.WorkloadIdentityX509Revocation
 }
