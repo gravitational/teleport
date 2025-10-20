@@ -184,6 +184,7 @@ func defaultBotConfig(
 		// certs.
 		Insecure: opts.insecure,
 		Services: serviceConfigs,
+		Testing:  true,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -1313,6 +1314,7 @@ func TestBotJoiningURI(t *testing.T) {
 		},
 		Oneshot:  true,
 		Insecure: true,
+		Testing:  true,
 	}
 	require.NoError(t, cfg.CheckAndSetDefaults())
 
