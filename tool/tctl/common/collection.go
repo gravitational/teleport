@@ -1093,30 +1093,6 @@ func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) 
 	return trace.Wrap(err)
 }
 
-type botCollection struct {
-	bots []*machineidv1pb.Bot
-}
-
-func (c *botCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.bots))
-	for i, b := range c.bots {
-		resources[i] = types.ProtoResource153ToLegacy(b)
-	}
-	return resources
-}
-
-func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Roles"})
-	for _, b := range c.bots {
-		t.AddRow([]string{
-			b.Metadata.Name,
-			strings.Join(b.Spec.Roles, ", "),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type databaseObjectImportRuleCollection struct {
 	rules []*dbobjectimportrulev1.DatabaseObjectImportRule
 }

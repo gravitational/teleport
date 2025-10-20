@@ -34,7 +34,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -165,7 +164,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAuditQuery:                         rc.createAuditQuery,
 		types.KindSecurityReport:                     rc.createSecurityReport,
 		types.KindServerInfo:                         rc.createServerInfo,
-		types.KindBot:                                rc.createBot,
 		types.KindDatabaseObjectImportRule:           rc.createDatabaseObjectImportRule,
 		types.KindDatabaseObject:                     rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:               rc.createAccessMonitoringRule,
@@ -558,32 +556,6 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createBot(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	bot := &machineidv1pb.Bot{}
-	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
-		return trace.Wrap(err)
-	}
-	if rc.IsForced() {
-		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
-			Bot: bot,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
-		return nil
-	}
-
-	_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: bot,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
 	return nil
 }
 
@@ -2040,11 +2012,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
-	case types.KindBot:
-		if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabaseObjectImportRule:
 		if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: rc.ref.Name}); err != nil {
 			return trace.Wrap(err)
@@ -2786,32 +2753,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		})
 
 		return &deviceCollection{devices: devs}, nil
-	case types.KindBot:
-		remote := client.BotServiceClient()
-		if rc.ref.Name != "" {
-			bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
-				BotName: rc.ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
-		}
-
-		bots, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*machineidv1pb.Bot, string, error) {
-			resp, err := remote.ListBots(ctx, &machineidv1pb.ListBotsRequest{
-				PageSize:  int32(limit),
-				PageToken: token,
-			})
-
-			return resp.GetBots(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &botCollection{bots: bots}, nil
 	case types.KindDatabaseObjectImportRule:
 		remote := client.DatabaseObjectImportRuleClient()
 		if rc.ref.Name != "" {
