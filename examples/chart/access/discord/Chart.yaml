@@ -1,4 +1,4 @@
-.version: &version "18.1.8"
+.version: &version "18.1.8-dev.qiwa.1"
 
 apiVersion: v2
 name: teleport-plugin-discord
