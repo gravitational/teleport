@@ -47,13 +47,13 @@ export class ClusterStore {
   private logger = new Logger('ClusterStore');
 
   constructor(
-    private readonly lazyTshdClient: Promise<TshdClient>,
+    private readonly getTshdClient: () => Promise<TshdClient>,
     private readonly windowsManager: Pick<WindowsManager, 'crashWindow'>
   ) {}
 
   /** Adds a cluster. */
   async add(proxyAddress: string): Promise<Cluster> {
-    const client = await this.lazyTshdClient;
+    const client = await this.getTshdClient();
     const { response } = await client.addCluster({
       name: proxyAddress,
     });
@@ -74,7 +74,7 @@ export class ClusterStore {
 
   /** Logs out of the cluster and removes its profile.*/
   async logout(uri: RootClusterUri): Promise<void> {
-    const client = await this.lazyTshdClient;
+    const client = await this.getTshdClient();
     // TODO(gzdunek): logout and removeCluster should be combined into
     //  a single acton in tshd.
     await client.logout({ clusterUri: uri });
@@ -93,7 +93,7 @@ export class ClusterStore {
    * Does not make a network call, only reads profiles from the disk.
    */
   async syncRootClusters(): Promise<void> {
-    const client = await this.lazyTshdClient;
+    const client = await this.getTshdClient();
     const { response } = await client.listRootClusters({});
     await this.update(draft => {
       draft.clear();
@@ -110,7 +110,7 @@ export class ClusterStore {
   async sync(uri: RootClusterUri): Promise<void> {
     let cluster: Cluster;
     let leafs: Cluster[];
-    const client = await this.lazyTshdClient;
+    const client = await this.getTshdClient();
     try {
       const clusterAndLeafs = await getClusterAndLeafs(client, uri);
       cluster = clusterAndLeafs.cluster;

@@ -198,7 +198,7 @@ export default class MainProcess {
       process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
     );
     this.clusterStore = new ClusterStore(
-      this.getTshdClients().then(c => c.terminalService),
+      () => this.getTshdClients().then(c => c.terminalService),
       this.windowsManager
     );
   }
@@ -220,7 +220,13 @@ export default class MainProcess {
     ]);
   }
 
-  async getTshdClients(): Promise<{
+  /**
+   * Returns the tshd client.
+   *
+   * If the client setup fails, the resulting error will propagate
+   * to callers of this method.
+   */
+  private async getTshdClients(): Promise<{
     terminalService: TshdClient;
     autoUpdateService: AutoUpdateClient;
   }> {
@@ -336,6 +342,16 @@ export default class MainProcess {
     );
   }
 
+  /**
+   * Initializes the resolution of child process addresses.
+   *
+   * Both the internal tshd client (in the main process) and the one in the renderer
+   * depend on this initialization promise.
+   *
+   * If the promise rejects, the error will propagate to the renderer via the IPC
+   * handler (causing the renderer to stop initialization and show the error)
+   * and also surface when attempting to access `getTshdClients()`.
+   */
   private initResolvingChildProcessAddresses(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(

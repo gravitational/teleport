@@ -48,7 +48,7 @@ test('adds cluster', async () => {
   const mockClient = new MockTshClient();
   mockClient.addCluster = () => new MockedUnaryCall(cluster);
   const clusterStore = new ClusterStore(
-    Promise.resolve(mockClient),
+    () => Promise.resolve(mockClient),
     mockWindowsManager
   );
 
@@ -63,7 +63,7 @@ test('adding a cluster does not overwrite an existing one', async () => {
   mockClient.addCluster = () => new MockedUnaryCall(cluster);
   mockClient.getCluster = () => new MockedUnaryCall(clusterWithDetails);
   const clusterStore = new ClusterStore(
-    Promise.resolve(mockClient),
+    () => Promise.resolve(mockClient),
     mockWindowsManager
   );
 
@@ -83,7 +83,7 @@ test('syncs cluster', async () => {
   mockClient.listLeafClusters = () =>
     new MockedUnaryCall({ clusters: [leafCluster] });
   const clusterStore = new ClusterStore(
-    Promise.resolve(mockClient),
+    () => Promise.resolve(mockClient),
     mockWindowsManager
   );
 
@@ -102,7 +102,7 @@ test('logs out of cluster', async () => {
   const logoutMock = jest.spyOn(mockClient, 'logout');
   const removeClusterMock = jest.spyOn(mockClient, 'removeCluster');
   const clusterStore = new ClusterStore(
-    Promise.resolve(mockClient),
+    () => Promise.resolve(mockClient),
     mockWindowsManager
   );
   await clusterStore.sync(cluster.uri);
