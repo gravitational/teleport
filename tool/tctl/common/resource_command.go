@@ -55,7 +55,6 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
@@ -177,7 +176,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindGitServer:                   rc.createGitServer,
 		types.KindAutoUpdateAgentRollout:      rc.createAutoUpdateAgentRollout,
 		types.KindAutoUpdateAgentReport:       rc.upsertAutoUpdateAgentReport,
-		types.KindSigstorePolicy:              rc.createSigstorePolicy,
 		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.createScopedRoleAssignment,
@@ -205,7 +203,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindGitServer:                   rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:      rc.updateAutoUpdateAgentRollout,
 		types.KindAutoUpdateAgentReport:       rc.upsertAutoUpdateAgentReport,
-		types.KindSigstorePolicy:              rc.updateSigstorePolicy,
 		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.updateScopedRoleAssignment,
@@ -1046,65 +1043,6 @@ func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, clien
 	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
 }
 
-func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.SigstorePolicyResourceServiceClient()
-	if rc.IsForced() {
-		if _, err := c.UpsertSigstorePolicy(
-			ctx,
-			&workloadidentityv1pb.UpsertSigstorePolicyRequest{
-				SigstorePolicy: r,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		if _, err := c.CreateSigstorePolicy(
-			ctx,
-			&workloadidentityv1pb.CreateSigstorePolicyRequest{
-				SigstorePolicy: r,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	fmt.Fprintf(
-		rc.Stdout,
-		types.KindSigstorePolicy+" %q has been created\n",
-		r.GetMetadata().GetName(),
-	)
-	return nil
-}
-
-func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	r, err := services.UnmarshalProtoResource[*workloadidentityv1pb.SigstorePolicy](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.SigstorePolicyResourceServiceClient()
-	if _, err = c.UpdateSigstorePolicy(
-		ctx,
-		&workloadidentityv1pb.UpdateSigstorePolicyRequest{
-			SigstorePolicy: r,
-		},
-	); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(
-		rc.Stdout,
-		types.KindSigstorePolicy+" %q has been updated\n",
-		r.GetMetadata().GetName(),
-	)
-	return nil
-}
-
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1939,21 +1877,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Fprintf(
 			rc.Stdout,
 			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
-			rc.ref.Name,
-		)
-	case types.KindSigstorePolicy:
-		c := client.SigstorePolicyResourceServiceClient()
-		if _, err := c.DeleteSigstorePolicy(
-			ctx,
-			&workloadidentityv1pb.DeleteSigstorePolicyRequest{
-				Name: rc.ref.Name,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintf(
-			rc.Stdout,
-			types.KindSigstorePolicy+" %q has been deleted\n",
 			rc.ref.Name,
 		)
 	case types.KindStaticHostUser:
@@ -2948,45 +2871,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		// TODO(greedy52) consider making dedicated git server collection.
 		return resources.NewServerCollection(servers), nil
 
-	case types.KindSigstorePolicy:
-		c := client.SigstorePolicyResourceServiceClient()
-		if rc.ref.Name != "" {
-			r, err := c.GetSigstorePolicy(
-				ctx,
-				&workloadidentityv1pb.GetSigstorePolicyRequest{
-					Name: rc.ref.Name,
-				},
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return namedResourceCollection{types.ProtoResource153ToLegacy(r)}, nil
-		}
-
-		resources, err := stream.Collect(
-			stream.FilterMap(
-				clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.SigstorePolicy, string, error) {
-					resp, err := c.ListSigstorePolicies(
-						ctx,
-						&workloadidentityv1pb.ListSigstorePoliciesRequest{
-							PageSize:  int32(limit),
-							PageToken: pageToken,
-						},
-					)
-
-					return resp.GetSigstorePolicies(), resp.GetNextPageToken(), trace.Wrap(err)
-				}),
-
-				func(r *workloadidentityv1pb.SigstorePolicy) (types.Resource, bool) {
-					return types.ProtoResource153ToLegacy(r), true
-				},
-			),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return namedResourceCollection(resources), nil
 	case types.KindHealthCheckConfig:
 		if rc.ref.Name != "" {
 			cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
