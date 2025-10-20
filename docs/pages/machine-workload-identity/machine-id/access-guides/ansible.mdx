@@ -95,22 +95,22 @@ with the name of the role you just created:
 $ tctl bots update example --add-roles example-role
 ```
 
-## Step 2/4. Configure the `tbot` output
+## Step 2/4. Configure the `tbot` output service
 
-Now, `tbot` needs to be configured with an output that will produce the
+Now, `tbot` needs to be configured with an output service that will produce the
 credentials and SSH configuration that is needed by Ansible. For SSH,
-we use the `identity` output type.
+we use the `identity` service type.
 
-Outputs must be configured with a destination. In this example, the `directory`
-destination will be used. This will write these credentials to a specified
-directory on disk. Ensure that this directory can be written to by the Linux
-user that `tbot` runs as, and that it can be read by the Linux user that Ansible
-will run as.
+Output services must be configured with a destination. In this example, the
+`directory` destination will be used. This will write these credentials to a
+specified directory on disk. Ensure that this directory can be written to by the
+Linux user that `tbot` runs as, and that it can be read by the Linux user that
+Ansible will run as.
 
-Modify your `tbot` configuration to add an `identity` output:
+Modify your `tbot` configuration to add an `identity` service:
 
 ```yaml
-outputs:
+services:
 - type: identity
   destination:
     type: directory
