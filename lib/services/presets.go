@@ -864,7 +864,6 @@ func NewPresetHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
 		Metadata: &headerv1.Metadata{
 			Name:        teleport.PresetDefaultHealthCheckConfigDBName,
 			Description: "Enables health checks for all databases by default",
-			Namespace:   apidefaults.Namespace,
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.PresetResource,
 			},
@@ -890,7 +889,6 @@ func NewPresetHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
 		Metadata: &headerv1.Metadata{
 			Name:        teleport.PresetDefaultHealthCheckConfigKubeName,
 			Description: "Enables health checks for all Kubernetes clusters by default",
-			Namespace:   apidefaults.Namespace,
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.PresetResource,
 			},
