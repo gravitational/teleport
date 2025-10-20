@@ -27,6 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -36,6 +37,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
@@ -67,6 +69,9 @@ type Config struct {
 	DiscoveryConfigName string
 	// Log is the logger to use for logging.
 	Log *slog.Logger
+	// EKSAuditLogs if set specifies the EKS clusters for which apiserver audit logs
+	// should be fetched.
+	EKSAuditLogs *EKSAuditLogs
 
 	// awsClients provides AWS SDK clients.
 	awsClients awsClientProvider
@@ -128,6 +133,8 @@ type awsClientProvider interface {
 	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 	// getKMSClient provides a [kmsClient].
 	getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient
+	// getCloudWatchLogsClient provides a [cwlClient].
+	getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient
 }
 
 type defaultAWSClients struct{}
@@ -152,12 +159,23 @@ func (defaultAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Option
 	return kms.NewFromConfig(cfg, optFns...)
 }
 
+func (defaultAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient {
+	return cloudwatchlogs.NewFromConfig(cfg, optFns...)
+}
+
 // AssumeRole is the configuration for assuming an AWS role.
 type AssumeRole struct {
 	// RoleARN is the ARN of the role to assume.
 	RoleARN string
 	// ExternalID is the external ID to use when assuming the role.
 	ExternalID string
+}
+
+// EKSAuditLogs is the configuration of which discovered EKS clusters should have
+// their apiserver audit logs fetched and sent to Access Graph.
+type EKSAuditLogs struct {
+	// Tags is a set of name/value tags that an EKS cluster must have for audit log fetching.
+	Tags types.Labels
 }
 
 // Fetcher is a fetcher that fetches AWS resources.
@@ -216,6 +234,11 @@ type Resources struct {
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
 	// KMSKeys is a list of KMS keys.
 	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
+
+	// EKSAuditLogClusters is a subset of the clusters in the field EKSClusters.
+	// These are the clusters for which apiserver audit logs should be fetched.
+	// These are not sent to access graph with the other resources.
+	EKSAuditLogClusters []*accessgraphv1alpha.AWSEKSClusterV1
 }
 
 func (r *Resources) count() int {
