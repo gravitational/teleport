@@ -102,10 +102,9 @@ func TestUnversionedTeleportConfig(t *testing.T) {
 }
 
 // In the future, the latest version of the updater may need to read a version of tbot.yaml that has
-// an unsupported version which is supported by the updater-managed version of Teleport.
-// This test will break if Teleport removes a field that the updater reads.
+// an unsupported version which is supported by the updater-managed version of tbot.
+// This test will break if tbot removes a field that the updater reads.
 func TestUnversionedTbotConfig(t *testing.T) {
-
 	for _, tt := range []struct {
 		name    string
 		version string
@@ -117,6 +116,7 @@ func TestUnversionedTbotConfig(t *testing.T) {
 			in: internal.UnversionedConfig{
 				AuthServer: "auth.example.com",
 			},
+			err: true,
 		},
 		{
 			name:    "v1",
@@ -124,6 +124,7 @@ func TestUnversionedTbotConfig(t *testing.T) {
 			in: internal.UnversionedConfig{
 				AuthServer: "auth.example.com",
 			},
+			err: true,
 		},
 		{
 			name:    "v2",
