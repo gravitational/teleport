@@ -131,10 +131,6 @@ message ListUnifiedInstancesResponse {
   repeated UnifiedInstanceItem items = 1;
   // next_page_token contains the next page token to use as the start key for the next page of instances.
   string next_page_token = 2;
-  // total_count is the total number of agents and bot instances in the cache. This value is calculated upon initializing the cache and
-  // is only included here only because the API refuses requests when the cache is unhealthy. This pattern should not be used under
-  // typical circumstances.
-  int32 total_count = 3;
 }
 
 // ListUnifiedInstancesFilter provides a mechanism to refine ListUnifiedInstances results.
