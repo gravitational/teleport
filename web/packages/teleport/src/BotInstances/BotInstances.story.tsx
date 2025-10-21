@@ -103,14 +103,7 @@ export const Happy: Story = {
       handlers: [
         listBotInstancesSuccess(listBotInstances, 'v1'),
         listBotInstancesSuccess(listBotInstances, 'v2'),
-        getBotInstanceSuccess({
-          bot_instance: {
-            spec: {
-              instance_id: 'a55259e8-9b17-466f-9d37-ab390ca4024e',
-            },
-          },
-          yaml: 'kind: bot_instance\nversion: v1\n',
-        }),
+        getBotInstanceSuccess(),
         getBotInstanceMetricsSuccess(),
       ],
     },
