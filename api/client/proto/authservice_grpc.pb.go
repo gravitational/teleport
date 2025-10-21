@@ -155,6 +155,7 @@ const (
 	AuthService_CreateRegisterChallenge_FullMethodName             = "/proto.AuthService/CreateRegisterChallenge"
 	AuthService_GetOIDCConnector_FullMethodName                    = "/proto.AuthService/GetOIDCConnector"
 	AuthService_GetOIDCConnectors_FullMethodName                   = "/proto.AuthService/GetOIDCConnectors"
+	AuthService_ListOIDCConnectors_FullMethodName                  = "/proto.AuthService/ListOIDCConnectors"
 	AuthService_CreateOIDCConnector_FullMethodName                 = "/proto.AuthService/CreateOIDCConnector"
 	AuthService_UpdateOIDCConnector_FullMethodName                 = "/proto.AuthService/UpdateOIDCConnector"
 	AuthService_UpsertOIDCConnector_FullMethodName                 = "/proto.AuthService/UpsertOIDCConnector"
@@ -634,6 +635,8 @@ type AuthServiceClient interface {
 	GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
+	// ListOIDCConnectors returns a page of current OIDC connector resources.
+	ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error)
 	// UpsertOIDCConnector creates a new OIDC connector in the backend.
 	CreateOIDCConnector(ctx context.Context, in *CreateOIDCConnectorRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
 	// UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -2324,6 +2327,16 @@ func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.Res
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.OIDCConnectorV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetOIDCConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOIDCConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListOIDCConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4170,6 +4183,8 @@ type AuthServiceServer interface {
 	GetOIDCConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error)
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
+	// ListOIDCConnectors returns a page of current OIDC connector resources.
+	ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error)
 	// UpsertOIDCConnector creates a new OIDC connector in the backend.
 	CreateOIDCConnector(context.Context, *CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error)
 	// UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -4921,6 +4936,9 @@ func (UnimplementedAuthServiceServer) GetOIDCConnector(context.Context, *types.R
 }
 func (UnimplementedAuthServiceServer) GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOIDCConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateOIDCConnector(context.Context, *CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOIDCConnector not implemented")
@@ -7388,6 +7406,24 @@ func _AuthService_GetOIDCConnectors_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetOIDCConnectors(ctx, req.(*types.ResourcesWithSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListOIDCConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOIDCConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListOIDCConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListOIDCConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListOIDCConnectors(ctx, req.(*ListOIDCConnectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10439,6 +10475,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOIDCConnectors",
 			Handler:    _AuthService_GetOIDCConnectors_Handler,
+		},
+		{
+			MethodName: "ListOIDCConnectors",
+			Handler:    _AuthService_ListOIDCConnectors_Handler,
 		},
 		{
 			MethodName: "CreateOIDCConnector",
