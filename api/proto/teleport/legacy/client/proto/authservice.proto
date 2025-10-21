@@ -93,9 +93,6 @@ message HostCertsRequest {
   // an instance certificate that encompasses all of their capabilities. This field will be
   // deprecated once we have a more comprehensive model for join token joining/replacement.
   string SystemRoleAssertionID = 13 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
-
-  // The scope the host belongs to.
-  string agent_scope = 14;
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters

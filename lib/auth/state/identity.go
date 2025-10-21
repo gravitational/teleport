@@ -40,10 +40,9 @@ import (
 
 // IdentityID is a combination of role, host UUID, and node name.
 type IdentityID struct {
-	Role       types.SystemRole
-	HostUUID   string
-	NodeName   string
-	AgentScope string
+	Role     types.SystemRole
+	HostUUID string
+	NodeName string
 }
 
 // HostID is host ID part of the host UUID that consists cluster name
@@ -86,6 +85,8 @@ type Identity struct {
 	ClusterName string
 	// SystemRoles is a list of additional system roles.
 	SystemRoles []string
+	// AgentScope is the scope an identity is constrained to.
+	AgentScope string
 }
 
 // HasSystemRole checks if this identity encompasses the supplied system role.
@@ -333,11 +334,12 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 
 	agentScope := cert.Permissions.Extensions[utils.CertExtensionAgentScope]
 	return &Identity{
-		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role, AgentScope: agentScope},
+		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
 		ClusterName: clusterName,
 		KeyBytes:    keyBytes,
 		CertBytes:   certBytes,
 		KeySigner:   certSigner,
 		Cert:        cert,
+		AgentScope:  agentScope,
 	}, nil
 }

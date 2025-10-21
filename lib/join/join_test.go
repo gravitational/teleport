@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
-// TestJoin tests the full cycle of proxy and node joining via the join service.
+// TestJoinToken tests the full cycle of proxy and node joining via the join service.
 //
 // It first sets up a fake auth service running the gRPC join service.
 //
@@ -66,7 +66,7 @@ import (
 //
 // Finally, it tests various scenarios where a node attempts to join by
 // connecting to the proxy's gRPC join service.
-func TestJoin(t *testing.T) {
+func TestJoinToken(t *testing.T) {
 	t.Parallel()
 
 	token1, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
@@ -224,25 +224,26 @@ func TestJoin(t *testing.T) {
 		)
 		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
 
-		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.ID.AgentScope)
+		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.AgentScope)
 		// Build an auth client with the new identity.
 		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
 		require.NoError(t, err)
 		authClient, err := authService.TLS.NewClientWithCert(tlsConfig.Certificates[0])
 		require.NoError(t, err)
 
-		// Node can rejoin with a different token by dialing the auth service
-		// with an auth client authenticed with its original credentials.
+		// Node can rejoin with a different token assigning the same scope
+		// by dialing the auth service with an auth client authenticed with
+		// its original credentials.
 		//
 		// It should get back its original host ID and the combined roles of
 		// its original certificate and the new token.
 		newIdentity, err := rejoinViaAuthClient(
 			t.Context(),
-			scopedToken2.GetMetadata().GetName(),
+			scopedToken1.GetMetadata().GetName(),
 			authClient,
 		)
 		require.NoError(t, err)
-		require.NotEqual(t, identity.ID.AgentScope, newIdentity.ID.AgentScope)
+		require.Equal(t, identity.AgentScope, newIdentity.AgentScope)
 		require.Equal(t, identity.ID.HostUUID, newIdentity.ID.HostUUID)
 		require.Equal(t, identity.ID.NodeName, newIdentity.ID.NodeName)
 		require.Equal(t, identity.ID.Role, newIdentity.ID.Role)
@@ -254,6 +255,44 @@ func TestJoin(t *testing.T) {
 			func(s string) bool { return s == types.RoleInstance.String() },
 		)
 		require.ElementsMatch(t, expectedSystemRoles, newIdentity.SystemRoles)
+	})
+
+	t.Run("join and rejoin with mismatched scoped tokens", func(t *testing.T) {
+		// Node initially joins by connecting to the proxy's gRPC service.
+		identity, err := joinViaProxy(
+			t.Context(),
+			scopedToken1.GetMetadata().GetName(),
+			proxyListener.Addr(),
+		)
+		require.NoError(t, err)
+		// Make sure the result contains a host ID and expected certificate roles.
+		require.NotEmpty(t, identity.ID.HostUUID)
+		require.Equal(t, types.RoleInstance, identity.ID.Role)
+		expectedSystemRoles := slices.DeleteFunc(
+			scopedToken1.GetSpec().GetRoles(),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
+
+		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.AgentScope)
+		// Build an auth client with the new identity.
+		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
+		require.NoError(t, err)
+		authClient, err := authService.TLS.NewClientWithCert(tlsConfig.Certificates[0])
+		require.NoError(t, err)
+
+		// Node can rejoin with a different token assigning the same scope
+		// by dialing the auth service with an auth client authenticed with
+		// its original credentials.
+		//
+		// It should get back its original host ID and the combined roles of
+		// its original certificate and the new token.
+		_, err = rejoinViaAuthClient(
+			t.Context(),
+			scopedToken2.GetMetadata().GetName(),
+			authClient,
+		)
+		require.Error(t, err)
 	})
 
 	t.Run("join and rejoin with bad token", func(t *testing.T) {

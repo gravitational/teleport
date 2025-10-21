@@ -503,7 +503,7 @@ func (a *Server) GenerateHostCertsForJoin(
 	}
 
 	// generate and return host certificate and keys
-	certs, err := a.GenerateHostCerts(ctx,
+	certs, err := a.generateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:               params.HostID,
 			NodeName:             params.HostName,
@@ -514,8 +514,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr:           params.RemoteAddr,
 			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
-			AgentScope:           token.GetAssignedScope(),
-		})
+		}, token.GetAssignedScope())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

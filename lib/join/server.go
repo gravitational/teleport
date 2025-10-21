@@ -308,6 +308,7 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		HostID:        hostID,
 		BotInstanceID: botInstanceID,
 		BotGeneration: botGeneration,
+		Scope:         id.AgentScope,
 	}, nil
 }
 
@@ -380,7 +381,7 @@ func (s *Server) makeHostResult(
 	token provision.Token,
 	rawClaims any,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), rawClaims)
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), token.GetAssignedScope(), rawClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,6 +407,7 @@ func makeHostCertsParams(
 	authCtx *joinauthz.Context,
 	hostParams *messages.HostParams,
 	joinMethod types.JoinMethod,
+	scope string,
 	rawClaims any,
 ) (*HostCertsParams, error) {
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
@@ -437,6 +439,9 @@ func makeHostCertsParams(
 	}
 
 	if authCtx.IsInstance {
+		if authCtx.Scope != scope {
+			return nil, trace.BadParameter("tried to re-join instance from scope %q into %q", authCtx.Scope, scope)
+		}
 		// Only authenticated Instance certs are allowed to re-join and
 		// maintain their existing host ID and authenticate additional system
 		// roles.
