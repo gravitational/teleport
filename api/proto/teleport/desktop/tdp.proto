@@ -42,8 +42,7 @@ message TDPEnvelope {
 enum TDPMessageType {
   TDP_MESSAGE_UNKNOWN = 0;
   TDP_MESSAGE_RECTANGLE = 1;
-  TDP_MESSAGE_PIXEL_TYPE = 2;
-  TDP_MESSAGE_IMAGE_FRAME = 3;
+  TDP_MESSAGE_PNG_FRAME = 3;
   TDP_MESSAGE_FASTPATH_PDU = 4;
   TDP_MESSAGE_RDP_RESPONSE_PDU = 5;
   TDP_MESSAGE_CONNECTION_ACTIVATED = 6;
@@ -89,17 +88,10 @@ message Rectangle {
   uint32 bottom = 4;
 }
 
-enum PixelType {
-  PIXEL_TYPE_UNKNOWN = 0;
-  PIXEL_TYPE_RGBA = 1;
-  PIXEL_TYPE_NRGBA = 2;
-}
-
-message ImageFrame {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_IMAGE_FRAME;
-  PixelType pixel_type = 1;
-  Rectangle coordinates = 2;
-  bytes data = 3;
+message PNGFrame {
+  option (tdp_type_option).tdp_type = TDP_MESSAGE_PNG_FRAME;
+  Rectangle coordinates = 1;
+  bytes data = 2;
 }
 
 message FastPathPDU {
@@ -198,9 +190,15 @@ message ClipboardData {
   string data = 1;
 }
 
+enum MFAType {
+  MFA_TYPE_UNKNOWN = 0;
+  MFA_TYPE_WEBAUTHN = 1;
+  MFA_TYPE_U2F = 2;
+}
+
 message MFA {
   option (tdp_type_option).tdp_type = TDP_MESSAGE_MFA;
-  uint32 type = 1;
+  MFAType type = 1;
   proto.MFAAuthenticateChallenge challenge = 2;
   proto.MFAAuthenticateResponse authentication_response = 3;
 }
