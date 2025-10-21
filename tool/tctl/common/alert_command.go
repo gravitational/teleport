@@ -65,6 +65,7 @@ type AlertCommand struct {
 	alertID string
 	clear   bool
 
+	// stdout allows to switch the standard output source. Used in tests.
 	stdout io.Writer
 }
 
