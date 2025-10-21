@@ -66,12 +66,12 @@ No changes are expected since this is an internal change.
 ### High-Level Flow
 
 The client will first dial its target SSH host using the Proxy and its standard Teleport client certificate. The Proxy
-will then resolve the target cluster and host, and open a connection to the respective cluster's SSH service.
+will then resolve the target cluster and host, and invoke the `EvaluateSSHAccess` RPC of the Decision service. Upon
+receiving a permit from the Decision service, the Proxy will staple the permit to the connection and open a connection
+to the respective cluster's SSH service.
 
-The SSH service will authenticate the client using the provided client certificate and determine authorization by
-invoking the `EvaluateSSHAccess` RPC of the Decision service. If the client is authorized, the `EvaluateSSHAccess` will
-return a permit. The SSH service will then check if MFA is required for the session by examining the Decision service's
-permit response.
+The SSH service will authenticate the client using the provided client certificate and the stapled permit. The SSH
+service will then check if MFA is required for the session by examining the permit.
 
 If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
 
@@ -110,9 +110,9 @@ sequenceDiagram
   participant Host as Target SSH Host
 
   Client->>Proxy: Dial SSH (client cert)
-  Proxy->>SSH: Proxy SSH connection
-  SSH->>Decision Service: EvaluateSSHAccess(client cert)
-  Decision Service-->>SSH: Permit
+  Proxy->>Decision Service: EvaluateSSHAccess(client cert)
+  Decision Service-->>Proxy: Permit
+  Proxy->>SSH: Proxy SSH connection (client cert, stapled permit)
   SSH->>SSH: Is MFA required?
 
   alt MFA required
@@ -356,7 +356,9 @@ The following are assumed to be completed before starting work on this RFD:
    and relocate implementation
    1. Decision service has a way for deriving user/session metadata from incoming requests without relying on client
       certificates.
-   1. `EvaluateSSHAccess` RPC should no longer return an error if MFA is required but not satisfied.
+   1. `EvaluateSSHAccess` RPC should no longer return an error if MFA is required but not satisfied. A parameter in the
+      permit should indicate whether MFA is required for access.
+   1. The Proxy service is updated to staple the permit returned by the Decision service to the proxied SSH connection.
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
