@@ -325,7 +325,7 @@ The Kubernetes cluster is missing a `ClusterRole`, or is configured with a parti
 Add a `ClusterRole` and `ClusterRoleBinding` to the Kubernetes cluster with the four permissions.
 
 ```bash
-kubectx <your-kube-context>
+$ kubectl config use-context <your-kube-context>
 kubectl apply -f - <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
