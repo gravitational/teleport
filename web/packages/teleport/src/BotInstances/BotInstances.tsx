@@ -24,8 +24,6 @@ import styled, { css } from 'styled-components';
 import { Alert } from 'design/Alert/Alert';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
-import { Question } from 'design/Icon';
-import Text from 'design/Text';
 import { SearchPanel } from 'shared/components/Search';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
@@ -39,6 +37,7 @@ import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
+import { BotInstancesDashboard } from './Dashboard/BotInstanceDashboard';
 import { BotInstanceDetails } from './Details/BotInstanceDetails';
 import { InfoGuide } from './InfoGuide';
 import {
@@ -163,6 +162,13 @@ export function BotInstances() {
     [data?.pages, isSuccess]
   );
 
+  const handleFilterSelected = useCallback(
+    (filter: string) => {
+      handleQueryChange(filter, true);
+    },
+    [handleQueryChange]
+  );
+
   if (!hasListPermission) {
     return (
       <FeatureBox>
@@ -207,6 +213,7 @@ export function BotInstances() {
               onLoadNextPage={fetchNextPage}
               selectedItem={selectedItemId}
               onItemSelected={handleItemSelected}
+              isFiltering={!!query}
             />
             {selectedItemId ? (
               <BotInstanceDetails
@@ -218,12 +225,7 @@ export function BotInstances() {
             ) : undefined}
           </ListAndDetailsContainer>
           {!selectedItemId ? (
-            <DashboardContainer>
-              <QuestionIcon size={'extra-large'} />
-              <DashboardHelpText>
-                Select an instance to see full details.
-              </DashboardHelpText>
-            </DashboardContainer>
+            <BotInstancesDashboard onFilterSelected={handleFilterSelected} />
           ) : undefined}
         </ContentContainer>
       </Container>
@@ -258,21 +260,4 @@ const ListAndDetailsContainer = styled(CardTile)<{ $listOnlyMode: boolean }>`
           max-width: 400px;
         `
       : ''}
-`;
-
-const DashboardContainer = styled(Flex)`
-  flex-direction: column;
-  overflow: auto;
-  flex-basis: 100%;
-  align-items: center;
-  justify-content: center;
-`;
-
-const DashboardHelpText = styled(Text)`
-  color: ${props => props.theme.colors.text.muted};
-  text-align: center;
-`;
-
-const QuestionIcon = styled(Question)`
-  color: ${props => props.theme.colors.text.muted};
 `;

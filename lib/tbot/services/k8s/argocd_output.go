@@ -52,7 +52,7 @@ import (
 
 // ArgoCDServiceBuilder builds a new ArgoCDOutput.
 func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -66,6 +66,8 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 			clientBuilder:             deps.ClientBuilder,
 			reloadCh:                  deps.ReloadCh,
 			botIdentityReadyCh:        deps.BotIdentityReadyCh,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 
 		for _, opt := range opts {
@@ -81,15 +83,13 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 			}
 		}
 
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
-
 		if svc.alpnUpgradeCache == nil {
 			svc.alpnUpgradeCache = internal.NewALPNUpgradeCache(svc.log)
 		}
 
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(ArgoCDOutputServiceType, cfg.Name, buildFn)
 }
 
 // ArgoCDServiceOption is an option that can be provided to customize the service.

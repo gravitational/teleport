@@ -172,7 +172,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	// We should acquire and release the lock before checking the version
 	// by executing the binary, as it might block tool execution until the version
 	// check is completed, which can take several seconds.
-	ctc, err := getToolsConfig(u.toolsDir)
+	ctc, err := GetToolsConfig(u.toolsDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,7 +195,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		return nil, trace.Wrap(err)
 	}
 
-	if !ctc.HasVersion(toolsVersion) {
+	if !ctc.HasVersion(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
 		if err := migrateV1AndUpdateConfig(u.toolsDir, u.tools); err != nil {
 			// Execution should not be interrupted if migration fails. Instead, it's better to
 			// re-download the version that was supposed to be migrated but failed for some reason.
@@ -227,7 +227,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		return &UpdateResponse{Version: "", ReExec: false}, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 			ctc.SetConfig(proxyHost, requestedVersion, false)
 			return nil
 		}); err != nil {
@@ -244,7 +244,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		// If the environment variable is set during a remote check,
 		// prioritize this version for the current host and use it as the default
 		// for all commands under the current profile.
-		if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 			ctc.SetConfig(proxyHost, requestedVersion, false)
 			return nil
 		}); err != nil {
@@ -279,7 +279,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
 	}
 
-	if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 		ctc.SetConfig(proxyHost, updateResp.Version, updateResp.Disabled)
 		return nil
 	}); err != nil {
@@ -292,7 +292,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 // Update acquires filesystem lock, downloads requested version package, unarchive, replace
 // existing one and cleanups the previous downloads with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
-	err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+	err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 		// ignoreTools is the list of tools installed and tracked by the config.
 		// They should be preserved during cleanup. If we have more than [defaultSizeStoredVersion]
 		// versions, the updater will forget about the least used version.
@@ -301,7 +301,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 			// If the version of the running binary or the version downloaded to
 			// tools directory is the same as the requested version of client tools,
 			// nothing to be done, exit early.
-			if tool.Version == toolsVersion {
+			if tool.IsEqual(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
 				return nil
 			}
 			ignoreTools = append(ignoreTools, tool.PackageNames()...)
@@ -383,7 +383,7 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 	for key, val := range toolsMap {
 		toolsMap[key] = filepath.Join(pkgName, val)
 	}
-	ctc.AddTool(Tool{Version: pkg.Version, PathMap: toolsMap})
+	ctc.AddTool(u.toolsDir, Tool{Version: pkg.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, PathMap: toolsMap})
 
 	return nil
 }
@@ -391,8 +391,8 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 // ToolPath loads full path from config file to specific tool and version.
 func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error) {
 	var tool *Tool
-	if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
-		tool = ctc.SelectVersion(toolVersion)
+	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		tool = ctc.SelectVersion(u.toolsDir, toolVersion, runtime.GOOS, runtime.GOARCH)
 		return nil
 	}); err != nil {
 		return "", trace.Wrap(err)
