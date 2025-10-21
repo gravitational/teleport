@@ -39,6 +39,9 @@ type Registry struct {
 // AddService adds a service to the registry so that its health will be reported
 // from our readyz endpoints. It returns a Reporter the service can use to report
 // status changes.
+//
+// Note: you should add all of your services before any service reports its status
+// otherwise AllServicesReported will unblock too early.
 func (r *Registry) AddService(name string) Reporter {
 	r.mu.Lock()
 	defer r.mu.Unlock()

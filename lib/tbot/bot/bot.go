@@ -218,6 +218,7 @@ func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*
 	heartbeatService, err := b.buildHeartbeatService(
 		identityService,
 		startedAt,
+		registry,
 	)
 	if err != nil {
 		return nil, closeFn, trace.Wrap(err, "building heartbeat service")
@@ -390,6 +391,7 @@ func (b *Bot) buildIdentityService(
 func (b *Bot) buildHeartbeatService(
 	identityService *identity.Service,
 	startedAt time.Time,
+	statusRegistry *readyz.Registry,
 ) (*serviceHandle, error) {
 	handle := &serviceHandle{
 		serviceType:    "internal/heartbeat",
@@ -410,6 +412,7 @@ func (b *Bot) buildHeartbeatService(
 			teleport.Component(teleport.ComponentTBot, handle.name),
 		),
 		StatusReporter: handle.statusReporter,
+		StatusRegistry: statusRegistry,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
