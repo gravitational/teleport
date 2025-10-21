@@ -91,7 +91,7 @@ teleport_resources_health_status_unhealthy{type="kubernetes"} > 0
 ```
 
 <Admonition type="note">
-Notice that Prometheus metrics don't distinguish which cluster is unhealthy.
+Prometheus metrics don't distinguish which cluster is unhealthy.
 
 Use a Teleport UI, or `tctl kube ls --query 'health.status == "unhealthy"'` to determine which cluster is unhealthy.
 </Admonition>
