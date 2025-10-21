@@ -118,6 +118,11 @@ type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
 
+	// PublicProxyAddress is the public address of the proxy.
+	// Used to configure installation scripts for Server auto discovery.
+	// Example: proxy.example.com:443 or proxy.example.com
+	PublicProxyAddress string
+
 	// AWSFetchersClients gets the AWS clients for the given region for the fetchers.
 	AWSFetchersClients fetchers.AWSClientGetter
 
@@ -232,6 +237,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for discovery")
+	}
+
+	if c.PublicProxyAddress == "" {
+		return trace.BadParameter("no PublicProxyAddress configured for discovery")
 	}
 
 	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
@@ -568,7 +577,11 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.GetEC2Client, noDiscoveryConfig)
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
+		Matchers:        ec2Matchers,
+		EC2ClientGetter: s.GetEC2Client,
+		PublicProxyAddr: s.PublicProxyAddress,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -687,7 +700,12 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.GetEC2Client, discoveryConfigName)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
+		Matchers:            serverMatchers,
+		EC2ClientGetter:     s.GetEC2Client,
+		DiscoveryConfigName: discoveryConfigName,
+		PublicProxyAddr:     s.PublicProxyAddress,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

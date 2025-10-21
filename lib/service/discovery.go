@@ -75,6 +75,11 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err, "failed to build access graph configuration")
 	}
 
+	publicProxyAddress, err := process.publicProxyAddr(accessPoint)
+	if err != nil {
+		return trace.Wrap(err, "failed to determine the public proxy address")
+	}
+
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
@@ -84,16 +89,17 @@ func (process *TeleportProcess) initDiscoveryService() error {
 			Kubernetes:  process.Config.Discovery.KubernetesMatchers,
 			AccessGraph: process.Config.Discovery.AccessGraph,
 		},
-		DiscoveryGroup:    process.Config.Discovery.DiscoveryGroup,
-		Emitter:           asyncEmitter,
-		AccessPoint:       accessPoint,
-		ServerID:          conn.HostUUID(),
-		Log:               process.logger,
-		ClusterName:       conn.ClusterName(),
-		ClusterFeatures:   process.GetClusterFeatures,
-		PollInterval:      process.Config.Discovery.PollInterval,
-		GetClientCert:     conn.ClientGetCertificate,
-		AccessGraphConfig: accessGraphCfg,
+		DiscoveryGroup:     process.Config.Discovery.DiscoveryGroup,
+		Emitter:            asyncEmitter,
+		AccessPoint:        accessPoint,
+		ServerID:           conn.HostUUID(),
+		Log:                process.logger,
+		ClusterName:        conn.ClusterName(),
+		ClusterFeatures:    process.GetClusterFeatures,
+		PollInterval:       process.Config.Discovery.PollInterval,
+		GetClientCert:      conn.ClientGetCertificate,
+		AccessGraphConfig:  accessGraphCfg,
+		PublicProxyAddress: publicProxyAddress,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -128,6 +134,41 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	return nil
+}
+
+type proxiesGetter interface {
+	GetProxies() ([]types.Server, error)
+}
+
+func (process *TeleportProcess) publicProxyAddr(accessPoint proxiesGetter) (string, error) {
+	// If the proxy server is explicitly set, use that.
+	if !process.Config.ProxyServer.IsEmpty() {
+		return process.Config.ProxyServer.String(), nil
+	}
+
+	// If DiscoveryService is running alongside a Proxy, use the first
+	// public address of the Proxy.
+	if process.Config.Proxy.Enabled {
+		for _, proxyAddr := range process.Config.Proxy.PublicAddrs {
+			if !proxyAddr.IsEmpty() {
+				return proxyAddr.String(), nil
+			}
+		}
+	}
+
+	proxies, err := accessPoint.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, proxy := range proxies {
+		for _, proxyAddr := range proxy.GetPublicAddrs() {
+			if proxyAddr != "" {
+				return proxyAddr, nil
+			}
+		}
+	}
+
+	return "", trace.NotFound("could not find the public proxy address for server discovery")
 }
 
 // integrationOnlyCredentials indicates whether the DiscoveryService must only use Cloud APIs credentials using an integration.
