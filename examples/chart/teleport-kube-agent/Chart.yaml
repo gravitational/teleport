@@ -1,4 +1,4 @@
-.version: &version "19.0.1-dev.angel.2"
+.version: &version "19.0.1-dev.angelupdatingpublishrunner.1"
 
 name: teleport-kube-agent
 apiVersion: v2

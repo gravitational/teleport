@@ -21,6 +21,6 @@ should match the snapshot (smtp on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-pagerduty
-        app.kubernetes.io/version: 19.0.1-dev.angel.2
-        helm.sh/chart: teleport-plugin-pagerduty-19.0.1-dev.angel.2
+        app.kubernetes.io/version: 19.0.1-dev.angelupdatingpublishrunner.1
+        helm.sh/chart: teleport-plugin-pagerduty-19.0.1-dev.angelupdatingpublishrunner
       name: RELEASE-NAME-teleport-plugin-pagerduty
