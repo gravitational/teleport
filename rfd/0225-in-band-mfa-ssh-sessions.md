@@ -370,6 +370,8 @@ The following are assumed to be completed before starting work on this RFD:
 1. Update the Decision service to return a permit containing a `preconditions` field.
 1. Update the Auth service to support creating and validating MFA challenges tied to specific user actions.
 1. Update the SSH service to implement the in-band MFA flow during session establishment.
+1. Update the SSH service auth handler to use `VerifiedPublicKeyCallback` instead of `PublicKeyCallback` to ensure that
+   the client has confirmed possession of the private key associated with the client certificate.
 1. Update modern clients to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
    legacy agents.
 1. Update modern agents to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
