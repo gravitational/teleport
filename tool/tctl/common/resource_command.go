@@ -3768,7 +3768,15 @@ func getSAMLConnectors(ctx context.Context, client *authclient.Client, name stri
 
 func getOIDCConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.OIDCConnector, error) {
 	if name == "" {
-		connectors, err := client.GetOIDCConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
+				return client.ListOIDCConnectors(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.OIDCConnector, error) {
+				return client.GetOIDCConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

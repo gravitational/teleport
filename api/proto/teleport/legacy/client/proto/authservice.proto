@@ -2441,6 +2441,24 @@ message GetGithubAuthRequestRequest {
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
 }
 
+message ListOIDCConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListOIDCConnectorsResponse {
+  // Connectors is a list of OIDC connectors.
+  repeated types.OIDCConnectorV3 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // CreateOIDCConnectorRequest is a request for CreateOIDCConnector.
 message CreateOIDCConnectorRequest {
   // Connector to be created.
@@ -3200,6 +3218,8 @@ service AuthService {
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
   rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
+  // ListOIDCConnectors returns a page of current OIDC connector resources.
+  rpc ListOIDCConnectors(ListOIDCConnectorsRequest) returns (ListOIDCConnectorsResponse);
   // UpsertOIDCConnector creates a new OIDC connector in the backend.
   rpc CreateOIDCConnector(CreateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // UpsertOIDCConnector updates an existing OIDC connector in the backend.
