@@ -18,6 +18,7 @@
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 import * as tdpp from 'gen-proto-ts/teleport/desktop/tdp_pb';
+import {MFAAuthenticateResponse} from 'gen-proto-ts/teleport/legacy/client/proto/authservice_pb'
 
 import {MessageInfo, MessageType, readFieldOption, IMessageType} from "@protobuf-ts/runtime";
 
@@ -440,6 +441,12 @@ export default class Codec {
     return [res, tdpp.SharedDirectoryInfoResponse];
   }
 
+  encodeMfaResponse(res: MFAAuthenticateResponse):
+  [tdpp.MFA, IMessageType<tdpp.MFA>] {
+    let mfa = tdpp.MFA.create({authenticationResponse: res});
+    return [mfa, tdpp.MFA];
+  }
+
   // | message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
   encodeSharedDirectoryCreateResponse(
     res: SharedDirectoryCreateResponse
@@ -498,25 +505,6 @@ export default class Codec {
   }
 
   /**
-   * decodeMessageType decodes the MessageType from a raw tdp message
-   * passed in as an ArrayBuffer (this typically would come from a websocket).
-   * @throws {Error} on an invalid or unexpected MessageType value
-   */
-  decodeMessageType(buffer: ArrayBufferLike): MessageType {
-    const messageType = new DataView(buffer).getUint8(0);
-    if (!(messageType in MessageType) || messageType === MessageType.__LAST) {
-      throw new Error(`invalid message type: ${messageType}`);
-    }
-    return messageType;
-  }
-
-  // decodeErrorMessage decodes a raw tdp Error message and returns it as a string
-  // | message type (9) | message_length uint32 | message []byte
-  decodeErrorMessage(buffer: ArrayBufferLike): string {
-    return this.decodeStringMessage(buffer);
-  }
-
-  /**
    * decodeAlert decodes a raw TDP alert message
    * | message type (28) | message_length uint32 | message []byte | severity byte
    * @throws {Error} if an invalid severity is passed
@@ -541,24 +529,6 @@ export default class Codec {
     };
   }
 
-  // decodeMfaChallenge decodes a raw tdp MFA challenge message and returns it as a string (of a json).
-  // | message type (10) | mfa_type byte | message_length uint32 | json []byte
-  decodeMfaJson(buffer: ArrayBufferLike): MfaJson {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const mfaType = String.fromCharCode(dv.getUint8(offset));
-    offset += BYTE_LEN; // eat mfa_type
-    if (mfaType !== 'n' && mfaType !== 'u') {
-      throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
-    }
-    let messageLength = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat message_length
-    const jsonString = this.decoder.decode(
-      new Uint8Array(buffer, offset, messageLength)
-    );
-    return { mfaType, jsonString };
-  }
 
   // decodeStringMessage decodes a tdp message of the form
   // | message type (N) | message_length uint32 | message []byte
@@ -575,24 +545,18 @@ export default class Codec {
   // | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#2---png-frame
   decodePngFrame(
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
     buffer: ArrayBufferLike,
     onload: (pngFrame: PngFrame) => any
   ): PngFrame {
     const dv = new DataView(buffer);
     const image = new Image();
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const left = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat left
-    const top = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat top
-    const right = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat right
-    const bottom = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat bottom
     const pngFrame = { left, top, right, bottom, data: image };
     pngFrame.data.onload = onload(pngFrame);
-    pngFrame.data.src = this.asBase64Url(buffer, offset);
+    pngFrame.data.src = this.asBase64Url(buffer, 0);
 
     return pngFrame;
   }
@@ -600,290 +564,20 @@ export default class Codec {
   // decodePng2Frame decodes a raw tdp PNG frame message and returns it as a PngFrame
   // | message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
   decodePng2Frame(
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
     buffer: ArrayBufferLike,
     onload: (pngFrame: PngFrame) => any
   ): PngFrame {
     const dv = new DataView(buffer);
     const image = new Image();
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    offset += UINT_32_LEN; // eat png_length
-    const left = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat left
-    const top = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat top
-    const right = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat right
-    const bottom = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat bottom
     const pngFrame = { left, top, right, bottom, data: image };
     pngFrame.data.onload = onload(pngFrame);
-    pngFrame.data.src = this.asBase64Url(buffer, offset);
+    pngFrame.data.src = this.asBase64Url(buffer, 0);
 
     return pngFrame;
-  }
-
-  // | message type (29) | data_length uint32 | data []byte |
-  decodeRdpFastPathPdu(buffer: ArrayBufferLike): RdpFastPathPdu {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const dataLength = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat data_length
-    return new Uint8Array(buffer, offset, dataLength);
-  }
-
-  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
-  decodeRdpConnectionActivated(
-    buffer: ArrayBufferLike
-  ): RdpConnectionActivated {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const ioChannelId = dv.getUint16(offset);
-    offset += UINT_16_LEN;
-    const userChannelId = dv.getUint16(offset);
-    offset += UINT_16_LEN;
-
-    const screenWidth = dv.getUint16(offset);
-    offset += UINT_16_LEN;
-    const screenHeight = dv.getUint16(offset);
-    offset += UINT_16_LEN;
-
-    return { ioChannelId, userChannelId, screenWidth, screenHeight };
-  }
-
-  // | message type (12) | err_code error | directory_id uint32 |
-  decodeSharedDirectoryAcknowledge(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryAcknowledge {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const errCode = toSharedDirectoryErrCode(dv.getUint32(offset));
-    offset += UINT_32_LEN; // eat err_code
-    const directoryId = dv.getUint32(5);
-
-    return {
-      errCode,
-      directoryId,
-    };
-  }
-
-  // | message type (13) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
-  decodeSharedDirectoryInfoRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryInfoRequest {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat directory_id
-    let pathLength = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat path_length
-    const path = this.decoder.decode(
-      new Uint8Array(buffer, offset, pathLength)
-    );
-
-    return {
-      completionId,
-      directoryId,
-      path,
-    };
-  }
-
-  // | message type (15) | completion_id uint32 | directory_id uint32 | file_type uint32 | path_length uint32 | path []byte |
-  decodeSharedDirectoryCreateRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryCreateRequest {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat directory_id
-    const fileType = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat directory_id
-    let pathLength = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat path_length
-    const path = this.decoder.decode(
-      new Uint8Array(buffer, offset, pathLength)
-    );
-
-    return {
-      completionId,
-      directoryId,
-      fileType,
-      path,
-    };
-  }
-
-  // | message type (17) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
-  decodeSharedDirectoryDeleteRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryDeleteRequest {
-    const dv = new DataView(buffer);
-    let offset = 0;
-    offset += BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat directory_id
-    let pathLength = dv.getUint32(offset);
-    offset += UINT_32_LEN; // eat path_length
-    const path = this.decoder.decode(
-      new Uint8Array(buffer, offset, pathLength)
-    );
-
-    return {
-      completionId,
-      directoryId,
-      path,
-    };
-  }
-
-  // | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
-  decodeSharedDirectoryReadRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryReadRequest {
-    const dv = new DataView(buffer);
-    let bufOffset = 0;
-    bufOffset += BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat directory_id
-    const pathLength = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat path_length
-    const path = this.decoder.decode(
-      new Uint8Array(buffer, bufOffset, pathLength)
-    );
-    bufOffset += pathLength; // eat path
-    const offset = dv.getBigUint64(bufOffset);
-    bufOffset += UINT_64_LEN; // eat offset
-    const length = dv.getUint32(bufOffset);
-
-    return {
-      completionId,
-      directoryId,
-      pathLength,
-      path,
-      offset,
-      length,
-    };
-  }
-
-  // | message type (21) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | write_data_length uint32 | write_data []byte |
-  decodeSharedDirectoryWriteRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryWriteRequest {
-    const dv = new DataView(buffer);
-    let bufOffset = BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat directory_id
-    const offset = dv.getBigUint64(bufOffset);
-    bufOffset += UINT_64_LEN; // eat offset
-    const pathLength = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat path_length
-    const path = this.decoder.decode(
-      new Uint8Array(buffer, bufOffset, pathLength)
-    );
-    bufOffset += pathLength; // eat path
-    const writeDataLength = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat write_data_length
-    const writeData = new Uint8Array(buffer, bufOffset, writeDataLength);
-
-    return {
-      completionId,
-      directoryId,
-      pathLength,
-      path,
-      offset,
-      writeData,
-    };
-  }
-
-  // | message type (23) | completion_id uint32 | directory_id uint32 | original_path_length uint32 | original_path []byte | new_path_length uint32 | new_path []byte |
-  decodeSharedDirectoryMoveRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryMoveRequest {
-    const dv = new DataView(buffer);
-    let bufOffset = BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat directory_id
-    const originalPathLength = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat original_path_length
-    const originalPath = this.decoder.decode(
-      new Uint8Array(buffer, bufOffset, originalPathLength)
-    );
-    bufOffset += originalPathLength; // eat original_path
-    const newPathLength = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat new_path_length
-    const newPath = this.decoder.decode(
-      new Uint8Array(buffer, bufOffset, newPathLength)
-    );
-
-    return {
-      completionId,
-      directoryId,
-      originalPathLength,
-      originalPath,
-      newPathLength,
-      newPath,
-    };
-  }
-
-  // | message type (25) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
-  decodeSharedDirectoryListRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryListRequest {
-    return this.decodeSharedDirectoryInfoRequest(buffer);
-  }
-
-  decodeSharedDirectoryTruncateRequest(
-    buffer: ArrayBufferLike
-  ): SharedDirectoryTruncateRequest {
-    const dv = new DataView(buffer);
-    let bufOffset = BYTE_LEN; // eat message type
-    const completionId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat completion_id
-    const directoryId = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat directory_id
-    const pathLength = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN; // eat path_length
-    const path = this.decoder.decode(
-      new Uint8Array(buffer, bufOffset, pathLength)
-    );
-    bufOffset += pathLength; // eat path
-    const endOfFile = dv.getUint32(bufOffset);
-
-    return {
-      completionId,
-      directoryId,
-      path,
-      endOfFile,
-    };
-  }
-
-  decodeLatencyStats(buffer: ArrayBufferLike): LatencyStats {
-    const dv = new DataView(buffer);
-    let bufOffset = BYTE_LEN; // eat message type
-    const browserLatency = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN;
-    const desktopLatency = dv.getUint32(bufOffset);
-    bufOffset += UINT_32_LEN;
-
-    return {
-      client: browserLatency,
-      server: desktopLatency,
-    };
   }
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
