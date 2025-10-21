@@ -95,8 +95,13 @@ the keyboard-interactive channel. The Protobuf message must be base64 encoded to
 over the SSH keyboard-interactive channel.
 
 Once the MFA challenge response is received, the SSH service will invoke the `ValidateAuthenticateChallenge` RPC with
-the action ID, the client's MFA challenge response, and any other relevant metadata. If the response is valid, the SSH
-service will proceed to establish the SSH session. If the response is invalid, the SSH service will deny the connection.
+the action ID, the client's MFA challenge response, and any other relevant metadata. If the MFA response is valid, the
+SSH service will proceed to establish the SSH session. If the MFA response is invalid, the SSH service will deny the
+connection with an `Access Denied: Invalid MFA response` error.
+
+If the client fails to complete the MFA challenge within a specified timeout (e.g., default 1 minute), the SSH service
+will terminate the connection with an `Access Denied: MFA verification timed out` error. If the client wishes to retry,
+it must initiate a new SSH connection. connection.
 
 ```mermaid
 sequenceDiagram
