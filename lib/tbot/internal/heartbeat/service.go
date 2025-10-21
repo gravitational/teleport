@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -229,8 +230,20 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 		Kind:         s.cfg.BotKind,
 	}
 
+	status := s.cfg.StatusRegistry.OverallStatus()
+	serviceHealth := make([]*machineidv1pb.BotInstanceServiceHealth, 0, len(status.Services))
+	for name, serviceStatus := range status.Services {
+		serviceHealth = append(serviceHealth, statusToServiceHealth(name, serviceStatus))
+	}
+
+	// Sort the services by name to make tests deterministic.
+	sort.Slice(serviceHealth, func(a, b int) bool {
+		return serviceHealth[a].Service.Name < serviceHealth[b].Service.Name
+	})
+
 	_, err = s.cfg.Client.SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{
-		Heartbeat: hb,
+		Heartbeat:     hb,
+		ServiceHealth: serviceHealth,
 	})
 	if err != nil {
 		return trace.Wrap(err, "submitting heartbeat")
@@ -238,4 +251,50 @@ func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) erro
 
 	s.cfg.Logger.InfoContext(ctx, "Sent heartbeat", "data", hb.String())
 	return nil
+}
+
+func statusToServiceHealth(name string, status *readyz.ServiceStatus) *machineidv1pb.BotInstanceServiceHealth {
+	health := &machineidv1pb.BotInstanceServiceHealth{
+		Service: &machineidv1pb.BotInstanceServiceIdentifier{
+			Name: trimString(name, 64),
+			Type: status.ServiceType,
+		},
+	}
+
+	switch status.Status {
+	case readyz.Initializing:
+		health.Status = machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+	case readyz.Healthy:
+		health.Status = machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
+	case readyz.Unhealthy:
+		health.Status = machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+	}
+
+	if status.Reason != "" {
+		reason := trimString(status.Reason, 256)
+		health.Reason = &reason
+	}
+
+	if status.UpdatedAt != nil {
+		health.UpdatedAt = timestamppb.New(*status.UpdatedAt)
+	}
+
+	return health
+}
+
+func trimString(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+
+	// Trim the string to maxBytes, honoring rune boundaries for non-ASCII text.
+	byteCount := 0
+	for i, r := range s {
+		runeSize := len(string(r))
+		if byteCount+runeSize > maxBytes {
+			return s[:i]
+		}
+		byteCount += runeSize
+	}
+	return s
 }
