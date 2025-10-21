@@ -1,8 +1,187 @@
 ---
 title: Teleport Identity Governance
 description: Provides guides on Teleport Identity Governance.
+template: "landing-page"
 tags:
  - identity-governance
 ---
 
-<DocCardList />
+import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
+import Integrations from "@site/src/components/Pages/Homepage/Integrations";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+
+import identityGovernanceImg from '@version/docs/img/identity-governance/identity-governance-hero.png';
+import oktaSvg from "@site/src/components/Icon/teleport-svg/okta.svg";
+import arrowRightSvg from "@site/src/components/Icon/teleport-svg/arrow-right.svg";
+import msEntraIdSvg from "@site/src/components/Icon/svg/ms-entra-id.svg";
+import slackSvg from "@site/src/components/Icon/teleport-svg/slack.svg";
+import jiraSvg from "@site/src/components/Icon/svg/jira.svg";
+import pagerDutySvg from "@site/src/components/Icon/svg/pagerduty.svg";
+import terraformSvg from "@site/src/components/Icon/svg/terraform.svg";
+import awsIdentityCenterSvg from "@site/src/components/Icon/svg/aws-identity-center.svg";
+import gcpSvg from "@site/src/components/Icon/svg/googleCloud.svg";
+import grafanaSvg from "@site/src/components/Icon/svg/grafana.svg";
+import jamfProSvg from "@site/src/components/Icon/teleport-svg/jamf-pro.svg";
+
+<LandingHero
+  title="Identity Governance"
+  youtubeVideoId="9zo1mV2uZKE"
+  image={identityGovernanceImg}
+>
+  Manage on-demand access, privileges, and compliance for all your infrastructure.
+
+  ## Grant on-demand access with role and resource requests
+  Provide your organization access with the right level of access granularity. Configure all aspects of the Access Request lifecycle in Teleport.
+</LandingHero>
+
+<UseCasesList
+  title="Identity Governance use cases"
+  useCases={[
+    {
+      title: "Request temporary elevated access",
+      description: "Eliminate standing privileges and get access as needed",
+      href: "./access-requests/",
+    },  
+    {
+      title: "Manage standing access for teams",
+      description: "Use Access Lists for group-based access",
+      href: "./access-lists/",
+    },
+    {
+      title: "Require managed devices for access",
+      description: "Ensure users are using trusted devices",
+      href: "./device-trust/",
+    },  
+    {
+      title: "Monitor for risky access",
+      description: "Identify risky access patterns and behaviors",
+      href: "./access-monitoring/",
+    },
+    {
+      title: "Instantly lock identities and sessions",
+      description: "Lock compromised users and resources",
+      href: "./locking/",
+    },
+  ]}
+/>
+
+<Integrations
+  title="Integrate your stack for greater efficiency and security"
+  desktopColumnsCount={3}
+  noBackgroundColor={true}
+  integrations={[
+    {
+      title: "Okta",
+      description: "Sync Okta users, apps, and groups with Teleport",
+      href: "./integrations/okta/",
+      iconColor: "#0000001A",
+      iconComponent: oktaSvg,
+    },
+    {
+      title: "Microsoft Entra ID",
+      description: "Sync Entra ID users and groups to Teleport",
+      href: "./integrations/entra-id/",
+      iconColor: "#0078D41A",
+      iconComponent: msEntraIdSvg,
+    },
+    {
+      title: "Slack",
+      description: "Post Access Requests to your organization's Slack workspace",
+      href: "./access-request-plugins/ssh-approval-slack/",
+      iconColor: "#ECB22E1A",
+      iconComponent: slackSvg,
+    },
+    {
+      title: "Jira",
+      description: "Manage Access Requests as Jira issues",
+      href: "./access-request-plugins/ssh-approval-jira/",
+      iconColor: "#0078D41A",
+      iconComponent: jiraSvg,
+    },
+    {
+      title: "Jamf Pro",
+      description: "Automatically sync your Jamf inventory with Teleport's trusted devices",
+      href: "./device-trust/jamf-integration/",
+      iconColor: "#788EB11A",
+      iconComponent: jamfProSvg,
+    },
+    {
+      title: "PagerDuty",
+      description: "Manage Access Requests through PagerDuty incidents",
+      href: "./access-request-plugins/ssh-approval-pagerduty/",
+      iconColor: "#06AC381A",
+      iconComponent: pagerDutySvg,
+    },
+    {
+      title: "Terraform",
+      description: "Manage team Access Lists with Infrastructure as Code (IaC) using Terraform",
+      href: "./access-lists/terraform/",
+      iconColor: "#512FC91A",
+      iconComponent: terraformSvg,
+    },
+    {
+      title: "AWS Identity Center",
+      description: "Organize and manage users' short- and long-term access to AWS accounts and permissions",
+      href: "./integrations/aws-iam-identity-center/",
+      iconColor: "#EA43351A",
+      iconComponent: awsIdentityCenterSvg,
+    },
+    {
+      title: "Access Request plugins",
+      href: "./access-request-plugins/",
+      iconComponent: arrowRightSvg,
+    },
+  ]}
+    additionalLinks={{
+      title: "Set up your first integration:",
+      links: [
+        {
+          title: "Getting started: Integrate with your IdP(s)",
+          href: "./integrations/"
+        },
+      ]
+  }}
+/>
+
+<Integrations
+  title="Make Teleport your SAML identity provider"
+  layout="row"
+  desktopColumnsCount={3}
+  noBackgroundColor={true}
+  integrations={[
+    {
+      title: "Azure Portal & CLI",
+      description: "Integrate the Teleport SAML IdP with Microsoft Entra External ID",
+      href: "./idps/saml-microsoft-entra-external-id/",
+      iconColor: "#0000001A",
+      iconComponent: msEntraIdSvg,
+    },
+    {
+      title: "Google Cloud Console & API",
+      description: "Use Google Cloud Workforce Identity Federation to provision access",
+      href: "./idps/saml-gcp-workforce-identity-federation/",
+      iconColor: "#34A8530D",
+      iconComponent: gcpSvg,
+    },
+    {
+      title: "Grafana",
+      description: "Configure employee access to Grafana Enterprise instances",
+      href: "./idps/saml-grafana/",
+      iconColor: "#F15B2A0D",
+      iconComponent: grafanaSvg,
+    },
+  ]}
+  additionalLinks={{
+    title: "Turn Teleport into your SAML IdP:",
+    links: [
+      {
+        title: "Getting started: Log in to external services with Teleport",
+        href: "./idps/saml-guide/"
+      },
+      {
+        title: "About SAML IdP attribute mapping",
+        href: "./idps/saml-attribute-mapping/"
+      },
+    ]
+  }}
+/>
