@@ -1,0 +1,298 @@
+---
+title: Deploying Machine ID with Bound Keypair Static Keys
+description: "How to install and configure Machine ID with Bound Keypair static keys"
+tags:
+ - mwi
+ - how-to
+ - infrastructure-identity
+---
+
+In this guide, you will install Machine and Workload Identity's agent, `tbot`,
+on an arbitrary stateless environment using Bound Keypair static keys. This
+might be a CI/CD job on a provider not yet supported by one of Teleport's
+[dedicated join methods](../../../deployment/join-methods.mdx), an ephemeral
+bare-metal node, or any other environment without writable persistent storage.
+
+Bound Keypair Joining is a more flexible alternative to [secret-based join
+methods][secret], and static keys allow arbitrary nodes to join by relaxing some
+of its built-in security requirements.
+
+<Admonition type="tip" title="Persistent Storage">
+If your provider has writable persistent storage, like a Kubernetes PVC or
+similar writable persistent storage, you should instead follow the [standard
+Bound Keypair guide](./getting-started.mdx).
+</Admonition>
+
+## How it works
+
+Bound Keypair joining typically assumes you have access to writable client-side
+storage to store additional identity proofs, but this requirement is lifted when
+using Bound Keypair static keys.
+
+Normally, the actual Bound Keypair keys are managed internally by the `tbot`
+client, which allows them to be generated and rotated on demand. With static
+keys, you take direct ownership of the private key and can store it as you see
+fit - like in a platform keystore. The `tbot` client is then configured to use
+your static private key instead of managing it automatically.
+
+<Admonition type="warning" title="Security Considerations">
+Static key joining relaxes certain security checks otherwise performed when
+client-side storage is available. This is designed to be used where no other
+join methods are possible. Before continuing, consider:
+- Using a [dedicated join method](../../../deployment/join-methods.mdx) for your
+  platform if available.
+- Using [standard Bound Keypair joining](./getting-started.mdx) if your
+  environment has writable persistent storage.
+
+[Read more about static keys and what tradeoffs they
+require](./concepts.mdx#static-keys) before using them in a production
+environment.
+</Admonition>
+
+## Prerequisites
+
+{/* note: consider edition-prereqs-tabs.mdx include for v19; it is misleading due to the minor launch release */}
+
+{/* TODO: replace version with version containing `tbot keypair create --static` */}
+
+- A running Teleport cluster version 18.2.0 or above.
+- The `tsh`, `tctl`, and `tbot` clients.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/7. Install `tbot`
+
+**This step is completed on the bot host.**
+
+First, `tbot` needs to be installed on the host that you wish to use Machine ID
+on.
+
+Download and install the appropriate Teleport package for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 2/7. Create a Bot
+
+**This step is completed on your local machine.**
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 3/7. Create a keypair and a join token
+
+Next, we'll need to generate a keypair, consisting of:
+* A private key that will need to be available on your bot host at runtime
+* A public key that will need to be configured in the Teleport join token
+
+We'll use a helper in the `tbot` client to generate a static keypair. This
+step can be run anywhere and does not require any configuration, but you will
+need to decide how the bot will access the key, which may vary depending on your
+environment or secret store:
+1. Via an environment variable, useful for providers or environments that inject
+   secrets as environment variables
+2. Via a standard file which you transfer to the bot host
+
+With that in mind, if you intend to make the key available to `tbot` via an
+environment variable, run the following:
+
+```code
+$ tbot keypair create --proxy-server <Var name="example.teleport.sh"/>:443 --static
+```
+
+Otherwise, if using a file, run the following:
+```code
+$ tbot keypair create --proxy-server <Var name="example.teleport.sh"/>:443 --static --static-key-path ./path/to/key
+```
+
+Adjust the `--static-key-path` value as desired. If you didn't run this command
+on the bot host directly, be prepared to transfer this to the bot host in the
+next step.
+
+In either case, the command will generate a keypair and print some instructions.
+For example, this is shown when using an environment variable key:
+```code
+To register the keypair with Teleport, include this public key in the token's
+'spec.bound_keypair.onboarding.initial_public_key' field:
+
+	<Var name="public key"/>
+
+Refer to this token example as a reference:
+
+	kind: token
+	metadata:
+	  name: example-token
+	spec:
+	  bot_name: example
+	  bound_keypair:
+	    onboarding:
+	      initial_public_key: <Var name="public key"/>
+	    recovery:
+	      limit: 0
+	      mode: insecure
+	  join_method: bound_keypair
+	  roles:
+	  - Bot
+	version: v2
+
+Configure your bot to use this static key by inserting the following private key
+value into the bot's environment, ideally via a platform-specific keystore if
+available:
+
+	export TBOT_BOUND_KEYPAIR_STATIC_KEY="<...encoded private key...>"
+
+Note that bots joined with static tokens do not support keypair rotation and
+will be unable to join if a rotation is requested server-side via the token's
+'rotate_after' field. Additionally, 'insecure' recovery mode must be used, as
+shown above. Read more at:
+
+	https://goteleport.com/docs/reference/machine-workload-identity/machine-id/bound-keypair/concepts/#recovery
+```
+
+This command will print the public key, a join token example, and the private
+key needed to configure your bot. Keep this output available as you'll need it
+through the next step.
+
+Using the example token printed by the above command as a template,
+create `token.yaml` containing the following content:
+```yaml
+kind: token
+metadata:
+  name: example-token
+spec:
+  bot_name: example
+  bound_keypair:
+  onboarding:
+    initial_public_key: <Var name="public key"/>
+  recovery:
+    limit: 0
+    mode: insecure
+  join_method: bound_keypair
+  roles:
+  - Bot
+version: v2
+```
+
+Be sure to set `bot_name` to match the bot created in the previous step, and
+ensure the public key matches the value printed by `tbot keypair create ...`.
+
+When ready, create the join token in your Teleport cluster using `tctl`:
+```code
+$ tctl create -f token.yaml
+```
+
+## Step 4/7. Store the private key
+
+Now that you've generated the private key, it needs to be stored and made
+available to your job. Exactly how to do this will depend on your provider and
+environment, as well as whether you'll be making it available via an environment
+variable or a file.
+
+### Storing the key in a file on the bot host
+
+Ensure the private key file you generated is made available on the bot host. If
+you generated it on your local machine, this might mean copying it via `scp`,
+provisioning the key via Ansible, or transferring it to the bot host through
+whichever means you prefer.
+
+Take care to ensure the resulting file on the bot host will only be readable by
+the account that will run the `tbot` process.
+
+### Storing the key in an environment variable
+
+If using an environment variable, depending on your platform and environment,
+you'll likely want to store the key in a platform-specific keystore - such that
+the environment variable is set on the bot host when it starts - rather than
+on the bot host directly.
+
+Regardless of backend, set the variable as follows:
+- Name: `TBOT_BOUND_KEYPAIR_STATIC_KEY`
+- Value: the base64-encoded value as printed by `tbot keypair create --static ...`
+
+The value is the same content that would otherwise be written to a file if you'd
+used `tbot keypair create ... --static --static-key-path /path/to/key`, but the
+content has been base64 encoded to simplify use as an environment variable
+value.
+
+## Step 5/7. Configure `tbot`
+
+**This step is completed on the bot host.**
+
+### With an environment variable key
+
+If exposing the secret via an environment variable, ensure it's available in the
+`$TBOT_BOUND_KEYPAIR_STATIC_KEY` variable.
+
+Create `/etc/tbot.yaml` with the following content:
+
+```yaml
+version: v2
+proxy_server: <Var name="example.teleport.sh"/>:443
+onboarding:
+  join_method: bound_keypair
+  token: example-token
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Aside from specifying the `join_method` and `token`, no additional configuration
+is needed; the key will be read from the environment as needed during the join
+process.
+
+### With a file key
+
+Copy the key to the bot environment or otherwise make sure it's available, and
+write the following to `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+proxy_server: <Var name="example.teleport.sh"/>:443
+onboarding:
+  join_method: bound_keypair
+  token: example-token
+  bound_keypair:
+    static_private_key_path: /path/to/key
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+# outputs will be filled in during the completion of an access guide.
+outputs: []
+```
+
+Set `static_private_key_path` to point to the location the key will be
+available and save the file.
+
+## Step 6/7. Verify `tbot` can authenticate to Teleport
+
+Run `tbot` using the `tbot.yaml` you created, and ensure the private key is
+available as expected, either via file (at the path you configured earlier) or
+via the environment in `$TBOT_BOUND_KEYPAIR_STATIC_KEY`:
+
+```code
+$ tbot start -c /etc/tbot.yaml --oneshot
+```
+
+If everything has been setup correctly, `tbot` should run, authenticate with
+Teleport, and exit cleanly. In production, you can remove the `--oneshot` flag
+if you want `tbot` to continually provide updated certificates for
+longer-running jobs, otherwise the certificates issued will expire eventually
+(1 hour by default).
+
+## Step 7/7. Configure services
+
+(!docs/pages/includes/machine-id/configure-services.mdx!)
+
+## Next Steps
+
+- Read more about [Bound Keypair static keys](./concepts.mdx#static-keys).
+- Read about [static key rotation](./admin-guide.mdx#manually-rotating-static-keys)
+- Read the [Bound Keypair Joining Reference][reference]
+  for more details about the join method and the available configuration options.
+- Follow the [access guides](../../../../machine-workload-identity/machine-id/access-guides/access-guides.mdx)
+  to finish configuring `tbot` for your environment.
+- Read the [configuration reference](../configuration.mdx) to explore
+  all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../telemetry.mdx)
+
+[secret]: ../../../deployment/join-methods.mdx#secret-vs-delegated
+[reference]: ./bound-keypair.mdx

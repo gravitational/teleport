@@ -187,7 +187,7 @@ This can occur when attempting to log into the node as a user not listed as a
 principal on the SSH certificate.
 
 You can verify this by viewing the `tbot` logs and looking for the log message
-when impersonated certificates for the matching outputs were renewed.
+when impersonated certificates for the matching services were renewed.
 
 In the following example, the only principal listed for the identity in
 `/opt/machine-id` is `alice` (via the `access` role):
@@ -253,7 +253,7 @@ or more roles.
 {/* vale messaging.protocol-products = NO */}
 Per the [Machine ID Database Access Guide](./access-guides/databases.mdx), ensure at
 least one role providing database permissions has been granted to the
-output listed in the error.
+output service listed in the error.
 {/* vale messaging.protocol-products = YES */}
 
 For example, note the `rules` section in the following example role:
@@ -293,7 +293,7 @@ Edit the role, then save and close the file to apply your changes.
 (!docs/pages/includes/create-role-using-web.mdx!)
 
 <Admonition type="note">
-By default, outputs (like `/opt/machine-id`) are granted all roles provided
+By default, output services (like `/opt/machine-id`) are granted all roles provided
 to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
 subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
 
@@ -324,7 +324,7 @@ the use of the `exec` plugin by adding `disable_exec_plugin: true` to the output
 a static `kubeconfig` file with embedded short-lived credentials is written instead:
 
 ```yaml
-outputs:
+services:
   - type: kubernetes
     # Specify the name of the Kubernetes cluster you wish the credentials to
     # grant access to.

@@ -32,6 +32,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // RegisterUsingOracleMethod registers the caller using the Oracle join method and
@@ -95,7 +96,7 @@ func (a *Server) registerUsingOracleMethod(
 }
 
 func generateOracleChallenge() (string, error) {
-	challenge, err := generateChallenge(base64.StdEncoding, 32)
+	challenge, err := joinutils.GenerateChallenge(base64.StdEncoding, 32)
 	return challenge, trace.Wrap(err)
 }
 

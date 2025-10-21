@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 type (
@@ -48,14 +50,41 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if params.AuthClient == nil && params.ID.HostUUID != "" {
+		// This check is skipped if AuthClient is provided because this is a
+		// re-join with an existing identity and the HostUUID will be
+		// maintained.
+		return nil, trace.BadParameter("HostUUID must not be provided to Join, it will be assigned by the Auth server")
+	}
+	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
+		return nil, trace.BadParameter("Only Instance and Bot roles may be used for direct join attempts")
+	}
 	slog.InfoContext(ctx, "Trying to join with the new join service")
 	result, err := joinNew(ctx, params)
-	if trace.IsNotImplemented(err) {
+	if trace.IsNotImplemented(err) || errors.As(err, new(*connectionError)) {
 		// Fall back to joining via legacy service.
 		slog.InfoContext(ctx, "Falling back to joining via the legacy join service", "error", err)
-		result, err := authjoin.Register(ctx, params)
+		// Non-bots must generate their own host UUID when joining via legacy service.
+		if params.ID.Role != types.RoleBot {
+			hostID, err := hostid.Generate(ctx, params.JoinMethod)
+			if err != nil {
+				return nil, trace.Wrap(err, "generating host ID")
+			}
+			params.ID.HostUUID = hostID
+		}
+		result, err := LegacyJoin(ctx, params)
 		return result, trace.Wrap(err)
 	}
+	return result, trace.Wrap(err)
+}
+
+// LegacyJoin is used to join the cluster via the legacy service with client-chosen host UUIDs.
+func LegacyJoin(ctx context.Context, params JoinParams) (*JoinResult, error) {
+	if params.ID.Role != types.RoleBot && params.ID.HostUUID == "" {
+		return nil, trace.BadParameter("HostUUID is required for LegacyJoin")
+	}
+	//nolint:staticcheck // SA1019 falling back to deprecated method for compatibility.
+	result, err := authjoin.Register(ctx, params)
 	return result, trace.Wrap(err)
 }
 
@@ -104,7 +133,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, &connectionError{trace.Wrap(err, "building proxy client")}
 	}
 	defer conn.Close()
 	return joinWithClient(ctx, params, joinv1.NewClientFromConn(conn))
@@ -113,7 +142,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 func joinViaAuth(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	authClient, err := authjoin.NewAuthClient(ctx, params)
 	if err != nil {
-		return nil, trace.Wrap(err, "building auth client")
+		return nil, &connectionError{trace.Wrap(err, "building auth client")}
 	}
 	defer authClient.Close()
 	return joinViaAuthClient(ctx, params, authClient)
@@ -125,12 +154,12 @@ func joinViaAuthClient(ctx context.Context, params JoinParams, authClient authjo
 
 func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Client) (*JoinResult, error) {
 	// Clients may specify the join method or not, to let the server choose the
-	// method based on the provsion token.
+	// method based on the provision token.
 	var joinMethodPtr *string
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken, types.JoinMethodBoundKeypair:
+	case types.JoinMethodToken, types.JoinMethodBoundKeypair, types.JoinMethodIAM:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -143,7 +172,10 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer cancel()
 	stream, err := client.Join(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Connection errors are usually delayed until the first request is
+		// attempted, wrap with a connectionError here to allow a fallback to
+		// the legacy join method.
+		return nil, &connectionError{trace.Wrap(err, "initiating join stream")}
 	}
 	defer stream.CloseSend()
 
@@ -164,7 +196,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	}
 
 	// Generate keys based on the signature algorithm suite from the ServerInit message.
-	signer, publicKeys, err := generateKeys(ctx, serverInit.SignatureAlgorithmSuite)
+	signer, publicKeys, err := GenerateKeys(ctx, serverInit.SignatureAlgorithmSuite)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,9 +242,18 @@ func joinWithMethod(
 		return tokenJoin(stream, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodIAM:
+		return iamJoin(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
-		return nil, trace.NotImplemented("server selected join method %v which is not supported by this client", method)
+		sendGivingUpErr := stream.Send(&messages.GivingUp{
+			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
+			Msg:    "join method " + method + " is not supported by this client",
+		})
+		return nil, trace.NewAggregate(
+			trace.NotImplemented("server selected join method %v which is not supported by this client", method),
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 }
 
@@ -227,7 +268,7 @@ func tokenJoin(
 	// client->server Tokeninit
 	// client<-server Result
 	//
-	// At this point the ServerInit messages has already been received, all
+	// At this point the ServerInit message has already been received, all
 	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,
@@ -316,7 +357,9 @@ func pemEncodeTLSCert(rawCert []byte) []byte {
 	})
 }
 
-func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (crypto.Signer, *messages.PublicKeys, error) {
+// GenerateKeys generates host keys appropriate for a cluster join request
+// according to the cluster's configured signature algorithm suite.
+func GenerateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (crypto.Signer, *messages.PublicKeys, error) {
 	signer, err := cryptosuites.GenerateKey(
 		ctx,
 		cryptosuites.StaticAlgorithmSuite(suite),
@@ -337,4 +380,16 @@ func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (cry
 		PublicTLSKey: tlsPub,
 		PublicSSHKey: sshPub.Marshal(),
 	}, nil
+}
+
+type connectionError struct {
+	wrapped error
+}
+
+func (e *connectionError) Error() string {
+	return e.wrapped.Error()
+}
+
+func (e *connectionError) Unwrap() error {
+	return e.wrapped
 }

@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc/credentials"
@@ -195,10 +194,6 @@ func (a *Server) CheckPasswordWOToken(ctx context.Context, user string, password
 
 func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
-}
-
-func (a *Server) SetHTTPClientForAWSSTS(clt utils.HTTPDoClient) {
-	a.httpClientForAWSSTS = clt
 }
 
 func (a *Server) SetJWKSValidator(clt JWKSValidator) {
@@ -410,7 +405,6 @@ func CheckOracleAllowRules(claims oracle.Claims, token string, allowRules []*typ
 }
 
 type GitHubManager = githubManager
-type AWSIdentity = awsIdentity
 type AttestedData = attestedData
 type SignedAttestedData = signedAttestedData
 type JWKSValidator = k8sJWKSValidator
@@ -421,7 +415,6 @@ type AzureVerifyTokenFunc = azureVerifyTokenFunc
 type AccessTokenClaims = accessTokenClaims
 type EC2Client = ec2Client
 type EC2ClientKey = ec2ClientKey
-type IAMRegisterOption = iamRegisterOption
 
 func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
 	return func(cfg *AzureRegisterConfig) {
@@ -439,14 +432,6 @@ func WithAzureVMClientGetter(getVMClient vmClientGetter) AzureRegisterOption {
 	return func(cfg *AzureRegisterConfig) {
 		cfg.getVMClient = getVMClient
 	}
-}
-
-func WithFIPS(b bool) iamRegisterOption {
-	return withFips(b)
-}
-
-func WithAuthVersion(v *semver.Version) iamRegisterOption {
-	return withAuthVersion(v)
 }
 
 func (s *TLSServer) GRPCServer() *GRPCServer {

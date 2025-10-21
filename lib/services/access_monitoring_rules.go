@@ -22,6 +22,7 @@ import (
 	"context"
 	"slices"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/gravitational/trace"
 
@@ -156,6 +157,10 @@ func validateSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule) e
 }
 
 func validateTimeSchedule(schedule *accessmonitoringrulesv1.TimeSchedule) error {
+	if _, err := time.LoadLocation(schedule.GetTimezone()); err != nil {
+		return trace.Wrap(err, "invalid timezone: refer to the IANA Time Zone Database for valid options")
+	}
+
 	if len(schedule.GetShifts()) == 0 {
 		return trace.BadParameter("at least one shift is required")
 	}
@@ -173,12 +178,12 @@ func validateShift(shift *accessmonitoringrulesv1.TimeSchedule_Shift) error {
 		return trace.BadParameter("failed to parse weekday: %v", shift.GetWeekday())
 	}
 
-	start, err := clockTime(time.Time{}, shift.GetStart())
+	start, err := accessmonitoring.ClockTime(time.Time{}, shift.GetStart())
 	if err != nil {
 		return trace.Wrap(err, "invalid start time")
 	}
 
-	end, err := clockTime(time.Time{}, shift.GetEnd())
+	end, err := accessmonitoring.ClockTime(time.Time{}, shift.GetEnd())
 	if err != nil {
 		return trace.Wrap(err, "invalid end time")
 	}
@@ -187,18 +192,6 @@ func validateShift(shift *accessmonitoringrulesv1.TimeSchedule_Shift) error {
 		return trace.BadParameter("start time must be before end time")
 	}
 	return nil
-}
-
-func clockTime(timestamp time.Time, hourMinute string) (time.Time, error) {
-	const hourMinuteFormat = "15:04" // 24-hour HH:MM format
-
-	parsed, err := time.ParseInLocation(hourMinuteFormat, hourMinute, timestamp.Location())
-	if err != nil {
-		return time.Time{}, trace.Wrap(err)
-	}
-
-	return time.Date(timestamp.Year(), timestamp.Month(), timestamp.Day(),
-		parsed.Hour(), parsed.Minute(), 0, 0, timestamp.Location()), nil
 }
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.
