@@ -284,11 +284,6 @@ type CheckIAMRequestParams struct {
 // even if the identity does not match the token's allow rules. This is to
 // support inclusion in audit logs.
 func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSIdentity, error) {
-	ptv2, ok := params.ProvisionToken.(types.ProvisionToken)
-	if !ok {
-		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", params.ProvisionToken)
-	}
-
 	if params.ProvisionToken.GetJoinMethod() != types.JoinMethodIAM {
 		return nil, trace.AccessDenied("this token does not support the IAM join method")
 
@@ -314,7 +309,7 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, ptv2.GetAllowRules()); err != nil {
+	if err := checkIAMAllowRules(identity, params.ProvisionToken.GetAllowRules()); err != nil {
 		// We return the identity since it's "validated" but does not match the
 		// rules. This allows us to include it in a failed join audit event
 		// as additional context to help the user understand why the join failed.

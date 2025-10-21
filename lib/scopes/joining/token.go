@@ -130,7 +130,7 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 // Token wraps a [joiningv1.ScopedToken] such that it can be used to provision
 // resources.
 type Token struct {
-	*joiningv1.ScopedToken
+	scoped     *joiningv1.ScopedToken
 	joinMethod types.JoinMethod
 	roles      types.SystemRoles
 }
@@ -151,7 +151,7 @@ func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Token{ScopedToken: token, joinMethod: joinMethod, roles: roles}, nil
+	return &Token{scoped: token, joinMethod: joinMethod, roles: roles}, nil
 }
 
 // GetName returns the name of a [joiningv1.ScopedToken].
@@ -160,7 +160,7 @@ func (t *Token) GetName() string {
 		return ""
 	}
 
-	return t.GetMetadata().GetName()
+	return t.scoped.GetMetadata().GetName()
 }
 
 // GetJoinMethod returns the cached [types.JoinMethod] generated when the
@@ -211,7 +211,7 @@ func (t *Token) GetSafeName() string {
 // Expiry returns the [time.Time] representing when the wrapped
 // [joiningv1.ScopedToken] will expire.
 func (t *Token) Expiry() time.Time {
-	expiry := t.GetMetadata().GetExpires()
+	expiry := t.scoped.GetMetadata().GetExpires()
 	if expiry == nil {
 		return time.Time{}
 	}
@@ -222,11 +222,16 @@ func (t *Token) Expiry() time.Time {
 // GetBotName returns the bot name configured on the wrapped
 // [joiningv1.ScopedToken], if there is one.
 func (t *Token) GetBotName() string {
-	return t.GetSpec().GetBotName()
+	return t.scoped.GetSpec().GetBotName()
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources
 // provisioned using the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetAssignedScope() string {
-	return t.GetSpec().GetAssignedScope()
+	return t.scoped.GetSpec().GetAssignedScope()
+}
+
+// GetAllowRules returns the list of allow rules.
+func (t *Token) GetAllowRules() []*types.TokenRule {
+	return nil
 }
