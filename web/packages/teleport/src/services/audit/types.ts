@@ -356,6 +356,7 @@ export const eventCodes = {
   SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
   SCIM_RESOURCE_LIST: 'TSCIM005I',
   SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
+  CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
 } as const;
 
 /**
@@ -2098,6 +2099,13 @@ export type RawEvents = {
   >;
   [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
     typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
+  >;
+   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
+    typeof eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE,
+    {
+     client_ip_restrictions: string,
+     success: boolean,
+    }
   >;
 };
 

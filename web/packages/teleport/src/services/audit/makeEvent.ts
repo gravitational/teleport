@@ -2401,6 +2401,13 @@ export const formatters: Formatters = {
     format: ({ integration, resource_type, teleport_id, external_id }) =>
       `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
+    type: 'cir.update',
+    desc: 'Client IP Restrictions update',
+    format: ({ user, client_ip_restrictions, success }) =>
+      success ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
+      : `User [${user}] has failed to update  Client IP Restrictions.`
+  },
 };
 
 const unknownFormatter = {

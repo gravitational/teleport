@@ -4890,6 +4890,7 @@ message OneOf {
     events.MCPSessionInvalidHTTPRequest MCPSessionInvalidHTTPRequest = 224;
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
+    events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
   }
 }
 
@@ -9121,4 +9122,44 @@ message SCIMResourceEvent {
   // Display is a human-readable name or identifier for the Teleport resource
   // affected by the event.
   string Display = 6 [(gogoproto.jsontag) = "display,omitempty"];
+}
+
+message ClientIPRestrictionsUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the operation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ClientIPRestrictions is the new allowlist
+  repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
 }
