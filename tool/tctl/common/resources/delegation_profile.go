@@ -52,7 +52,7 @@ type delegationProfileCollection struct {
 func (c *delegationProfileCollection) Resources() []types.Resource {
 	resources := make([]types.Resource, len(c.profiles))
 	for idx, profile := range c.profiles {
-		resources[idx] = types.Resource153ToLegacy(profile)
+		resources[idx] = types.ProtoResource153ToLegacy(profile)
 	}
 	return resources
 }
