@@ -18,12 +18,14 @@ package messages
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // Request is implemented by all join request messages.
@@ -379,6 +381,65 @@ type Certificates struct {
 	SSHCAKeys [][]byte
 }
 
+// GivingUpReason is the reason a client is giving up on a join attempt.
+type GivingUpReason int
+
+const (
+	// GivingUpReasonUnspecified is an unspecified reason.
+	GivingUpReasonUnspecified GivingUpReason = iota
+	// GivingUpReasonUnsupportedJoinMethod means the client does not support
+	// the join method sent by the server.
+	GivingUpReasonUnsupportedJoinMethod
+	// GivingUpReasonUnsupportedMessageType means the client can not handle a
+	// message type sent by the server.
+	GivingUpReasonUnsupportedMessageType
+	// GivingUpReasonChallengeSolutionFailed means the client failed to solve a
+	// challenge sent by the server.
+	GivingUpReasonChallengeSolutionFailed
+)
+
+// GivingUp should be sent by clients that fail to complete the join flow so
+// that the Auth service can log an informative error message.
+type GivingUp struct {
+	embedRequest
+
+	// Reason is the reason the client is giving up.
+	Reason GivingUpReason
+	// Msg is an error message related to the failure.
+	Msg string
+}
+
+// ClientGaveUpError is an error type returned when a client explicitly gave up
+// on a join attempt.
+type ClientGaveUpError struct {
+	// Reason is the reason the client is giving up.
+	Reason GivingUpReason
+	// Msg is an error message related to the failure.
+	Msg string
+}
+
+func (e *ClientGaveUpError) Error() string {
+	var msg strings.Builder
+	msg.WriteString("client gave up on join attempt: ")
+	switch e.Reason {
+	case GivingUpReasonUnspecified:
+		msg.WriteString("reason unspecified")
+	case GivingUpReasonUnsupportedJoinMethod:
+		msg.WriteString("unsupported join method")
+	case GivingUpReasonUnsupportedMessageType:
+		msg.WriteString("unsupported message type")
+	case GivingUpReasonChallengeSolutionFailed:
+		msg.WriteString("challenge solution failed")
+	default:
+		msg.WriteString("unhandled reason")
+	}
+	if e.Msg != "" {
+		msg.WriteString(": ")
+		msg.WriteString(joinutils.SanitizeUntrustedString(e.Msg))
+	}
+	return msg.String()
+}
+
 // ClientStream represents the client side of a join request stream.
 // It can send [Request]s and receive [Response]s.
 //
@@ -417,11 +478,15 @@ func RecvRequest[T Request](ss ServerStream) (T, error) {
 // AssertRequestType performs a type assertion on a request and returns an
 // appropriate error if the request has an unexpected type.
 func AssertRequestType[T Request](req Request) (T, error) {
-	// TODO(nklaassen): add ClientGivingUp request type and return an
-	// appropriate error here.
 	switch typedRequest := req.(type) {
 	case T:
 		return typedRequest, nil
+	case *GivingUp:
+		var nul T
+		return nul, trace.Wrap(&ClientGaveUpError{
+			Reason: typedRequest.Reason,
+			Msg:    typedRequest.Msg,
+		})
 	default:
 		var nul T
 		return nul, trace.BadParameter("expected client to send message of type %T, got %T", nul, req)
@@ -429,8 +494,9 @@ func AssertRequestType[T Request](req Request) (T, error) {
 }
 
 // RecvResponse calls [ClientStream.Recv] and asserts the expected type of
-// the received message, returning an appropriate error if the server sent a
-// message with an unexpected type.
+// the received message. If a message of any type other than T is received a
+// [GivingUp] message will be sent on the client stream and an error will be
+// returned.
 func RecvResponse[T Response](cs ClientStream) (T, error) {
 	var nul T
 	resp, err := cs.Recv()
@@ -439,7 +505,15 @@ func RecvResponse[T Response](cs ClientStream) (T, error) {
 	}
 	typedResp, ok := resp.(T)
 	if !ok {
-		return nul, trace.BadParameter("expected server to send message of type %T, got %T", nul, resp)
+		err = trace.Errorf("expected server to send message of type %T, got %T", nul, resp)
+		sendGivingUpErr := cs.Send(&GivingUp{
+			Reason: GivingUpReasonUnsupportedMessageType,
+			Msg:    err.Error(),
+		})
+		return nul, trace.NewAggregate(
+			err,
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 	return typedResp, nil
 }

@@ -127,9 +127,9 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	}
 	// Set any diagnostic info we can get from the ClientInit message.
 	diag.Set(func(i *diagnostic.Info) {
-		i.Role = clientInit.SystemRole
+		i.Role = joinutils.SanitizeUntrustedString(clientInit.SystemRole)
 		if clientInit.JoinMethod != nil {
-			i.RequestedJoinMethod = *clientInit.JoinMethod
+			i.RequestedJoinMethod = joinutils.SanitizeUntrustedString(*clientInit.JoinMethod)
 		}
 	})
 	if err := clientInit.Check(); err != nil {
@@ -559,7 +559,7 @@ func rawSSHPublicKeys(authorizedKeys [][]byte) ([][]byte, error) {
 func setDiagnosticClientParams(diag *diagnostic.Diagnostic, clientParams *messages.ClientParams) {
 	if clientParams.HostParams != nil {
 		diag.Set(func(i *diagnostic.Info) {
-			i.NodeName = clientParams.HostParams.HostName
+			i.NodeName = joinutils.SanitizeUntrustedString(clientParams.HostParams.HostName)
 		})
 	}
 }
