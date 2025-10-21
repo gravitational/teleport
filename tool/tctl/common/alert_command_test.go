@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
-	"github.com/stretchr/testify/require"
 )
 
 // TestAlertAcks tests formatting (json, yaml) for alerts ack add, alerts ack list.
