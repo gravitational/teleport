@@ -270,6 +270,7 @@ $ tctl alerts ack [<flags>] <id>
 | `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
 | `--clear` | none | | Clear an existing alert acknowledgement |
 | `--reason` | none | | The reason for suppressing this alert |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format |
 
 ### Examples
 
@@ -289,6 +290,18 @@ $ tctl alerts ack --clear upgrade-suggestion
 ## tctl alerts ack ls
 
 Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format |
+
+### Examples
 
 ```code
 $ tctl alerts ack ls
@@ -735,7 +748,7 @@ $ tctl create -f cluster.yaml
 Register a device.
 
 ```code
-$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
+$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER [<flags>]
 ```
 
 ### Flags
@@ -745,6 +758,7 @@ $ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
 | `--os` | none | `linux`, `macos`, `windows` | Device operating system |
 | `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
 | `--enroll` | false | boolean | If set, creates a device enrollment token |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format |
 
 ### Examples
 
@@ -792,8 +806,14 @@ tsh device enroll --token=(=devicetrust.enroll_token=)
 List registered devices.
 
 ```code
-$ tctl devices ls
+$ tctl devices ls [<flags>]
 ```
+
+### Flags
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format |
+
 
 ### Examples
 
