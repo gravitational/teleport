@@ -141,7 +141,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindSessionRecordingConfig:      rc.createSessionRecordingConfig,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindUIConfig:                    rc.createUIConfig,
-		types.KindLock:                        rc.createLock,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindApp:                         rc.createApp,
 		types.KindAppServer:                   rc.createAppServer,
@@ -768,32 +767,6 @@ func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, clien
 		}
 		fmt.Printf("External Audit Storage configuration has been created\n")
 	}
-	return nil
-}
-
-// createLock implements `tctl create lock.yaml` command.
-func (rc *ResourceCommand) createLock(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	lock, err := services.UnmarshalLock(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check if a lock of the name already exists.
-	name := lock.GetName()
-	_, err = client.GetLock(ctx, name)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	exists := (err == nil)
-	if !rc.force && exists {
-		return trace.AlreadyExists("lock %q already exists", name)
-	}
-
-	if err := client.UpsertLock(ctx, lock); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("lock %q has been %s\n", name, UpsertVerb(exists, rc.force))
 	return nil
 }
 
@@ -1599,15 +1572,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			}
 			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
 		}
-	case types.KindLock:
-		name := rc.ref.Name
-		if rc.ref.SubKind != "" {
-			name = rc.ref.SubKind + "/" + name
-		}
-		if err = client.DeleteLock(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("lock %q has been deleted\n", name)
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -2202,23 +2166,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &recConfigCollection{recConfig}, nil
-	case types.KindLock:
-		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx, false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &lockCollection{locks: locks}, nil
-		}
-		name := rc.ref.Name
-		if rc.ref.SubKind != "" {
-			name = rc.ref.SubKind + "/" + name
-		}
-		lock, err := client.GetLock(ctx, name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &lockCollection{locks: []types.Lock{lock}}, nil
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
 		if err != nil {

@@ -30,6 +30,7 @@ import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
   getBotInstanceError,
+  getBotInstanceMetricsSuccess,
   getBotInstanceSuccess,
   listBotInstancesError,
   listBotInstancesForever,
@@ -50,7 +51,7 @@ type Story = StoryObj<typeof meta>;
 
 export default meta;
 
-const listBotInstancesSuccessHandler = listBotInstancesSuccess({
+const listBotInstances = {
   bot_instances: [
     {
       bot_name: 'ansible-worker',
@@ -94,13 +95,14 @@ const listBotInstancesSuccessHandler = listBotInstancesSuccess({
     },
   ],
   next_page_token: '',
-});
+};
 
 export const Happy: Story = {
   parameters: {
     msw: {
       handlers: [
-        listBotInstancesSuccessHandler,
+        listBotInstancesSuccess(listBotInstances, 'v1'),
+        listBotInstancesSuccess(listBotInstances, 'v2'),
         getBotInstanceSuccess({
           bot_instance: {
             spec: {
@@ -109,6 +111,7 @@ export const Happy: Story = {
           },
           yaml: 'kind: bot_instance\nversion: v1\n',
         }),
+        getBotInstanceMetricsSuccess(),
       ],
     },
   },
@@ -117,7 +120,10 @@ export const Happy: Story = {
 export const ErrorLoadingList: Story = {
   parameters: {
     msw: {
-      handlers: [listBotInstancesError(500, 'something went wrong')],
+      handlers: [
+        listBotInstancesError(500, 'something went wrong'),
+        getBotInstanceMetricsSuccess(),
+      ],
     },
   },
 };
@@ -125,7 +131,7 @@ export const ErrorLoadingList: Story = {
 export const StillLoadingList: Story = {
   parameters: {
     msw: {
-      handlers: [listBotInstancesForever()],
+      handlers: [listBotInstancesForever(), getBotInstanceMetricsSuccess()],
     },
   },
 };
@@ -141,6 +147,7 @@ export const NoListPermission: Story = {
           500,
           'this call should never be made without permissions'
         ),
+        getBotInstanceMetricsSuccess(),
       ],
     },
   },
@@ -153,11 +160,13 @@ export const NoReadPermission: Story = {
   parameters: {
     msw: {
       handlers: [
-        listBotInstancesSuccessHandler,
+        listBotInstancesSuccess(listBotInstances, 'v1'),
+        listBotInstancesSuccess(listBotInstances, 'v2'),
         getBotInstanceError(
           500,
           'this call should never be made without permissions'
         ),
+        getBotInstanceMetricsSuccess(),
       ],
     },
   },

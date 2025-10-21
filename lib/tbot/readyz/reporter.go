@@ -32,6 +32,7 @@ type Reporter interface {
 type reporter struct {
 	mu     *sync.Mutex
 	status *ServiceStatus
+	notify func()
 }
 
 func (r *reporter) Report(status Status) {
@@ -44,6 +45,7 @@ func (r *reporter) ReportReason(status Status, reason string) {
 
 	r.status.Status = status
 	r.status.Reason = reason
+	r.notify()
 }
 
 // NoopReporter returns a no-op Reporter that can be used when no real reporter
