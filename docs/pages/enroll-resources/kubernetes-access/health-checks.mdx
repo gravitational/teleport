@@ -8,7 +8,7 @@ tags:
 - infrastructure-identity
 ---
 
-This documentation provides an overview of health checks to Kubernetes clusters with Teleport. Teleport Kubernetes Service instances periodically check the connectivity and permissions of enrolled Kubernetes clusters, and is available in Teleport version `18.3.0` and later.
+This documentation provides an overview of health checks to Kubernetes clusters with Teleport. Teleport Kubernetes Service instances periodically check the connectivity and permissions of enrolled Kubernetes clusters, and is available in Teleport version (= kubernetes.health_check_min_version =) and later.
 
 ## Why check the health of a Kubernetes cluster?
 
@@ -39,7 +39,7 @@ A Kubernetes cluster is in a `healthy`, `unhealthy`, or `unknown` state.
 `unknown` Kubernetes clusters may be unhealthy.
 
 `unknown` Kubernetes clusters are not checked for health due to:
-- Running a pre-`18.3.0` version of Teleport Kubernetes Service
+- Running a pre-(= kubernetes.health_check_min_version =) version of Teleport Kubernetes Service instances
 - Explicitly configuring `health_check_config` labels to exclude a Kubernetes cluster
 </Admonition>
 
@@ -109,6 +109,8 @@ teleport_resources_health_status_unhealthy{type="kubernetes"} 3
 teleport_resources_health_status_unknown{type="kubernetes"} 25
 ```
 
+Diagnostic endpoint metrics are disabled by default. See [Monitoring your Teleport deployment](../../pages/zero-trust-access/management/diagnostics/diagnostics.mdx) to learn how to enable diagnostic metrics.
+
 ## Configuring health checks
 
 The Teleport `tctl` CLI tool enables reading, adding, editing, and deleting `health_check_config` resources.
@@ -154,7 +156,7 @@ spec:
     kubernetes_labels_expression: 'labels["owner"] == "platform-team"'
 ```
 
-The default_kube `health_check_config` enables all Kubernetes clusters to participate in health checks from version `18.3.0` onward.
+A `default_kube` `health_check_config` is introduced in version (= kubernetes.health_check_min_version =), and enables all Kubernetes clusters to participate in health checks.
 ```yaml
 kind: health_check_config
 metadata:
@@ -170,6 +172,8 @@ spec:
       - '*'
 version: v1
 ```
+
+A different `default` `health_check_config` also exists, and focuses on matching databases for health checks.
 
 Multiple different `health_check_config` resources may be created for different groups of Kubernetes clusters. When multiple `health_check_config` match the same Kubernetes cluster, configs are sorted in ascending order by name, and only the first config applies (e.g., the name "00-my-config" has greater precedence than "10-my-config").
 
@@ -195,7 +199,7 @@ Delete a health check config with `tctl rm`:
 $ tctl rm health_check_config/example
 ```
 
-Teleport Kubernetes Services are notified of changes to `health_check_config`, and reevaluate whether a Kubernetes cluster participates in health checks, applying any changes.
+Teleport Kubernetes Service instances are notified of changes to `health_check_config`, and reevaluate whether a Kubernetes cluster participates in health checks, applying any changes.
 
 ## FAQ
 
@@ -208,6 +212,7 @@ Clicking a highlighted Kubernetes cluster shows details of an unhealthy Kubernet
 ![Kubernetes health warning in the UI](../../../img/resource-health-check/kubernetes-health-warning.png)
 
 It may take approximately `5m` for a health change to be reported.
+{/* TODO(gavin): delete this line when we fix health status reporting delay */}
 
 Click the circular arrow refresh icon to get the latest health status. 
 
@@ -265,7 +270,7 @@ Only the quantity of unhealthy Kubernetes clusters are available from metrics.
 
 No additional configuration is needed.
 
-Health-based connection routing is automatic when multiple Teleport Kubernetes Services are proxying to the same Kubernetes cluster.
+Health-based connection routing is automatic when multiple Teleport Kubernetes Service instances are proxying to the same Kubernetes cluster.
 
-Configuring high-availability with multiple Teleport Kubernetes Services proxying the same Kubernetes cluster would be needed.
+Configuring high-availability with multiple Teleport Kubernetes Service instances proxying the same Kubernetes cluster would be needed.
 
