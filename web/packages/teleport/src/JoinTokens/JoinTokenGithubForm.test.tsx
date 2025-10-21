@@ -26,11 +26,14 @@ import Validation, { useValidation } from 'shared/components/Validation';
 import { ThemeProvider } from 'teleport/ThemeProvider';
 
 import { JoinTokenGithubForm } from './JoinTokenGithubForm';
-import { NewJoinTokenState } from './UpsertJoinTokenDialog';
+import {
+  NewJoinTokenGithubStateRule,
+  NewJoinTokenState,
+} from './UpsertJoinTokenDialog';
 
 const populateRuleFieldTest =
   (
-    field: keyof NewJoinTokenState['github']['rules'][number],
+    field: keyof NewJoinTokenGithubStateRule,
     placeholer: string,
     value: string
   ) =>
@@ -56,7 +59,7 @@ const populateRuleFieldTest =
       baseState({
         rules: [
           {
-            ...state.github.rules[0],
+            ...state.github?.rules?.[0],
             [field]: value,
           },
         ],
@@ -70,7 +73,7 @@ const populateFieldTest =
     placeholer,
     value,
   }: {
-    field: keyof NewJoinTokenState['github'];
+    field: keyof NonNullable<NewJoinTokenState['github']>;
     placeholer: string;
     value: string;
   }) =>
@@ -121,7 +124,7 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
         rules: [
-          ...state.github.rules,
+          ...(state.github?.rules ?? []),
           {
             ref_type: 'any',
           },
@@ -185,7 +188,7 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: [state.github.rules[0]],
+        rules: state.github?.rules ? [state.github.rules[0]] : [],
       })
     );
   });
@@ -305,12 +308,14 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: [
-          {
-            ...state.github.rules[0],
-            ref_type: 'branch',
-          },
-        ],
+        rules: state.github?.rules
+          ? [
+              {
+                ...state.github.rules[0],
+                ref_type: 'branch',
+              },
+            ]
+          : [],
       })
     );
   });
