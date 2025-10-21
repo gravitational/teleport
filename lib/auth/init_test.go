@@ -1021,18 +1021,25 @@ func TestPresets(t *testing.T) {
 		as.SetClock(clock)
 
 		// an existing health check config should not be modified by init
-		cfg := services.NewPresetHealthCheckConfigDB()
-		cfg.Spec.Interval = durationpb.New(42 * time.Second)
-		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
+		cfgDB := services.NewPresetHealthCheckConfigDB()
+		cfgDB.Spec.Interval = durationpb.New(42 * time.Second)
+		cfgDB, err := as.CreateHealthCheckConfig(ctx, cfgDB)
+		require.NoError(t, err)
+		cfgKube := services.NewPresetHealthCheckConfigKube()
+		cfgKube.Spec.Interval = durationpb.New(42 * time.Second)
+		cfgKube, err = as.CreateHealthCheckConfig(ctx, cfgKube)
 		require.NoError(t, err)
 
 		err = auth.CreatePresetHealthCheckConfigs(ctx, as)
 		require.NoError(t, err)
 
 		// Preset was created. Ensure it didn't overwrite the existing config
-		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
+		gotDB, err := as.GetHealthCheckConfig(ctx, cfgDB.GetMetadata().GetName())
 		require.NoError(t, err)
-		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
+		require.Equal(t, cfgDB.Spec.Interval.AsDuration(), gotDB.Spec.Interval.AsDuration())
+		gotKube, err := as.GetHealthCheckConfig(ctx, cfgKube.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Equal(t, cfgKube.Spec.Interval.AsDuration(), gotKube.Spec.Interval.AsDuration())
 	})
 
 	t.Run("AddAllHealthCheckConfigs", func(t *testing.T) {
