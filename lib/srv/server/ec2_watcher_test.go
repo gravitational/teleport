@@ -276,9 +276,11 @@ func TestEC2Watcher(t *testing.T) {
 		"alternate-role-arn": &altAccountOutput,
 	})
 
-	const noDiscoveryConfig = ""
 	fetchersFn := func() []Fetcher {
-		fetchers, err := matchersToEC2InstanceFetchers(t.Context(), matchers, getClient, noDiscoveryConfig)
+		fetchers, err := matchersToEC2InstanceFetchers(MatcherToEC2FetcherParams{
+			Matchers:        matchers,
+			PublicProxyAddr: "proxy.example.com:3080",
+		}, getClient)
 		require.NoError(t, err)
 
 		return fetchers
@@ -345,7 +347,10 @@ func TestMatchersToEC2InstanceFetchers(t *testing.T) {
 		SSM:     &types.AWSSSM{},
 	}}
 
-	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), matchers, ec2ClientGetter, "")
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers:        matchers,
+		EC2ClientGetter: ec2ClientGetter,
+	})
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 }
@@ -503,6 +508,91 @@ func TestToEC2Instances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ToEC2Instances(tt.input)
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestSSMRunCommandParameters(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		cfg            ec2FetcherConfig
+		expectedParams map[string]string
+	}{
+		{
+			name: "using custom ssm document",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document: "TeleportDiscoveryInstaller",
+			},
+			expectedParams: map[string]string{
+				"token":      "my-token",
+				"scriptName": "default-installer",
+			},
+		},
+		{
+			name: "using custom ssm document without agentless install",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: false,
+						JoinToken:       "my-token",
+						ScriptName:      "default-agentless-installer",
+						SSHDConfig:      "/etc/ssh/sshd_config",
+					},
+				},
+				Document: "TeleportDiscoveryInstaller",
+			},
+			expectedParams: map[string]string{
+				"token":          "my-token",
+				"scriptName":     "default-agentless-installer",
+				"sshdConfigPath": "/etc/ssh/sshd_config",
+			},
+		},
+		{
+			name: "using pre-defined AWS document",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document:        "AWS-RunShellScript",
+				ProxyPublicAddr: "proxy.example.com",
+			},
+			expectedParams: map[string]string{
+				"commands": "curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+			},
+		},
+		{
+			name: "using pre-defined AWS document with env vars defined",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document:        "AWS-RunShellScript",
+				ProxyPublicAddr: "proxy.example.com",
+				InstallSuffix:   "cluster-green",
+			},
+			expectedParams: map[string]string{
+				"commands": "export TELEPORT_INSTALL_SUFFIX=cluster-green; curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ssmRunCommandParameters(tt.cfg)
+			require.Equal(t, tt.expectedParams, got)
 		})
 	}
 }
