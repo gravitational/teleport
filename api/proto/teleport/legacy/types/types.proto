@@ -6273,7 +6273,7 @@ message LockFilter {
   // Targets is a list of targets. Every returned lock must match at least
   // one of the targets.
   repeated LockTarget targets = 1;
-  // InForceOnly specifies whether to return only those locks that are in force.
+  // InForceOnly specifies whether to return active locks only.
   bool in_force_only = 2;
 }
 

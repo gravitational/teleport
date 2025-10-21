@@ -15916,7 +15916,7 @@ type LockFilter struct {
 	// Targets is a list of targets. Every returned lock must match at least
 	// one of the targets.
 	Targets []*LockTarget `protobuf:"bytes,1,rep,name=targets,proto3" json:"targets,omitempty"`
-	// InForceOnly specifies whether to return only those locks that are in force.
+	// InForceOnly specifies whether to return active locks only.
 	InForceOnly          bool     `protobuf:"varint,2,opt,name=in_force_only,json=inForceOnly,proto3" json:"in_force_only,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
