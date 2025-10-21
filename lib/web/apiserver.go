@@ -1668,6 +1668,16 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
 		Edition:           modules.GetModules().BuildType(),
 		FIPS:              modules.IsBoringBinary(),
+		GRPCClientLoadBalancerPolicy: webclient.GRPCClientLoadBalancerPolicy{
+			HealthCheckConfig: webclient.HealthCheckConfig{
+				ServiceName: "",
+			},
+			LoadBalancingConfig: []map[string]webclient.LoadBalancingConfig{
+				{
+					"teleport_pick_healthy": webclient.LoadBalancingConfig{},
+				},
+			},
+		},
 	}, nil
 }
 
