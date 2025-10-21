@@ -986,6 +986,9 @@ type IdentityService interface {
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets valid OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 	// CreateOIDCAuthRequest creates OIDCAuthRequest

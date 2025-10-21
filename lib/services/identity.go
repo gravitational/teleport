@@ -188,6 +188,9 @@ type Identity interface {
 	// GetOIDCConnectors returns valid registered connectors, withSecrets adds or removes client secret from return
 	// results.  Invalid Connectors are simply logged but errors are not forwarded.
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
 
 	// CreateOIDCAuthRequest creates new auth request
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error
