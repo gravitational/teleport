@@ -1196,10 +1196,12 @@ proxy_command:
 #
 # If unspecified, proxy templates will not be used.
 proxy_templates_path: /etc/my-proxy-templates.yaml
-# relay_server, if set, specifies the address of the Relay service that should be
-# used to connect to SSH servers, instead of connecting through the Teleport
-# control plane. If set, only SSH servers that are available through the specified
-# Relay will be reachable, and no connections will go through the control plane.
+# relay_server specifies the Relay service address that tbot should use to route
+# SSH traffic instead of going through the Teleport control plane. When set, all
+# SSH connections are sent via this Relay; only servers reachable through the
+# specified Relay will be accessible and tbot will not fall back to the control
+# plane. Provide either a hostname or host:port (e.g. relay.example.com or
+# relay.example.com:443).
 #
 # Use of the relay_server option requires `tbot` 18.3.0 or later.
 relay_server: relay.example.com
