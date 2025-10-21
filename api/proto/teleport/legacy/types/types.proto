@@ -242,6 +242,11 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 14;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 15;
 }
 
 // DatabaseServerStatusV3 is the database server status.
@@ -1044,6 +1049,11 @@ message AppServerSpecV3 {
   AppV3 App = 5 [(gogoproto.jsontag) = "app"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 7;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 8;
 }
 
 // AppV3List represents a list of app resources.
@@ -5192,6 +5202,11 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 7;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 8;
 }
 
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
@@ -6327,6 +6342,11 @@ message WindowsDesktopServiceSpecV3 {
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 4 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 5;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 6;
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
