@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -454,6 +455,10 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 			a.handleJoinFailure(ctx, err, provisionToken, nil, joinRequest)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	cfg := &azureRegisterConfig{}
 	for _, opt := range opts {

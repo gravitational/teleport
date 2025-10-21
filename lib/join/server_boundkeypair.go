@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 )
 
 // handleBoundKeypairJoin handles join attempts for the bound keypair join
@@ -148,6 +149,10 @@ func AdaptRegisterUsingBoundKeypairMethod(
 			handleJoinFailure(ctx, a, diag)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	// Construct an [authz.Context] to pass to HandleBoundKeypairJoin.
 	authCtx := &authz.Context{

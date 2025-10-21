@@ -24,6 +24,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"os"
 	"slices"
 	"time"
 
@@ -37,6 +38,17 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// Disabled returns true if the legacy join service is disabled in this environment.
+func Disabled() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_NO_AGENT_ID_SELECTION") != ""
+}
+
+// ErrDisabled is an error that will be returned of all legacy join RPCs when
+// Disabled returns true.
+var ErrDisabled = &trace.AccessDeniedError{
+	Message: "legacy join service has been disabled in this environment",
+}
 
 const (
 	joinRequestTimeout = time.Minute
