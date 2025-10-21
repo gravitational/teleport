@@ -1,6 +1,6 @@
 ---
 title: Teleport Relay Service
-description: Architecture of Teleport's relay service
+description: Architecture of Teleport's Relay service
 tags:
  - conceptual
  - platform-wide
@@ -28,7 +28,7 @@ The Teleport Relay service is intended for specific scenarios where clients and 
 
 A Relay service deployment consists of one or more Relay instances configured with the same Relay group name, reachable by Teleport agents and clients through a L4 network load balancer. Relay instances of the same group receive connections from agents and clients through the load balancer, and can connect to each other directly. Relay instances listen on two separate ports to serve connections from agents and clients, and a third listening port is used for direct connections from other Relay instances in the same group.
 
-The typical setup uses a load balancer serving the two ports, reachable at a single hostname, with port 3042 used by agents and port 443 used by clients, but it's possible to use different load balancers and hostnames for the client and agent ports if necessary. The listening port for connectivity between Relay instances does not make use of the load balancer, since each Relay instance might require connecting to specific other instances to serve connections; as such, the Relay service requires outbound connectivity from each Relay instance to its peers on that port.
+The typical setup uses a load balancer serving the two ports, reachable at a single hostname, with port 3042 used by agents and port 443 used by clients. However, it's possible to use different load balancers and hostnames for the client and agent ports if necessary. The listening port for connectivity between Relay instances does not make use of the load balancer, since each Relay instance might require connecting to specific other instances to serve connections; as such, the Relay service requires outbound connectivity from each Relay instance to its peers on that port.
 
 The `relay_service` section of the Teleport configuration file ([see reference](../deployment/config.mdx#relay-service)) defines both the network connectivity of the single Relay instance and the settings of the Relay group, which should be the same between all instances and will be fetched by agents as needed.
 
@@ -58,9 +58,21 @@ Use of the Relay service requires a desktop client (i.e. `tsh`) or the `ssh-mult
 
 When using `tsh`, it's possible to specify the `--relay` option (or the `TELEPORT_RELAY` environment variable) with the hostname and port of the load balancer for the port used by clients; if a port is not specified, the default is taken to be port 443. The load balancer for the client port of the Relay service can employ any routing strategy, since all Relay instances are going to serve client connections equally.
 
-When specifying `--relay` at `tsh login` time, the configured Relay address is stored in the `tsh` profile configuration and will then be used for all later invocations unless overridden. It's possible to configure a default Relay address on a per-user basis in the `default_relay_addr` user trait, which can be directly specified for each [local user](../../zero-trust-access/management/admin/users.mdx), passed by the SSO provider for [SSO users](../../zero-trust-access/sso/sso.mdx), granted through an [Access List](../../identity-governance/access-lists/access-lists.mdx), or added by a [Login Rule](../../zero-trust-access/authentication/login-rules/login-rules.mdx).
+When you specify `--relay` at `tsh login` time, the configured Relay address is saved in your `tsh` profile configuration. This address will be used for all later invocations unless you override it.
 
-When using `tsh ssh`, if a Relay address was specified at login time or if `--relay` is passed in, the SSH connection will go through the specified Relay rather than going through the control plane. If an address was specified at login time, `--relay=none` will temporarily disable the use of the Relay service, and `--relay=default` will use the default Relay address for the user, even if a different address was specified at login time. When a Relay address is configured, only servers available through the Relay will be accessible, and no connection will go through the control plane.
+You can configure a default Relay address on a per-user basis using the `default_relay_addr` user trait. This trait can be set in several ways:
+
+- Directly for each [local user](../../zero-trust-access/management/admin/users.mdx)
+- Passed by the SSO provider for [SSO users](../../zero-trust-access/sso/sso.mdx)
+- Granted through an [Access List](../../identity-governance/access-lists/access-lists.mdx)
+- Added by a [Login Rule](../../zero-trust-access/authentication/login-rules/login-rules.mdx)
+
+When using `tsh ssh`:
+
+- If a Relay address was specified at login time or if you pass `--relay`, the SSH connection will go through the specified Relay instead of the control plane.
+- If an address was specified at login time, you can use `--relay=none` to temporarily disable the Relay service.
+- Use `--relay=default` to use the default Relay address for the user, even if a different address was specified at login time.
+- When a Relay address is configured, only servers available through the Relay will be accessible. No connection will go through the control plane.
 
 ```
 # specifying a relay address when logging in
