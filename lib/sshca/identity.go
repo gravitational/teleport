@@ -190,7 +190,7 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 
 	if i.AgentScope != "" {
-		cert.Permissions.Extensions[utils.CertExtensionAgentScope] = i.AgentScope
+		cert.Permissions.Extensions[teleport.CertExtensionAgentScope] = i.AgentScope
 	}
 
 	// --- user extensions ---
@@ -417,6 +417,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		ident.ScopePin = &pin
 	}
 
+	ident.AgentScope = takeValue(teleport.CertExtensionAgentScope)
 	ident.PermitX11Forwarding = takeBool(teleport.CertExtensionPermitX11Forwarding)
 	ident.PermitAgentForwarding = takeBool(teleport.CertExtensionPermitAgentForwarding)
 	ident.PermitPortForwarding = takeBool(teleport.CertExtensionPermitPortForwarding)

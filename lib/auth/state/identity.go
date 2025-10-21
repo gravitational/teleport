@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -332,7 +333,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
 	}
 
-	agentScope := cert.Permissions.Extensions[utils.CertExtensionAgentScope]
+	agentScope := cert.Permissions.Extensions[teleport.CertExtensionAgentScope]
 	return &Identity{
 		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
 		ClusterName: clusterName,

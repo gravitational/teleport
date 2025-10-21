@@ -498,9 +498,6 @@ const (
 	// CertExtensionAuthority specifies teleport authority's name
 	// that signed this domain
 	CertExtensionAuthority = "x-teleport-authority"
-	// CertExtensionAgentScope specifies the scope this certificate was issued
-	// for
-	CertExtensionAgentScope = "x-teleport-agent-scope"
 	// CertTeleportClusterName is a name of the teleport cluster
 	CertTeleportClusterName = "x-teleport-cluster-name"
 	// CertTeleportUserCertificate is the certificate of the authenticated in user.

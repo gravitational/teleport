@@ -88,6 +88,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 		DeviceCredentialID:     "cred",
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
+		AgentScope:             "/foo",
 	}
 
 	ignores := []string{
@@ -100,7 +101,6 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"ResourceID.XXX_NoUnkeyedLiteral",
 		"ResourceID.XXX_unrecognized",
 		"ResourceID.XXX_sizecache",
-		"Identity.AgentScope",
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))
