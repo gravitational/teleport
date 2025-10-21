@@ -12,7 +12,7 @@ All Teleport Relay service functionality is available starting from Teleport 18.
 
 </Admonition>
 
-The Relay service is an optional Teleport cluster component that can be used to provide an alternate connectivity path between clients and resources similarly to what the Proxy service does when forwarding connections to resources [through reverse tunnels](proxy.mdx#tunnels): Teleport agents can be configured to open tunnels to both the Teleport Proxy service and to the Relay service, and clients can be configured to use the Relay service when connecting to resources; the Relay service will then route and forward the connection between the client and the requested resource without passing the connection through the Proxy service.
+The Relay service is an optional component of a Teleport cluster that provides an alternative connectivity path between clients and resources. Similar to the Proxy service, it forwards connections to resources [through reverse tunnels](proxy.mdx#tunnels). However, unlike the Proxy service, the Relay service does not route connections through the Teleport control plane. Instead, it allows Teleport agents to open tunnels directly to the Relay service, enabling clients to connect to resources with lower latency and higher efficiency in specific network scenarios.
 
 This alternate connectivity is beneficial in situations where the client and the resource are known to be close together in a physical or logical sense (the same data center, office, campus, geographical region) and regular connections through the control plane would incur higher latency, lower throughput, or higher costs.
 
