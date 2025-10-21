@@ -503,7 +503,7 @@ func (a *Server) GenerateHostCertsForJoin(
 	}
 
 	// generate and return host certificate and keys
-	certs, err := a.generateHostCerts(ctx,
+	certs, err := a.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:               params.HostID,
 			NodeName:             params.HostName,

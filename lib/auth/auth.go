@@ -5101,7 +5101,9 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
-func (a *Server) generateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
+// GenerateHostCerts generates new host certificates (signed
+// by the host certificate authority) for a node.
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5297,12 +5299,6 @@ func (a *Server) generateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
-}
-
-// GenerateHostCerts generates new host certificates (signed
-// by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	return a.generateHostCerts(ctx, req, "")
 }
 
 // AssertSystemRole is used by agents to prove that they have a given system role when their credentials
