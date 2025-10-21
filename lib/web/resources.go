@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"iter"
 	"net/http"
 	"net/url"
 	"strings"
@@ -266,7 +267,15 @@ func ProcessDefaultConnector(ctx context.Context, clt authclient.ClientI, connec
 }
 
 func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	connectors, err := clt.GetGithubConnectors(ctx, true)
+	// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+	connectors, err := clientutils.CollectWithFallback(ctx,
+		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+			return clt.ListGithubConnectors(ctx, limit, start, true)
+		},
+		func(ctx context.Context) ([]types.GithubConnector, error) {
+			return clt.GetGithubConnectors(ctx, true)
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -678,6 +687,12 @@ type resourcesAPIGetter interface {
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
