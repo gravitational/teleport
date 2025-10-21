@@ -188,6 +188,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return trace.Wrap(err, "creating scoped token")
 	}
 
+	tokenName = tok.GetMetadata().GetName()
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
