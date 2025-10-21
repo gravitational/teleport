@@ -48,7 +48,7 @@ When an agent is configured to open tunnels to a given Relay group, it will peri
 
 Before a Relay instance shuts down, it will inform all connected agents that it's about to terminate, and agents will then open new tunnel connections to replace their existing connection, ideally maintaining availability throughout this process. Because of this, we recommend deploying new Relay instances before shutting down old ones, if possible. This is what will happen when deploying the Relay service through [the `teleport-relay` Helm chart](../helm-reference/teleport-relay.mdx). Running a fixed set of Relay instances can result in minor downtime when restarting instances.
 
-{/* TODO(espadolini): link appropriate deployment guides */}
+{/* TODO: link appropriate deployment guides */}
 
 When connected to a Relay group, Teleport agents will include the group name and the list of Relay instances that they have connected to in the heartbeat for their served resources. It's possible to see this by reading the appropriate resource heartbeat through `tctl` (e.g. `tctl get node/<host ID>`) or, for SSH servers, `tsh ls --format=json`. The list of Relay instance IDs is also used internally by the Relay service to route connections if an agent serving the requested resource is not connected to all Relay instances: in such a case, the Relay instance forwarding a connection from a client will pass the connection along to a Relay instance that has a tunnel from the agent serving the resource - this is the same mechanism used for connection routing in the control plane when using [Proxy Peering](../../zero-trust-access/management/operations/proxy-peering.mdx).
 
