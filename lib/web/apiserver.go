@@ -1658,17 +1658,9 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
-	return webclient.PingResponse{
-		Auth:              authSettings,
-		Proxy:             *proxyConfig,
-		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientSemVer().String(),
-		ClusterName:       h.auth.clusterName,
-		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:           modules.GetModules().BuildType(),
-		FIPS:              modules.IsBoringBinary(),
-		GRPCClientLoadBalancerPolicy: webclient.GRPCClientLoadBalancerPolicy{
+	var gRPCClientLoadBalancerPolicy webclient.GRPCClientLoadBalancerPolicy
+	if os.Getenv("TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY") != "" {
+		gRPCClientLoadBalancerPolicy = webclient.GRPCClientLoadBalancerPolicy{
 			HealthCheckConfig: webclient.HealthCheckConfig{
 				ServiceName: "",
 			},
@@ -1677,7 +1669,20 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 					"teleport_pick_healthy": webclient.LoadBalancingConfig{},
 				},
 			},
-		},
+		}
+	}
+
+	return webclient.PingResponse{
+		Auth:                         authSettings,
+		Proxy:                        *proxyConfig,
+		ServerVersion:                teleport.Version,
+		MinClientVersion:             teleport.MinClientSemVer().String(),
+		ClusterName:                  h.auth.clusterName,
+		AutomaticUpgrades:            pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:                   h.automaticUpdateSettings184(r.Context(), group, updaterID),
+		Edition:                      modules.GetModules().BuildType(),
+		FIPS:                         modules.IsBoringBinary(),
+		GRPCClientLoadBalancerPolicy: gRPCClientLoadBalancerPolicy,
 	}, nil
 }
 
