@@ -2777,6 +2777,31 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	}, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+func (g *GRPCServer) ListOIDCConnectors(ctx context.Context, req *authpb.ListOIDCConnectorsRequest) (*authpb.ListOIDCConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ocs, next, err := auth.ServerWithRoles.ListOIDCConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectors := make([]*types.OIDCConnectorV3, len(ocs))
+	for i, oc := range ocs {
+		var ok bool
+		if connectors[i], ok = oc.(*types.OIDCConnectorV3); !ok {
+			return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
+		}
+	}
+
+	return &authpb.ListOIDCConnectorsResponse{
+		Connectors:    connectors,
+		NextPageToken: next,
+	}, nil
+}
+
 // CreateOIDCConnector creates a new OIDC connector.
 func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -5852,6 +5877,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer:  cfg.Authorizer,
 		AuthService: cfg.AuthServer,
 		Clock:       cfg.AuthServer.clock,
+		FIPS:        cfg.AuthServer.fips,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

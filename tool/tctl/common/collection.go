@@ -40,12 +40,10 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -111,65 +109,6 @@ func printMetadataLabels(labels map[string]string) string {
 		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
 	}
 	return strings.Join(pairs, ",")
-}
-
-type serverCollection struct {
-	servers []types.Server
-}
-
-func (s *serverCollection) Resources() (r []types.Resource) {
-	for _, resource := range s.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (s *serverCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, se := range s.servers {
-		labels := common.FormatLabels(se.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
-		})
-	}
-	headers := []string{"Host", "UUID", "Public Address", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (s *serverCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, s.servers)
-}
-
-func (s *serverCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, s.servers)
-}
-
-type userCollection struct {
-	users []types.User
-}
-
-func (u *userCollection) Resources() (r []types.Resource) {
-	for _, resource := range u.users {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (u *userCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"User"})
-	for _, user := range u.users {
-		t.AddRow([]string{user.GetName()})
-	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
 }
 
 type authorityCollection struct {
@@ -708,66 +647,6 @@ func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
 }
 
-type databaseCollection struct {
-	databases []types.Database
-}
-
-func (c *databaseCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.databases {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *databaseCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, database := range c.databases {
-		labels := common.FormatLabels(database.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(database, verbose),
-			database.GetProtocol(),
-			database.GetURI(),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Protocol", "URI", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type lockCollection struct {
-	locks []types.Lock
-}
-
-func (c *lockCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.locks {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *lockCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"ID", "Target", "Message", "Expires"})
-	for _, lock := range c.locks {
-		target := lock.Target()
-		expires := "never"
-		if lock.LockExpiry() != nil {
-			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
-		}
-		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type windowsDesktopServiceCollection struct {
 	services []types.WindowsDesktopService
 }
@@ -1182,30 +1061,6 @@ func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) 
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type botCollection struct {
-	bots []*machineidv1pb.Bot
-}
-
-func (c *botCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.bots))
-	for i, b := range c.bots {
-		resources[i] = types.ProtoResource153ToLegacy(b)
-	}
-	return resources
-}
-
-func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Roles"})
-	for _, b := range c.bots {
-		t.AddRow([]string{
-			b.Metadata.Name,
-			strings.Join(b.Spec.Roles, ", "),
-		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1703,138 +1558,6 @@ func (c *pluginCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type botInstanceCollection struct {
-	items []*machineidv1pb.BotInstance
-}
-
-func (c *botInstanceCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.ProtoResource153ToLegacy(resource))
-	}
-	return r
-}
-
-func (c *botInstanceCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Bot Name", "Instance ID"}
-
-	// TODO: consider adding additional (possibly verbose) fields showing
-	// last heartbeat, last auth, etc.
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type spiffeFederationCollection struct {
-	items []*machineidv1pb.SPIFFEFederation
-}
-
-func (c *spiffeFederationCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
-	}
-	return r
-}
-
-func (c *spiffeFederationCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "Last synced at"}
-
-	var rows [][]string
-	for _, item := range c.items {
-		lastSynced := "never"
-		if t := item.GetStatus().GetCurrentBundleSyncedAt().AsTime(); !t.IsZero() {
-			lastSynced = t.Format(time.RFC3339)
-		}
-		rows = append(rows, []string{
-			item.Metadata.Name,
-			lastSynced,
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type workloadIdentityCollection struct {
-	items []*workloadidentityv1pb.WorkloadIdentity
-}
-
-func (c *workloadIdentityCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.ProtoResource153ToLegacy(resource))
-	}
-	return r
-}
-
-func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "SPIFFE ID"}
-
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{
-			item.Metadata.Name,
-			item.GetSpec().GetSpiffe().GetId(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type workloadIdentityX509RevocationCollection struct {
-	items []*workloadidentityv1pb.WorkloadIdentityX509Revocation
-}
-
-func (c *workloadIdentityX509RevocationCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.ProtoResource153ToLegacy(resource))
-	}
-	return r
-}
-
-func (c *workloadIdentityX509RevocationCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Serial", "Revoked At", "Expires At", "Reason"}
-
-	var rows [][]string
-	for _, item := range c.items {
-		expiryTime := item.GetMetadata().GetExpires().AsTime()
-		revokeTime := item.GetSpec().GetRevokedAt().AsTime()
-
-		rows = append(rows, []string{
-			item.Metadata.Name,
-			revokeTime.Format(time.RFC3339),
-			expiryTime.Format(time.RFC3339),
-			item.GetSpec().GetReason(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type staticHostUserCollection struct {
 	items []*userprovisioningpb.StaticHostUser
 }
@@ -2156,30 +1879,6 @@ func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type autoUpdateBotInstanceReportCollection struct {
-	report *autoupdatev1pb.AutoUpdateBotInstanceReport
-}
-
-func (c *autoUpdateBotInstanceReportCollection) Resources() []types.Resource {
-	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
-}
-
-func (c *autoUpdateBotInstanceReportCollection) WriteText(w io.Writer, _ bool) error {
-	t := asciitable.MakeTable([]string{"Update Group", "Version", "Count"})
-	for groupName, groupMetrics := range c.report.GetSpec().GetGroups() {
-		if groupName == "" {
-			groupName = "<no update group>"
-		}
-		for versionName, versionMetrics := range groupMetrics.GetVersions() {
-			t.AddRow([]string{groupName, versionName, strconv.Itoa(int(versionMetrics.Count))})
-		}
-	}
-	t.SortRowsBy([]int{0, 1}, true)
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
