@@ -100,17 +100,19 @@ type NewJoinTokenOracleState = {
 };
 
 type NewJoinTokenGithubState = {
-  server_host?: string;
-  static_jwks?: string | undefined;
-  enterprise_slug?: string | undefined;
-  rules: {
-    repository?: string;
-    repository_owner?: string | undefined;
-    workflow?: string | undefined;
-    environment?: string | undefined;
-    ref?: string;
-    ref_type?: 'any' | 'branch' | 'tag';
-  }[];
+  server_host?: string | null;
+  static_jwks?: string | null;
+  enterprise_slug?: string | null;
+  rules?: NewJoinTokenGithubStateRule[] | null;
+};
+
+export type NewJoinTokenGithubStateRule = {
+  repository?: string | null;
+  repository_owner?: string | null;
+  workflow?: string | null;
+  environment?: string | null;
+  ref?: string | null;
+  ref_type?: 'any' | 'branch' | 'tag' | null;
 };
 
 export type NewJoinTokenState = {
@@ -119,10 +121,10 @@ export type NewJoinTokenState = {
   bot_name?: string;
   method: OptionJoinMethod;
   roles: OptionJoinRole[];
-  iam: AWSRules[];
-  gcp: NewJoinTokenGCPState[];
-  oracle: NewJoinTokenOracleState[];
-  github: NewJoinTokenGithubState;
+  iam?: AWSRules[];
+  gcp?: NewJoinTokenGCPState[];
+  oracle?: NewJoinTokenOracleState[];
+  github?: NewJoinTokenGithubState;
 };
 
 export const defaultNewTokenState: NewJoinTokenState = {
@@ -134,11 +136,7 @@ export const defaultNewTokenState: NewJoinTokenState = {
   gcp: [{ project_ids: [], service_accounts: [], locations: [] }],
   oracle: [{ tenancy: '', parent_compartments: [], regions: [] }],
   github: {
-    rules: [
-      {
-        ref_type: 'any',
-      },
-    ],
+    rules: [{}],
   },
 };
 
@@ -167,10 +165,10 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
     })),
     github: token.github
       ? {
-          server_host: token.github.enterprise_server_host,
+          server_host: token.github.enterprise_server_host ?? undefined,
           enterprise_slug: token.github.enterprise_slug,
           static_jwks: token.github.static_jwks,
-          rules: token.github.allow.map(r => ({
+          rules: token.github.allow?.map(r => ({
             repository: r.repository,
             actor: r.actor,
             environment: r.environment,
@@ -184,7 +182,7 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
   };
 }
 
-function parseGithubRefType(refType: string) {
+function parseGithubRefType(refType: string | null | undefined) {
   if (refType == 'branch') {
     return 'branch';
   } else if (refType == 'tag') {
@@ -202,7 +200,7 @@ export const UpsertJoinTokenDialog = ({
 }: {
   onClose(): void;
   updateTokenList: (token: JoinToken) => void;
-  editToken?: JoinToken;
+  editToken: JoinToken | null;
   editTokenWithYAML: (tokenId: string) => void;
 }) => {
   const ctx = useTeleport();
@@ -307,36 +305,38 @@ export const UpsertJoinTokenDialog = ({
 
     if (newTokenState.method.value === 'gcp') {
       const gcp = {
-        allow: newTokenState.gcp.map(rule => ({
-          project_ids: rule.project_ids?.map(id => id.value),
-          locations: rule.locations?.map(loc => loc.value),
-          service_accounts: rule.service_accounts?.map(
-            account => account.value
-          ),
-        })),
+        allow:
+          newTokenState.gcp?.map(rule => ({
+            project_ids: rule.project_ids?.map(id => id.value),
+            locations: rule.locations?.map(loc => loc.value),
+            service_accounts: rule.service_accounts?.map(
+              account => account.value
+            ),
+          })) ?? [],
       };
       request.gcp = gcp;
     }
 
     if (newTokenState.method.value === 'oracle') {
       const oracle = {
-        allow: newTokenState.oracle.map(rule => ({
-          tenancy: rule.tenancy,
-          parent_compartments: rule.parent_compartments?.map(
-            compartment => compartment.value
-          ),
-          regions: rule.regions?.map(region => region.value),
-        })),
+        allow:
+          newTokenState.oracle?.map(rule => ({
+            tenancy: rule.tenancy,
+            parent_compartments: rule.parent_compartments?.map(
+              compartment => compartment.value
+            ),
+            regions: rule.regions?.map(region => region.value),
+          })) ?? [],
       };
       request.oracle = oracle;
     }
 
     if (newTokenState.method.value === 'github') {
       const github: (typeof request)['github'] = {
-        allow: newTokenState.github.rules.map(rule => ({
+        allow: newTokenState.github?.rules?.map(rule => ({
           environment: rule.environment,
           ref: rule.ref,
-          ref_type: rule.ref ? rule.ref_type : undefined,
+          ref_type: rule.ref_type,
           repository: rule.repository,
           repository_owner: rule.repository_owner,
           workflow: rule.workflow,
@@ -344,9 +344,9 @@ export const UpsertJoinTokenDialog = ({
           actor: null, // Unsupported field
           sub: null, // Unsupported field
         })),
-        enterprise_server_host: newTokenState.github.server_host,
-        enterprise_slug: newTokenState.github.enterprise_slug,
-        static_jwks: newTokenState.github.static_jwks,
+        enterprise_server_host: newTokenState.github?.server_host,
+        enterprise_slug: newTokenState.github?.enterprise_slug,
+        static_jwks: newTokenState.github?.static_jwks,
       };
 
       request.github = github;
@@ -430,7 +430,7 @@ export const UpsertJoinTokenDialog = ({
               )}
             </Flex>
 
-            {hasUnsupportedFields ? (
+            {hasUnsupportedFields && editToken ? (
               <Info alignItems="flex-start">
                 <Text>
                   This token has configuration that is not visible. To edit this
