@@ -507,7 +507,7 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 		Onboarding:      *onboarding,
 		InternalStorage: destination.NewMemory(),
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
+			trustBundleCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Listen: socketPath,
@@ -722,7 +722,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 		Onboarding:      *onboarding,
 		InternalStorage: destination.NewMemory(),
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
+			trustBundleCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Listen: socketPath,
