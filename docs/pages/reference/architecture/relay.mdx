@@ -58,6 +58,31 @@ When specifying `--relay` at `tsh login` time, the configured Relay address is s
 
 When using `tsh ssh`, if a Relay address was specified at login time or if `--relay` is passed in, the SSH connection will go through the specified Relay rather than going through the control plane. If an address was specified at login time, `--relay=none` will temporarily disable the use of the Relay service, and `--relay=default` will use the default Relay address for the user, even if a different address was specified at login time. When a Relay address is configured, only servers available through the Relay will be accessible, and no connection will go through the control plane.
 
+```
+# specifying a relay address when logging in
+$ tsh login --proxy proxy.example.com --relay relay.example.com
+...
+> Profile URL:        https://proxy.example.com:443
+  Relay address:      relay.example.com
+  Logged in as:       username
+  Cluster:            proxy.example.com
+  Roles:              access, auditor, editor
+  Logins:             root, ubuntu
+  Kubernetes:         enabled
+  Kubernetes groups:  system:masters
+  Valid until:        2025-10-22 00:48:07 +0200 CEST [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+# connections will use the relay by default
+$ tsh ssh root@nodename
+...
+# using a specific relay for a single connection
+$ tsh ssh --relay another-relay.example.com root@nodename
+...
+# using no relay
+$ tsh ssh --relay none root@nodename
+...
+```
+
 The [`ssh-multiplexer`](../machine-workload-identity/machine-id/configuration.mdx#ssh-multiplexer) Machine ID service can be configured to use a Relay. Similarly to the behavior of `tsh`, if a Relay address is set in the service configuration, only servers available through the Relay will be accessible. It's possible to provide access to servers through the Relay and through the control plane from the same Machine ID instance by configuring two independent `ssh-multiplexer` services.
 
 ## More concepts
