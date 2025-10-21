@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "16.5.19-dev.angel.1"
+const Version = "16.5.19-dev.angel.2"
 
 const VersionMajor = 16
 const VersionMinor = 5
 const VersionPatch = 19
-const VersionPreRelease = "dev.angel.1"
+const VersionPreRelease = "dev.angel.2"
 const VersionMetadata = ""
