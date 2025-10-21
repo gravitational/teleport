@@ -1658,9 +1658,9 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
-	var gRPCClientLoadBalancerPolicy webclient.GRPCClientLoadBalancerPolicy
+	var gRPCClientLoadBalancerPolicy *webclient.GRPCClientLoadBalancerPolicy
 	if os.Getenv("TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY") != "" {
-		gRPCClientLoadBalancerPolicy = webclient.GRPCClientLoadBalancerPolicy{
+		gRPCClientLoadBalancerPolicy = &webclient.GRPCClientLoadBalancerPolicy{
 			HealthCheckConfig: webclient.HealthCheckConfig{
 				ServiceName: "",
 			},

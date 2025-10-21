@@ -427,7 +427,7 @@ type PingResponse struct {
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 
-	GRPCClientLoadBalancerPolicy GRPCClientLoadBalancerPolicy `json:"grpc_client_load_balancer_policy"`
+	GRPCClientLoadBalancerPolicy *GRPCClientLoadBalancerPolicy `json:"grpc_client_load_balancer_policy,omitempty"`
 
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
