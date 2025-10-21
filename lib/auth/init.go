@@ -1490,10 +1490,6 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 // createPresetHealthCheckConfigs creates a preset health check config
 // for each resource using the healthcheck package.
 func createPresetHealthCheckConfigs(ctx context.Context, svc services.HealthCheckConfig) error {
-	// The choice to create a preset per-resource is motivated by:
-	// - Supporting existing Teleport clusters already using health checks with some resources
-	// - Avoiding migration of the backend database, which avoids downtime and headaches
-	// - Easing the adoption of health checks for new resources as they are developed over time
 
 	// Attempt to create each preset instead of loading all cfgs and checking existence.
 	// For cases of large quantities of cfgs, it's more efficient to attempt an insert.
