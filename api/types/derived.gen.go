@@ -389,7 +389,9 @@ func deriveTeleportEqual_16(this, that *KubernetesServerSpecV3) bool {
 			this.HostID == that.HostID &&
 			deriveTeleportEqual_34(&this.Rotation, &that.Rotation) &&
 			deriveTeleportEqualKubernetesClusterV3(this.Cluster, that.Cluster) &&
-			deriveTeleportEqual_22(this.ProxyIDs, that.ProxyIDs)
+			deriveTeleportEqual_22(this.ProxyIDs, that.ProxyIDs) &&
+			this.RelayGroup == that.RelayGroup &&
+			deriveTeleportEqual_22(this.RelayIds, that.RelayIds)
 }
 
 // deriveTeleportEqual_17 returns whether this and that are equal.
@@ -559,7 +561,9 @@ func deriveTeleportEqual_31(this, that *MongoAtlas) bool {
 func deriveTeleportEqual_32(this, that *OracleOptions) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			this.AuditUser == that.AuditUser
+			this.AuditUser == that.AuditUser &&
+			this.RetryCount == that.RetryCount &&
+			this.ShuffleHostnames == that.ShuffleHostnames
 }
 
 // deriveTeleportEqual_33 returns whether this and that are equal.

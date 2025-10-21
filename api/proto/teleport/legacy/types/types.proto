@@ -242,6 +242,11 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 14;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 15;
 }
 
 // DatabaseServerStatusV3 is the database server status.
@@ -362,11 +367,17 @@ message DatabaseAdminUser {
   string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
 }
 
-// OracleOptions contains information about privileged database user used
-// for database audit.
+// OracleOptions contains Oracle-specific configuration options.
 message OracleOptions {
-  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
-  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
+  // AuditUser is the name of the Oracle database user that should be used to access
+  // the internal audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user,omitempty"];
+  // RetryCount is the maximum number of times to retry connecting to a
+  // host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.
+  int32 RetryCount = 2 [(gogoproto.jsontag) = "retry_count,omitempty"];
+  // ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+  // the provided list.
+  bool ShuffleHostnames = 3 [(gogoproto.jsontag) = "shuffle_hostnames,omitempty"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -1038,6 +1049,11 @@ message AppServerSpecV3 {
   AppV3 App = 5 [(gogoproto.jsontag) = "app"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 7;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 8;
 }
 
 // AppV3List represents a list of app resources.
@@ -5189,6 +5205,11 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 7;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 8;
 }
 
 // KubernetesServerStatusV3 is the Kubernetes cluster status.
@@ -6331,6 +6352,11 @@ message WindowsDesktopServiceSpecV3 {
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 4 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 5;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 6;
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
@@ -9124,6 +9150,17 @@ message AccessGraphAWSSyncCloudTrailLogs {
   string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
 }
 
+// AccessGraphAWSSyncEKSAuditLogs defines the settings for ingesting Kubernetes apiserver
+// audit logs from EKS clusters.
+message AccessGraphAWSSyncEKSAuditLogs {
+  // The tags of EKS clusters for which apiserver audit logs should be fetched.
+  wrappers.LabelValues Tags = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -9134,6 +9171,7 @@ message AccessGraphAWSSync {
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
   // Configuration settings for collecting AWS CloudTrail logs via an SQS queue.
   AccessGraphAWSSyncCloudTrailLogs cloud_trail_logs = 5 [(gogoproto.jsontag) = "cloud_trail_logs,omitempty"];
+  AccessGraphAWSSyncEKSAuditLogs eks_audit_logs = 6 [(gogoproto.jsontag) = "eks_audit_logs,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

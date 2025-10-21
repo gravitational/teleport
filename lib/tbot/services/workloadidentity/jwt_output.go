@@ -42,7 +42,7 @@ func JWTOutputServiceBuilder(
 	trustBundleCache TrustBundleGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -54,11 +54,12 @@ func JWTOutputServiceBuilder(
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
 			trustBundleCache:          trustBundleCache,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(JWTOutputServiceType, cfg.Name, buildFn)
 }
 
 // JWTOutputService is a service that retrieves JWT workload identity
