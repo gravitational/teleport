@@ -185,6 +185,22 @@ export type GetBotInstanceResponseJoinAttrs = {
   } | null;
 };
 
+export type GetBotInstanceMetricsResponse = {
+  upgrade_statuses?: {
+    unsupported?: BotInstanceMetric | null;
+    patch_available?: BotInstanceMetric | null;
+    requires_upgrade?: BotInstanceMetric | null;
+    up_to_date?: BotInstanceMetric | null;
+    updated_at?: string;
+  } | null;
+  refresh_after_seconds: number;
+};
+
+type BotInstanceMetric = {
+  count?: number;
+  filter?: string;
+};
+
 export type BotList = {
   bots: FlatBot[];
 };

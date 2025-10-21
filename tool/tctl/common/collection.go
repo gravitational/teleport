@@ -113,65 +113,6 @@ func printMetadataLabels(labels map[string]string) string {
 	return strings.Join(pairs, ",")
 }
 
-type serverCollection struct {
-	servers []types.Server
-}
-
-func (s *serverCollection) Resources() (r []types.Resource) {
-	for _, resource := range s.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (s *serverCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, se := range s.servers {
-		labels := common.FormatLabels(se.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
-		})
-	}
-	headers := []string{"Host", "UUID", "Public Address", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (s *serverCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, s.servers)
-}
-
-func (s *serverCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, s.servers)
-}
-
-type userCollection struct {
-	users []types.User
-}
-
-func (u *userCollection) Resources() (r []types.Resource) {
-	for _, resource := range u.users {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (u *userCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"User"})
-	for _, user := range u.users {
-		t.AddRow([]string{user.GetName()})
-	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
-}
-
 type authorityCollection struct {
 	cas []types.CertAuthority
 }
@@ -706,66 +647,6 @@ func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
-}
-
-type databaseCollection struct {
-	databases []types.Database
-}
-
-func (c *databaseCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.databases {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *databaseCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, database := range c.databases {
-		labels := common.FormatLabels(database.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(database, verbose),
-			database.GetProtocol(),
-			database.GetURI(),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Protocol", "URI", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type lockCollection struct {
-	locks []types.Lock
-}
-
-func (c *lockCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.locks {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *lockCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"ID", "Target", "Message", "Expires"})
-	for _, lock := range c.locks {
-		target := lock.Target()
-		expires := "never"
-		if lock.LockExpiry() != nil {
-			expires = apiutils.HumanTimeFormat(*lock.LockExpiry())
-		}
-		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type windowsDesktopServiceCollection struct {

@@ -77,14 +77,15 @@ func NewPingClient(ctx context.Context, req *AWSClientConfig) (PingClient, error
 // It returns a list of Roles Anywhere Profiles that are enabled.
 //
 // It will ignore any profile matching ignoredProfileARN.
-func Ping(ctx context.Context, clt PingClient, ignoredProfileARN string) (*PingResponse, error) {
+func Ping(ctx context.Context, clt PingClient, ignoredProfileARNs []string) (*PingResponse, error) {
 	var errs []error
 
 	profileCounter := 0
 	var nextToken *string
 	for {
 		listReq := listRolesAnywhereProfilesRequest{
-			nextPage: nextToken,
+			nextPage:           nextToken,
+			ignoredProfileARNs: ignoredProfileARNs,
 		}
 		profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, listReq)
 		if err != nil {
@@ -92,11 +93,8 @@ func Ping(ctx context.Context, clt PingClient, ignoredProfileARN string) (*PingR
 			break
 		}
 		for _, profile := range profiles {
-			// Ignore disabled profiles, profiles without assigned roles and the ignoreProfileARN.
-			if profile.Enabled &&
-				len(profile.Roles) > 0 &&
-				profile.Arn != ignoredProfileARN {
-
+			// Ignore disabled profiles and profiles without assigned roles.
+			if profile.Enabled && len(profile.Roles) > 0 {
 				profileCounter++
 			}
 		}

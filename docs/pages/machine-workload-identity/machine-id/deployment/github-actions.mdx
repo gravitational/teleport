@@ -257,7 +257,7 @@ Machine ID bot using the command `tsh ls`.
 
 ### Example: `teleport-actions/auth-k8s`
 
-The `teleport-actions/auth-k8s` action generates a Kubernetes output that
+The `teleport-actions/auth-k8s` action generates a Kubernetes output service that
 contains the necessary credentials and config for a Kubernetes client to connect
 to a Kubernetes cluster enrolled in Teleport. The action emits the necessary
 environment variable to automatically configure these clients.
@@ -377,8 +377,8 @@ onboarding:
 oneshot: true
 storage:
   type: memory
-# outputs will be filled in during the completion of an access guide.
-outputs: []
+# services will be filled in during the completion of an access guide.
+services: []
 ```
 
 Replace:
@@ -430,7 +430,7 @@ jobs:
 Add, commit, and push these two files to the repository. Check the GitHub
 Actions UI to ensure that the workflow has succeeded.
 
-(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+(!docs/pages/includes/machine-id/configure-services.mdx!)
 
 ## A note on security implications and risk
 

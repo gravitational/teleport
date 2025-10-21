@@ -36,9 +36,10 @@ import (
 
 // ServiceBuilder returns a builder for the diagnostics service.
 func ServiceBuilder(cfg Config) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		return NewService(cfg, deps.StatusRegistry)
 	}
+	return bot.NewServiceBuilder("internal/diagnostics", "diagnostics", buildFn)
 }
 
 // Config contains configuration for the diagnostics service.
@@ -59,7 +60,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 }
 
 // NewService creates a new diagnostics service.
-func NewService(cfg Config, registry *readyz.Registry) (*Service, error) {
+func NewService(cfg Config, registry readyz.ReadOnlyRegistry) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,7 +81,7 @@ type Service struct {
 	log            *slog.Logger
 	diagAddr       string
 	pprofEnabled   bool
-	statusRegistry *readyz.Registry
+	statusRegistry readyz.ReadOnlyRegistry
 }
 
 func (s *Service) String() string {
