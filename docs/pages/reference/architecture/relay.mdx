@@ -26,7 +26,11 @@ The Teleport Relay service is intended for specific scenarios where clients and 
 
 ## How it works
 
-A Relay service deployment consists of one or more Relay instances configured with the same Relay group name, reachable by Teleport agents and clients through a L4 network load balancer. Relay instances of the same group receive connections from agents and clients through the load balancer, and can connect to each other directly. Relay instances listen on two separate ports to serve connections from agents and clients, and it's possible to use different load balancers and hostnames if necessary. The typical setup uses a single load balancer serving the two ports, reachable at a single hostname, with port 3042 used by agents and port 443 used by clients.
+A Relay service deployment consists of one or more Relay instances configured with the same Relay group name, reachable by Teleport agents and clients through a L4 network load balancer. Relay instances of the same group receive connections from agents and clients through the load balancer, and can connect to each other directly. Relay instances listen on two separate ports to serve connections from agents and clients, and a third listening port is used for direct connections between Relay instances.
+
+The typical setup uses a load balancer serving the two ports, reachable at a single hostname, with port 3042 used by agents and port 443 used by clients, but it's possible to use different load balancers and hostnames for the client and agent ports if necessary. The listening port for connectivity between Relay instances does not make use of the load balancer, since each Relay instance might require connecting to specific other instances to serve connections; as such, the Relay service requires outbound connectivity from each Relay instance to its peers on that port.
+
+The `relay_service` section of the Teleport configuration file ([see reference](../deployment/config.mdx#relay-service)) defines both the network connectivity of the single Relay instance and the settings of the Relay group, which should be the same between all instances and will be fetched by agents as needed.
 
 An agent can be configured to use a given Relay by adding the address of the load balancer to its `teleport.yaml` configuration file:
 
