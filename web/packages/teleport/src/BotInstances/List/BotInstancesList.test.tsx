@@ -220,6 +220,38 @@ describe('BotIntancesList', () => {
 
     expect(onSortChanged).toHaveBeenLastCalledWith('bot_name', 'ASC');
   });
+
+  describe('When filtering', () => {
+    it('Shows an alterate title', async () => {
+      renderComponent({
+        props: {
+          isFiltering: true,
+        },
+      });
+
+      expect(
+        screen.getByRole('heading', { name: 'Filtered Instances' })
+      ).toBeInTheDocument();
+    });
+
+    it('Shows an empty state', async () => {
+      renderComponent({
+        props: {
+          data: [],
+          isFiltering: true,
+        },
+      });
+
+      expect(
+        screen.getByText('No instances matching filter')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          'Bot instances are ephemeral, and disappear once all issued credentials have expired.'
+        )
+      ).not.toBeInTheDocument();
+    });
+  });
 });
 
 const renderComponent = (options?: {
@@ -238,6 +270,7 @@ const renderComponent = (options?: {
     onSortChanged = jest.fn(),
     onLoadNextPage = jest.fn(),
     onItemSelected = jest.fn(),
+    isFiltering = false,
   } = props ?? {};
 
   const user = userEvent.setup();
@@ -255,6 +288,7 @@ const renderComponent = (options?: {
         onSortChanged={onSortChanged}
         onLoadNextPage={onLoadNextPage}
         onItemSelected={onItemSelected}
+        isFiltering={isFiltering}
       />,
       {
         wrapper: makeWrapper(),

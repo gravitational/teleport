@@ -36,8 +36,12 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return boundKeypairInitToMessage(msg.BoundKeypairInit)
 	case *joinv1.JoinRequest_IamInit:
 		return iamInitToMessage(msg.IamInit)
+	case *joinv1.JoinRequest_Ec2Init:
+		return ec2InitToMessage(msg.Ec2Init)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
+	case *joinv1.JoinRequest_GivingUp:
+		return givingUpToMessage(msg.GivingUp), nil
 	default:
 		return nil, trace.BadParameter("unrecognized join request message type %T", msg)
 	}
@@ -83,6 +87,16 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 				IamInit: iamInit,
 			},
 		}, nil
+	case *messages.EC2Init:
+		ec2Init, err := ec2InitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_Ec2Init{
+				Ec2Init: ec2Init,
+			},
+		}, nil
 	case *messages.BoundKeypairChallengeSolution,
 		*messages.BoundKeypairRotationResponse,
 		*messages.IAMChallengeSolution:
@@ -93,6 +107,12 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 		return &joinv1.JoinRequest{
 			Payload: &joinv1.JoinRequest_Solution{
 				Solution: solution,
+			},
+		}, nil
+	case *messages.GivingUp:
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_GivingUp{
+				GivingUp: givingUpFromMessage(typedMsg),
 			},
 		}, nil
 	default:
@@ -444,5 +464,37 @@ func certificatesFromMessage(certs *messages.Certificates) *joinv1.Certificates 
 		TlsCaCerts: certs.TLSCACerts,
 		SshCert:    certs.SSHCert,
 		SshCaKeys:  certs.SSHCAKeys,
+	}
+}
+
+func givingUpToMessage(req *joinv1.GivingUp) *messages.GivingUp {
+	reason := messages.GivingUpReasonUnspecified
+	switch req.Reason {
+	case joinv1.GivingUp_REASON_UNSUPPORTED_JOIN_METHOD:
+		reason = messages.GivingUpReasonUnsupportedJoinMethod
+	case joinv1.GivingUp_REASON_UNSUPPORTED_MESSAGE_TYPE:
+		reason = messages.GivingUpReasonUnsupportedMessageType
+	case joinv1.GivingUp_REASON_CHALLENGE_SOLUTION_FAILED:
+		reason = messages.GivingUpReasonChallengeSolutionFailed
+	}
+	return &messages.GivingUp{
+		Reason: reason,
+		Msg:    req.Msg,
+	}
+}
+
+func givingUpFromMessage(msg *messages.GivingUp) *joinv1.GivingUp {
+	reason := joinv1.GivingUp_REASON_UNSPECIFIED
+	switch msg.Reason {
+	case messages.GivingUpReasonUnsupportedJoinMethod:
+		reason = joinv1.GivingUp_REASON_UNSUPPORTED_JOIN_METHOD
+	case messages.GivingUpReasonUnsupportedMessageType:
+		reason = joinv1.GivingUp_REASON_UNSUPPORTED_MESSAGE_TYPE
+	case messages.GivingUpReasonChallengeSolutionFailed:
+		reason = joinv1.GivingUp_REASON_CHALLENGE_SOLUTION_FAILED
+	}
+	return &joinv1.GivingUp{
+		Reason: reason,
+		Msg:    msg.Msg,
 	}
 }

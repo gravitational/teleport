@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1577,28 +1578,62 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.OIDCConnector
-	for _, item := range result.Items {
-		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeOIDCConnectors(ctx, "", "", withSecrets))
+}
+
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeOIDCConnectors(ctx, start, "", withSecrets), limit, types.OIDCConnector.GetName)
+}
+
+// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error] {
+	mapFn := func(item backend.Item) (types.OIDCConnector, bool) {
+		conn, err := services.UnmarshalOIDCConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling OIDC Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
 			conn.SetClientSecret("")
 			conn.SetGoogleServiceAccount("")
 		}
-		connectors = append(connectors, conn)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	connectorKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
+	startKey := connectorKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(connectorKey)
+	if end != "" {
+		endKey = connectorKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.OIDCConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		})
+
 }
 
 // CreateOIDCAuthRequest creates new auth request

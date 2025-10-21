@@ -106,6 +106,7 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestEventsClusterConfig", tt.suite.EventsClusterConfig)
 	t.Run("TestNetworkRestrictions", func(t *testing.T) { tt.suite.NetworkRestrictions(t) })
 	t.Run("TestOIDCCRUD", tt.suite.OIDCCRUD)
+	t.Run("TestOIDCPagination", tt.suite.OIDCPagination)
 }
 
 func TestSemaphore(t *testing.T) {

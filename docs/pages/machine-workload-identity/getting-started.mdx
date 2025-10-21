@@ -292,7 +292,7 @@ onboarding:
 certificate_ttl: 5m
 storage:
   type: memory
-outputs:
+services:
   - type: identity
     destination:
       type: directory
@@ -377,7 +377,7 @@ onboarding:
 certificate_ttl: 5m
 storage:
   type: memory
-outputs:
+services:
   - type: kubernetes/v2
     selectors:
       - name: my-kubernetes-cluster

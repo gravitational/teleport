@@ -250,6 +250,7 @@ type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
+	enableCache     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -272,6 +273,12 @@ func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	}
 }
 
+func withEnableCache(enableCache bool) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.enableCache = enableCache
+	}
+}
+
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -287,7 +294,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 		require.NoError(t, err)
 	}
 
-	cfg.CachePolicy.Enabled = false
+	cfg.CachePolicy.Enabled = options.enableCache
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {

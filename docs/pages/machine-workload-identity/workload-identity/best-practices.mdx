@@ -92,7 +92,7 @@ The SPIFFE SDKs are available in a number of languages:
 To configure the SPIFFE Workload API, follow the instructions in
 [Getting Started with Workload Identity](./getting-started.mdx).
 
-### Using the `spiffe-svid` Output
+### Using the `spiffe-svid` output service
 
 In cases where your workload is not written in a language that has a SPIFFE SDK,
 `tbot` can be configured to write the SVID, SVID key and trust bundle to files
@@ -103,7 +103,7 @@ trust bundle for mTLS. If the workload is long-running, it must watch these
 files and reload them when changes occur. This accounts for renewals of the
 short-lived SVID and CA rotations.
 
-To configure the `spiffe-svid` output type follow the instructions in
+To configure the `spiffe-svid` output service type follow the instructions in
 [Getting Started with Workload Identity](./getting-started.mdx).
 
 ### Proxy
