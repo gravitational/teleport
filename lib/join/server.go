@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
-	scopedjoining "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -102,6 +102,34 @@ func NewServer(cfg *ServerConfig) *Server {
 	}
 }
 
+// getProvisionToken attempts to resolve a name to a [provision.Token] by first attempting to
+// fetch a [joiningv1.ScopedToken] and then falling back to a [types.ProvisionTokenV2] if a
+// scoped token can not be found.
+func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
+	scoped, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name: name,
+	})
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			log.ErrorContext(ctx, "failed to fetch scoped token", "error", err)
+		}
+		// Fetch the provision token and validate that it is not expired.
+		provisionToken, err := s.cfg.AuthService.ValidateToken(ctx, name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return provisionToken, nil
+	}
+
+	token, err := joining.NewToken(scoped.GetToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
+}
+
 // Join implements cluster joining for nodes and bots.
 //
 // It returns credentials for a node or bot to join the Teleport cluster using
@@ -148,28 +176,9 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
-	var token provision.Token
-	scopedTokenRes, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-		Name: clientInit.TokenName,
-	})
+	token, err := s.getProvisionToken(ctx, clientInit.TokenName)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			log.ErrorContext(ctx, "failed to fetch scoped token", "error", err)
-		}
-
-		// Fetch the provision token and validate that it is not expired.
-		provisionToken, err := s.cfg.AuthService.ValidateToken(ctx, clientInit.TokenName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		token = provisionToken
-	}
-
-	if token == nil {
-		token, err = scopedjoining.NewToken(scopedTokenRes.GetToken())
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 
 	// Set any diagnostic info we can get from the token.

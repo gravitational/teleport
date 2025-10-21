@@ -67,6 +67,13 @@ func (s *Server) handleBoundKeypairJoin(
 	if clientInit.SystemRole != types.RoleBot.String() {
 		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
 	}
+
+	// Scoped tokens currently validate against being created with the bot role, but just in case
+	// we'll check and return a more helpful error message if one happens to make it through.
+	if token.GetAssignedScope() != "" {
+		return nil, trace.BadParameter("bound keypair joining is not supported by scoped tokens")
+	}
+
 	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
 	if err != nil {
 		return nil, trace.Wrap(err)
