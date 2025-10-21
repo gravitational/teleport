@@ -1,5 +1,30 @@
 # Changelog
 
+## 18.2.8 (10/20/25)
+
+This is a follow up to the private security release. Changelog will be publicly announced on 10/24/25.
+
+In addition to the previous release it includes the following bug fixes:
+
+* Fixed issue with access list ineligibility status reconciler blocking member updates.
+* Fixed issue with SSH host certificates missing the `<hostname>.<clustername>` principal, breaking SSH access via third-party clients.
+
+## 18.2.7 (10/09/25)
+
+This is a follow up to the private security release. Changelog will be publicly announced on 10/24/25.
+
+In addition to the previous release it includes the following bug fixes:
+
+* Fixed issue with automatic access requests for `tsh ssh` when `spec.allow.request.max_duration` is set on the requester role.
+
+## 18.2.6 (10/06/25)
+
+This is a follow up to the private security release. Changelog will be publicly announced on 10/24/25.
+
+## 18.2.5 (10/02/25)
+
+This is a private security release. Changelog will be publicly announced on 10/24/25.
+
 ## 18.2.4 (10/01/25)
 
 * Fixed an issue where the new SSH/Kubernetes recording player would indefinitely show a loading spinner when seeking into a long period of inactivity. [#59816](https://github.com/gravitational/teleport/pull/59816)
