@@ -165,12 +165,10 @@ by an attacker to DoS the service by flooding it with requests.
 
 Mitigations:
 
-1. Implement rate limiting on the `ValidateAuthenticateChallenge` RPC to prevent abuse. The rate limits will be
-   configurable based on deployment needs.
-1. Ensure that the Auth service validates the `MFAAuthenticateResponse` and `action_id` before processing the request to
-   avoid unnecessary processing of invalid requests.
 1. Only Teleport instances are authorized to call the `ValidateAuthenticateChallenge` RPC, requests from other sources
    will be rejected.
+1. Ensure that the Auth service validates the `MFAAuthenticateResponse` and `action_id` before processing the request to
+   avoid unnecessary processing of invalid requests.
 
 ### Privacy
 
