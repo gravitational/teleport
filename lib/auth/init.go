@@ -413,6 +413,9 @@ type InitConfig struct {
 
 	// ScopedAccess is a service that manages scoped access resources.
 	ScopedAccess services.ScopedAccess
+
+	// ScopedTokenService is a service that manages scoped join token resources.
+	ScopedTokenService services.ScopedTokenService
 }
 
 // Init instantiates and configures an instance of AuthServer
