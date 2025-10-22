@@ -136,7 +136,7 @@ func updateUser(ctx context.Context, client *authclient.Client, raw services.Unk
 	return nil
 }
 
-// deleteUser implements `tctl delete user/russell` command.
+// deleteUser implements `tctl rm user/russell` command.
 func deleteUser(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	if err := client.DeleteUser(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)

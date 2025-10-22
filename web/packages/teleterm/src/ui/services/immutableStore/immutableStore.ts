@@ -18,7 +18,7 @@
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 
-import { enableMapSet, produce } from 'immer';
+import { enableMapSet, produce, Producer } from 'immer';
 
 import stateLogger from 'shared/libs/stores/logger';
 import Store from 'shared/libs/stores/store';
@@ -31,7 +31,7 @@ export class ImmutableStore<T> extends Store<T> {
   protected logger = new Logger(this.constructor.name);
 
   // @ts-ignore
-  setState(nextState: (draftState: T) => T | void): void {
+  setState(nextState: Producer<T>): void {
     const prevState = this.state;
     this.state = produce(this.state, nextState);
     stateLogger.logState(this.constructor.name, prevState, 'with', this.state);

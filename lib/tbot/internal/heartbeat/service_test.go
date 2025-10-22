@@ -22,6 +22,7 @@ import (
 	"context"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -69,7 +71,9 @@ func TestHeartbeatService(t *testing.T) {
 		}
 
 		reg := readyz.NewRegistry()
-		svcA := reg.AddService("a")
+
+		svcA := reg.AddService("a", "a")
+		svcB := reg.AddService("b", strings.Repeat("b", 200))
 
 		svc, err := NewService(Config{
 			Interval:       time.Second,
@@ -78,7 +82,7 @@ func TestHeartbeatService(t *testing.T) {
 			StartedAt:      time.Now().Add(-1 * time.Hour),
 			Logger:         log,
 			JoinMethod:     types.JoinMethodGitHub,
-			StatusReporter: reg.AddService("heartbeat"),
+			StatusReporter: reg.AddService("internal/heartbeat", "heartbeat"),
 			StatusRegistry: reg,
 			BotKind:        machineidv1pb.BotKind_BOT_KIND_TBOT,
 		})
@@ -100,6 +104,7 @@ func TestHeartbeatService(t *testing.T) {
 		}
 
 		svcA.ReportReason(readyz.Unhealthy, "no more bananas")
+		svcB.ReportReason(readyz.Unhealthy, strings.Repeat("b", 300))
 
 		want := &machineidv1pb.SubmitHeartbeatRequest{
 			Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{
@@ -112,6 +117,35 @@ func TestHeartbeatService(t *testing.T) {
 				Os:           runtime.GOOS,
 				JoinMethod:   string(types.JoinMethodGitHub),
 				Kind:         machineidv1pb.BotKind_BOT_KIND_TBOT,
+			},
+			ServiceHealth: []*machineidv1pb.BotInstanceServiceHealth{
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: "a",
+						Type: "a",
+					},
+					Reason:    ptr("no more bananas"),
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					UpdatedAt: timestamppb.New(time.Now()),
+				},
+				// Check limits were applied on user-controlled or dynamic fields.
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: strings.Repeat("b", 64),
+						Type: "b",
+					},
+					Reason:    ptr(strings.Repeat("b", 256)),
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					UpdatedAt: timestamppb.New(time.Now()),
+				},
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: "heartbeat",
+						Type: "internal/heartbeat",
+					},
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+					UpdatedAt: timestamppb.New(time.Now()),
+				},
 			},
 		}
 
@@ -150,3 +184,5 @@ func TestHeartbeatService(t *testing.T) {
 		assert.NoError(t, <-errCh)
 	})
 }
+
+func ptr[T any](v T) *T { return &v }
