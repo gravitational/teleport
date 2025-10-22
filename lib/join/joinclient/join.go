@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"log/slog"
+	"os"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -32,6 +33,7 @@ import (
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -237,6 +239,8 @@ func joinWithMethod(
 	clientParams messages.ClientParams,
 	method string,
 ) (messages.Response, error) {
+	var err error
+
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
@@ -245,6 +249,10 @@ func joinWithMethod(
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEnv0:
+		joinParams.IDToken, err = env0.NewIDTokenSource(os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
