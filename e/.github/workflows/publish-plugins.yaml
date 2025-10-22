@@ -28,7 +28,7 @@ jobs:
   publish:
     # Larger runner is used for additional disk space, see
     # https://docs.github.com/en/enterprise-cloud@latest/actions/using-github-hosted-runners/using-larger-runners/about-larger-runners#specifications-for-general-larger-runners
-    runs-on: ubuntu-22.04-4core
+    runs-on: ubuntu-22.04-8core
     # Unfortunately this cannot be set as a global env var as they are not evaluated until runtime
     environment: ${{ inputs.environment }}
     permissions:
