@@ -156,8 +156,24 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 		return nil, trace.Wrap(err)
 	}
 
-	part := bytes.NewReader(req.Part)
-	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, part)
+	part := req.Part
+	if len(part) < events.MinUploadPartSizeBytes {
+		r := bytes.NewReader(part)
+
+		partHeader, err := events.ParsePartHeader(r)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse part header from upload part")
+		}
+
+		partHeader.PaddingSize += uint64(events.MinUploadPartSizeBytes - len(part))
+		paddedPart := make([]byte, events.MinUploadPartSizeBytes)
+		headerLen := copy(paddedPart, partHeader.Bytes())
+		copy(paddedPart[headerLen:], part[headerLen:])
+
+		part = paddedPart
+	}
+
+	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))
 	if err != nil {
 		return nil, trace.Wrap(err, "uploading encrypted recording part")
 	}

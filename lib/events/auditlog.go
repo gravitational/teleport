@@ -661,6 +661,22 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 			return trace.Wrap(err, "reserving upload part")
 		}
 
+		if len(part) < MinUploadPartSizeBytes {
+			r := bytes.NewReader(part)
+
+			partHeader, err := ParsePartHeader(r)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse part header from upload part")
+			}
+
+			partHeader.PaddingSize += uint64(MinUploadPartSizeBytes - len(part))
+			paddedPart := make([]byte, MinUploadPartSizeBytes)
+			headerLen := copy(paddedPart, partHeader.Bytes())
+			copy(paddedPart[headerLen:], part[headerLen:])
+
+			part = paddedPart
+		}
+
 		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
 		if err != nil {
 			return trace.Wrap(err, "uploading part")
