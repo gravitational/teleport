@@ -9132,7 +9132,7 @@ message ClientIPRestrictionsUpdate {
     (gogoproto.jsontag) = ""
   ];
 
-  // User is a common user event metadata.
+  // UserMetadata is a common user event metadata.
   UserMetadata User = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -9160,6 +9160,6 @@ message ClientIPRestrictionsUpdate {
     (gogoproto.jsontag) = ""
   ];
 
-  // ClientIPRestrictions is the new allowlist
+  // ClientIPRestrictions is the new client ip restrictions allowlist
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
 }
