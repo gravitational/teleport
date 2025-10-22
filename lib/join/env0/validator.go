@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
 
 	"github.com/gravitational/teleport/lib/oidc"
 )
@@ -33,7 +34,7 @@ const (
 
 	// env0Audience is the audience for the token. This is unfortunately hard
 	// coded.
-	env0Audience = "https://app.env0.com"
+	env0Audience = "https://prod.env0.com"
 )
 
 // IDTokenValidator can be used to validate env0 OIDC tokens.
@@ -52,7 +53,13 @@ func (v *IDTokenValidator) ValidateToken(
 		return nil, trace.Wrap(err)
 	}
 
-	claims, err := validator.ValidateToken(ctx, string(token))
+	// Env0 issues tokens with a randomized azp, which we can't verify. It's
+	// an optional check, so we'll disable it.
+	withoutAZPVerifier := rp.WithAZPVerifier(func(string) error {
+		return nil
+	})
+
+	claims, err := validator.ValidateToken(ctx, string(token), withoutAZPVerifier)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating OIDC token")
 	}
