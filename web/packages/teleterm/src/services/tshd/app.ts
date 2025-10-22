@@ -118,14 +118,14 @@ export function getAppAddrWithProtocol(source: App): string {
   const scheme = getAppUriScheme(endpointUri);
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');
   const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  const isMCP = scheme.startsWith('mcp+');
+  const isMcp = scheme.startsWith('mcp+');
   let addrWithProtocol = endpointUri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMCP) {
+    } else if (isMcp) {
       addrWithProtocol = `${scheme}://${publicAddr}`;
     } else {
       // publicAddr for Identity Center account app is a URL with scheme.

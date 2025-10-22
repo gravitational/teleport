@@ -83,7 +83,7 @@ export default function makeApp(json: any): App {
   const scheme = getAppUriScheme(uri);
   const isTcp = scheme === 'tcp';
   const isCloud = scheme === 'cloud';
-  const isMCP = scheme.startsWith('mcp+');
+  const isMcp = scheme.startsWith('mcp+');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -91,7 +91,7 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMCP) {
+    } else if (isMcp) {
       // Not used anywhere yet.
       addrWithProtocol = `${scheme}://${publicAddr}`;
     } else if (subKind === AppSubKind.AwsIcAccount) {
