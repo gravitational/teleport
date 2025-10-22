@@ -279,6 +279,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleEC2Join(stream, authCtx, clientInit, token)
 	case types.JoinMethodEnv0:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
+	case types.JoinMethodOracle:
+		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
