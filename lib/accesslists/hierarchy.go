@@ -262,8 +262,9 @@ func IsUserLocked(err error) bool {
 	return errors.As(err, &userLockedError{})
 }
 
-// IsAccessListOwner checks if the given user is the Access List owner. It returns an error matched
-// by [IsUserLocked] if the user is locked.
+// IsAccessListOwner checks if the given user is the Access List owner.
+// It returns an error matched by [IsUserLocked] if the user is locked.
+// If the user is not an owner, it returns a trace.AccessDenied error.
 func IsAccessListOwner(
 	ctx context.Context,
 	user types.User,
@@ -301,30 +302,34 @@ func IsAccessListOwner(
 		if owner.MembershipKind == accesslist.MembershipKindList {
 			ownerAccessList, err := g.GetAccessList(ctx, owner.Name)
 			if err != nil {
-				ownershipErr = trace.Wrap(err)
-				continue
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
-			if err != nil {
-				ownershipErr = trace.Wrap(err)
-				continue
-			}
-			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
-					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+			if _, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock); err != nil {
+				if trace.IsAccessDenied(err) {
+					ownershipErr = trace.Wrap(err)
 					continue
 				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
+			if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
+				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+				continue
+			}
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 		}
+	}
+
+	if ownershipErr == nil {
+		ownershipErr = trace.AccessDenied("no ownership path found")
 	}
 
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(ownershipErr)
 }
 
-// IsAccessListMember checks if the given user is the Access List member. It returns an error
-// matched by [IsUserLocked] if the user is locked.
+// IsAccessListMember checks if the given user is the Access List member.
+// It returns an error matched by [IsUserLocked] if the user is locked.
+// If the user is not a member, it returns a trace.AccessDenied error.
 func IsAccessListMember(
 	ctx context.Context,
 	user types.User,
@@ -347,7 +352,7 @@ func IsAccessListMember(
 
 	members, err := fetchMembers(ctx, accessList.GetName(), g)
 	if err != nil {
-		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "fetching access list %q members", accessList.GetName())
 	}
 
 	var membershipErr error
@@ -371,14 +376,19 @@ func IsAccessListMember(
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
 			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
 			if err != nil {
-				membershipErr = trace.Wrap(err)
-				continue
+				if trace.IsNotFound(err) {
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "getting access list %q", member.GetName())
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
 			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
 			if err != nil {
-				membershipErr = trace.Wrap(err)
-				continue
+				if trace.IsAccessDenied(err) {
+					membershipErr = err
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
 			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
@@ -392,6 +402,10 @@ func IsAccessListMember(
 				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 			}
 		}
+	}
+
+	if membershipErr == nil {
+		membershipErr = trace.AccessDenied("no access path found")
 	}
 
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
