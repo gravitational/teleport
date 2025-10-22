@@ -1,0 +1,44 @@
+---
+title: Labels
+sidebar_label: Labels
+description: Learn about resource labels applied during auto-discovery
+---
+
+Cloud resources enrolled in a Teleport cluster during auto-discovery get a
+set of default labels applied to them which can then be used in RBAC.
+
+## AWS
+
+### EC2 instances
+
+See the AWS EC2 auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery.mdx).
+
+| Label                      | Description                                      |
+|----------------------------|--------------------------------------------------|
+| `teleport.dev/account-id`  | AWS account ID where the EC2 instance is running |
+| `teleport.dev/instance-id` | AWS EC2 instance ID                              |
+
+## Azure
+
+### VMs
+
+See the Azure VM auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/azure-discovery.mdx).
+
+| Label                                | Description                                      |
+|--------------------------------------|--------------------------------------------------|
+| `teleport.internal/subscription-id`  | Azure subscription ID where VM is running        |
+| `teleport.internal/vm-id`            | Azure VM ID                                      |
+| `teleport.internal/region`           | Azure region where VM is running                 |
+| `teleport.internal/resource-group`   | Azure resource group VM belongs to               |
+
+## GCP
+
+### VMs
+
+See the GCP VM auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/gcp-discovery.mdx).
+
+| Label                          | Description                            |
+|--------------------------------|----------------------------------------|
+| `teleport.internal/name`       | GCP VM name                            |
+| `teleport.internal/zone`       | GCP zone where VM is running           |
+| `teleport.internal/project-id` | GCP project ID VM is running in        |
