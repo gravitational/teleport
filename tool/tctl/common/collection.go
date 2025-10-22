@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -385,76 +384,6 @@ func (c *semaphoreCollection) WriteText(w io.Writer, verbose bool) error {
 				sem.GetSubKind(), sem.GetName(), ref.LeaseID, ref.Holder, ref.Expires.Format(time.RFC822),
 			})
 		}
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type appServerCollection struct {
-	servers []types.AppServer
-}
-
-func (a *appServerCollection) Resources() (r []types.Resource) {
-	for _, resource := range a.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (a *appServerCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, server := range a.servers {
-		app := server.GetApp()
-		labels := common.FormatLabels(app.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion(),
-		})
-	}
-	var t asciitable.Table
-	headers := []string{"Host", "Name", "Type", "Public Address", "URI", "Labels", "Version"}
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (a *appServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, a.servers)
-}
-
-func (a *appServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, a.servers)
-}
-
-type appCollection struct {
-	apps []types.Application
-}
-
-func (c *appCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.apps {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *appCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, app := range c.apps {
-		labels := common.FormatLabels(app.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion(),
-		})
-	}
-	headers := []string{"Name", "Description", "URI", "Public Address", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1140,30 +1069,6 @@ func (c *deviceCollection) WriteText(w io.Writer, verbose bool) error {
 			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
 			device.CreateTime.AsTime().Format(time.RFC3339),
 			device.UpdateTime.AsTime().Format(time.RFC3339),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type discoveryConfigCollection struct {
-	discoveryConfigs []*discoveryconfig.DiscoveryConfig
-}
-
-func (c *discoveryConfigCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.discoveryConfigs))
-	for i, dc := range c.discoveryConfigs {
-		resources[i] = dc
-	}
-	return resources
-}
-
-func (c *discoveryConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Discovery Group"})
-	for _, dc := range c.discoveryConfigs {
-		t.AddRow([]string{
-			dc.GetName(),
-			dc.GetDiscoveryGroup(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

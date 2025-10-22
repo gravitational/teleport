@@ -25,7 +25,6 @@ import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { render } from 'design/utils/testing';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -67,6 +66,9 @@ test('activating a workspace via deep link overrides the previously active works
     connected: false,
   });
   const appContext = new MockAppContext();
+  appContext.addRootCluster(deepLinkCluster);
+  appContext.addRootCluster(previouslyActiveCluster);
+
   jest
     .spyOn(appContext.statePersistenceService, 'getWorkspacesState')
     .mockReturnValue({
@@ -87,11 +89,6 @@ test('activating a workspace via deep link overrides the previously active works
   appContext.mainProcessClient.configService.set(
     'usageReporting.enabled',
     false
-  );
-  jest.spyOn(appContext.tshd, 'listRootClusters').mockReturnValue(
-    new MockedUnaryCall({
-      clusters: [deepLinkCluster, previouslyActiveCluster],
-    })
   );
 
   render(<App ctx={appContext} />);
@@ -198,11 +195,7 @@ test.each<{
     'usageReporting.enabled',
     false
   );
-  jest.spyOn(appContext.tshd, 'listRootClusters').mockReturnValue(
-    new MockedUnaryCall({
-      clusters: [rootCluster],
-    })
-  );
+  appContext.addRootCluster(rootCluster);
 
   render(<App ctx={appContext} />);
 

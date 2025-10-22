@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -142,8 +141,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindUIConfig:                    rc.createUIConfig,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
-		types.KindApp:                         rc.createApp,
-		types.KindAppServer:                   rc.createAppServer,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
 		types.KindToken:                       rc.createToken,
 		types.KindInstaller:                   rc.createInstaller,
@@ -157,7 +154,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindWindowsDesktop:              rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAccessList:                  rc.createAccessList,
-		types.KindDiscoveryConfig:             rc.createDiscoveryConfig,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
@@ -837,43 +833,6 @@ func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, clie
 	return nil
 }
 
-func (rc *ResourceCommand) createAppServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	appServer, err := services.UnmarshalAppServer(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if appServer.GetApp().GetIntegration() == "" {
-		return trace.BadParameter("only applications that use an integration can be created")
-	}
-	if _, err := client.UpsertApplicationServer(ctx, appServer); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("application server %q has been upserted\n", appServer.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	app, err := services.UnmarshalApp(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.CreateApp(ctx, app); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("application %q already exists", app.GetName())
-			}
-			if err := client.UpdateApp(ctx, app); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("application %q has been updated\n", app.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("application %q has been created\n", app.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1349,31 +1308,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	remote := client.DiscoveryConfigClient()
-
-	if rc.force {
-		if _, err := remote.UpsertDiscoveryConfig(ctx, discoveryConfig); err != nil {
-			return trace.Wrap(err)
-		}
-
-		fmt.Printf("DiscoveryConfig %q has been written\n", discoveryConfig.GetName())
-		return nil
-	}
-
-	if _, err := remote.CreateDiscoveryConfig(ctx, discoveryConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("DiscoveryConfig %q has been created\n", discoveryConfig.GetName())
-
-	return nil
-}
-
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1595,11 +1529,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
-	case types.KindApp:
-		if err = client.DeleteApp(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindKubernetesCluster:
 		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
 		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
@@ -1751,31 +1680,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
 
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
-
-	case types.KindAppServer:
-		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		deleted := false
-		for _, server := range appServers {
-			if server.GetName() == rc.ref.Name {
-				if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
-					return trace.Wrap(err)
-				}
-				deleted = true
-			}
-		}
-		if !deleted {
-			return trace.NotFound("application server %q not found", rc.ref.Name)
-		}
-		fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2197,47 +2101,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &kubeServerCollection{servers: servers}, nil
 
-	case types.KindAppServer:
-		servers, err := client.GetApplicationServers(ctx, rc.namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &appServerCollection{servers: servers}, nil
-		}
-
-		var out []types.AppServer
-		for _, server := range servers {
-			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
-				out = append(out, server)
-			}
-		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("application server %q not found", rc.ref.Name)
-		}
-		return &appServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
-	case types.KindApp:
-		if rc.ref.Name == "" {
-			// TODO(tross): DELETE IN v21.0.0, replace with regular Collect
-			apps, err := clientutils.CollectWithFallback(ctx, client.ListApps, client.GetApps)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &appCollection{apps: apps}, nil
-		}
-
-		app, err := client.GetApp(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindKubernetesCluster:
 		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
 		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
@@ -2623,22 +2492,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &userTaskCollection{items: tasks}, nil
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if rc.ref.Name != "" {
-			dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &discoveryConfigCollection{discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dc}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, remote.ListDiscoveryConfigs))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &discoveryConfigCollection{discoveryConfigs: resources}, nil
 	case types.KindAuditQuery:
 		if rc.ref.Name != "" {
 			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
