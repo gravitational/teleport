@@ -50,8 +50,16 @@ func TestServerProtocol(t *testing.T) {
 				assert.Equal(t, constants.WebAPIConnUpgradeTypeALPN, hs.Protocol, "Handshake protocol should match ALPN")
 				testClientConn(t, conn)
 				var data [1024]byte
+
+				frame, err := ws.ReadFrame(conn)
+				assert.NoError(t, err, "Failed to read frame from connection")
+
+				expectedFrame := ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, ""))
+				assert.Equal(t, expectedFrame, frame, "Connection should receive close frame from server")
+				assert.NoError(t, err, "Failed to read from connection")
+
 				n, err := conn.Read(data[:])
-				assert.Empty(t, data[:n], "Connection should not have any data after reading")
+				assert.Empty(t, data[:n], "Connection should not have any data after reading and not sending close")
 				assert.ErrorIs(t, err, io.EOF, "Expected EOF after reading all data from connection")
 			},
 		},

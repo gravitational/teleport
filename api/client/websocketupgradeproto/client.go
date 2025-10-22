@@ -48,7 +48,7 @@ type WebSocketALPNClientConnConfig struct {
 
 // NewWebSocketALPNClientConn creates a new WebsocketUpgradeConn for the client side.
 // It dials the WebSocket server using the provided URL and TLS configuration.
-func NewWebSocketALPNClientConn(ctx context.Context, cfg WebSocketALPNClientConnConfig) (*WebsocketUpgradeConn, error) {
+func NewWebSocketALPNClientConn(ctx context.Context, cfg WebSocketALPNClientConnConfig) (*Conn, error) {
 	dialer := ws.Dialer{
 		Protocols: cfg.Protocols,
 		NetDial: func(ctx context.Context, network, addr string) (net.Conn, error) {

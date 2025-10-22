@@ -137,7 +137,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 // websocketUpgrade upgrades the HTTP request to a WebSocket connection and
 // returns the WebSocket connection and the handshake information.
-func (h *Handler) websocketUpgrade(r *http.Request, w http.ResponseWriter) (*websocketupgradeproto.WebsocketUpgradeConn, error) {
+func (h *Handler) websocketUpgrade(r *http.Request, w http.ResponseWriter) (*websocketupgradeproto.Conn, error) {
 	conn, err := websocketupgradeproto.NewServerConnection(
 		h.logger.With("component", websocketupgradeproto.ComponentTeleport),
 		r, w,

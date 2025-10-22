@@ -17,6 +17,7 @@ package websocketupgradeproto
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -31,6 +32,7 @@ import (
 )
 
 func TestClient(t *testing.T) {
+	t.Parallel()
 	type testCase struct {
 		name       string
 		protocols  []string
@@ -156,7 +158,7 @@ func TestClient(t *testing.T) {
 
 			// Verify the connection is closed gracefully.
 			_, err = conn.Read(data[:])
-			assert.ErrorIs(t, err, io.EOF, "Expected connection to be closed")
+			assert.True(t, errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF), "Expected connection to be closed")
 		})
 	}
 }

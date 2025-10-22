@@ -43,7 +43,7 @@ func NewServerConnection(
 	logger *slog.Logger,
 	r *http.Request,
 	w http.ResponseWriter,
-) (*WebsocketUpgradeConn, error) {
+) (*Conn, error) {
 	// Upgrade the HTTP request to a WebSocket connection.
 	conn, _, hs, err := wsProtocolUpgrader.Upgrade(r, w)
 	if err != nil {
