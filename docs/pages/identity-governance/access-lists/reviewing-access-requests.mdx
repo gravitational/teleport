@@ -17,12 +17,13 @@ this use-case.
 ## Prerequisites
 
 - Teleport cluster with a connected resource e.g. an SSH node.
-- Teleport user (`alice` in this guide) with an `editor` or equivalent administrative role.
+- Teleport user (`admin` in this guide) with an `editor` role to perform configuration.
+- Teleport user (`alice` in this guide) acting as an access request reviewer.
 - Teleport user (`bob` in this guide) acting as a low-privileged requester user.
 
 ## Step 1/5. Create roles
 
-First, let's create 3 roles:
+As an `admin` user, let's create 3 roles:
 
 - Role that grants access to SSH nodes with a particular label
 - Role that allows users to request access to SSH nodes with that label
@@ -75,7 +76,7 @@ spec:
 
 ## Step 2/5. Assign requester role
 
-Assign the `ssh-access-requester` role to `bob`.
+As an `admin` user, assign the `ssh-access-requester` role to `bob`.
 
 ![bob user roles](../../../img/identity-governance/access-lists/bob-user-roles.png)
 
@@ -84,8 +85,8 @@ labels.
 
 ## Step 3/5. Create access list
 
-Now, let's create an access list that allows its owner to review requests to
-these SSH nodes.
+Now, as an `admin` user, let's create an access list that allows its owner to
+review requests to these SSH nodes.
 
 On the Identity Governance / Access Lists web UI page select "Create New Access
 List" and create a new one with the following parameters:
