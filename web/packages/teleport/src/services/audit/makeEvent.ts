@@ -2405,8 +2405,9 @@ export const formatters: Formatters = {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
     format: ({ user, client_ip_restrictions, success }) =>
-      success ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
-      : `User [${user}] has failed to update  Client IP Restrictions.`
+      success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
+        : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
 };
 

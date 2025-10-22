@@ -2100,11 +2100,11 @@ export type RawEvents = {
   [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
     typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
   >;
-   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
     typeof eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE,
     {
-     client_ip_restrictions: string,
-     success: boolean,
+      client_ip_restrictions: string;
+      success: boolean;
     }
   >;
 };
