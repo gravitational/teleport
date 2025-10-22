@@ -45,6 +45,12 @@ type WindowsDesktopService interface {
 	GetHostname() string
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that this service is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that this service is
+	// connected to.
+	GetRelayIDs() []string
 	// Clone creates a copy of the service.
 	Clone() WindowsDesktopService
 }
@@ -115,6 +121,22 @@ func (s *WindowsDesktopServiceV3) GetProxyIDs() []string {
 // SetProxyID sets the proxy ids this server is connected to.
 func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetRelayGroup implements [WindowsDesktopService].
+func (s *WindowsDesktopServiceV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [WindowsDesktopService].
+func (s *WindowsDesktopServiceV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
 }
 
 // GetHostname returns the windows hostname of this service.

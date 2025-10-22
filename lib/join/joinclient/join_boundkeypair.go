@@ -84,68 +84,100 @@ func boundKeypairJoin(
 			// Return the final result.
 			return kind, nil
 		case *messages.BoundKeypairChallenge:
-			signer, err := bkParams.GetSigner(string(kind.PublicKey))
+			solution, err := solveBoundKeypairChallenge(bkParams, kind)
 			if err != nil {
-				return nil, trace.Wrap(err, "could not lookup signer for public key %+v", string(kind.PublicKey))
-			}
-
-			alg, err := jwt.AlgorithmForPublicKey(signer.Public())
-			if err != nil {
-				return nil, trace.Wrap(err, "determining signing algorithm for public key")
-			}
-
-			opts := (&jose.SignerOptions{}).WithType("JWT")
-			key := jose.SigningKey{
-				Algorithm: alg,
-				Key:       signer,
-			}
-
-			joseSigner, err := jose.NewSigner(key, opts)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating signer")
-			}
-
-			jws, err := joseSigner.Sign([]byte(kind.Challenge))
-			if err != nil {
-				return nil, trace.Wrap(err, "signing challenge")
-			}
-
-			serialized, err := jws.CompactSerialize()
-			if err != nil {
-				return nil, trace.Wrap(err, "serializing signed challenge")
+				sendGivingUpErr := stream.Send(&messages.GivingUp{
+					Reason: messages.GivingUpReasonChallengeSolutionFailed,
+					Msg:    err.Error(),
+				})
+				return nil, trace.NewAggregate(
+					err,
+					trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+				)
 			}
 			if err := stream.Send(&messages.BoundKeypairChallengeSolution{
-				Solution: []byte(serialized),
+				Solution: solution,
 			}); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		case *messages.BoundKeypairRotationRequest:
-			if bkParams.RequestNewKeypair == nil {
-				return nil, trace.BadParameter("RequestNewKeypair is required")
-			}
-
-			slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.SignatureAlgorithmSuite)
-
-			suite, err := types.SignatureAlgorithmSuiteFromString(kind.SignatureAlgorithmSuite)
+			newPubkey, err := handleBoundKeypairRotationRequest(ctx, bkParams, kind)
 			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(suite))
-			if err != nil {
-				return nil, trace.Wrap(err, "requesting new keypair")
-			}
-
-			newPubkey, err := sshPubKeyFromSigner(newSigner)
-			if err != nil {
-				return nil, trace.Wrap(err)
+				sendGivingUpErr := stream.Send(&messages.GivingUp{
+					Reason: messages.GivingUpReasonChallengeSolutionFailed,
+					Msg:    err.Error(),
+				})
+				return nil, trace.NewAggregate(
+					err,
+					trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+				)
 			}
 			if err := stream.Send(&messages.BoundKeypairRotationResponse{
-				PublicKey: []byte(newPubkey),
+				PublicKey: newPubkey,
 			}); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		default:
+			return nil, trace.Errorf("server sent unexpected message type %T", msg)
 		}
 	}
+}
+
+func solveBoundKeypairChallenge(bkParams *BoundKeypairParams, challengeMsg *messages.BoundKeypairChallenge) ([]byte, error) {
+	signer, err := bkParams.GetSigner(string(challengeMsg.PublicKey))
+	if err != nil {
+		return nil, trace.Wrap(err, "could not lookup signer for public key %s", string(challengeMsg.PublicKey))
+	}
+
+	alg, err := jwt.AlgorithmForPublicKey(signer.Public())
+	if err != nil {
+		return nil, trace.Wrap(err, "determining signing algorithm for public key")
+	}
+
+	opts := (&jose.SignerOptions{}).WithType("JWT")
+	key := jose.SigningKey{
+		Algorithm: alg,
+		Key:       signer,
+	}
+
+	joseSigner, err := jose.NewSigner(key, opts)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating signer")
+	}
+
+	jws, err := joseSigner.Sign([]byte(challengeMsg.Challenge))
+	if err != nil {
+		return nil, trace.Wrap(err, "signing challenge")
+	}
+
+	serialized, err := jws.CompactSerialize()
+	if err != nil {
+		return nil, trace.Wrap(err, "serializing signed challenge")
+	}
+	return []byte(serialized), nil
+}
+
+func handleBoundKeypairRotationRequest(ctx context.Context, bkParams *BoundKeypairParams, rotationRequest *messages.BoundKeypairRotationRequest) ([]byte, error) {
+	if bkParams.RequestNewKeypair == nil {
+		return nil, trace.BadParameter("RequestNewKeypair is required")
+	}
+
+	slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", rotationRequest.SignatureAlgorithmSuite)
+
+	suite, err := types.SignatureAlgorithmSuiteFromString(rotationRequest.SignatureAlgorithmSuite)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(suite))
+	if err != nil {
+		return nil, trace.Wrap(err, "requesting new keypair")
+	}
+
+	newPubkey, err := sshPubKeyFromSigner(newSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []byte(newPubkey), nil
 }
 
 // sshPubKeyFromSigner returns the public key of the given signer in ssh

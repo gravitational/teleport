@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -467,6 +468,12 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 }
 
 func (si *SSMInstaller) getInvocationSteps(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) ([]string, error) {
+	if req.DocumentName == types.AWSSSMDocumentRunShellScript {
+		// The AWS-RunShellScript pre-defined SSM Document has no defined steps, only params.
+		// Return early, preventing a call to ssm:ListCommandInvocations.
+		return []string{""}, nil
+	}
+
 	// ssm:ListCommandInvocations is used to list the actual steps because users might be using a custom SSM Document.
 	listCommandInvocationResp, err := req.SSM.ListCommandInvocations(ctx, &ssm.ListCommandInvocationsInput{
 		CommandId:  commandID,

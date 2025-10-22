@@ -75,7 +75,7 @@ func TestPing(t *testing.T) {
 				disabledProfile,
 				profileWithoutRoles,
 			},
-		}, *syncProfile.ProfileArn)
+		}, []string{*syncProfile.ProfileArn})
 		require.NoError(t, err)
 
 		require.Equal(t, "123456789012", resp.AccountID)

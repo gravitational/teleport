@@ -32,8 +32,26 @@ import (
 // This map will be filled as we convert existing resources
 // to the Handler format.
 func Handlers() map[string]Handler {
+	// When adding resources, please keep the map alphabetically ordered.
 	return map[string]Handler{
-		types.KindRole: roleHandler(),
+		types.KindApp:                                appHandler(),
+		types.KindAppServer:                          appServerHandler(),
+		types.KindAuthServer:                         authHandler(),
+		types.KindAutoUpdateBotInstanceReport:        autoUpdateBotInstanceReportHandler(),
+		types.KindBot:                                botHandler(),
+		types.KindBotInstance:                        botInstanceHandler(),
+		types.KindDatabase:                           databaseHandler(),
+		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
+		types.KindLock:                               lockHandler(),
+		types.KindNode:                               serverHandler(),
+		types.KindProxy:                              proxyHandler(),
+		types.KindRole:                               roleHandler(),
+		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
+		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
+		types.KindUser:                               userHandler(),
+		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
+		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
+		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
 	}
 }
 

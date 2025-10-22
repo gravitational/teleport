@@ -539,24 +539,6 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config.
-// If store is not provided, it will default to in-memory storage without
-// hardware key support. This should only be used with static auth methods
-// (TLS and AuthMethods fields).
-func MakeDefaultConfig(store *Store) *Config {
-	if store == nil {
-		store = NewMemClientStore()
-	}
-	return &Config{
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
-		Stdin:          os.Stdin,
-		AddKeysToAgent: AddKeysToAgentAuto,
-		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
-		ClientStore:    store,
-	}
-}
-
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ClientStore == nil {
 		if c.TLS == nil && c.AuthMethods == nil {

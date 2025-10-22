@@ -34,8 +34,14 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return tokenInitToMessage(msg.TokenInit)
 	case *joinv1.JoinRequest_BoundKeypairInit:
 		return boundKeypairInitToMessage(msg.BoundKeypairInit)
+	case *joinv1.JoinRequest_IamInit:
+		return iamInitToMessage(msg.IamInit)
+	case *joinv1.JoinRequest_Ec2Init:
+		return ec2InitToMessage(msg.Ec2Init)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
+	case *joinv1.JoinRequest_GivingUp:
+		return givingUpToMessage(msg.GivingUp), nil
 	default:
 		return nil, trace.BadParameter("unrecognized join request message type %T", msg)
 	}
@@ -71,7 +77,29 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 				BoundKeypairInit: boundKeypairInit,
 			},
 		}, nil
-	case *messages.BoundKeypairChallengeSolution, *messages.BoundKeypairRotationResponse:
+	case *messages.IAMInit:
+		iamInit, err := iamInitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_IamInit{
+				IamInit: iamInit,
+			},
+		}, nil
+	case *messages.EC2Init:
+		ec2Init, err := ec2InitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_Ec2Init{
+				Ec2Init: ec2Init,
+			},
+		}, nil
+	case *messages.BoundKeypairChallengeSolution,
+		*messages.BoundKeypairRotationResponse,
+		*messages.IAMChallengeSolution:
 		solution, err := challengeSolutionFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -79,6 +107,12 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 		return &joinv1.JoinRequest{
 			Payload: &joinv1.JoinRequest_Solution{
 				Solution: solution,
+			},
+		}, nil
+	case *messages.GivingUp:
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_GivingUp{
+				GivingUp: givingUpFromMessage(typedMsg),
 			},
 		}, nil
 	default:
@@ -227,6 +261,8 @@ func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request
 		return boundKeypairChallengeSolutionToMessage(payload.BoundKeypairChallengeSolution), nil
 	case *joinv1.ChallengeSolution_BoundKeypairRotationResponse:
 		return boundKeypairRotationResponseToMessage(payload.BoundKeypairRotationResponse), nil
+	case *joinv1.ChallengeSolution_IamChallengeSolution:
+		return iamChallengeSolutionToMessage(payload.IamChallengeSolution), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", payload)
 	}
@@ -244,6 +280,12 @@ func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSoluti
 		return &joinv1.ChallengeSolution{
 			Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{
 				BoundKeypairRotationResponse: boundKeypairRotationResponseFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.IAMChallengeSolution:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_IamChallengeSolution{
+				IamChallengeSolution: iamChallengeSolutionFromMessage(typedMsg),
 			},
 		}, nil
 	default:
@@ -275,7 +317,9 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 				Init: serverInitFromMessage(typedMsg),
 			},
 		}, nil
-	case *messages.BoundKeypairChallenge, *messages.BoundKeypairRotationRequest:
+	case *messages.BoundKeypairChallenge,
+		*messages.BoundKeypairRotationRequest,
+		*messages.IAMChallenge:
 		challenge, err := challengeFromMessage(msg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -334,6 +378,8 @@ func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
 		return boundKeypairChallengeToMessage(payload.BoundKeypairChallenge), nil
 	case *joinv1.Challenge_BoundKeypairRotationRequest:
 		return boundKeypairRotationRequestToMessage(payload.BoundKeypairRotationRequest), nil
+	case *joinv1.Challenge_IamChallenge:
+		return iamChallengeToMessage(payload.IamChallenge), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge payload type %T", payload)
 	}
@@ -351,6 +397,12 @@ func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 		return &joinv1.Challenge{
 			Payload: &joinv1.Challenge_BoundKeypairRotationRequest{
 				BoundKeypairRotationRequest: boundKeypairRotationRequestFromMessage(msg),
+			},
+		}, nil
+	case *messages.IAMChallenge:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_IamChallenge{
+				IamChallenge: iamChallengeFromMessage(msg),
 			},
 		}, nil
 	default:
@@ -412,5 +464,37 @@ func certificatesFromMessage(certs *messages.Certificates) *joinv1.Certificates 
 		TlsCaCerts: certs.TLSCACerts,
 		SshCert:    certs.SSHCert,
 		SshCaKeys:  certs.SSHCAKeys,
+	}
+}
+
+func givingUpToMessage(req *joinv1.GivingUp) *messages.GivingUp {
+	reason := messages.GivingUpReasonUnspecified
+	switch req.Reason {
+	case joinv1.GivingUp_REASON_UNSUPPORTED_JOIN_METHOD:
+		reason = messages.GivingUpReasonUnsupportedJoinMethod
+	case joinv1.GivingUp_REASON_UNSUPPORTED_MESSAGE_TYPE:
+		reason = messages.GivingUpReasonUnsupportedMessageType
+	case joinv1.GivingUp_REASON_CHALLENGE_SOLUTION_FAILED:
+		reason = messages.GivingUpReasonChallengeSolutionFailed
+	}
+	return &messages.GivingUp{
+		Reason: reason,
+		Msg:    req.Msg,
+	}
+}
+
+func givingUpFromMessage(msg *messages.GivingUp) *joinv1.GivingUp {
+	reason := joinv1.GivingUp_REASON_UNSPECIFIED
+	switch msg.Reason {
+	case messages.GivingUpReasonUnsupportedJoinMethod:
+		reason = joinv1.GivingUp_REASON_UNSUPPORTED_JOIN_METHOD
+	case messages.GivingUpReasonUnsupportedMessageType:
+		reason = joinv1.GivingUp_REASON_UNSUPPORTED_MESSAGE_TYPE
+	case messages.GivingUpReasonChallengeSolutionFailed:
+		reason = joinv1.GivingUp_REASON_CHALLENGE_SOLUTION_FAILED
+	}
+	return &joinv1.GivingUp{
+		Reason: reason,
+		Msg:    msg.Msg,
 	}
 }

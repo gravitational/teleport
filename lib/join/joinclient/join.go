@@ -50,7 +50,10 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if params.ID.HostUUID != "" {
+	if params.AuthClient == nil && params.ID.HostUUID != "" {
+		// This check is skipped if AuthClient is provided because this is a
+		// re-join with an existing identity and the HostUUID will be
+		// maintained.
 		return nil, trace.BadParameter("HostUUID must not be provided to Join, it will be assigned by the Auth server")
 	}
 	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
@@ -151,12 +154,12 @@ func joinViaAuthClient(ctx context.Context, params JoinParams, authClient authjo
 
 func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Client) (*JoinResult, error) {
 	// Clients may specify the join method or not, to let the server choose the
-	// method based on the provsion token.
+	// method based on the provision token.
 	var joinMethodPtr *string
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken, types.JoinMethodBoundKeypair:
+	case types.JoinMethodToken, types.JoinMethodBoundKeypair, types.JoinMethodIAM:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -193,7 +196,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	}
 
 	// Generate keys based on the signature algorithm suite from the ServerInit message.
-	signer, publicKeys, err := generateKeys(ctx, serverInit.SignatureAlgorithmSuite)
+	signer, publicKeys, err := GenerateKeys(ctx, serverInit.SignatureAlgorithmSuite)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,9 +242,18 @@ func joinWithMethod(
 		return tokenJoin(stream, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodIAM:
+		return iamJoin(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
-		return nil, trace.NotImplemented("server selected join method %v which is not supported by this client", method)
+		sendGivingUpErr := stream.Send(&messages.GivingUp{
+			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
+			Msg:    "join method " + method + " is not supported by this client",
+		})
+		return nil, trace.NewAggregate(
+			trace.NotImplemented("server selected join method %v which is not supported by this client", method),
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 }
 
@@ -256,7 +268,7 @@ func tokenJoin(
 	// client->server Tokeninit
 	// client<-server Result
 	//
-	// At this point the ServerInit messages has already been received, all
+	// At this point the ServerInit message has already been received, all
 	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,
@@ -345,7 +357,9 @@ func pemEncodeTLSCert(rawCert []byte) []byte {
 	})
 }
 
-func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (crypto.Signer, *messages.PublicKeys, error) {
+// GenerateKeys generates host keys appropriate for a cluster join request
+// according to the cluster's configured signature algorithm suite.
+func GenerateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (crypto.Signer, *messages.PublicKeys, error) {
 	signer, err := cryptosuites.GenerateKey(
 		ctx,
 		cryptosuites.StaticAlgorithmSuite(suite),

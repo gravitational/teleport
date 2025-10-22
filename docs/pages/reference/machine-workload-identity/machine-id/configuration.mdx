@@ -128,8 +128,17 @@ onboarding:
   # bound_keypair holds parameters specific to the "bound_keypair" join method
   bound_keypair:
     # registration_secret is an optional secret to use on first join in lieu of
-    # a preregistered keypair.
+    # a preregistered keypair. You can also set this in the
+    # `TBOT_REGISTRATION_SECRET` environment variable.
     registration_secret: "secret"
+
+    # registration_secret_path is an optional path to a file containing a
+    # registration secret; conflicts with `registration_secret`
+    registration_secret_path: ./path/to/secret
+
+    # static_key_path is an optional path to a file containing a static private
+    # key.
+    static_key_path: ./path/to/secret
 
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
@@ -191,7 +200,7 @@ storage:
   type: directory
   path: /var/lib/teleport/bot
 
-outputs:
+services:
   - type: identity
     destination:
       type: directory
