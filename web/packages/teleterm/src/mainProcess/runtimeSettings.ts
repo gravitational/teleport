@@ -64,7 +64,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tsh: tshAddress,
     shared: sharedAddress,
     tshdEvents: tshdEventsAddress,
-  } = requestGrpcServerAddresses();
+  } = await requestGrpcServerAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
@@ -207,7 +207,7 @@ export function getAssetPath(...paths: string[]): string {
 /**
  * Describes what addresses the gRPC servers should attempt to obtain on app startup.
  */
-function requestGrpcServerAddresses(): GrpcServerAddresses {
+async function requestGrpcServerAddresses(): Promise<GrpcServerAddresses> {
   switch (process.platform) {
     case 'win32': {
       return {
@@ -218,21 +218,61 @@ function requestGrpcServerAddresses(): GrpcServerAddresses {
     }
     case 'linux':
     case 'darwin':
-      return {
-        tsh: getUnixSocketNetworkAddress('tsh.socket'),
-        shared: getUnixSocketNetworkAddress('shared.socket'),
-        tshdEvents: getUnixSocketNetworkAddress('tshd_events.socket'),
-      };
+      // The sockets are created in a temp directory that won't exceed the path
+      // length limit for sockets.
+      // macOS: 104 characters, Linux: 108 characters
+      const tempDir = await getUnixUserTempDir();
+      const [tsh, shared, tshdEvents] = await Promise.all([
+        getUnixSocketNetworkAddress(tempDir, 'tsh.socket'),
+        getUnixSocketNetworkAddress(tempDir, 'shared.socket'),
+        getUnixSocketNetworkAddress(tempDir, 'tshd_events.socket'),
+      ]);
+      return { tsh, shared, tshdEvents };
   }
 }
 
-function getUnixSocketNetworkAddress(socketName: string) {
-  const unixSocketPath = path.resolve(app.getPath('userData'), socketName);
-
-  // try to cleanup after previous process that unexpectedly crashed
-  if (fs.existsSync(unixSocketPath)) {
-    fs.unlinkSync(unixSocketPath);
+async function getUnixSocketNetworkAddress(
+  tempDir: string,
+  socketName: string
+) {
+  const socketPath = path.join(tempDir, socketName);
+  try {
+    await fs.promises.unlink(socketPath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
   }
 
-  return `unix://${path.resolve(app.getPath('userData'), socketName)}`;
+  return `unix://${socketPath}`;
+}
+
+async function getUnixUserTempDir(): Promise<string> {
+  const appTempDir = app.getPath('temp');
+  const appName = app.getName();
+  // On macOS 'temp' dir looks like "//var/folders/y5/yqg8xz555_v7xfsr0wn6b4q80000gn/T/".
+  // That dir is per-user and secure by default, so just create the app subdirectory.
+  if (process.platform === 'darwin') {
+    const dirPath = path.join(appTempDir, appName);
+    await fs.promises.mkdir(dirPath, { mode: 0o700, recursive: true });
+    return dirPath;
+  }
+
+  // On Linux the temp dir is like /tmp, and it's accessible by anyone,
+  // so create a user-specific subdirectory, e.g. "Teleport Connect-1000".
+  const dirPath = path.join(
+    appTempDir,
+    // UID can have at most 10 chars.
+    `${appName}-${process.getuid().toString()}`
+  );
+  await fs.promises.mkdir(dirPath, { mode: 0o700, recursive: true });
+  const stat = await fs.promises.lstat(dirPath);
+  if (stat.uid !== process.getuid()) {
+    throw new Error(`${dirPath} is not owned by the current user`);
+  }
+  const mode = stat.mode & 0o777;
+  if (mode !== 0o700) {
+    throw new Error(`${dirPath} must be accessible only to the current user`);
+  }
+  return dirPath;
 }
