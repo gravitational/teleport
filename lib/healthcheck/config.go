@@ -38,6 +38,7 @@ type healthCheckConfig struct {
 	timeout                 time.Duration
 	healthyThreshold        uint32
 	unhealthyThreshold      uint32
+	disabled                bool
 	databaseLabelMatchers   types.LabelMatchers
 	kubernetesLabelMatchers types.LabelMatchers
 }
@@ -53,6 +54,7 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 		interval:                cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
 		healthyThreshold:        cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
 		unhealthyThreshold:      cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
+		disabled:                match.Disabled,
 		databaseLabelMatchers:   newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
 		kubernetesLabelMatchers: newLabelMatchers(match.GetKubernetesLabelsExpression(), match.GetKubernetesLabels()),
 	}
@@ -67,20 +69,23 @@ func (h *healthCheckConfig) equivalent(other *healthCheckConfig) bool {
 			h.interval == other.interval &&
 			h.timeout == other.timeout &&
 			h.healthyThreshold == other.healthyThreshold &&
-			h.unhealthyThreshold == other.unhealthyThreshold
+			h.unhealthyThreshold == other.unhealthyThreshold &&
+			h.disabled == other.disabled
 }
 
 // getLabelMatchers returns the label matchers to use for the given resource
 // kind.
 func (h *healthCheckConfig) getLabelMatchers(kind string) types.LabelMatchers {
-	switch kind {
-	case types.KindDatabase:
-		return h.databaseLabelMatchers
-	case types.KindKubernetesCluster:
-		return h.kubernetesLabelMatchers
+	if !h.disabled {
+		switch kind {
+		case types.KindDatabase:
+			return h.databaseLabelMatchers
+		case types.KindKubernetesCluster:
+			return h.kubernetesLabelMatchers
+		}
 	}
-	// unreachable since we enforce a list of supported target resource kinds,
-	// but empty matchers do the right thing anyway: don't match anything.
+
+	// empty matchers don't match anything.
 	return types.LabelMatchers{}
 }
 

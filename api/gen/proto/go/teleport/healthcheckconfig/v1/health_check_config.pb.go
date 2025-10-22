@@ -223,8 +223,10 @@ type Matcher struct {
 	// empty value is ignored. The match result is logically ANDed with KubernetesLabels,
 	// if both are non-empty.
 	KubernetesLabelsExpression string `protobuf:"bytes,4,opt,name=kubernetes_labels_expression,json=kubernetesLabelsExpression,proto3" json:"kubernetes_labels_expression,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	// Disabled disables matches for all labels and expressions.
+	Disabled      bool `protobuf:"varint,5,opt,name=disabled,proto3" json:"disabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Matcher) Reset() {
@@ -285,6 +287,13 @@ func (x *Matcher) GetKubernetesLabelsExpression() string {
 	return ""
 }
 
+func (x *Matcher) GetDisabled() bool {
+	if x != nil {
+		return x.Disabled
+	}
+	return false
+}
+
 var File_teleport_healthcheckconfig_v1_health_check_config_proto protoreflect.FileDescriptor
 
 const file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDesc = "" +
@@ -301,12 +310,13 @@ const file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDesc = "" 
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x125\n" +
 	"\binterval\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\binterval\x12+\n" +
 	"\x11healthy_threshold\x18\x04 \x01(\rR\x10healthyThreshold\x12/\n" +
-	"\x13unhealthy_threshold\x18\x05 \x01(\rR\x12unhealthyThreshold\"\xfb\x01\n" +
+	"\x13unhealthy_threshold\x18\x05 \x01(\rR\x12unhealthyThreshold\"\x97\x02\n" +
 	"\aMatcher\x125\n" +
 	"\tdb_labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\bdbLabels\x120\n" +
 	"\x14db_labels_expression\x18\x02 \x01(\tR\x12dbLabelsExpression\x12E\n" +
 	"\x11kubernetes_labels\x18\x03 \x03(\v2\x18.teleport.label.v1.LabelR\x10kubernetesLabels\x12@\n" +
-	"\x1ckubernetes_labels_expression\x18\x04 \x01(\tR\x1akubernetesLabelsExpressionBfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1;healthcheckconfigv1b\x06proto3"
+	"\x1ckubernetes_labels_expression\x18\x04 \x01(\tR\x1akubernetesLabelsExpression\x12\x1a\n" +
+	"\bdisabled\x18\x05 \x01(\bR\bdisabledBfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1;healthcheckconfigv1b\x06proto3"
 
 var (
 	file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescOnce sync.Once
