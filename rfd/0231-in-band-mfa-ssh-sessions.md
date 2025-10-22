@@ -104,7 +104,7 @@ connection with an `Access Denied: Invalid MFA response` error.
 
 If the client fails to complete the MFA challenge within a specified timeout (e.g., default 1 minute), the SSH service
 will terminate the connection with an `Access Denied: MFA verification timed out` error. If the client wishes to retry,
-it must initiate a new SSH connection. connection.
+it must initiate a new SSH connection.
 
 ```mermaid
 sequenceDiagram
@@ -329,14 +329,14 @@ flowchart TD
 
   CheckMFA{MFA required?}
   CheckMFA -- No --> AcceptAll[Accept connection]
-  CheckMFA -- Yes --> CertType{Is cert a per-session MFA cert?}
-  CertType -- Yes --> ValidatePS[Validate per-session MFA cert]
+  CheckMFA -- Yes --> CertType{Is cert a MFA cert?}
+  CertType -- Yes --> ValidatePS[Validate MFA cert]
   ValidatePS -- Valid --> AcceptAll[Accept connection]
   ValidatePS -- Invalid --> RejectPS[Reject: invalid MFA cert]
   RejectPS --> End[End]
 
-  CertType -- No --> LegacyCheck{Is client a legacy client?}
-  LegacyCheck -- Yes --> RejectLegacy[Reject: Must use MFA cert]
+  CertType -- No --> LegacyCheck{Is legacy client?}
+  LegacyCheck -- Yes --> RejectLegacy[Reject: must use MFA cert]
   RejectLegacy --> End[End]
   LegacyCheck -- No --> InBand[Proceed with in-band MFA]
   InBand -- Valid --> AcceptAll[Accept connection]
