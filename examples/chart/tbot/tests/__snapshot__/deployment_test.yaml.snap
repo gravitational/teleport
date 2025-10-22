@@ -29,7 +29,7 @@ should match the snapshot (full):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: tbot
-            helm.sh/chart: tbot-16.5.18-dev.nrel.5
+            helm.sh/chart: tbot-16.5.18-dev.nrel.6
             test-key: test-label-pod
         spec:
           affinity:
@@ -68,7 +68,7 @@ should match the snapshot (full):
               value: "1"
             - name: TEST_ENV
               value: test-value
-            image: public.ecr.aws/gravitational/tbot-distroless:16.5.18-dev.nrel.5
+            image: public.ecr.aws/gravitational/tbot-distroless:16.5.18-dev.nrel.6
             imagePullPolicy: Always
             livenessProbe:
               failureThreshold: 6
@@ -167,7 +167,7 @@ should match the snapshot (simple):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: tbot
-            helm.sh/chart: tbot-16.5.18-dev.nrel.5
+            helm.sh/chart: tbot-16.5.18-dev.nrel.6
         spec:
           containers:
           - args:
@@ -189,7 +189,7 @@ should match the snapshot (simple):
                   fieldPath: spec.nodeName
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/tokens/join-sa-token
-            image: public.ecr.aws/gravitational/tbot-distroless:16.5.18-dev.nrel.5
+            image: public.ecr.aws/gravitational/tbot-distroless:16.5.18-dev.nrel.6
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
