@@ -1955,6 +1955,39 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return oidcConnectors, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	resp, err := c.grpc.ListOIDCConnectors(ctx, &proto.ListOIDCConnectorsRequest{
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	oidcConnectors := make([]types.OIDCConnector, len(resp.Connectors))
+	for i, oidcConnector := range resp.Connectors {
+		oidcConnectors[i] = oidcConnector
+	}
+	return oidcConnectors, resp.NextPageToken, nil
+}
+
+// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (c *Client) RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
+			return c.ListOIDCConnectors(ctx, limit, start, withSecrets)
+		},
+		types.OIDCConnector.GetName,
+	)
+}
+
 // CreateOIDCConnector creates an OIDC connector.
 func (c *Client) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
