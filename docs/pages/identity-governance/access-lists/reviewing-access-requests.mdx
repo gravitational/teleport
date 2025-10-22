@@ -85,8 +85,9 @@ labels.
 
 ## Step 3/5. Create access list
 
-Now, as an `admin` user, let's create an access list that allows its owner to
-review requests to these SSH nodes.
+Now, as an `admin` user, let's create an access list that grants access to the
+SSH nodes (via `ssh-access` member role grant) and allows its owners to review
+requests to these SSH nodes (via `ssh-access-reviewer` owner role grant).
 
 On the Identity Governance / Access Lists web UI page select "Create New Access
 List" and create a new one with the following parameters:
