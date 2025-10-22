@@ -62,6 +62,7 @@ import {
   JoinTokenOracleForm,
 } from './JoinTokenForms';
 import { JoinTokenGithubForm } from './JoinTokenGithubForm';
+import { JoinTokenGitlabForm } from './JoinTokenGitlabForm';
 
 const maxWidth = '550px';
 
@@ -115,6 +116,20 @@ export type NewJoinTokenGithubStateRule = {
   ref_type?: 'any' | 'branch' | 'tag' | null;
 };
 
+type NewJoinTokenGitlabState = {
+  domain?: string | null;
+  static_jwks?: string | null;
+  rules?: NewJoinTokenGitlabStateRule[] | null;
+};
+
+export type NewJoinTokenGitlabStateRule = {
+  project_path?: string | null;
+  namespace_path?: string | null;
+  environment?: string | null;
+  ref?: string | null;
+  ref_type?: 'any' | 'branch' | 'tag' | null;
+};
+
 export type NewJoinTokenState = {
   name: string;
   // bot_name is only required when Bot is selected in the roles
@@ -125,6 +140,7 @@ export type NewJoinTokenState = {
   gcp?: NewJoinTokenGCPState[];
   oracle?: NewJoinTokenOracleState[];
   github?: NewJoinTokenGithubState;
+  gitlab?: NewJoinTokenGitlabState;
 };
 
 export const defaultNewTokenState: NewJoinTokenState = {
@@ -136,6 +152,9 @@ export const defaultNewTokenState: NewJoinTokenState = {
   gcp: [{ project_ids: [], service_accounts: [], locations: [] }],
   oracle: [{ tenancy: '', parent_compartments: [], regions: [] }],
   github: {
+    rules: [{}],
+  },
+  gitlab: {
     rules: [{}],
   },
 };
@@ -165,7 +184,7 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
     })),
     github: token.github
       ? {
-          server_host: token.github.enterprise_server_host ?? undefined,
+          server_host: token.github.enterprise_server_host,
           enterprise_slug: token.github.enterprise_slug,
           static_jwks: token.github.static_jwks,
           rules: token.github.allow?.map(r => ({
@@ -173,16 +192,29 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
             actor: r.actor,
             environment: r.environment,
             ref: r.ref,
-            ref_type: parseGithubRefType(r.ref_type),
+            ref_type: parseRefType(r.ref_type),
             repository_owner: r.repository_owner,
             workflow: r.workflow,
+          })),
+        }
+      : undefined,
+    gitlab: token.gitlab
+      ? {
+          domain: token.gitlab?.domain,
+          static_jwks: token.gitlab.static_jwks,
+          rules: token.gitlab.allow?.map(r => ({
+            project_path: r.project_path,
+            namespace_path: r.namespace_path,
+            environment: r.environment,
+            ref: r.ref,
+            ref_type: parseRefType(r.ref_type),
           })),
         }
       : undefined,
   };
 }
 
-function parseGithubRefType(refType: string | null | undefined) {
+function parseRefType(refType: string | null | undefined) {
   if (refType == 'branch') {
     return 'branch';
   } else if (refType == 'tag') {
@@ -274,6 +306,11 @@ export const UpsertJoinTokenDialog = ({
           data.object.spec.github,
           data.object.spec.join_method
         );
+      case 'gitlab':
+        return !checkYamlData(
+          data.object.spec.gitlab,
+          data.object.spec.join_method
+        );
     }
 
     return false;
@@ -350,6 +387,22 @@ export const UpsertJoinTokenDialog = ({
       };
 
       request.github = github;
+    }
+
+    if (newTokenState.method.value === 'gitlab') {
+      const gitlab: (typeof request)['gitlab'] = {
+        allow: newTokenState.gitlab?.rules?.map(rule => ({
+          project_path: rule.project_path,
+          namespace_path: rule.namespace_path,
+          environment: rule.environment,
+          ref: rule.ref,
+          ref_type: rule.ref_type,
+        })),
+        domain: newTokenState.gitlab?.domain,
+        static_jwks: newTokenState.gitlab?.static_jwks,
+      };
+
+      request.gitlab = gitlab;
     }
 
     runCreateTokenAttempt(request, !!editToken);
@@ -534,6 +587,13 @@ export const UpsertJoinTokenDialog = ({
                       readonly={hasUnsupportedFields}
                     />
                   )}
+                  {newTokenState.method.value === 'gitlab' && (
+                    <JoinTokenGitlabForm
+                      tokenState={newTokenState}
+                      onUpdateState={setNewTokenState}
+                      readonly={hasUnsupportedFields}
+                    />
+                  )}
                   <Flex
                     mt={4}
                     py={4}
@@ -590,6 +650,7 @@ const checkYAMLData = (
       allow: unknown;
       gcp: unknown;
       github: unknown;
+      gitlab: unknown;
     };
   };
 } => {
@@ -661,6 +722,15 @@ const supportedFieldsMap: Partial<Record<JoinMethod, Set<string>>> = {
     '.allow.repository',
     '.allow.repository_owner',
     '.allow.workflow',
+    '.allow.environment',
+    '.allow.ref',
+    '.allow.ref_type',
+  ]),
+  gitlab: new Set([
+    '.domain',
+    '.static_jwks',
+    '.allow.project_path',
+    '.allow.namespace_path',
     '.allow.environment',
     '.allow.ref',
     '.allow.ref_type',

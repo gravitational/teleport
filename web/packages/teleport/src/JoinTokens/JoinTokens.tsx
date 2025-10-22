@@ -237,7 +237,8 @@ export const JoinTokens = () => {
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
                           token.method === 'token' ||
-                          (token.method === 'github' && token.github)
+                          (token.method === 'github' && token.github) ||
+                          (token.method === 'gitlab' && token.gitlab)
                         ) {
                           setEditingToken(token);
                           return;
