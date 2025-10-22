@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
 )
 
 func TestCheckHeaders(t *testing.T) {
@@ -290,7 +291,13 @@ func TestCheckOracleAllowRules(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.assert(t, auth.CheckOracleAllowRules(tc.claims, "mytoken", tc.allowRules))
+			token, err := types.NewProvisionTokenFromSpec("mytoken", time.Time{}, types.ProvisionTokenSpecV2{
+				Oracle: &types.ProvisionTokenSpecV2Oracle{
+					Allow: tc.allowRules,
+				},
+			})
+			require.NoError(t, err)
+			tc.assert(t, oraclejoin.CheckOracleAllowRules(&tc.claims, token))
 		})
 	}
 }
