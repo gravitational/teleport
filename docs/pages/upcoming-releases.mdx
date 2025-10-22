@@ -30,10 +30,6 @@ We continue to support the following major versions of Teleport:
 
 ### 18.3.0
 
-#### MCP
-
-TODO(@r0mant)
-
 #### Web UI Workload ID
 
 Teleport's web UI will list all workload identity resources registered in the cluster.
@@ -58,6 +54,11 @@ Health status will be reported in the Teleport web UI and reflected in kube_serv
 Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
 
 ### 18.4.0
+
+#### Streamable-HTTP and SSE support for MCP Zero-Trust Access
+
+[MCP Zero-Trust Access](./enroll-resources/mcp-access/mcp-access.mdx) users will be able to secure
+and audit connections to MCP servers that use HTTP-based transport protocols in addition to stdio.
 
 #### Improved Bot Instances Dashboard
 
