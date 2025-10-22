@@ -36,7 +36,7 @@ requests access to the `access` role.
 - This feature requires Teleport Identity Governance.
 - This guide requires at least one labeled SSH server.
 
-## Step 1/2. Create a requester role and user
+## Step 1/3. Create a requester role and user
 
 In this example, we'll first create:
 
@@ -79,7 +79,7 @@ Alternatively, you can assign the role after creating the user:
 
   (!docs/pages/includes/add-role-to-user.mdx role="demo-access-request" user="\`demo-access-requester\`"!)
 
-## Step 2/2. Assign user traits
+## Step 2/3. Assign user traits
 
 To allow automatic review rules to evaluate the requesting user, assign them
 traits via the Teleport Web UI:
@@ -102,10 +102,17 @@ does not support wildcard or regular expressions.
   by the IdP.
 </Admonition>
 
-The next two sections demonstrate how automatic reviews work for role and
-resource requests.
+## Step 3/3. Configure automatic reviews
 
-## Role-based automatic reviews
+Now that you've created a user and assigned them traits, you're ready to
+configure automatic review rules.
+
+Access Automation Rules leverage the user traits, resource labels, and schedules
+to determine whether requests can be automatically approved. In this step, you'll
+configure one or more kinds of automatic review rules to demonstrate how Teleport
+can automatically approve access.
+
+### Role-based automatic reviews
 
 To demonstrate how role requests from a specific team can be automatically
 approved, create the following Access Automation Rule via the Teleport Web UI:
@@ -135,7 +142,7 @@ reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings
 and verify the Access Request status. It might take a second for the review to
 process, so you may have to refresh the page.
 
-## Resource-based automatic reviews
+### Resource-based automatic reviews
 
 Before creating an Access Automation Rule, ensure that you have at least one
 labeled SSH server connected to your Teleport cluster:
@@ -176,7 +183,7 @@ reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings
 and verify the Access Request status. It might take a second for the review to
 process, so you may have to refresh the page.
 
-## Schedule-based automatic reviews
+### Schedule-based automatic reviews
 
 To demonstrate how role requests can be automatically approved during a
 specified schedule, create the following Access Automation Rule via the Teleport
