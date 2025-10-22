@@ -159,6 +159,7 @@ buildbox-ng:
 		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--cache-from $(BUILDBOX_NG) \
 		--cache-to type=inline \
 		$(if $(PUSH),--push,--load) \
