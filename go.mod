@@ -217,7 +217,6 @@ require (
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/snowflakedb/gosnowflake v1.17.0
 	github.com/spf13/cobra v1.10.1
-	github.com/spiffe/aws-spiffe-workload-helper v0.0.4
 	github.com/spiffe/go-spiffe/v2 v2.6.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0
@@ -327,7 +326,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.29.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.1 // indirect
-	github.com/aws/rolesanywhere-credential-helper v1.2.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
