@@ -151,7 +151,9 @@ type Cluster struct {
 	// For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
 	// leafClusterId is equal to the name property of the cluster.
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
-	// name is used throughout the Teleport Connect codebase as the cluster name.
+	// name is a site name of Teleport cluster.
+	// Only present in root clusters if the user has logged in (the name comes from the key).
+	// Always available for leaf clusters.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// proxy_host is address of the proxy used to connect to this cluster.
 	// Always includes port number. Present only for root clusters.
