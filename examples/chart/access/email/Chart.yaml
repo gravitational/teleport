@@ -1,4 +1,4 @@
-.version: &version "16.5.18-dev.nrel.6"
+.version: &version "16.5.18-dev.nrel.7"
 
 apiVersion: v2
 name: teleport-plugin-email
