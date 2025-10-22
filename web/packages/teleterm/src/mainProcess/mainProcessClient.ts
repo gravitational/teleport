@@ -293,7 +293,6 @@ export default function createMainProcessClient(): MainProcessClient {
  * The main process is expected to create an `AwaitableSender` using the received port,
  * enabling it to send messages that require acknowledgments from the renderer.
  */
-// eslint-disable-next-line unused-imports/no-unused-vars
 function startAwaitableSenderListener<T>(
   channel: string,
   listener: (value: T) => void
