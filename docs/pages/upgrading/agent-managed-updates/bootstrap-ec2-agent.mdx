@@ -271,7 +271,6 @@ To create required IAM role, instance profile and launch EC2 instance, follow th
    #cloud-config
    packages:
    - curl
-   - awscli
 
    runcmd:
      # Install Teleport using your cluster's script and define the group by query parameter.
@@ -324,7 +323,6 @@ Check services:
 
 ```code
 $ systemctl status teleport
-
 ● teleport.service - Teleport Service
      Loaded: loaded (/usr/lib/systemd/system/teleport.service; enabled; preset: enabled)
     Drop-In: /etc/systemd/system/teleport.service.d
@@ -339,7 +337,6 @@ $ systemctl status teleport
              └─40848 /usr/local/bin/teleport start --config /etc/teleport.yaml --pid-file=/run/teleport.pid
 
 $ journalctl -u teleport -n100 -f
-
 teleport[2246081]: 2025-10-21T20:51:44.154Z INFO [PROC:1]    Found an instance metadata service. Teleport will import labels from this cloud instance. pid:2246081.1 type:EC2 service/service.go:1186
 teleport[2246081]: 2025-10-21T20:51:44.156Z INFO [PROC:1]    Service is creating new listener. pid:2246081.1 type:debug address:/var/lib/teleport/debug.sock service/signals.go:242
 teleport[2246081]: 2025-10-21T20:51:44.159Z INFO [PROC:1]    Generating new host UUID pid:2246081.1 host_uuid:1fcaf1e0-0fbf-454d-ac13-49965918dc39 storage/storage.go:356
@@ -352,27 +349,32 @@ teleport[2246081]: 2025-10-21T20:51:44.697Z INFO  Successfully registered. metho
 teleport[2246081]: 2025-10-21T20:51:44.698Z INFO [PROC:1]    Successfully obtained credentials to connect to the cluster. pid:2246081.1 identity:Instance service/connect.go:383
 
 $ journalctl -u teleport-update -n100 -f
-
 systemd[1]: Starting teleport-update.service - Teleport auto-update service...
 teleport-update[160893]: INFO [UPDATER]   Teleport is up-to-date. Update window is active, but no action is needed. active_version:18.2.2 agent/updater.go:877
 systemd[1]: teleport-update.service: Deactivated successfully.
 systemd[1]: Finished teleport-update.service - Teleport auto-update service.
-systemd[1]: Starting teleport-update.service - Teleport auto-update service...
 ```
 
-From an admin workstation:
+From an admin workstation.
+
+Login to the remote cluster:
 
 ```code
-# Login to the remote cluster.
 $ tsh login --proxy <Var name="example.teleport.sh:443" /> --user <Var name="user" />
+```
 
-# Confirm that the node is joined (it might take up to 15 min to by synced).
+Confirm that the node is joined (it might take up to 15 min to be synced).
+
+```code
 $ tctl inventory ls
 Server ID                            Hostname                                    Services Agent Version Upgrader Upgrader Version Update Group
 ------------------------------------ ------------------------------------------- -------- ------------- -------- ---------------- ------------
 1fcaf1e0-0fbf-454d-ac13-49965918dc39 ip-172-31-44-126.us-west-2.compute.internal Node     v18.2.2       binary   v18.2.2          default
+```
 
-# Check the Managed Update v2 status.
+Check the Managed Update v2 status:
+
+```code
 $ tctl autoupdate agents status
 Group Name          State Start Time          State Reason    Agent Count Up-to-date
 ------------------- ----- ------------------- --------------- ----------- ----------
