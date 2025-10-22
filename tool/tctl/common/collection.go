@@ -1145,18 +1145,19 @@ func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "Assigns"}
+	headers := []string{"Scope", "Name", "User", "Assigns"}
 	var rows [][]string
 
 	for _, item := range c.items {
 		var assigns []string
 		for _, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns = append(assigns, fmt.Sprintf("%s@%s", subAssignment.GetRole(), subAssignment.GetScope()))
+			assigns = append(assigns, fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope()))
 		}
 
 		rows = append(rows, []string{
 			item.GetScope(),
 			item.GetMetadata().GetName(),
+			item.GetSpec().GetUser(),
 			strings.Join(assigns, ", "),
 		})
 	}
