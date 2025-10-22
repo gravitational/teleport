@@ -26,15 +26,25 @@ import (
 var (
 	//go:embed systemd.tmpl
 	templateData string
-	Template     = template.Must(template.New("").Parse(templateData))
+
+	// Template is the systemd unit template for tbot..
+	Template = template.Must(template.New("").Parse(templateData))
 )
 
+// TemplateParams are the parameters for the systemd unit template.
 type TemplateParams struct {
-	UnitName             string
-	User                 string
-	Group                string
-	AnonymousTelemetry   bool
-	ConfigPath           string
-	TBotPath             string
+	// UnitName is the name of the systemd unit.
+	UnitName string
+	// User is the user to run the service as.
+	User string
+	// Group is the group to run the service as.
+	Group string
+	// AnonymousTelemetry is whether to enable anonymous telemetry.
+	AnonymousTelemetry bool
+	// ConfigPath is the path to the tbot config file.
+	ConfigPath string
+	// TBotPath is the path to the tbot binary.
+	TBotPath string
+	// DiagSocketForUpdater is the path to the diag socket for the updater.
 	DiagSocketForUpdater string
 }
