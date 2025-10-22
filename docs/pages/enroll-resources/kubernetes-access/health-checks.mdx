@@ -12,14 +12,14 @@ This documentation provides an overview of Kubernetes cluster health checks with
 
 Kubernetes cluster health checks are available in Teleport version (= kubernetes.health_check_min_version =) and later.
 
-## Why check the health of a Kubernetes cluster?
+Teleport Kubernetes health checks provide:
 
 - **Observability**: Discover network and permission issues before users do. Unhealthy Kubernetes clusters are visible in a Teleport UI, command line tool, or Prometheus metrics.
 - **High Availability**: Automatically route and distribute connections to healthy Kubernetes clusters in a high-availability configuration.
 
 ## How Kubernetes health checks work
 
-Kubernetes permissions and a Kubernetes health endpoint are checked to determine whether a Kubernetes cluster is both up and usable with Teleport.
+The Teleport Kubernetes Service checks Kubernetes permissions and health endpoint to determine whether a Kubernetes cluster is both up and usable with Teleport.
 
 Four Kubernetes RBAC permissions are routinely checked with the Kubernetes [SelfSubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/self-subject-access-review-v1/) API. The permissions are part of minimum requirements for Teleport to work with a Kubernetes cluster. The checked permissions are:
 - Impersonate users
@@ -42,6 +42,7 @@ A Kubernetes cluster is in a `healthy`, `unhealthy`, or `unknown` state.
 
 `unknown` Kubernetes clusters are not checked for health due to:
 - Running a pre-(= kubernetes.health_check_min_version =) version of Teleport Kubernetes Service instances
+- Explicitly disabling `health_check_config`
 - Explicitly configuring `health_check_config` labels to exclude a Kubernetes cluster
 </Admonition>
 
@@ -51,11 +52,23 @@ Kubernetes cluster health is viewed through the Teleport web UI, desktop Connect
 
 ### Teleport Web UI and Teleport Connect
 
-Click the refresh icon to get the latest health of Kubernetes clusters.
+The Teleport web and Connect UI highlight unhealthy Kubernetes clusters.
+
+Clicking a highlighted Kubernetes cluster shows details of an unhealthy Kubernetes cluster.
 
 ![Kubernetes health warning in the UI](../../../img/resource-health-check/kubernetes-health-warning.png)
 
+It may take approximately `5m` for a health change to be reported.
+{/* TODO(gavin): delete this line when we fix health status reporting delay */}
+
+Click the circular arrow refresh icon to get the latest health status. 
+
 ### Teleport `tctl` CLI
+
+The Teleport `tctl` CLI tool searches and displays unhealthy Kubernetes clusters.
+```code
+tctl kube ls --query 'health.status == "unhealthy"' 
+```
 
 Run `tctl get kube_server/<your-kube-server-name>` for an overview of Kubernetes cluster health for a specific Kubernetes service.
 ```yaml
@@ -95,7 +108,11 @@ teleport_resources_health_status_unhealthy{type="kubernetes"} > 0
 <Admonition type="note">
 Prometheus metrics don't distinguish which cluster is unhealthy.
 
-Use a Teleport UI, or `tctl kube ls --query 'health.status == "unhealthy"'` to determine which cluster is unhealthy.
+To determine which cluster is unhealthy, use the Teleport Web UI, Teleport Connect, or the following `tctl` command:
+
+```code
+$ tctl kube ls --query 'health.status == "unhealthy"'
+```
 </Admonition>
 
 Health check metrics may also be viewed with the Teleport diagnostic endpoint `http://<diagnostic-address>/metrics`.
@@ -111,7 +128,7 @@ teleport_resources_health_status_unhealthy{type="kubernetes"} 3
 teleport_resources_health_status_unknown{type="kubernetes"} 25
 ```
 
-Diagnostic endpoint metrics are disabled by default. See [Monitoring your Teleport deployment](../../pages/zero-trust-access/management/diagnostics/diagnostics.mdx) to learn how to enable diagnostic metrics.
+Diagnostic endpoint metrics are disabled by default. See [Monitoring your Teleport deployment](../../zero-trust-access/management/diagnostics/diagnostics.mdx) to learn how to enable diagnostic metrics.
 
 ## Configuring health checks
 
@@ -144,6 +161,8 @@ spec:
   # the matching health check configs are sorted by name and only the first
   # config applies.
   match:
+    # disable all labels and expressions for all resources in this config
+    disable: false
     # kubernetes_labels matches Kubernetes cluster labels. An empty value is ignored.
     # If kubernetes_labels_expression is also set, then the match result is the logical
     # AND of both.
@@ -179,7 +198,31 @@ A different `default` `health_check_config` also exists, and focuses on matching
 
 Multiple different `health_check_config` resources may be created for different groups of Kubernetes clusters. When multiple `health_check_config` match the same Kubernetes cluster, configs are sorted in ascending order by name, and only the first config applies (e.g., the name "00-my-config" has greater precedence than "10-my-config").
 
-**`tctl` health check commands**
+## Disabling Kubernetes health checks
+
+Set the `match.disabled` field to `true` on any `health_check_config`. 
+
+For example, use `tctl edit health_check_config/default_kube`
+```yaml
+kind: health_check_config
+metadata:
+  description: Enables all health checks by default
+  labels:
+    teleport.internal/resource-type: preset
+  name: default_kube
+spec:
+  match:
+    disable: true
+    kubernetes_labels:
+    - name: '*'
+      values:
+      - '*'
+version: v1
+```
+
+Any defined labels, such as `kubernetes_labels`, are ignored when `disable: true`.
+
+## `tctl` health check commands
 
 Read the default health check config with `tctl get`:
 ```bash
@@ -205,62 +248,9 @@ Teleport Kubernetes Service instances are notified of changes to `health_check_c
 
 ## FAQ
 
-### How do I see unhealthy Kubernetes clusters?
-
-The Teleport web and Connect UI highlight unhealthy Kubernetes clusters.
-
-Clicking a highlighted Kubernetes cluster shows details of an unhealthy Kubernetes cluster.
-
-![Kubernetes health warning in the UI](../../../img/resource-health-check/kubernetes-health-warning.png)
-
-It may take approximately `5m` for a health change to be reported.
-{/* TODO(gavin): delete this line when we fix health status reporting delay */}
-
-Click the circular arrow refresh icon to get the latest health status. 
-
-The Teleport `tctl` CLI tool also searches and displays unhealthy Kubernetes clusters.
-```code
-tctl kube ls --query 'health.status == "unhealthy"' 
-```
-
 ### What guidance is there for troubleshooting unhealthy Kubernetes clusters?
 
 See the [Kubernetes Service troubleshooting guide](./troubleshooting.mdx) for specific errors returned by health checks.
-
-### How do I disable Kubernetes health checks?
-
-Add a filtering label to exclude Kubernetes clusters with the CLI command `tctl edit health_check_config/default_kube`. If you have multiple `health_check_config`, such as `health_check_config/example-a`, `health_check_config/example-b`, each config would be adjusted.
-
-Adding any label to `health_check_config` tells Teleport to filter out Kubernetes clusters which don't match the label. 
-
-For example, adding `healthcheck` and `enabled` to `kubernetes_labels` in the following example would exclude Kubernetes clusters without the label.
-```yaml
-kind: health_check_config
-metadata:
-  description: Enables health checks for all Kubernetes clusters with label healthcheck and value enabled.
-  labels:
-    teleport.internal/resource-type: preset
-  name: default_kube
-  revision: 040e3839-c248-4b9d-898f-4ae88b1d4752
-spec:
-  match:
-    kubernetes_labels:
-      - name: 'healthcheck'
-        values:
-          - 'enabled'
-version: v1
-```
-
-The default is to match all enrolled Kubernetes clusters.
-
-```yaml
-spec:
-  match:
-    kubernetes_labels:
-      - name: '*'
-        values:
-          - '*'
-```
 
 ### Do health check metrics show which Kubernetes cluster is unhealthy?
 
