@@ -106,9 +106,7 @@ func NewServer(cfg *ServerConfig) *Server {
 // fetch a [joiningv1.ScopedToken] and then falling back to a [types.ProvisionTokenV2] if a
 // scoped token can not be found.
 func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
-	scoped, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-		Name: name,
-	})
+	scoped, err := s.cfg.ScopedTokenService.UseScopedToken(ctx, name)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			log.ErrorContext(ctx, "failed to fetch scoped token", "error", err)
@@ -122,7 +120,7 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 		return provisionToken, nil
 	}
 
-	token, err := joining.NewToken(scoped.GetToken())
+	token, err := joining.NewToken(scoped)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
