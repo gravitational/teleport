@@ -48,7 +48,7 @@ func main() {
 	// Optional configs.
 	host := cmp.Or(os.Getenv("MCP_HOST"), "127.0.0.1")
 	port := cmp.Or(os.Getenv("MCP_PORT"), "8000")
-	mcpAppURI := cmp.Or(os.Getenv("MCP_APP_URI"), fmt.Sprintf("mcp+http://%s:%s/mcp", host, port))
+	mcpAppURI := cmp.Or(os.Getenv("TELEPORT_MCP_APP_URI"), fmt.Sprintf("mcp+http://%s:%s/mcp", host, port))
 
 	jwtValidator, err := makeJWTValidator(teleportProxyURL, mcpAppURI)
 	if err != nil {
@@ -95,7 +95,12 @@ func makeMCPServer() *mcpserver.MCPServer {
 					Content: []mcp.Content{mcp.NewTextContent(`{"authenticated":false}`)},
 				}, nil
 			}
-			teleportClaims := claims.CustomClaims.(*teleportCustomClaims)
+			teleportClaims, ok := claims.CustomClaims.(*teleportCustomClaims)
+			if !ok {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{mcp.NewTextContent(`{"authenticated":false}`)},
+				}, nil
+			}
 
 			// Prepare result.
 			result := struct {
@@ -156,7 +161,7 @@ func getJSONFromURL(url string, target any) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(resp.Status)
+		return fmt.Errorf("expected 200 OK, got %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(target)
 }
