@@ -3430,7 +3430,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
 				req.Expires = maxTime
 			}
-		} else if isLocalProxyCertReq(&req) {
+		} else if inMemoryFlowCertRequest(&req) {
 			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
 			// or mfa_verification_interval or req.Expires.
 
@@ -3613,6 +3613,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
+		requesterName:                    req.RequesterName,
 		kubernetesCluster:                req.KubernetesCluster,
 		dbService:                        req.RouteToDatabase.ServiceName,
 		dbProtocol:                       req.RouteToDatabase.Protocol,
