@@ -36,7 +36,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joinv1proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -93,8 +92,7 @@ func TestJoinToken(t *testing.T) {
 		Version: types.V1,
 		Scope:   "/aa",
 		Metadata: &headerv1.Metadata{
-			Name:      "scoped1",
-			Namespace: defaults.Namespace,
+			Name: "scoped1",
 		},
 		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/aa/bb",
@@ -232,7 +230,7 @@ func TestJoinToken(t *testing.T) {
 		require.NoError(t, err)
 
 		// Node can rejoin with a different token assigning the same scope
-		// by dialing the auth service with an auth client authenticed with
+		// by dialing the auth service with an auth client authenticated with
 		// its original credentials.
 		//
 		// It should get back its original host ID and the combined roles of
@@ -281,12 +279,7 @@ func TestJoinToken(t *testing.T) {
 		authClient, err := authService.TLS.NewClientWithCert(tlsConfig.Certificates[0])
 		require.NoError(t, err)
 
-		// Node can rejoin with a different token assigning the same scope
-		// by dialing the auth service with an auth client authenticed with
-		// its original credentials.
-		//
-		// It should get back its original host ID and the combined roles of
-		// its original certificate and the new token.
+		// Node cannot rejoin with a different token assigning a different scope.
 		_, err = rejoinViaAuthClient(
 			t.Context(),
 			scopedToken2.GetMetadata().GetName(),

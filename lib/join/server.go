@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -198,6 +197,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	// Assert that the provision token allows the requested system role.
 	if err := TokenAllowsRole(token, types.SystemRole(clientInit.SystemRole)); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if authCtx.IsInstance && authCtx.Scope != token.GetAssignedScope() {
+		return trace.BadParameter("tried to re-join instance from scope %q into %q", authCtx.Scope, token.GetAssignedScope())
 	}
 
 	authPref, err := s.cfg.AuthService.GetAuthPreference(ctx)
@@ -446,9 +449,6 @@ func makeHostCertsParams(
 	}
 
 	if authCtx.IsInstance {
-		if authCtx.Scope != scope {
-			return nil, trace.BadParameter("tried to re-join instance from scope %q into %q", authCtx.Scope, scope)
-		}
 		// Only authenticated Instance certs are allowed to re-join and
 		// maintain their existing host ID and authenticate additional system
 		// roles.

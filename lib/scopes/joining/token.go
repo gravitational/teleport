@@ -127,6 +127,26 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+// ValidateTokenForUse checks if a given scoped token can be used for
+// provisioning.
+func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
+	if err := WeakValidateToken(token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ttl := token.GetMetadata().GetExpires().AsTime()
+	if ttl.IsZero() {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	if ttl.Before(now) {
+		return trace.LimitExceeded("scoped token is expired")
+	}
+
+	return nil
+}
+
 // Token wraps a [joiningv1.ScopedToken] such that it can be used to provision
 // resources.
 type Token struct {
@@ -219,10 +239,10 @@ func (t *Token) Expiry() time.Time {
 	return expiry.AsTime()
 }
 
-// GetBotName returns the bot name configured on the wrapped
-// [joiningv1.ScopedToken], if there is one.
+// GetBotName returns an empty string because scoped tokens do not currently
+// support configuring a bot name.
 func (t *Token) GetBotName() string {
-	return t.scoped.GetSpec().GetBotName()
+	return ""
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources
