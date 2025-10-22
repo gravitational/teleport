@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  Cluster,
-  ShowResources,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { applyPatches, castDraft, enablePatches } from 'immer';
+
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   CreateAccessRequestRequest,
@@ -28,8 +26,9 @@ import {
   ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
-import { isAbortError } from 'shared/utils/error';
+import { AbortError, isAbortError } from 'shared/utils/error';
 
+import type { State as ClustersState } from 'teleterm/mainProcess/clusterStore';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
@@ -42,9 +41,16 @@ import { ImmutableStore } from '../immutableStore';
 const { routing } = uri;
 
 type ClustersServiceState = {
-  clusters: Map<uri.ClusterUri, Cluster>;
+  /**
+   * `clusters` is a local mirror of the `ClusterStore` state from the main process.
+   * This state is read-only and must not be updated manually — it is managed exclusively
+   * through `subscribeToClusterStore`.
+   */
+  clusters: ClustersState;
   gateways: Map<uri.GatewayUri, Gateway>;
 };
+
+enablePatches();
 
 export function createClusterServiceState(): ClustersServiceState {
   return {
@@ -63,36 +69,16 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     private usageService: UsageService
   ) {
     super();
+    this.subscribeToClusterStore();
   }
 
-  async addRootCluster(addr: string) {
-    const { response: cluster } = await this.client.addCluster({ name: addr });
-    // Do not overwrite the existing cluster;
-    // otherwise we may lose properties fetched from the auth server.
-    // Consider separating properties read from profile and those
-    // fetched from the auth server at the RPC message level.
-    if (!this.state.clusters.has(cluster.uri)) {
-      this.setState(draft => {
-        draft.clusters.set(cluster.uri, cluster);
-      });
-    }
-
-    return cluster;
+  async addRootCluster(proxyAddress: string) {
+    return this.mainProcessClient.addCluster(proxyAddress);
   }
 
   /** Logs out of the cluster. */
   async logout(clusterUri: uri.RootClusterUri) {
-    // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
-    await this.client.logout({ clusterUri });
-    await this.client.removeCluster({ clusterUri });
-
-    this.setState(draft => {
-      draft.clusters.forEach(cluster => {
-        if (routing.belongsToProfile(clusterUri, cluster.uri)) {
-          draft.clusters.delete(cluster.uri);
-        }
-      });
-    });
+    await this.mainProcessClient.logoutCluster(clusterUri);
   }
 
   async authenticateWebDevice(
@@ -128,7 +114,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     clusterUri: uri.RootClusterUri
   ) {
     try {
-      await this.syncRootCluster(clusterUri);
+      await this.mainProcessClient.syncCluster(clusterUri);
     } catch (e) {
       const cluster = this.findCluster(clusterUri);
       const clusterName =
@@ -178,10 +164,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
    * errors up.
    */
   async syncRootCluster(clusterUri: uri.RootClusterUri) {
-    await Promise.all([
-      this.syncClusterInfo(clusterUri),
-      this.syncLeafClustersList(clusterUri),
-    ]);
+    await this.mainProcessClient.syncCluster(clusterUri);
   }
 
   /**
@@ -192,14 +175,26 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
    * its associated workspace, resulting in an invalid state.
    */
   async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
-    let clusters: Cluster[];
-
+    //TODO(gzdunek): Implement passing abort signals over IPC.
+    // In this particular case it's fine to discard waiting for the result.
+    const abortPromise =
+      abortSignal &&
+      new Promise<never>((_, reject) => {
+        if (abortSignal.aborted) {
+          reject(new AbortError());
+          return;
+        }
+        abortSignal.addEventListener('abort', () => reject(new AbortError()), {
+          once: true,
+        });
+      });
     try {
-      const { response } = await this.client.listRootClusters(
-        {},
-        { abortSignal: abortSignal && cloneAbortSignal(abortSignal) }
-      );
-      clusters = response.clusters;
+      await Promise.race([
+        abortPromise,
+        await this.mainProcessClient.syncRootClusters({
+          abortSignal: abortSignal && cloneAbortSignal(abortSignal),
+        }),
+      ]);
     } catch (error) {
       if (isAbortError(error)) {
         this.logger.info('Listing root clusters aborted');
@@ -219,12 +214,8 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       return;
     }
 
-    this.setState(draft => {
-      draft.clusters = new Map(clusters.map(c => [c.uri, c]));
-    });
-
     // Sync root clusters and resume headless watchers for any active login sessions.
-    clusters
+    this.getRootClusters()
       .filter(c => c.connected)
       .forEach(c => this.syncAndWatchRootClusterWithErrorHandling(c.uri));
   }
@@ -248,20 +239,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
         },
       });
     }
-  }
-
-  private async syncLeafClustersList(clusterUri: uri.RootClusterUri) {
-    const { response } = await this.client.listLeafClusters({
-      clusterUri,
-    });
-
-    this.setState(draft => {
-      for (const leaf of response.clusters) {
-        draft.clusters.set(leaf.uri, leaf);
-      }
-    });
-
-    return response.clusters;
   }
 
   /** Assumes roles for the given requests. */
@@ -502,27 +479,15 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return useStore(this).state;
   }
 
-  private async syncClusterInfo(clusterUri: uri.RootClusterUri) {
-    try {
-      const { response: cluster } = await this.client.getCluster({
-        clusterUri,
-      });
-      this.setState(draft => {
-        draft.clusters.set(clusterUri, cluster);
-      });
-    } catch (error) {
-      this.setState(draft => {
-        const cluster = draft.clusters.get(clusterUri);
-        if (cluster) {
-          // TODO(gzdunek): We should rather store the cluster synchronization status,
-          // so the callsites could check it before reading the field.
-          // The workaround is to update the field in case of a failure,
-          // so the places that wait for showResources !== UNSPECIFIED don't get stuck indefinitely.
-          cluster.showResources = ShowResources.ACCESSIBLE_ONLY;
+  private subscribeToClusterStore(): void {
+    this.mainProcessClient.subscribeToClusterStore(e => {
+      this.setState(c => {
+        if (e.kind === 'state') {
+          c.clusters = castDraft(e.value);
+          return;
         }
+        applyPatches(c.clusters, e.value);
       });
-
-      throw error;
-    }
+    });
   }
 }
