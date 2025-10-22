@@ -75,13 +75,16 @@ service will then check if MFA is required for the session by examining the perm
 
 If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
 
-If MFA _is required_, the SSH service will then send a JSON encoded question containing the action ID via the SSH
-[keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. The MFA
-keyboard-interactive question will follow this schema:
+If MFA _is required_, the SSH service will send a JSON-encoded question containing the action ID via the SSH
+[keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. An
+action ID is a unique identifier (UUID v4) that ties the MFA challenge to a specific user action (in this case, SSH
+session establishment). In the future, action IDs could be used for other Teleport features beyond SSH access.
+
+The MFA keyboard-interactive question will follow this schema:
 
 ```json
 {
-  // Unique identifier for the MFA action.
+  // Unique identifier for the MFA action (UUID v4).
   "action_id": "121c49ab-8bc1-414a-b11c-5311bc54eceb",
   // Human-readable message to display to the user.
   "message": "MFA required. Complete the challenge using the provided action ID."
@@ -162,9 +165,12 @@ by an attacker to DoS the service by flooding it with requests.
 
 Mitigations:
 
-1. Implement rate limiting on the `ValidateAuthenticateChallenge` RPC to prevent abuse.
+1. Implement rate limiting on the `ValidateAuthenticateChallenge` RPC to prevent abuse. The rate limits will be
+   configurable based on deployment needs.
 1. Ensure that the Auth service validates the `MFAAuthenticateResponse` and `action_id` before processing the request to
    avoid unnecessary processing of invalid requests.
+1. Only Teleport instances are authorized to call the `ValidateAuthenticateChallenge` RPC, requests from other sources
+   will be rejected.
 
 ### Privacy
 
@@ -219,7 +225,7 @@ enum ChallengeScope {
 The `ChallengeExtensions` message will be updated to include an optional `action_id` field that associates the MFA
 challenge with a specific user action. The `action_id` can be used for other Teleport features, not just SSH access.
 
-The service must store the `action_id` along with the MFA challenge so that when the client responds with the MFA
+The Auth service must store the `action_id` along with the MFA challenge so that when the client responds with the MFA
 challenge response, it can be correlated with the original challenge.
 
 ```proto
@@ -236,9 +242,9 @@ message ChallengeExtensions {
 ```
 
 A new RPC `ValidateAuthenticateChallenge` will be added to validate the MFA challenge response provided by the user.
-This RPC will accept the `action_id` and the `MFAAuthenticateResponse` as parameters. The service must verify that the
-response matches the original challenge associated with the `action_id` and that the challenge has not expired or been
-previously used.
+This RPC will accept the `action_id` and the `MFAAuthenticateResponse` as parameters. The Auth service must verify that
+the response matches the original challenge associated with the `action_id` and that the challenge has not expired or
+been previously used.
 
 ```proto
 // AuthService is authentication/authorization service implementation
