@@ -155,13 +155,14 @@ backend and writes it to the destination backend. Any items created on the
 source backend after the initial retrieval will not be included in the clone.
 
 
-### Rollbacks
+## Rollbacks
 
 Rollbacks can be performed without any backend corruption or data loss by leveraging
 `teleport backend clone` to create a copy of an existing backend. For example, prior
 to upgrading a cluster from Teleport v18 to v19 the following clone configuration can
 be used to make a full clone of the Teleport backend state to a different key range of
-the same etcd cluster.
+the same etcd cluster using the `prefix` field. See the etcd storage backend
+[configuration reference](../../../reference/deployment/backends.mdx#etcd) for an explanation:
 
 ```yaml
 src:
