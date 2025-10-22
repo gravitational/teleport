@@ -62,8 +62,10 @@ export function useActiveDocumentClusterBreadcrumbs(): Breadcrumb[] {
   }
 
   return [
-    { name: rootCluster.name },
-    clusterUri !== rootClusterUri && { name: cluster.name },
+    { name: `${routing.parseClusterName(rootClusterUri)}` },
+    clusterUri !== rootClusterUri && {
+      name: routing.parseClusterName(clusterUri),
+    },
     {
       name: staticNameAndIcon.name,
       Icon: staticNameAndIcon.Icon,

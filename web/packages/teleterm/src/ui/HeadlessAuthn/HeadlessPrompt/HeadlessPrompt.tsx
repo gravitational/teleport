@@ -37,12 +37,12 @@ import * as Icons from 'design/Icon';
 import { P, P3 } from 'design/Text/Text';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import type * as tsh from 'teleterm/services/tshd/types';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export type HeadlessPromptProps = {
-  cluster: tsh.Cluster;
+  rootClusterUri: RootClusterUri;
   clientIp: string;
   skipConfirm: boolean;
   onApprove(): Promise<void>;
@@ -62,7 +62,7 @@ export type HeadlessPromptProps = {
 };
 
 export function HeadlessPrompt({
-  cluster,
+  rootClusterUri,
   clientIp,
   skipConfirm,
   onApprove,
@@ -88,7 +88,7 @@ export function HeadlessPrompt({
     >
       <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
         <H2 mb={4}>
-          Headless command on <b>{cluster.name}</b>
+          Headless command on <b>{routing.parseClusterName(rootClusterUri)}</b>
         </H2>
         <ButtonIcon
           type="button"

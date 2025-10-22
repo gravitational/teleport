@@ -148,6 +148,6 @@ export class TshdNotificationsService {
     const clusterUri = routing.ensureClusterUri(uri);
     const cluster = this.clustersService.findCluster(clusterUri);
 
-    return cluster ? cluster.name : routing.parseClusterName(clusterUri);
+    return cluster?.name || routing.parseClusterName(clusterUri);
   }
 }

@@ -77,22 +77,17 @@ export const ReAuthenticate: FC<{
 
   const { clusterUri } = req;
   const { clustersService } = useAppContext();
-  // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
-  // clustersService. https://github.com/gravitational/teleport/issues/33733
   const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
   const rootCluster = clustersService.findRootClusterByResource(rootClusterUri);
-  const rootClusterName =
-    rootCluster?.name || routing.parseClusterName(rootClusterUri);
+  const rootClusterName = routing.parseClusterName(rootClusterUri);
   const rootClusterProxyHost =
     // As a fallback, we read the proxy hostname from the URI. One small issue is that URIs don't
     // include the port number, so if the actual proxy host has a port number other than 443,
     // rootClusterProxyHost will not point to the proxy service.
     // In practice though we should not end up in a situation where this modal is shown but the
     // cluster does not exist in the app.
-    rootCluster?.proxyHost || routing.parseClusterName(rootClusterUri);
-  const clusterName =
-    clustersService.findCluster(clusterUri)?.name ||
-    routing.parseClusterName(clusterUri);
+    rootCluster?.proxyHost || rootClusterName;
+  const clusterName = routing.parseClusterName(clusterUri);
   const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   let $totpPrompt = (

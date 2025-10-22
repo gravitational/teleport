@@ -27,7 +27,7 @@ import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { ColorPicker } from './ColorPicker';
 import {
@@ -45,6 +45,7 @@ export function ActiveCluster(props: {
   onRefresh(): void;
   onLogout(): void;
 }) {
+  const clusterName = routing.parseClusterName(props.activeCluster.uri);
   return (
     <>
       <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
@@ -56,21 +57,21 @@ export function ActiveCluster(props: {
               setColor={props.onChangeColor}
             />
             <TitleAndSubtitle
-              title={props.activeCluster.name}
+              title={clusterName}
               subtitle={props.activeCluster.loggedInUser?.name}
             />
           </Flex>
 
           <Flex flexDirection="row" alignItems="flex-start" gap={1}>
             <ButtonText
-              title={`Refresh session in ${props.activeCluster.name}`}
+              title={`Refresh session in ${clusterName}`}
               size="small"
               onClick={() => props.onRefresh()}
             >
               <Refresh size="small" />
             </ButtonText>
             <ButtonText
-              title={`Log out from ${props.activeCluster.name}`}
+              title={`Log out from ${clusterName}`}
               onClick={() => props.onLogout()}
               intent="danger"
               size="small"

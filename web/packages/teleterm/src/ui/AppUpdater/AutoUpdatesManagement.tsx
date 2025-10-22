@@ -32,9 +32,7 @@ import {
   AutoUpdatesEnabled,
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
-import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { ClusterGetter, clusterNameGetter } from './common';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const listFormatter = new Intl.ListFormat('en', {
   style: 'long',
@@ -44,16 +42,14 @@ const listFormatter = new Intl.ListFormat('en', {
 export function AutoUpdatesManagement(props: {
   status: AutoUpdatesStatus;
   updateEventKind: AppUpdateEvent['kind'];
-  clusterGetter: ClusterGetter;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
   onCheckForUpdates(): void;
 }) {
   const { status } = props;
 
-  const getClusterName = clusterNameGetter(props.clusterGetter);
   const content =
     status.enabled === true
-      ? makeContentForEnabledAutoUpdates(status, getClusterName)
+      ? makeContentForEnabledAutoUpdates(status)
       : makeContentForDisabledAutoUpdates(status);
   const retryButton = {
     content: 'Retry',
@@ -79,7 +75,6 @@ export function AutoUpdatesManagement(props: {
         autoUpdatesStatus={status}
         changeManagingCluster={props.changeManagingCluster}
         isCheckingForUpdates={props.updateEventKind === 'checking-for-update'}
-        getClusterName={getClusterName}
         onRetry={props.onCheckForUpdates}
         // Resets localIsAutoManaged checkbox.
         key={JSON.stringify(status)}
@@ -92,13 +87,11 @@ function ManagingClusterSelector({
   autoUpdatesStatus,
   isCheckingForUpdates,
   changeManagingCluster,
-  getClusterName,
   onRetry,
 }: {
   autoUpdatesStatus: AutoUpdatesStatus;
   isCheckingForUpdates: boolean;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
-  getClusterName(clusterUri: RootClusterUri): string;
   onRetry(): void;
 }) {
   // Allows optimistic UI updates without waiting for autoUpdatesStatus.
@@ -108,7 +101,6 @@ function ManagingClusterSelector({
 
   const options = makeOptions({
     status: autoUpdatesStatus,
-    getClusterName,
     disabled: isCheckingForUpdates,
     highestCompatibleVersion:
       autoUpdatesStatus.options.highestCompatibleVersion,
@@ -152,13 +144,11 @@ function ManagingClusterSelector({
 
 function makeOptions({
   status,
-  getClusterName,
   highestCompatibleVersion,
   disabled,
   onRetry,
 }: {
   status: AutoUpdatesStatus;
-  getClusterName: (clusterUri: RootClusterUri) => string;
   disabled: boolean;
   highestCompatibleVersion: string;
   onRetry(): void;
@@ -173,6 +163,8 @@ function makeOptions({
     disabled: disabled,
     value: '',
   };
+
+  const getClusterName = (uri: RootClusterUri) => routing.parseClusterName(uri);
 
   const candidateClusters = status.options.clusters
     .filter(c => c.toolsAutoUpdate)
@@ -286,10 +278,7 @@ function UnreachableClusterHelper(props: { error: string; onRetry(): void }) {
   );
 }
 
-function makeContentForEnabledAutoUpdates(
-  status: AutoUpdatesEnabled,
-  getClusterName: (clusterUri: RootClusterUri) => string
-): {
+function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
   description: string;
   kind: 'neutral' | 'warning';
   showRetry?: boolean;
@@ -305,7 +294,7 @@ function makeContentForEnabledAutoUpdates(
     case 'highest-compatible':
       const providingClusters = status.options.clusters
         .filter(c => c.toolsAutoUpdate && c.toolsVersion === status.version)
-        .map(c => getClusterName(c.clusterUri));
+        .map(c => routing.parseClusterName(c.clusterUri));
       // Show info if there's only one cluster.
       if (
         status.options.clusters.length === 1 &&

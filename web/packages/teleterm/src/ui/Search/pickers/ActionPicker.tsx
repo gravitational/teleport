@@ -51,6 +51,7 @@ import {
 } from 'teleterm/ui/Search/searchResult';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import * as uri from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { useVnetContext } from 'teleterm/ui/Vnet';
@@ -103,8 +104,8 @@ export function ActionPicker(props: { input: ReactElement }) {
     (resourceUri: uri.ClusterOrResourceUri) => {
       const clusterUri = uri.routing.ensureClusterUri(resourceUri);
       const cluster = clustersService.findCluster(clusterUri);
-
-      return cluster ? cluster.name : uri.routing.parseClusterName(resourceUri);
+      // Name is empty if the user hasn't logged into that cluster yet.
+      return cluster?.name || uri.routing.parseClusterName(resourceUri);
     },
     [clustersService]
   );
@@ -540,7 +541,10 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
         Search only in{' '}
         <strong>
           <Highlight
-            text={props.searchResult.resource.name}
+            text={
+              props.searchResult.resource.name ||
+              routing.parseClusterName(props.searchResult.resource.uri)
+            }
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>

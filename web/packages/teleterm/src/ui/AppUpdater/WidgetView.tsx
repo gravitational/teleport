@@ -39,11 +39,9 @@ import {
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
 import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 
 import {
-  ClusterGetter,
-  clusterNameGetter,
   formatMB,
   getDownloadHost,
   iconMac,
@@ -60,7 +58,6 @@ import {
  * unless there's an issue that prevents autoupdates from working.
  */
 export function WidgetView({
-  clusterGetter,
   onDownload,
   onInstall,
   onMore,
@@ -70,17 +67,15 @@ export function WidgetView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
-  clusterGetter: ClusterGetter;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
 } & SpaceProps) {
-  const getClusterName = clusterNameGetter(clusterGetter);
   const { autoUpdatesStatus } = updateEvent;
 
   const issueRequiringAttention =
     autoUpdatesStatus &&
-    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus, getClusterName);
+    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus);
 
   if (issueRequiringAttention) {
     return (
@@ -151,7 +146,6 @@ export function WidgetView({
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
       onMore={onMore}
-      getClusterName={getClusterName}
       primaryButton={
         button ? { name: button.name, onClick: button.action } : undefined
       }
@@ -176,7 +170,6 @@ function AvailableUpdate({
   downloadHost: string;
   platform: Platform;
   onMore(): void;
-  getClusterName(clusterUri: RootClusterUri): string;
   primaryButton?: {
     name: string;
     onClick(): void;
@@ -321,8 +314,7 @@ function makeUpdaterContent({
 
 /** Returns issues that need to be resolved to make autoupdates work. */
 function findAutoUpdatesIssuesRequiringAttention(
-  status: AutoUpdatesStatus,
-  getClusterName: (clusterUri: RootClusterUri) => string
+  status: AutoUpdatesStatus
 ): string | undefined {
   if (status.enabled === false && status.reason === 'no-compatible-version') {
     return 'Your clusters require incompatible client versions. Choose one to enable app updates.';
@@ -332,7 +324,7 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.enabled === false &&
     status.reason === 'managing-cluster-unable-to-manage'
   ) {
-    return `The cluster ${getClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
+    return `The cluster ${routing.parseClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
   }
 
   if (
@@ -340,9 +332,6 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.reason === 'no-cluster-with-auto-update' &&
     status.options.unreachableClusters.length
   ) {
-    return makeUnreachableClusterText(
-      status.options.unreachableClusters,
-      getClusterName
-    );
+    return makeUnreachableClusterText(status.options.unreachableClusters);
   }
 }

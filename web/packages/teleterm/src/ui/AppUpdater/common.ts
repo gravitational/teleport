@@ -17,11 +17,10 @@
  */
 
 import { UnreachableCluster } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
-import { Cluster as TshdCluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { pluralize } from 'shared/utils/text';
 
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 
 import iconWinLinux from '../../../build_resources/icon-linux/512x512.png';
 import iconMac from '../../../build_resources/icon-mac.png';
@@ -50,27 +49,17 @@ export function isTeleportDownloadHost(host: string): boolean {
   return host === 'cdn.teleport.dev';
 }
 
-export interface ClusterGetter {
-  findCluster(clusterUri: RootClusterUri): TshdCluster | undefined;
-}
-
-export const clusterNameGetter =
-  (clusterService: ClusterGetter) => (clusterUri: RootClusterUri) =>
-    clusterService.findCluster(clusterUri)?.name ||
-    routing.parseClusterName(clusterUri);
-
 const listFormatter = new Intl.ListFormat('en', {
   style: 'long',
   type: 'conjunction',
 });
 
 export function makeUnreachableClusterText(
-  unreachableClusters: UnreachableCluster[],
-  getClusterName: (clusterUri: RootClusterUri) => string
+  unreachableClusters: UnreachableCluster[]
 ) {
   return (
     `Unable to retrieve accepted client versions` +
     ` from the ${pluralize(unreachableClusters.length, 'cluster')}` +
-    ` ${listFormatter.format(unreachableClusters.map(c => getClusterName(c.clusterUri)))}.`
+    ` ${listFormatter.format(unreachableClusters.map(c => routing.parseClusterName(c.clusterUri)))}.`
   );
 }
