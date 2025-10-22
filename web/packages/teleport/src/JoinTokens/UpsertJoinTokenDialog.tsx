@@ -81,10 +81,13 @@ const availableJoinMethods: OptionJoinMethod[] = [
   'gcp',
   'oracle',
   'github',
-].map(method => ({
-  value: method as JoinMethod,
-  label: method as JoinMethod,
-}));
+  'gitlab',
+]
+  .sort()
+  .map(method => ({
+    value: method as JoinMethod,
+    label: method as JoinMethod,
+  }));
 
 export type AllowOption = Option<string, string>;
 type OptionJoinMethod = Option<JoinMethod, JoinMethod>;
