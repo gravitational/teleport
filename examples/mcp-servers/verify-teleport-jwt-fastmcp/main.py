@@ -27,13 +27,18 @@ TELEPORT_PROXY_URL = os.getenv("TELEPORT_PROXY_URL", "https://teleport.example.c
 # Optional configs.
 HOST = os.getenv("MCP_HOST", "127.0.0.1")
 PORT = int(os.getenv("MCP_PORT", "8000"))
-TELEPORT_MCP_APP_URI = os.getenv("TELEPORT_MCP_APP_URL", f"mcp+http://{HOST}:{PORT}/mcp")
+TELEPORT_MCP_APP_URI = os.getenv("TELEPORT_MCP_APP_URI", f"mcp+http://{HOST}:{PORT}/mcp")
+
+def get_json(url: str):
+    resp = requests.get(url, timeout=5)
+    resp.raise_for_status()
+    return resp.json()
 
 def get_teleport_cluster_name() -> str:
-    return requests.get(f"{TELEPORT_PROXY_URL}/webapi/find").json().get("cluster_name")
+    return get_json(f"{TELEPORT_PROXY_URL}/webapi/find").get("cluster_name")
 
 def get_jwt_algo(jwks_uri: str) -> str:
-    keys = requests.get(jwks_uri).json().get("keys") or []
+    keys = get_json(jwks_uri).get("keys") or []
     if len(keys) == 0:
         raise ValueError("JWKS keys not found")
     return keys[0].get("alg") or "ES256"
