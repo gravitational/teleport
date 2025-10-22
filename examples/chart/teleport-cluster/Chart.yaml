@@ -1,4 +1,4 @@
-.version: &version "16.5.18-dev.nrel.7"
+.version: &version "16.5.18-dev.nrel.8"
 
 name: teleport-cluster
 apiVersion: v2
