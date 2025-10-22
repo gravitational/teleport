@@ -75,7 +75,15 @@ spec:
   # implementation and we don't have a case for model-specific parameters right
   # now anyway, let's put off designing this for future.
   bedrock:
+    # ID of a model or application inference profile in Bedrock.
     bedrock_model_id: "arn:aws:bedrock:us-east-1:123456789012:imported-model/mymodel"
+    # Optional model temperature.
+    temperature: 0.4
+    # AWS region that will be used for inference.
+    region: us-west-2
+    # AWS OIDC integration name. Required for using custom models in Teleport
+    # Cloud, where using custom non-OIDC models will be forbidden.
+    integration_name: my-aws-integration
   budget:  # (post-MVP)
     # Monthly budget, counted starting from the model's first request time.
     time_period: 1mo
@@ -90,10 +98,13 @@ metadata:
   name: chat-gpt
 spec:
   openai:
+    # ID of the model in OpenAI or another target service.
     openai_model_id: gpt-4o
-    temperature: 1.5
+    # Optional model temperature.
+    temperature: 0.5
     # References an summarization_inference_secret resource.
     api_key_secret_ref: chat-gpt-key
+    # Optional base URL for use with other OpenAI-compatible APIs.
     base_url: "https://my.llm.server/"
   budget:  # (post-MVP)
     # Daily budget
@@ -169,6 +180,59 @@ The `SessionRecordingSummarizerStatus` resource needs to be written using
 atomic writes, therefore it can't be cached; that's one reason why it will be
 separate from the model resources.
 
+#### Bedrock Configuration
+
+There will be two modes of operation: default and OIDC. In the default mode,
+the AWS credentials will be available on the machine/pod auth server runs. In
+OIDC mode, the summarizer will authenticate using an OIDC token and will
+require setting up an AWS OIDC integration.
+
+The default mode will be available for self-hosted clusters. It will be also
+internally used by Teleport Cloud for using the predefined model. It will not
+be available to customers for enrolling custom models on cloud, since that
+would mean accessing any model in our own AWS account; we don't want this to
+happen.
+
+OIDC method will be available both to public self-hosted and cloud clusters.
+This will be the only way to use a custom Bedrock model in Teleport Cloud: the
+customer will have to create an OIDC integration with their own cloud resources
+and specify the integration name in the `inference_model` resource.
+
+To configure OIDC, a `teleport integration configure awsoidc-idp` command can
+be used. After setting up OIDC, a newly introduced command will add IAM
+permissions to invoke any Bedrock model to the OIDC integration IAM role:
+
+```bash
+$ teleport integration configure bedrock --role=<iam-role-arn>
+```
+
+This will result in a following inline policy being added to the role:
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": "bedrock:InvokeModel",
+			"Resource": "*"
+		}
+	]
+}
+```
+
+This should also be available as an integration configuration wizard in the
+Teleport Web App.
+
+Models that will be accessible using OIDC need to have their
+`spec.bedrock.integration_name` field set to the OIDC integration name. Models
+without that field will use the default authentication method.
+
+Since OIDC will largely address an advanced use case, we can launch Bedrock for
+self-hosted customers with just the default authentication method. After adding
+internal spend management, we can release this to Teleport Cloud customers;
+support for adding custom models can be brought in later.
+
 #### Cloud Clusters Configuration
 
 Since we don't want our customers to override our plan's built-in limitations,
@@ -182,7 +246,14 @@ share it.
 The default model will specify model parameters and budget for our selected
 inference provider (Bedrock). No other model will be allowed to use our
 internal Bedrock API. The customer will be able to add other Bedrock models if
-they provide their own AWS configuration.
+they provide their own AWS configuration using an OIDC integration.
+
+As a secondary line of defense against cost overruns, we will create a global,
+company-wide AWS budget for Bedrock costs. In future, when a need arises to
+track session summarization separately from other AI workloads, we can create a
+separate inference profile for session summarizers, and use its ID as the
+default model ID. It is also possible to create an inference profile per
+tenant; see [Alternatives considered](#alternatives-considered).
 
 #### Alternatives considered:
 
@@ -193,6 +264,17 @@ they provide their own AWS configuration.
   increased atomically, while we may consider caching the configuration spec.
 - Using a separate `provider` field in the model resource definition:
   redundant, since we already intend to use `oneof` for the params.
+- Using a separate inference provider per each cloud tenant. This would give us
+  a tighter redundant control over each customer's spend, but at an additional
+  cost. First, we have to implement our own per-customer solution anyway;
+  second, this would require keeping all inference profiles in sync with their
+  respective Teleport-side limits. We would also have to apply for an extended
+  quota of inference profiles, as Amazon gives us a maximum of 1000 per region.
+  One tradeoff here is that without per-customer inference profiles, there will
+  be no easy way of tracking this cost per customer on our side. If this is
+  necessary, we will need to implement a separate inference profile for each
+  tenant. Since we currently don't track resource usage per customer anyway,
+  this shouldn't be a problem for now.
 
 ### Session Recording Summary Data Model
 
