@@ -131,6 +131,11 @@ func (a *App) run(ctx context.Context) error {
 		select {
 		case <-timer.Chan():
 			if err := a.remindIfNecessary(ctx); err != nil {
+				// if the call returns NotImplemented, gracefully end the access list app,
+				// as we may be communicating with an OSS server, which does not support access lists.
+				if trace.IsNotImplemented(err) {
+					return nil
+				}
 				return trace.Wrap(err)
 			}
 			timer.Reset(jitter(reminderInterval))
@@ -157,7 +162,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				log.ErrorContext(ctx, "access list endpoint is not implemented on this auth server, so the access list app is ceasing to run")
+				log.WarnContext(ctx, "access list endpoint is not implemented on this auth server, so the access list app is ceasing to run")
 				return trace.Wrap(err)
 			} else if trace.IsAccessDenied(err) {
 				const msg = "Slack bot does not have permissions to list access lists. Please add access_list read and list permissions " +
