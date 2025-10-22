@@ -3,7 +3,7 @@ authors: Chris Thach (chris.thach@goteleport.com)
 state: draft
 ---
 
-# RFD 0225 - In-Band MFA for SSH Sessions
+# RFD 0231 - In-Band MFA for SSH Sessions
 
 ## Required Approvers
 
