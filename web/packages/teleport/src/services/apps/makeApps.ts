@@ -17,7 +17,7 @@
  */
 
 import { AppSubKind } from 'shared/services';
-import { AwsRole } from 'shared/services/apps';
+import { AwsRole, getAppUriScheme } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
@@ -80,9 +80,10 @@ export default function makeApp(json: any): App {
   const userGroups = json.userGroups || [];
   const permissionSets: PermissionSet[] = json.permissionSets || [];
 
-  const isTcp = !!uri && uri.startsWith('tcp://');
-  const isCloud = !!uri && uri.startsWith('cloud://');
-  const isMCPStdio = !!uri && uri.startsWith('mcp+stdio://');
+  const scheme = getAppUriScheme(uri);
+  const isTcp = scheme === 'tcp';
+  const isCloud = scheme === 'cloud';
+  const isMcp = scheme.startsWith('mcp+');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
@@ -90,8 +91,9 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMCPStdio) {
-      addrWithProtocol = `mcp+stdio://${publicAddr}`;
+    } else if (isMcp) {
+      // Not used anywhere yet.
+      addrWithProtocol = `${scheme}://${publicAddr}`;
     } else if (subKind === AppSubKind.AwsIcAccount) {
       /** publicAddr for Identity Center account app is a URL with scheme. */
       addrWithProtocol = publicAddr;
