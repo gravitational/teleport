@@ -26,62 +26,53 @@ import "teleport/legacy/client/proto/authservice.proto";
 
 option go_package = "github.com/gravitational/teleport/desktop";
 
-message TDPOptions {
-  TDPMessageType tdp_type = 1;
-}
-
 extend google.protobuf.MessageOptions {
-  optional TDPOptions tdp_type_option = 50000;
+  optional MessageType tdp_type_option = 50000;
 }
 
-message TDPEnvelope {
-  TDPMessageType type = 1;
-  google.protobuf.Any message = 2;
-}
-
-enum TDPMessageType {
-  TDP_MESSAGE_UNKNOWN = 0;
-  TDP_MESSAGE_RECTANGLE = 1;
-  TDP_MESSAGE_PNG_FRAME = 3;
-  TDP_MESSAGE_FASTPATH_PDU = 4;
-  TDP_MESSAGE_RDP_RESPONSE_PDU = 5;
-  TDP_MESSAGE_CONNECTION_ACTIVATED = 6;
-  TDP_MESSAGE_SYNC_KEYS = 7;
-  TDP_MESSAGE_MOUSE_MOVE = 8;
-  TDP_MESSAGE_MOUSE_BUTTON = 9;
-  TDP_MESSAGE_KEYBOARD_BUTTON = 10;
-  TDP_MESSAGE_CLIENT_SCREEN_SPEC = 11;
-  TDP_MESSAGE_CLIENT_USERNAME = 12;
-  TDP_MESSAGE_ERROR = 13;
-  TDP_MESSAGE_ALERT = 14;
-  TDP_MESSAGE_MOUSE_WHEEL = 15;
-  TDP_MESSAGE_CLIPBOARD_DATA = 16;
-  TDP_MESSAGE_MFA = 17;
-  TDP_MESSAGE_SHARED_DIRECTORY_ANNOUNCE = 18;
-  TDP_MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE = 19;
-  TDP_MESSAGE_SHARED_DIRECTORY_INFO_REQUEST = 20;
-  TDP_MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE = 21;
-  TDP_MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST = 22;
-  TDP_MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE = 23;
-  TDP_MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST = 24;
-  TDP_MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE = 25;
-  TDP_MESSAGE_SHARED_DIRECTORY_LIST_REQUEST = 26;
-  TDP_MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE = 27;
-  TDP_MESSAGE_SHARED_DIRECTORY_READ_REQUEST = 28;
-  TDP_MESSAGE_SHARED_DIRECTORY_READ_RESPONSE = 29;
-  TDP_MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST = 30;
-  TDP_MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE = 31;
-  TDP_MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST = 32;
-  TDP_MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE = 33;
-  TDP_MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST = 34;
-  TDP_MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE = 35;
-  TDP_MESSAGE_LATENCY_STATS = 36;
-  TDP_MESSAGE_PING = 37;
-  TDP_MESSAGE_CLIENT_KEYBOARD_LAYOUT = 38;
+enum MessageType {
+  MESSAGE_UNKNOWN = 0;
+  MESSAGE_RECTANGLE = 1;
+  MESSAGE_PNG_FRAME = 3;
+  MESSAGE_FASTPATH_PDU = 4;
+  MESSAGE_RDP_RESPONSE_PDU = 5;
+  MESSAGE_CONNECTION_ACTIVATED = 6;
+  MESSAGE_SYNC_KEYS = 7;
+  MESSAGE_MOUSE_MOVE = 8;
+  MESSAGE_MOUSE_BUTTON = 9;
+  MESSAGE_KEYBOARD_BUTTON = 10;
+  MESSAGE_CLIENT_SCREEN_SPEC = 11;
+  MESSAGE_CLIENT_USERNAME = 12;
+  MESSAGE_ERROR = 13;
+  MESSAGE_ALERT = 14;
+  MESSAGE_MOUSE_WHEEL = 15;
+  MESSAGE_CLIPBOARD_DATA = 16;
+  MESSAGE_MFA = 17;
+  MESSAGE_SHARED_DIRECTORY_ANNOUNCE = 18;
+  MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE = 19;
+  MESSAGE_SHARED_DIRECTORY_INFO_REQUEST = 20;
+  MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE = 21;
+  MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST = 22;
+  MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE = 23;
+  MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST = 24;
+  MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE = 25;
+  MESSAGE_SHARED_DIRECTORY_LIST_REQUEST = 26;
+  MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE = 27;
+  MESSAGE_SHARED_DIRECTORY_READ_REQUEST = 28;
+  MESSAGE_SHARED_DIRECTORY_READ_RESPONSE = 29;
+  MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST = 30;
+  MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE = 31;
+  MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST = 32;
+  MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE = 33;
+  MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST = 34;
+  MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE = 35;
+  MESSAGE_LATENCY_STATS = 36;
+  MESSAGE_PING = 37;
+  MESSAGE_CLIENT_KEYBOARD_LAYOUT = 38;
 }
 
 message Rectangle {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_RECTANGLE;
+  option (tdp_type_option) = MESSAGE_RECTANGLE;
   uint32 left = 1;
   uint32 top = 2;
   uint32 right = 3;
@@ -89,23 +80,23 @@ message Rectangle {
 }
 
 message PNGFrame {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_PNG_FRAME;
+  option (tdp_type_option) = MESSAGE_PNG_FRAME;
   Rectangle coordinates = 1;
   bytes data = 2;
 }
 
 message FastPathPDU {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_FASTPATH_PDU;
+  option (tdp_type_option) = MESSAGE_FASTPATH_PDU;
   bytes pdu = 1;
 }
 
 message RDPResponsePDU {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_RDP_RESPONSE_PDU;
+  option (tdp_type_option) = MESSAGE_RDP_RESPONSE_PDU;
   bytes response = 1;
 }
 
 message ConnectionActivated {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_CONNECTION_ACTIVATED;
+  option (tdp_type_option) = MESSAGE_CONNECTION_ACTIVATED;
   uint32 io_channel_activated = 1;
   uint32 user_channel_id = 2;
   uint32 screen_width = 3;
@@ -113,7 +104,7 @@ message ConnectionActivated {
 }
 
 message SyncKeys {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SYNC_KEYS;
+  option (tdp_type_option) = MESSAGE_SYNC_KEYS;
   bool scroll_lock_pressed = 1;
   bool num_lock_state = 2;
   bool caps_lock_state = 3;
@@ -121,7 +112,7 @@ message SyncKeys {
 }
 
 message MouseMove {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_MOUSE_MOVE;
+  option (tdp_type_option) = MESSAGE_MOUSE_MOVE;
   uint32 x = 1;
   uint32 y = 2;
 }
@@ -134,30 +125,30 @@ enum MouseButtonType {
 }
 
 message MouseButton {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_MOUSE_BUTTON;
+  option (tdp_type_option) = MESSAGE_MOUSE_BUTTON;
   MouseButtonType button = 1;
   bool pressed = 2;
 }
 
 message KeyboardButton {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_KEYBOARD_BUTTON;
+  option (tdp_type_option) = MESSAGE_KEYBOARD_BUTTON;
   uint32 key_code = 1;
   bool pressed = 2;
 }
 
 message ClientScreenSpec {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_CLIENT_SCREEN_SPEC;
+  option (tdp_type_option) = MESSAGE_CLIENT_SCREEN_SPEC;
   uint32 width = 1;
   uint32 height = 2;
 }
 
 message ClientUsername {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_CLIENT_USERNAME;
+  option (tdp_type_option) = MESSAGE_CLIENT_USERNAME;
   string username = 1;
 }
 
 message Error {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_ERROR;
+  option (tdp_type_option) = MESSAGE_ERROR;
   string message = 1;
 }
 
@@ -168,7 +159,7 @@ enum AlertSeverity {
 }
 
 message Alert {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_ALERT;
+  option (tdp_type_option) = MESSAGE_ALERT;
   string message = 1;
   AlertSeverity Severseverity = 2;
 }
@@ -180,14 +171,14 @@ enum MouseWheelAxis {
 }
 
 message MouseWheel {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_MOUSE_WHEEL;
+  option (tdp_type_option) = MESSAGE_MOUSE_WHEEL;
   MouseWheelAxis axis = 1;
   uint32 delta = 2;
 }
 
 message ClipboardData {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_CLIPBOARD_DATA;
-  string data = 1;
+  option (tdp_type_option) = MESSAGE_CLIPBOARD_DATA;
+  bytes data = 1;
 }
 
 enum MFAType {
@@ -197,26 +188,26 @@ enum MFAType {
 }
 
 message MFA {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_MFA;
+  option (tdp_type_option) = MESSAGE_MFA;
   MFAType type = 1;
   proto.MFAAuthenticateChallenge challenge = 2;
   proto.MFAAuthenticateResponse authentication_response = 3;
 }
 
 message SharedDirectoryAnnounce {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_ANNOUNCE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_ANNOUNCE;
   uint32 directory_id = 1;
   string name = 2;
 }
 
 message SharedDirectoryAcknowledge {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE;
   uint32 directory_id = 1;
   uint32 error_code = 2;
 }
 
 message SharedDirectoryInfoRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_INFO_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_INFO_REQUEST;
   uint32 directory_id = 1;
   uint32 completion_id = 2;
   string path = 3;
@@ -231,14 +222,14 @@ message FileSystemObject {
 }
 
 message SharedDirectoryInfoResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
   FileSystemObject fso = 3;
 }
 
 message SharedDirectoryCreateRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST;
   uint32 completion_id = 1;
   uint32 directory_id = 2;
   uint32 file_type = 3;
@@ -246,41 +237,41 @@ message SharedDirectoryCreateRequest {
 }
 
 message SharedDirectoryCreateResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
   FileSystemObject fso = 3;
 }
 
 message SharedDirectoryDeleteRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST;
   uint32 directory_id = 1;
   uint32 completion_id = 2;
   string path = 3;
 }
 
 message SharedDirectoryDeleteResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
 }
 
 message SharedDirectoryListRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_LIST_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_LIST_REQUEST;
   uint32 directory_id = 1;
   uint32 completion_id = 2;
   string path = 3;
 }
 
 message SharedDirectoryListResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
   repeated FileSystemObject fso_list = 3;
 }
 
 message SharedDirectoryReadRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_READ_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_READ_REQUEST;
   uint32 completion_id = 1;
   uint32 directory_id = 2;
   string path = 3;
@@ -289,7 +280,7 @@ message SharedDirectoryReadRequest {
 }
 
 message SharedDirectoryReadResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_READ_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_READ_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
   uint32 read_data_length = 3;
@@ -297,7 +288,7 @@ message SharedDirectoryReadResponse {
 }
 
 message SharedDirectoryWriteRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST;
   uint32 completion_id = 1;
   uint32 directory_id = 2;
   uint64 offset = 3;
@@ -307,14 +298,14 @@ message SharedDirectoryWriteRequest {
 }
 
 message SharedDirectoryWriteResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
   uint32 bytes_written = 3;
 }
 
 message SharedDirectoryMoveRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST;
   uint32 completion_id = 1;
   uint32 directory_id = 2;
   string original_path = 3;
@@ -322,13 +313,13 @@ message SharedDirectoryMoveRequest {
 }
 
 message SharedDirectoryMoveResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
 }
 
 message SharedDirectoryTruncateRequest {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST;
   uint32 completion_id = 1;
   uint32 directory_id = 2;
   string path = 3;
@@ -336,24 +327,24 @@ message SharedDirectoryTruncateRequest {
 }
 
 message SharedDirectoryTruncateResponse {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE;
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE;
   uint32 completion_id = 1;
   uint32 error_code = 2;
 }
 
 message LatencyStats {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_LATENCY_STATS;
+  option (tdp_type_option) = MESSAGE_LATENCY_STATS;
   uint32 client_latency = 1;
   uint32 server_latency = 2;
 }
 
 message Ping {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_PING;
+  option (tdp_type_option) = MESSAGE_PING;
   // UUID is used to correlate message send by proxy and received from the Windows Desktop Service
   bytes uuid = 1;
 }
 
 message ClientKeyboardLayout {
-  option (tdp_type_option).tdp_type = TDP_MESSAGE_CLIENT_KEYBOARD_LAYOUT;
+  option (tdp_type_option) = MESSAGE_CLIENT_KEYBOARD_LAYOUT;
   uint32 keyboard_layout = 1;
 }
