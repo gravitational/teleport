@@ -156,21 +156,20 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 		return nil, trace.Wrap(err)
 	}
 
+	// If upload part is not at least the minimum upload part size, append an empty part
+	// to pad up to the minimum upload size.
 	part := req.Part
 	if len(part) < events.MinUploadPartSizeBytes {
-		r := bytes.NewReader(part)
+		paddingBytes := min(events.MinUploadPartSizeBytes-len(part), events.ProtoStreamV2PartHeaderSize)
+		paddedPart := make([]byte, paddingBytes)
 
-		partHeader, err := events.ParsePartHeader(r)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse part header from upload part")
+		paddedPartHeader := events.PartHeader{
+			ProtoVersion: events.ProtoStreamV2,
+			PaddingSize:  uint64(paddingBytes - events.ProtoStreamV2PartHeaderSize),
+			PartSize:     0,
 		}
-
-		partHeader.PaddingSize += uint64(events.MinUploadPartSizeBytes - len(part))
-		paddedPart := make([]byte, events.MinUploadPartSizeBytes)
-		headerLen := copy(paddedPart, partHeader.Bytes())
-		copy(paddedPart[headerLen:], part[headerLen:])
-
-		part = paddedPart
+		copy(paddedPart, paddedPartHeader.Bytes())
+		part = append(part, paddedPart...)
 	}
 
 	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))

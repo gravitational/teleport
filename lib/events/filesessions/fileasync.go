@@ -397,40 +397,10 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 		targetUploadSize := events.MinUploadPartSizeBytes
 		maxUploadSize := min(grpc.MaxClientRecvMsgSize(), events.MinUploadPartSizeBytes)
 
-		// We assume ProtoStreamV2 here and below as this is the only version that supports
-		// encrypted recordings. If a new version is introduces, logic to accommodate variable
-		// header versions will be necessary.
-		var protoVersion uint64 = events.ProtoStreamV2
-		const headerSize = events.ProtoStreamV2PartHeaderSize
-
 		var buf bytes.Buffer
-		var nextHeader *events.PartHeader
-
-		// Reserve space for the header. We reuse the array below to preserve some bytes.
-		var emptyHeader [headerSize]byte
-		buf.Write(emptyHeader[:])
-
 		yieldNext := func() bool {
-			// sanity check
-			if buf.Len() != headerSize+int(nextHeader.PartSize) {
-				panic(fmt.Sprintf("expected buf size of %v but got %v", headerSize+int(nextHeader.PartSize), buf.Len()))
-			}
-
-			// When creating the buffer, we reserved space for the header at the start.
-			data := buf.Bytes()
-			copy(data[:headerSize], nextHeader.Bytes())
-
-			if !yield(data, nil) {
-				return false
-			}
-
-			buf.Reset()
-			nextHeader = nil
-
-			// Reserve space for the next header.
-			buf.Write(emptyHeader[:])
-
-			return true
+			defer buf.Reset()
+			return yield(buf.Bytes(), nil)
 		}
 
 		for {
@@ -452,46 +422,33 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 			}
 
 			// If there is no room for the part in the current buffer, yield the current buffer before continuing.
-			if buf.Len()+int(header.PartSize) > maxUploadSize {
+			// TODO(Joerger): Remove padding from part.
+			innerPartSize := int64(header.PartSize + header.PaddingSize)
+			totalPartSize := int64(len(header.Bytes())) + innerPartSize
+
+			if buf.Len()+int(totalPartSize) > maxUploadSize {
 				if !yieldNext() {
 					return
 				}
 			}
 
-			if nextHeader == nil {
-				nextHeader = &events.PartHeader{
-					ProtoVersion: protoVersion,
-					Flags:        header.Flags,
-				}
-			} else {
-				nextHeader.Flags &= header.Flags
+			if _, err := buf.Write(header.Bytes()); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
 			}
 
-			// Copy the part into the current buffer, ignoring padding.
-			reader := io.LimitReader(in, int64(header.PartSize))
+			// Copy the part into the current buffer.
+			reader := io.LimitReader(in, innerPartSize)
 			copied, err := io.Copy(&buf, reader)
 			if err != nil && !errors.Is(err, io.EOF) {
 				yield(nil, trace.Wrap(err))
 				return
 			}
 
-			if copied != int64(header.PartSize) {
-				yield(nil, trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, int64(header.PartSize)))
+			if copied != innerPartSize {
+				yield(nil, trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, innerPartSize))
 				return
 			}
-
-			discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(header.PaddingSize)))
-			if err != nil && !errors.Is(err, io.EOF) {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if discarded != int64(header.PaddingSize) {
-				yield(nil, trace.Errorf("discarded %d bytes of padding from recording part instead of expected %d", discarded, int64(header.PaddingSize)))
-				return
-			}
-
-			nextHeader.PartSize += header.PartSize
 
 			// If we've reached the target upload size, yield the current buffer before continuing.
 			if buf.Len() > targetUploadSize {
