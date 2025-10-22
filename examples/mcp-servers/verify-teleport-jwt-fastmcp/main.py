@@ -35,13 +35,19 @@ def get_json(url: str):
     return resp.json()
 
 def get_teleport_cluster_name() -> str:
-    return get_json(f"{TELEPORT_PROXY_URL}/webapi/find").get("cluster_name")
+    try:
+        return get_json(f"{TELEPORT_PROXY_URL}/webapi/find").get("cluster_name")
+    except Exception as e:
+        raise RuntimeError(f"Failed to get Teleport cluster name from {TELEPORT_PROXY_URL}/webapi/find") from e
 
 def get_jwt_algo(jwks_uri: str) -> str:
-    keys = get_json(jwks_uri).get("keys") or []
-    if len(keys) == 0:
-        raise ValueError("JWKS keys not found")
-    return keys[0].get("alg") or "ES256"
+    try:
+        keys = get_json(jwks_uri).get("keys") or []
+        if len(keys) == 0:
+            raise ValueError("JWKS keys not found")
+        return keys[0].get("alg") or "ES256"
+    except Exception as e:
+        raise RuntimeError(f"Failed to find keys from {jwks_uri}") from e
 
 async def teleport_user_info_from_jwt() -> dict:
     "Read Teleport user info from verified JWT"
