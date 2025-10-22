@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/recordings"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -412,7 +413,8 @@ type InitConfig struct {
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It allows for late initialization of the summarizer in the enterprise
 	// plugin. The summarizer itself summarizes session recordings.
-	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	SessionSummarizerProvider  *summarizer.SessionSummarizerProvider
+	EncryptedRecordingUploader recordings.EncryptedUploader
 }
 
 // Init instantiates and configures an instance of AuthServer

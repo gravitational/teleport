@@ -19,16 +19,20 @@ package recordingencryptionv1
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/recordings"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -42,10 +46,11 @@ type KeyRotater interface {
 
 // ServiceConfig captures everything a [Service] requires to fulfill requests.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Logger     *slog.Logger
-	Uploader   events.MultipartUploader
-	KeyRotater KeyRotater
+	Authorizer        authz.Authorizer
+	Logger            *slog.Logger
+	Uploader          events.MultipartUploader
+	KeyRotater        KeyRotater
+	EncryptedUploader recordings.EncryptedUploader
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -57,6 +62,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("uploader is required")
 	case cfg.KeyRotater == nil:
 		return nil, trace.BadParameter("key rotater is required")
+	case cfg.EncryptedUploader == nil:
+		return nil, trace.BadParameter("encrypted recording uploader is required")
 	}
 
 	if cfg.Logger == nil {
@@ -64,10 +71,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:   cfg.Logger,
-		uploader: cfg.Uploader,
-		auth:     cfg.Authorizer,
-		rotater:  cfg.KeyRotater,
+		logger:            cfg.Logger,
+		uploader:          cfg.Uploader,
+		auth:              cfg.Authorizer,
+		rotater:           cfg.KeyRotater,
+		encryptedUploader: cfg.EncryptedUploader,
 	}, nil
 }
 
@@ -75,10 +83,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 type Service struct {
 	recordingencryptionv1.UnimplementedRecordingEncryptionServiceServer
 
-	auth     authz.Authorizer
-	logger   *slog.Logger
-	uploader events.MultipartUploader
-	rotater  KeyRotater
+	auth              authz.Authorizer
+	logger            *slog.Logger
+	uploader          events.MultipartUploader
+	encryptedUploader recordings.EncryptedUploader
+	rotater           KeyRotater
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
@@ -264,4 +273,43 @@ func (s *Service) GetRotationState(ctx context.Context, req *recordingencryption
 	return &recordingencryptionv1.GetRotationStateResponse{
 		KeyPairStates: states,
 	}, nil
+}
+
+func (s *Service) UploadRecording(stream grpc.ClientStreamingServer[recordingencryptionv1.UploadRecordingRequest, recordingencryptionv1.UploadRecordingResponse]) error {
+	ctx := stream.Context()
+
+	var upload recordings.EncryptedUpload
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return trace.Wrap(err, "failed to receive upload part")
+		}
+
+		if upload == nil {
+			sessionID, err := session.ParseID(req.GetUpload().GetSessionId())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			upload, err = s.encryptedUploader.CreateEncryptedUpload(ctx, *sessionID)
+			if err != nil {
+				return trace.Wrap(err, "failed to create upload")
+			}
+		}
+
+		if err := upload.UploadPart(ctx, req.Part); err != nil {
+			return trace.Wrap(err, "uploading part")
+		}
+	}
+
+	if err := upload.Complete(ctx); err != nil {
+		return trace.Wrap(err, "completing upload")
+	}
+	if err := stream.SendAndClose(&recordingencryptionv1.UploadRecordingResponse{}); err != nil {
+		s.logger.ErrorContext(ctx, "failed to report recording upload completion to client", "error", err)
+	}
+	return nil
 }

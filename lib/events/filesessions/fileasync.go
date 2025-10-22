@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/recordings"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,7 +66,7 @@ type UploaderConfig struct {
 	// Component is used for logging purposes
 	Component string
 	// EncryptedRecordingUploader uploads encrypted session recordings
-	EncryptedRecordingUploader events.EncryptedRecordingUploader
+	EncryptedRecordingUploader recordings.EncryptedUploader
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -380,56 +381,54 @@ func (u *upload) removeFiles() error {
 
 var errSkipEncryptedUpload = errors.New("skip encrypted upload")
 
-func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.Reader) error {
+func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID session.ID, in io.Reader) error {
 	if u.cfg.EncryptedRecordingUploader == nil {
 		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
 	}
 
-	partIter := func(yield func([]byte, error) bool) {
-		var buf bytes.Buffer
-		for {
-			buf.Reset()
-			header, err := events.ParsePartHeader(in)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
+	upload, err := u.cfg.EncryptedRecordingUploader.CreateEncryptedUpload(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err, "creating upload")
+	}
 
-				yield(nil, trace.Wrap(err))
-				return
+	var buf bytes.Buffer
+	for {
+		buf.Reset()
+		header, err := events.ParsePartHeader(in)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
 			}
 
-			if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
-				yield(nil, trace.Wrap(errSkipEncryptedUpload, "recording not encrypted"))
-				return
-			}
+			return trace.Wrap(err)
+		}
 
-			if _, err := buf.Write(header.Bytes()); err != nil {
-				yield(nil, trace.Wrap(err))
-				return
-			}
+		if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+			return trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+		}
 
-			totalPartSize := int64(header.PartSize + header.PaddingSize)
-			reader := io.LimitReader(in, totalPartSize)
-			copied, err := io.Copy(&buf, reader)
-			if err != nil && !errors.Is(err, io.EOF) {
-				yield(nil, trace.Wrap(err))
-				return
-			}
+		if _, err := buf.Write(header.Bytes()); err != nil {
+			return trace.Wrap(err)
+		}
 
-			if copied != totalPartSize {
-				yield(nil, trace.Errorf("copied %d bytes of recording part instead of expected %d", copied, totalPartSize))
-				return
-			}
+		totalPartSize := int64(header.PartSize + header.PaddingSize)
+		reader := io.LimitReader(in, totalPartSize)
+		copied, err := io.Copy(&buf, reader)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
 
-			if !yield(buf.Bytes(), nil) {
-				return
-			}
+		if copied != totalPartSize {
+			return trace.Errorf("copied %d bytes of recording part instead of expected %d", copied, totalPartSize)
+		}
+
+		if err := upload.UploadPart(ctx, buf.Bytes()); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
 	u.log.DebugContext(ctx, "uploading encrypted recording", "session_id", sessionID)
-	if err := u.cfg.EncryptedRecordingUploader.UploadEncryptedRecording(ctx, sessionID, partIter); err != nil {
+	if err := upload.Complete(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -500,7 +499,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
 	}
 
-	if err := u.uploadEncryptedRecording(ctx, sessionID.String(), sessionFile); !errors.Is(err, errSkipEncryptedUpload) {
+	if err := u.uploadEncryptedRecording(ctx, sessionID, sessionFile); !errors.Is(err, errSkipEncryptedUpload) {
 		if err != nil {
 			return trace.Wrap(err)
 		}

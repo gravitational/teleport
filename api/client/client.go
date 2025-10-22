@@ -2640,45 +2640,8 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 	return ch, e
 }
 
-// UploadEncryptedRecording streams encrypted recording parts to the auth
-// server to be saved in long term storage.
-func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
-	createRes, err := c.grpc.CreateUpload(ctx, &recordingencryptionv1pb.CreateUploadRequest{
-		SessionId: sessionID,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var uploadedParts []*recordingencryptionv1pb.Part
-	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
-	// configured for the auth service
-	var partNumber int64 = 1
-	for part, err := range parts {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		uploadRes, err := c.grpc.UploadPart(ctx, &recordingencryptionv1pb.UploadPartRequest{
-			Upload:     createRes.Upload,
-			PartNumber: partNumber,
-			Part:       part,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		uploadedParts = append(uploadedParts, uploadRes.Part)
-		partNumber++
-	}
-
-	if _, err := c.grpc.CompleteUpload(ctx, &recordingencryptionv1pb.CompleteUploadRequest{
-		Upload: createRes.Upload,
-		Parts:  uploadedParts,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+func (c *Client) UploadRecording(ctx context.Context) (grpc.ClientStreamingClient[recordingencryptionv1pb.UploadRecordingRequest, recordingencryptionv1pb.UploadRecordingResponse], error) {
+	return c.grpc.UploadRecording(ctx)
 }
 
 // SearchEvents allows searching for events with a full pagination support.

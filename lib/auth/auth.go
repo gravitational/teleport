@@ -124,6 +124,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/recordings"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -635,6 +636,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		EncryptedUploader:               cfg.EncryptedRecordingUploader,
 	}
 
 	as = &Server{
@@ -903,6 +905,7 @@ type Services struct {
 	RecordingEncryptionManager
 	events.MultipartHandler
 	services.Summarizer
+	recordings.EncryptedUploader
 }
 
 // GetWebSession returns existing web session described by req.

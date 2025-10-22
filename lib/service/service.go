@@ -153,6 +153,8 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
+	"github.com/gravitational/teleport/lib/recordings"
+	"github.com/gravitational/teleport/lib/recordings/upload"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -2338,6 +2340,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	encryptedUploader := upload.NewDecryptingStreamUploader(encryptedIO, streamer)
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
@@ -2371,6 +2374,7 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer, err := auth.Init(
 		process.ExitContext(),
 		auth.InitConfig{
+			EncryptedRecordingUploader:  encryptedUploader,
 			Backend:                     b,
 			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
@@ -3762,6 +3766,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	// use the local auth server for uploads if auth happens to be
 	// running in this process, otherwise wait for the instance client
 	var uploaderClient procUploader
+	var encryptedUploader recordings.EncryptedUploader
 	if la := process.getLocalAuth(); la != nil {
 		// The auth service's upload completer is initialized separately,
 		// so as a special case we can stop early if auth happens to be
@@ -3772,6 +3777,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		}
 
 		uploaderClient = la
+		encryptedUploader = la.Services
 		cn, err := la.GetClusterName(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err, "cannot get cluster name")
@@ -3787,6 +3793,7 @@ func (process *TeleportProcess) initUploaderService() error {
 			return trace.BadParameter("process exiting and Instance connector never became available")
 		}
 		uploaderClient = conn.Client
+		encryptedUploader = upload.NewRemoteUploader(conn.Client)
 		clusterName = conn.ClusterName()
 	}
 
@@ -3831,7 +3838,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		CorruptedDir:               corruptedDir,
 		EventsC:                    process.Config.Testing.UploadEventsC,
 		InitialScanDelay:           15 * time.Second,
-		EncryptedRecordingUploader: uploaderClient,
+		EncryptedRecordingUploader: encryptedUploader,
 	})
 	if err != nil {
 		return trace.Wrap(err)
