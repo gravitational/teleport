@@ -270,7 +270,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindKubeServer},
-		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
