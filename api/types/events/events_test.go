@@ -30,7 +30,7 @@ import (
 )
 
 // TestTrimToMaxSize tests TrimToMaxSize implementation of several events.
-// This test indirectly tests trimmer implementations in trimmer.go.
+// It also tests trimEventToMaxSize used by these events.
 func TestTrimToMaxSize(t *testing.T) {
 	type messageSizeTrimmer interface {
 		TrimToMaxSize(int) AuditEvent
