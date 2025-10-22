@@ -71,4 +71,6 @@ message Matcher {
   // empty value is ignored. The match result is logically ANDed with KubernetesLabels,
   // if both are non-empty.
   string kubernetes_labels_expression = 4;
+  // Disabled disables matches for all labels and expressions.
+  bool disabled = 5;
 }
