@@ -45,10 +45,10 @@ a bot initially. When ready to deploy to production, it's trivial to adjust
 onboarding and recovery settings to select your desired balance between
 resiliency and security.
 
-Additionally, with [`insecure` recovery](admin-guide.mdx#disabling-join-state-verification)
-and in situations that can accommodate the security complications, Bound Keypair
-Joining can be used to join bots in otherwise unsupported CI/CD providers by
-persisting the bot's keypair in the platform keystore.
+Additionally, with [static keys](static-keys.mdx) and in situations that can
+accommodate the security complications, Bound Keypair Joining can be used to
+join bots in otherwise unsupported CI/CD providers by persisting the bot's
+keypair in a platform keystore.
 
 ## Limitations
 
@@ -75,6 +75,9 @@ You can read step-by-step guides on using Bound Keypair Joining with Machine ID:
 
 - [Using Machine ID with Bound Keypair Joining](./getting-started.mdx):
   How to install and configure Machine ID with Bound Keypair Joining
+- [Using Machine ID with Bound Keypair static keys](./static-keys.mdx): How to
+  use Bound Keypair static keys with stateless hosts, like otherwise
+  unsupported CI/CD providers
 - [Bound Keypair Joining Concepts](./concepts.mdx): Learn more about the
   components and architecture of Bound Keypair Joining
 - [Bound Keypair Joining Admin Guide](./admin-guide.mdx): Learn how to deploy
