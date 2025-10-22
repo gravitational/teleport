@@ -140,9 +140,10 @@ roughly equal to the quarterly downtime budget when targeting `99.99` availabili
 
 To speed up this process we will support configuring a lower `ServerAnnounceTTL`.
 
-The environment variable `TELEPORT_UNSTABLE_SERVER_ANNOUNCE_TTL` will be used to
-configure the `ServerAnnounceTTL. We can use this to configure more frequent Proxy and Auth
-heartbeats to reduce the time to detect unhealthy instances.
+The environment variables `TELEPORT_UNSTABLE_AUTH_ANNOUNCE_TTL` and `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`
+will be used to configure the heartbeat interval used by Teleport auth and proxy services
+respectively. We can use these to configure more frequent Proxy and Auth heartbeats
+to reduce the time to detect unhealthy instances.
 
 This will decrease the time it takes to detect an unhealthy Proxy or Auth server.
 
@@ -162,10 +163,14 @@ type Proxy struct {
 }
 ```
 
-The `ExpiryDuration` for each server will be set based on the `ServerAnnounceTTL`
-configured on the Proxy sending the discovery request.
+The `ExpiryDuration` for each server will be set based on the heartbeat interval
+configured at each proxy. This will be stored in the backend `Server` resource
+as `Server.Spec.TTL`. This allows different values to exist on different services
+without running into expiry issues. For example if you are decreasing the heartbeat
+interval and the proxy bases the `ExpiryDuration` off of its local heartbeat interval
+proxy services on the longer heartbeat inerval could appear to expire.
 
-Lowering the `ServerAnnounceTTL` for Proxy servers has the negative effect of
+Lowering the heartbeat interval for Proxy servers has the negative effect of
 increasing the traffic created by Proxy discovery requests.
 
 We can reduce the overall traffic created by Proxy discovery requests by changing
