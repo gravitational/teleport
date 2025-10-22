@@ -90,7 +90,7 @@ func (e *exec) endSession(cgroupID uint64) error {
 
 // startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
-func startExec() (*exec, error) {
+func startExec(bufferSize int) (*exec, error) {
 	err := metrics.RegisterPrometheusCollectors(lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -144,7 +144,7 @@ func startExec() (*exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	bpfEvents := make(chan []byte, 100)
+	bpfEvents := make(chan []byte, bufferSize)
 	go sendEvents(bpfEvents, eventBuf)
 
 	return &exec{
