@@ -125,11 +125,12 @@ if (tc tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
       (tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"clientServices": [{"type":"Agent", "version":"$target_image_tag", "lastVersion":"$target_image_tag", "updateSchedule":"Immediate"}]}')
     fi
 else
-	echo "Failed to patch tenant \"$TENANT\" using tc, retrying with kubectl..."
+	echo "Failed to patch tenant \"$TENANT\" using tc..."
 	tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
-	fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\'"
-	kubectl patch $tenant -n $NAMESPACE --type merge --patch '{"spec": {"teleportImageRepo": "'"$TARGET_IMAGE_REPO"'", "teleportVersion": "'"$target_image_tag"'"}}' --context=$KUBE_TENANT_CONTEXT
-	fail_on_exit_code "Unable to patch tenant \"$TENANT\" in namespace \"$NAMESPACE\""
+	fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\""
+	error "Unable to patch tenant \"$TENANT\" in namespace \"$NAMESPACE\" using tc. Please ensure tc is installed and configured correctly."
+    echo "Refer to https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md#tc for more information on setting up \`tc\`."
+    exit 1
 fi
 # warn and exit when tenant has skipReconcile annotation
 tenant_json=$(kubectl get tenant $TENANT -n $NAMESPACE -o json --context=$KUBE_TENANT_CONTEXT)

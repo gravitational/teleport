@@ -78,7 +78,7 @@ if ! (command -v tc); then
     }
 fi
 tenant=$(tc tenant --app-name="$CLOUD_API_APP" list | head -n 1)
-fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the \`tc\` executable is available in the path or the source from \"cloud\" repo is found at path \"$TC_PATH\". Override env var \"TC_PATH\" to point to the source folder if necessary."
+fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the \`tc\` executable is available in the path or the source from \"cloud\" repo is found at path \"$TC_PATH\". Override env var \"TC_PATH\" to point to the source folder if necessary. \nRefer to https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md#tc for more information on setting up \`tc\`."
 
 ns="cloud-gravitational-io-$tenant"
 echo "Checking for permissions to patch tenants via k8s API... (tenant=\"$tenant\", namespace=\"$ns\")"

@@ -32,6 +32,27 @@ On macOS a compiler toolchain targeting `x86_64/linux` is required to support `c
   brew install x86_64-unknown-linux-gnu
   ```
 
+#### tc
+
+The `tc` tool is used to interact with Teleport Cloud environments. It provides commands for managing tenants, deployments, and other resources within the Teleport Cloud. The source code is available in the [gravitational/cloud]((https://github.com/gravitational/cloud/tree/master/tc) repo.
+
+If the `tc` binary is not available in your path, the source of the `tc` tool must be available in the path referenced by environment variable `TC_PATH`. The default value is `../../cloud/tc/cmd/tc`. Export a valid `TC_PATH` if the cloud repo is not cloned as a sibling of the `teleport` repo.
+
+```shell
+export TC_PATH=/src/cloud/tc/cmd/tc
+```
+
+Alternatively, to use a `tc` binary built from source, run the following commands from the `cloud` repo:
+
+```shell
+# Navigate to the cloud repo
+cd ../../cloud
+# Build the tc binary
+go build -o dist/tc ./tc/cmd/tc
+# Link the binary to a location in your PATH
+ln -s dist/tc ~/.local/bin/tc
+```
+
 ### Configuration
 
 <details>
