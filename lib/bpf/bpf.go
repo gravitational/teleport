@@ -144,21 +144,24 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	start := time.Now()
 	logger.DebugContext(closeContext, "Starting enhanced session recording")
 
-	// Compile and start BPF programs if they are enabled.
-	s.exec, err = startExec()
+	// Compile and start BPF programs (buffer size given).
+	s.exec, err = startExec(*config.CommandBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load command execution hooks")
 	}
-	s.open, err = startOpen()
+	s.open, err = startOpen(*config.DiskBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load file I/O hooks")
 	}
-	s.conn, err = startConn()
+	s.conn, err = startConn(*config.NetworkBufferSize)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load network hooks")
 	}
 
 	logger.DebugContext(closeContext, "Started enhanced session recording",
+		"command_buffer_size", *s.CommandBufferSize,
+		"disk_buffer_size", *s.DiskBufferSize,
+		"network_buffer_size", *s.NetworkBufferSize,
 		"cgroup_mount_path", s.CgroupPath,
 		"elapsed", time.Since(start),
 	)

@@ -223,7 +223,7 @@ func TestRootObfuscate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start execsnoop.
-	execsnoop, err := startExec()
+	execsnoop, err := startExec(8)
 	t.Cleanup(execsnoop.close)
 	require.NoError(t, err)
 
@@ -292,7 +292,7 @@ func TestRootScript(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start execsnoop.
-	execsnoop, err := startExec()
+	execsnoop, err := startExec(8)
 	t.Cleanup(execsnoop.close)
 	require.NoError(t, err)
 
@@ -348,17 +348,17 @@ func TestRootPrograms(t *testing.T) {
 	checkBPF(t)
 
 	// Start execsnoop.
-	execsnoop, err := startExec()
+	execsnoop, err := startExec(8)
 	require.NoError(t, err)
 	defer execsnoop.close()
 
 	// Start opensnoop.
-	opensnoop, err := startOpen()
+	opensnoop, err := startOpen(8)
 	require.NoError(t, err)
 	defer opensnoop.close()
 
 	// Start tcpconnect.
-	tcpconnect, err := startConn()
+	tcpconnect, err := startConn(8)
 	require.NoError(t, err)
 	defer tcpconnect.close()
 
@@ -472,7 +472,7 @@ func TestRootLargeCommands(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			// Start execsnoop.
-			execsnoop, err := startExec()
+			execsnoop, err := startExec(8)
 			defer execsnoop.close()
 			require.NoError(t, err)
 

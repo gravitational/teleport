@@ -55,7 +55,7 @@ type conn struct {
 	mtx    sync.Mutex
 }
 
-func startConn() (*conn, error) {
+func startConn(bufferSize int) (*conn, error) {
 	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,10 +127,10 @@ func startConn() (*conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	bpfv4Events := make(chan []byte, 100)
+	bpfv4Events := make(chan []byte, bufferSize)
 	go sendEvents(bpfv4Events, eventBufV4)
 
-	bpfv6Events := make(chan []byte, 100)
+	bpfv6Events := make(chan []byte, bufferSize)
 	go sendEvents(bpfv6Events, eventBufV6)
 
 	return &conn{

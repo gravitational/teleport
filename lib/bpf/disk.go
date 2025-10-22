@@ -57,7 +57,7 @@ type open struct {
 
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startOpen() (*open, error) {
+func startOpen(bufferSize int) (*open, error) {
 	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err, "registering prometheus collectors: %v", err)
@@ -136,7 +136,7 @@ func startOpen() (*open, error) {
 		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
-	bpfEvents := make(chan []byte, 100)
+	bpfEvents := make(chan []byte, bufferSize)
 	go sendEvents(bpfEvents, eventBuf)
 
 	return &open{
