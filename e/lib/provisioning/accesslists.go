@@ -7,7 +7,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -176,15 +175,15 @@ func (p *provisioner) filterValidMembers(
 
 		// Assert that the user is not only a recorded member, but also
 		// currently meets all the Access List membership requirements
-		if membershipKind, err := accesslists.IsAccessListMember(
+		if _, err := accesslists.IsAccessListMember(
 			ctx,
 			user,
 			acl,
 			p.accessListSvc,
 			p.locksSvc,
 			p.clock,
-		); membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-			if err == nil || trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+		); err != nil {
+			if trace.IsAccessDenied(err) {
 				log.WarnContext(ctx, "User does not meet Access List requirements")
 				continue
 			}

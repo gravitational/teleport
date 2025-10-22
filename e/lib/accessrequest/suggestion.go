@@ -255,12 +255,12 @@ func analyzeAccessListForLongTermAccess(ctx context.Context, in accessListAnalys
 // validateCanUseAccessList checks if the requester can be assigned as a member of the access list.
 func validateCanUseAccessList(ctx context.Context, al *accesslist.AccessList, user types.User, clt modules.AccessResourcesGetter, clock clockwork.Clock) (bool, error) {
 	// Check if the user is already a member or doesn't meet requirements
-	membershipType, err := accesslists.IsAccessListMember(ctx, user, al, clt, nil, clock)
-	if err != nil && !trace.IsAccessDenied(err) {
+	_, err := accesslists.IsAccessListMember(ctx, user, al, clt, nil, clock)
+	if err != nil {
+		if trace.IsAccessDenied(err) {
+			return false, nil
+		}
 		return false, trace.Wrap(err, "checking access list membership")
-	}
-	if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		return false, nil
 	}
 
 	// Ensure the user meets the requirements, including any inherited requires
@@ -473,14 +473,16 @@ func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *acces
 	// then the access list is not a valid suggestion.
 	//
 	// TODO(smallinsky) Switch to GetHierarchyForUser when it will be supported in v18
-	membershipType, err := accesslists.IsAccessListMember(ctx, v.requester, list, v.dataGetter, nil, v.clock)
-	if err != nil && !trace.IsAccessDenied(err) {
-		return false, trace.Wrap(err)
+	members, err := accesslists.GetMembersFor(ctx, list.GetName(), v.dataGetter)
+	if err != nil {
+		return false, trace.Wrap(err, "getting accesslist members")
 	}
-	// If the user is not a member, then the access list may be a valid suggestion.
-	if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-		return false, nil
+	for _, member := range members {
+		if member.GetName() == v.requester.GetName() {
+			return false, nil
+		}
 	}
+
 	// Access lists not assignable to the user are irrelevant.
 	if !accesslists.UserMeetsRequirements(v.requester, list.GetMembershipRequires()) {
 		return false, nil

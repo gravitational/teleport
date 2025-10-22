@@ -1181,16 +1181,18 @@ func (s *Service) userTryingToAddThemselves(ctx context.Context, authCtx *authz.
 	// or trying to add an Access List they're an explicit or inherited member of.
 	for _, member := range members {
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			memberList, err := s.accessLists.GetAccessList(ctx, member.GetName())
+			// GetMembersFor doesn't validate the validity of the membership,
+			// so this prevents a user with an expired membership to appear as
+			// "not a member", add a list they are in, and get their membership
+			// renewed.
+			members, err := accesslists.GetMembersFor(ctx, member.GetName(), s.accessLists)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			memberType, err := accesslists.IsAccessListMember(ctx, authCtx.User, memberList, s.accessLists, s.lockGetter, s.clock)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if memberType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-				return trace.AccessDenied("Adding an Access List you are a member of to another Access List is not allowed")
+			for _, m := range members {
+				if m.GetName() == username {
+					return trace.AccessDenied("Adding an Access List you are a member of to another Access List is not allowed")
+				}
 			}
 		} else if member.GetName() == username {
 			return trace.AccessDenied("Adding yourself to an Access List is not allowed")

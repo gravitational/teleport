@@ -822,6 +822,7 @@ type testClient struct {
 type testEnvironment struct {
 	identity    services.Identity
 	accessLists services.AccessLists
+	access      services.Access
 }
 
 type testSvcComponents struct {
@@ -1122,6 +1123,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 		testEnv: &testEnvironment{
 			identity:    userSvc,
 			accessLists: storage,
+			access:      accessService,
 		},
 	}
 }
@@ -2992,6 +2994,247 @@ func Test_nonStaticAccessListError(t *testing.T) {
 	expected := `Access list member's ("carrot") access list ("vegetables") is not static (i.e., access_list with spec.type set to "static"). Access list "vegetables" type is "" (default). Teleport IaC tools support adding members only to access lists of type "static".`
 	require.Equal(t, expected, msg)
 	require.True(t, isNonStaticAccessList(err))
+}
+
+func Test_userTryingToAddThemselves(t *testing.T) {
+	c := initSvc(t)
+
+	// Test setup: creating common fixtures.
+	const (
+		unprivilegedUserName = "my-user"
+		unprivilegedRoleName = "normal-role"
+		unrelatedUserName    = "some-other-user"
+		adminUserName        = "admin-user"
+		adminRoleName        = "admin-role"
+		rootListName         = "root-list"
+		middleListName       = "middle-list"
+		leafListName         = "leaf-list"
+		impossibleListName   = "impossible-list"
+	)
+	adminRole, err := types.NewRole(adminRoleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = c.testEnv.access.CreateRole(t.Context(), adminRole)
+	require.NoError(t, err)
+
+	// unprivilegedRole is a role that gives nothing, because a user must have a role.
+	unprivilegedRole, err := types.NewRole(unprivilegedRoleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = c.testEnv.access.CreateRole(t.Context(), unprivilegedRole)
+	require.NoError(t, err)
+
+	// unprivilegedUser is a user without any rights.
+	unprivilegedUser, err := types.NewUser(unprivilegedUserName)
+	require.NoError(t, err)
+	unprivilegedUser.SetRoles([]string{unprivilegedRole.GetName()})
+	_, err = c.testEnv.identity.CreateUser(t.Context(), unprivilegedUser)
+	require.NoError(t, err)
+
+	// unrelatedUser is a user without any rights, different from unprivilegedUser.
+	// This is used to test that a user can add another user to an access list.
+	unrelatedUser, err := types.NewUser(unrelatedUserName)
+	require.NoError(t, err)
+	unrelatedUser.SetRoles([]string{unprivilegedRole.GetName()})
+	_, err = c.testEnv.identity.CreateUser(t.Context(), unrelatedUser)
+	require.NoError(t, err)
+
+	// adminUser can edit other users and, they are allowed to add themselves to an access list.
+	adminUser, err := types.NewUser(adminUserName)
+	require.NoError(t, err)
+	adminUser.SetRoles([]string{adminRole.GetName()})
+	_, err = c.testEnv.identity.CreateUser(t.Context(), adminUser)
+	require.NoError(t, err)
+
+	// rootAccessList is the list we are trying to add users and other lists to in the tests.
+	rootAccessList := &accesslist.AccessList{
+		ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: rootListName}},
+		Spec: accesslist.Spec{
+			Title:  rootListName,
+			Grants: accesslist.Grants{Roles: []string{adminRoleName}},
+			Owners: []accesslist.Owner{{Name: ownerUser}},
+		}}
+	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), rootAccessList)
+	require.NoError(t, err)
+
+	middleAccessList := &accesslist.AccessList{
+		ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: middleListName}},
+		Spec: accesslist.Spec{
+			Title:  middleListName,
+			Grants: accesslist.Grants{Roles: []string{adminRoleName}},
+			Owners: []accesslist.Owner{{Name: ownerUser}},
+		}}
+	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), middleAccessList)
+	require.NoError(t, err)
+
+	leafAccessList := &accesslist.AccessList{
+		ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: leafListName}},
+		Spec: accesslist.Spec{
+			Title:  leafListName,
+			Grants: accesslist.Grants{Roles: []string{adminRoleName}},
+			Owners: []accesslist.Owner{{Name: ownerUser}},
+		}}
+	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), leafAccessList)
+	require.NoError(t, err)
+
+	// impossibleAccessList is an accesslist whose requirements cannot be met.
+	impossibleAccessList := &accesslist.AccessList{
+		ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: impossibleListName}},
+		Spec: accesslist.Spec{
+			Title:              impossibleListName,
+			Grants:             accesslist.Grants{Roles: []string{adminRoleName}},
+			MembershipRequires: accesslist.Requires{Traits: map[string][]string{"impossible": {"impossible"}}},
+			Owners:             []accesslist.Owner{{Name: ownerUser}},
+		},
+	}
+	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), impossibleAccessList)
+	require.NoError(t, err)
+
+	middleInRootMembership := &accesslist.AccessListMember{
+		ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: middleListName}},
+		Spec: accesslist.AccessListMemberSpec{
+			AccessList:     rootListName,
+			Name:           middleListName,
+			MembershipKind: accesslist.MembershipKindList,
+		},
+	}
+
+	tests := []struct {
+		name                string
+		user                types.User
+		existingMemberships []*accesslist.AccessListMember
+		newMemberships      []*accesslist.AccessListMember
+		expectErr           require.ErrorAssertionFunc
+	}{
+		{
+			name: "user adds another user which is not themselves",
+			user: unprivilegedUser,
+			newMemberships: []*accesslist.AccessListMember{{
+				ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: unrelatedUserName}},
+				Spec: accesslist.AccessListMemberSpec{
+					AccessList:     rootListName,
+					Name:           unrelatedUserName,
+					MembershipKind: accesslist.MembershipKindUser,
+				}}},
+			expectErr: require.NoError,
+		},
+		{
+			name: "user cannot add themselves directly",
+			user: unprivilegedUser,
+			newMemberships: []*accesslist.AccessListMember{{
+				ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: unprivilegedUserName}},
+				Spec: accesslist.AccessListMemberSpec{
+					AccessList:     rootListName,
+					Name:           unprivilegedUserName,
+					MembershipKind: accesslist.MembershipKindUser,
+				}}},
+			expectErr: require.Error,
+		},
+		{
+			name: "user can add themselves directly if they can edit other users",
+			user: adminUser,
+			newMemberships: []*accesslist.AccessListMember{{
+				ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: adminUserName}},
+				Spec: accesslist.AccessListMemberSpec{
+					AccessList:     rootListName,
+					Name:           adminUserName,
+					MembershipKind: accesslist.MembershipKindUser,
+				}}},
+			expectErr: require.NoError,
+		},
+		{
+			name: "user cannot add a list it is a direct member of",
+			user: unprivilegedUser,
+			existingMemberships: []*accesslist.AccessListMember{
+				{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: unprivilegedUserName}},
+					Spec:           accesslist.AccessListMemberSpec{AccessList: middleListName, Name: unprivilegedUserName, MembershipKind: accesslist.MembershipKindUser},
+				},
+			},
+			newMemberships: []*accesslist.AccessListMember{middleInRootMembership},
+			expectErr:      require.Error,
+		},
+		{
+			name: "user adds a list it is a nested member of",
+			user: unprivilegedUser,
+			existingMemberships: []*accesslist.AccessListMember{
+				{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: leafListName}},
+					Spec:           accesslist.AccessListMemberSpec{AccessList: middleListName, Name: leafListName, MembershipKind: accesslist.MembershipKindList},
+				},
+				{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: unprivilegedUserName}},
+					Spec:           accesslist.AccessListMemberSpec{AccessList: leafListName, Name: unprivilegedUserName, MembershipKind: accesslist.MembershipKindUser},
+				},
+			},
+			newMemberships: []*accesslist.AccessListMember{middleInRootMembership},
+			expectErr:      require.Error,
+		},
+		{
+			name: "user adds a list it is an expired member of",
+			user: unprivilegedUser,
+			existingMemberships: []*accesslist.AccessListMember{
+				{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: unprivilegedUserName}},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     middleListName,
+						Name:           unprivilegedUserName,
+						MembershipKind: accesslist.MembershipKindUser,
+						Expires:        c.clock.Now().Add(-time.Hour)},
+				},
+			},
+			newMemberships: []*accesslist.AccessListMember{middleInRootMembership},
+			expectErr:      require.Error,
+		},
+		{
+			name: "user adds a nested list it is a member of but doesn't meet requirements",
+			user: unprivilegedUser,
+			existingMemberships: []*accesslist.AccessListMember{
+				{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: impossibleListName}},
+					Spec:           accesslist.AccessListMemberSpec{AccessList: middleListName, Name: impossibleListName, MembershipKind: accesslist.MembershipKindList},
+				},
+				{
+					ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: unprivilegedUserName}},
+					Spec:           accesslist.AccessListMemberSpec{AccessList: impossibleListName, Name: unprivilegedUserName, MembershipKind: accesslist.MembershipKindUser},
+				},
+			},
+			newMemberships: []*accesslist.AccessListMember{middleInRootMembership},
+			expectErr:      require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test setup: load test-specific fixtures.
+			for _, m := range tt.existingMemberships {
+				// Setting fields the service wants to see, those fields are not relevant for the test.
+				m.Spec.Joined = c.clock.Now().Add(-2 * time.Hour)
+				m.Spec.AddedBy = testUser
+
+				_, err = c.testEnv.accessLists.UpsertAccessListMember(t.Context(), m)
+				require.NoError(t, err)
+			}
+
+			// Test execution.
+			userCtx := genUserContext(t.Context(), tt.user.GetName(), tt.user.GetRoles(), tt.user.GetTraits())
+			authCtx, err := c.svc.authorizer.Authorize(userCtx)
+			require.NoError(t, err)
+			tt.expectErr(t, c.svc.userTryingToAddThemselves(t.Context(), authCtx, tt.user.GetName(), tt.newMemberships...))
+
+			// Test cleanup: remove test-specific fixtures.
+			for _, m := range tt.existingMemberships {
+				require.NoError(t, c.testEnv.accessLists.DeleteAccessListMember(t.Context(), m.Spec.AccessList, m.Spec.Name))
+			}
+		})
+	}
 }
 
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
