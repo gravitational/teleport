@@ -1616,6 +1616,51 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	return connectors, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	connectorKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
+	startKey := connectorKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(connectorKey)
+
+	var out []types.OIDCConnector
+	result, err := s.Backend.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalOIDCConnector(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, conn.GetName(), nil
+		}
+
+		if !withSecrets {
+			conn.SetClientSecret("")
+			conn.SetGoogleServiceAccount("")
+		}
+
+		out = append(out, conn)
+	}
+
+	return out, "", nil
+}
+
 // CreateOIDCAuthRequest creates new auth request
 func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
