@@ -42,6 +42,7 @@ func Handlers() map[string]Handler {
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindDatabase:                           databaseHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
+		types.KindGitServer:                          gitServerHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindProxy:                              proxyHandler(),
