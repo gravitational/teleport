@@ -730,189 +730,157 @@ func TestUpdater_Update(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, tbot := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
-				var requestedGroup string
-				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					requestedGroup = r.URL.Query().Get("group")
-					config := webclient.PingResponse{
-						AutoUpdate: webclient.AutoUpdateSettings{
-							AgentVersion:    "16.3.0",
-							AgentAutoUpdate: tt.inWindow,
-						},
-					}
-					config.Edition = "community"
-					if tt.flags&autoupdate.FlagEnterprise != 0 {
-						config.Edition = "ent"
-					}
-					if tt.agpl {
-						config.Edition = "oss"
-					}
-					config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
-					err := json.NewEncoder(w).Encode(config)
-					require.NoError(t, err)
-				}))
-				t.Cleanup(server.Close)
-
-				dir := t.TempDir()
-				ns := &Namespace{
-					installDir:     dir,
-					defaultPathDir: "ignored",
-					updaterIDFile:  "updater-id-file",
+		t.Run(tt.name, func(t *testing.T) {
+			var requestedGroup string
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestedGroup = r.URL.Query().Get("group")
+				config := webclient.PingResponse{
+					AutoUpdate: webclient.AutoUpdateSettings{
+						AgentVersion:    "16.3.0",
+						AgentAutoUpdate: tt.inWindow,
+					},
 				}
-				_, err := ns.Init()
-				require.NoError(t, err)
-				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-				updater, err := NewLocalUpdater(LocalUpdaterConfig{
-					InsecureSkipVerify: true,
-				}, ns)
-				require.NoError(t, err)
-
-				// Create config file only if provided in test case
-				if tt.cfg != nil {
-					tt.cfg.Spec.Proxy = strings.TrimPrefix(server.URL, "https://")
-					b, err := yaml.Marshal(tt.cfg)
-					require.NoError(t, err)
-					err = os.WriteFile(cfgPath, b, 0600)
-					require.NoError(t, err)
+				config.Edition = "community"
+				if tt.flags&autoupdate.FlagEnterprise != 0 {
+					config.Edition = "ent"
 				}
+				if tt.agpl {
+					config.Edition = "oss"
+				}
+				config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
+				err := json.NewEncoder(w).Encode(config)
+				require.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
 
-				var (
-					installedRevision   Revision
-					installedBaseURL    string
-					linkedRevision      Revision
-					removedRevisions    []Revision
-					revertFuncCalls     int
-					setupCalls          int
-					revertSetupCalls    int
-					teleportReloadCalls int
-					tbotReloadCalls     int
-				)
-				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
-						for _, r := range tt.linkedRevisions {
-							if r == rev {
-								require.False(t, force)
-							}
+			dir := t.TempDir()
+			ns := &Namespace{
+				installDir:     dir,
+				defaultPathDir: "ignored",
+				updaterIDFile:  "updater-id-file",
+			}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+			}, ns)
+			require.NoError(t, err)
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				tt.cfg.Spec.Proxy = strings.TrimPrefix(server.URL, "https://")
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			var (
+				installedRevision Revision
+				installedBaseURL  string
+				linkedRevision    Revision
+				removedRevisions  []Revision
+				revertFuncCalls   int
+				setupCalls        int
+				revertSetupCalls  int
+				reloadCalls       int
+			)
+			updater.Installer = &testInstaller{
+				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					for _, r := range tt.linkedRevisions {
+						if r == rev {
+							require.False(t, force)
 						}
-						installedRevision = rev
-						installedBaseURL = baseURL
-						return tt.installErr
-					},
-					FuncLink: func(_ context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
-						linkedRevision = rev
-						return func(_ context.Context) bool {
-							revertFuncCalls++
-							return true
-						}, nil
-					},
-					FuncList: func(_ context.Context) (revs []Revision, err error) {
-						return slices.Compact([]Revision{
-							installedRevision,
-							tt.cfg.Status.Active,
-							NewRevision("unknown-version", 0),
-						}), nil
-					},
-					FuncRemove: func(_ context.Context, rev Revision) error {
-						removedRevisions = append(removedRevisions, rev)
-						return nil
-					},
-					FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
-						return slices.Contains(tt.linkedRevisions, rev), nil
-					},
-				}
-				updater.TeleportProcess = &testProcess{
-					FuncName: func() string {
-						return "teleport"
-					},
-					FuncReload: func(_ context.Context) error {
-						teleportReloadCalls++
-						return tt.reloadErr
-					},
-					FuncIsPresent: func(ctx context.Context) (bool, error) {
-						return true, nil
-					},
-					FuncIsEnabled: func(ctx context.Context) (bool, error) {
-						return !tt.notEnabled, nil
-					},
-					FuncIsActive: func(ctx context.Context) (bool, error) {
-						return !tt.notActive, nil
-					},
-				}
-				updater.TbotProcess = &testProcess{
-					FuncName: func() string {
-						return "tbot"
-					},
-					FuncReload: func(_ context.Context) error {
-						tbotReloadCalls++
-						return tt.reloadErr
-					},
-					FuncIsPresent: func(ctx context.Context) (bool, error) {
-						return true, nil
-					},
-					FuncIsEnabled: func(ctx context.Context) (bool, error) {
-						return !tt.notEnabled, nil
-					},
-					FuncIsActive: func(ctx context.Context) (bool, error) {
-						return !tt.notActive, nil
-					},
-				}
-				var restarted bool
-				updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _, reload, _ bool) error {
-					restarted = reload
-					setupCalls++
-					return tt.setupErr
-				}
-				updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ bool) error {
-					revertSetupCalls++
+					}
+					installedRevision = rev
+					installedBaseURL = baseURL
+					return tt.installErr
+				},
+				FuncLink: func(_ context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
+					linkedRevision = rev
+					return func(_ context.Context) bool {
+						revertFuncCalls++
+						return true
+					}, nil
+				},
+				FuncList: func(_ context.Context) (revs []Revision, err error) {
+					return slices.Compact([]Revision{
+						installedRevision,
+						tt.cfg.Status.Active,
+						NewRevision("unknown-version", 0),
+					}), nil
+				},
+				FuncRemove: func(_ context.Context, rev Revision) error {
+					removedRevisions = append(removedRevisions, rev)
 					return nil
-				}
-				updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
-					return !tbot, nil
-				}
+				},
+				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
+					return slices.Contains(tt.linkedRevisions, rev), nil
+				},
+			}
+			updater.Process = &testProcess{
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
+				},
+				FuncIsPresent: func(ctx context.Context) (bool, error) {
+					return true, nil
+				},
+				FuncIsEnabled: func(ctx context.Context) (bool, error) {
+					return !tt.notEnabled, nil
+				},
+				FuncIsActive: func(ctx context.Context) (bool, error) {
+					return !tt.notActive, nil
+				},
+			}
+			var restarted bool
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _ bool, reload bool) error {
+				restarted = reload
+				setupCalls++
+				return tt.setupErr
+			}
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ bool) error {
+				revertSetupCalls++
+				return nil
+			}
 
-				ctx := context.Background()
-				err = updater.Update(ctx, tt.now)
-				if tt.errMatch != "" {
-					require.Error(t, err)
-					assert.Contains(t, err.Error(), tt.errMatch)
-				} else {
-					require.NoError(t, err)
-				}
-				require.Equal(t, tt.installedRevision, installedRevision)
-				require.Equal(t, tt.installedBaseURL, installedBaseURL)
-				require.Equal(t, tt.linkedRevision, linkedRevision)
-				require.Equal(t, tt.removedRevisions, removedRevisions)
-				require.Equal(t, tt.flags, installedRevision.Flags)
-				require.Equal(t, tt.requestGroup, requestedGroup)
-				require.Equal(t, tt.reloadCalls, teleportReloadCalls)
-				if tbot && tt.reloadErr == nil {
-					require.Equal(t, tt.reloadCalls, tbotReloadCalls)
-				} else {
-					require.Equal(t, 0, tbotReloadCalls)
-				}
-				require.Equal(t, tt.revertCalls, revertSetupCalls)
-				require.Equal(t, tt.revertCalls, revertFuncCalls)
-				require.Equal(t, tt.setupCalls, setupCalls)
-				require.Equal(t, tt.restarted, restarted)
-
-				if tt.cfg == nil {
-					_, err := os.Stat(cfgPath)
-					require.Error(t, err)
-					return
-				}
-
-				data, err := os.ReadFile(cfgPath)
+			ctx := context.Background()
+			err = updater.Update(ctx, tt.now)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
 				require.NoError(t, err)
-				data = blankTestAddr(data)
+			}
+			require.Equal(t, tt.installedRevision, installedRevision)
+			require.Equal(t, tt.installedBaseURL, installedBaseURL)
+			require.Equal(t, tt.linkedRevision, linkedRevision)
+			require.Equal(t, tt.removedRevisions, removedRevisions)
+			require.Equal(t, tt.flags, installedRevision.Flags)
+			require.Equal(t, tt.requestGroup, requestedGroup)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.revertCalls, revertSetupCalls)
+			require.Equal(t, tt.revertCalls, revertFuncCalls)
+			require.Equal(t, tt.setupCalls, setupCalls)
+			require.Equal(t, tt.restarted, restarted)
 
-				if golden.ShouldSet() {
-					golden.Set(t, data)
-				}
-				require.Equal(t, string(golden.Get(t)), string(data))
-			})
-		}
+			if tt.cfg == nil {
+				_, err := os.Stat(cfgPath)
+				require.Error(t, err)
+				return
+			}
+
+			data, err := os.ReadFile(cfgPath)
+			require.NoError(t, err)
+			data = blankTestAddr(data)
+
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
 	}
 }
 
@@ -1034,7 +1002,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			tryLinkSystemCalls: 1,
 			syncCalls:          1,
 			notPresent:         true,
-			errMatch:           "missing Teleport service",
+			errMatch:           "cannot find systemd service",
 		},
 	}
 
@@ -1067,10 +1035,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 				},
 			}
 			var syncCalls int
-			updater.TeleportProcess = &testProcess{
-				FuncName: func() string {
-					return "test"
-				},
+			updater.Process = &testProcess{
 				FuncSync: func(_ context.Context) error {
 					syncCalls++
 					return tt.syncErr
@@ -1279,23 +1244,6 @@ func TestUpdater_Remove(t *testing.T) {
 			teardownCalls:   1,
 		},
 		{
-			name: "active version with tbot",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
-					Path: defaultPathDir,
-				},
-				Status: UpdateStatus{
-					Active: NewRevision(version, 0),
-				},
-			},
-			linkSystemCalls: 1,
-			syncCalls:       1,
-			reloadCalls:     1,
-			teardownCalls:   1,
-		},
-		{
 			name: "active version, no systemd",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
@@ -1330,6 +1278,7 @@ func TestUpdater_Remove(t *testing.T) {
 			syncCalls:       1,
 			reloadCalls:     1,
 			teardownCalls:   1,
+			reloadErr:       ErrNotNeeded,
 		},
 		{
 			name: "active version, sync error",
@@ -1371,114 +1320,84 @@ func TestUpdater_Remove(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, tbot := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
-				dir := t.TempDir()
-				ns := &Namespace{installDir: dir}
-				_, err := ns.Init()
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			ns := &Namespace{installDir: dir}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+			}, ns)
+			require.NoError(t, err)
+			updater.TeleportServiceName = serviceName
+			if tt.serviceName != "" {
+				updater.TeleportServiceName = tt.serviceName
+			}
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
 				require.NoError(t, err)
-				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-				updater, err := NewLocalUpdater(LocalUpdaterConfig{
-					InsecureSkipVerify: true,
-				}, ns)
+				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
+			}
 
-				// Create config file only if provided in test case
-				if tt.cfg != nil {
-					b, err := yaml.Marshal(tt.cfg)
-					require.NoError(t, err)
-					err = os.WriteFile(cfgPath, b, 0600)
-					require.NoError(t, err)
-				}
-
-				var (
-					linkSystemCalls     int
-					revertFuncCalls     int
-					teleportSyncCalls   int
-					teleportReloadCalls int
-					tbotSyncCalls       int
-					tbotReloadCalls     int
-					teardownCalls       int
-					unlinkedVersion     string
-				)
-				updater.Installer = &testInstaller{
-					FuncLinkSystem: func(_ context.Context) (revert func(context.Context) bool, err error) {
-						linkSystemCalls++
-						return func(_ context.Context) bool {
-							revertFuncCalls++
-							return true
-						}, tt.linkSystemErr
-					},
-					FuncUnlink: func(_ context.Context, rev Revision, path string) error {
-						unlinkedVersion = rev.Version
-						return nil
-					},
-				}
-				updater.TeleportProcess = &testProcess{
-					FuncName: func() string {
-						if tt.serviceName != "" {
-							return tt.serviceName
-						}
-						return teleportServiceName
-					},
-					FuncSync: func(_ context.Context) error {
-						teleportSyncCalls++
-						return tt.syncErr
-					},
-					FuncReload: func(_ context.Context) error {
-						teleportReloadCalls++
-						return tt.reloadErr
-					},
-					FuncIsActive: func(_ context.Context) (bool, error) {
-						return tt.processActive, tt.isActiveErr
-					},
-				}
-				updater.TbotProcess = &testProcess{
-					FuncSync: func(_ context.Context) error {
-						tbotSyncCalls++
-						return tt.syncErr
-					},
-					FuncReload: func(_ context.Context) error {
-						tbotReloadCalls++
-						return tt.reloadErr
-					},
-					FuncIsActive: func(_ context.Context) (bool, error) {
-						return tt.processActive, tt.isActiveErr
-					},
-				}
-				updater.TeardownNamespace = func(_ context.Context) error {
-					teardownCalls++
+			var (
+				linkSystemCalls int
+				revertFuncCalls int
+				syncCalls       int
+				reloadCalls     int
+				teardownCalls   int
+				unlinkedVersion string
+			)
+			updater.Installer = &testInstaller{
+				FuncLinkSystem: func(_ context.Context) (revert func(context.Context) bool, err error) {
+					linkSystemCalls++
+					return func(_ context.Context) bool {
+						revertFuncCalls++
+						return true
+					}, tt.linkSystemErr
+				},
+				FuncUnlink: func(_ context.Context, rev Revision, path string) error {
+					unlinkedVersion = rev.Version
 					return nil
-				}
-				updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
-					return !tbot, nil
-				}
+				},
+			}
+			updater.Process = &testProcess{
+				FuncSync: func(_ context.Context) error {
+					syncCalls++
+					return tt.syncErr
+				},
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
+				},
+				FuncIsActive: func(_ context.Context) (bool, error) {
+					return tt.processActive, tt.isActiveErr
+				},
+			}
+			updater.TeardownNamespace = func(_ context.Context) error {
+				teardownCalls++
+				return nil
+			}
 
-				ctx := context.Background()
-				err = updater.Remove(ctx, tt.force)
-				if tt.errMatch != "" {
-					require.Error(t, err)
-					assert.Contains(t, err.Error(), tt.errMatch)
-				} else {
-					require.NoError(t, err)
-				}
-				require.Equal(t, tt.syncCalls, teleportSyncCalls)
-				require.Equal(t, tt.reloadCalls, teleportReloadCalls)
-				require.Equal(t, 0, tbotSyncCalls)
-				if tbot && tt.reloadErr == nil {
-					require.Equal(t, tt.reloadCalls, tbotReloadCalls)
-				} else {
-					require.Equal(t, 0, tbotReloadCalls)
-				}
-
-				require.Equal(t, tt.linkSystemCalls, linkSystemCalls)
-				require.Equal(t, tt.revertFuncCalls, revertFuncCalls)
-				require.Equal(t, tt.unlinkedVersion, unlinkedVersion)
-				require.Equal(t, tt.teardownCalls, teardownCalls)
-			})
-		}
-
+			ctx := context.Background()
+			err = updater.Remove(ctx, tt.force)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.syncCalls, syncCalls)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.linkSystemCalls, linkSystemCalls)
+			require.Equal(t, tt.revertFuncCalls, revertFuncCalls)
+			require.Equal(t, tt.unlinkedVersion, unlinkedVersion)
+			require.Equal(t, tt.teardownCalls, teardownCalls)
+		})
 	}
 }
 
@@ -1749,7 +1668,9 @@ func TestUpdater_Install(t *testing.T) {
 			errMatch:          "setup error",
 		},
 		{
-			name:              "no need to reload",
+			name:      "no need to reload",
+			reloadErr: ErrNotNeeded,
+
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -1822,194 +1743,161 @@ func TestUpdater_Install(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, tbot := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
-				if len(tt.restrictOS) > 0 && !slices.Contains(tt.restrictOS, runtime.GOOS) {
-					t.Skip("skipping test because OS is not supported")
-				}
-				dir := t.TempDir()
-				ns := &Namespace{
-					installDir:       dir,
-					defaultPathDir:   defaultPathDir,
-					defaultProxyAddr: "default-proxy",
-					updaterIDFile:    "updater-id-file",
-				}
-				_, err := ns.Init()
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.restrictOS) > 0 && !slices.Contains(tt.restrictOS, runtime.GOOS) {
+				t.Skip("skipping test because OS is not supported")
+			}
+			dir := t.TempDir()
+			ns := &Namespace{
+				installDir:       dir,
+				defaultPathDir:   defaultPathDir,
+				defaultProxyAddr: "default-proxy",
+				updaterIDFile:    "updater-id-file",
+			}
+			_, err := ns.Init()
+			require.NoError(t, err)
+			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+			}, ns)
+			require.NoError(t, err)
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
 				require.NoError(t, err)
-				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
-
-				updater, err := NewLocalUpdater(LocalUpdaterConfig{
-					InsecureSkipVerify: true,
-				}, ns)
+				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
+			}
 
-				// Create config file only if provided in test case
-				if tt.cfg != nil {
-					b, err := yaml.Marshal(tt.cfg)
-					require.NoError(t, err)
-					err = os.WriteFile(cfgPath, b, 0600)
-					require.NoError(t, err)
+			var requestedGroup string
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestedGroup = r.URL.Query().Get("group")
+				config := webclient.PingResponse{
+					AutoUpdate: webclient.AutoUpdateSettings{
+						AgentVersion: "16.3.0",
+					},
 				}
+				config.Edition = "community"
+				if tt.flags&autoupdate.FlagEnterprise != 0 {
+					config.Edition = "ent"
+				}
+				if tt.agpl {
+					config.Edition = "oss"
+				}
+				config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
+				err := json.NewEncoder(w).Encode(config)
+				require.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
 
-				var requestedGroup string
-				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					requestedGroup = r.URL.Query().Get("group")
-					config := webclient.PingResponse{
-						AutoUpdate: webclient.AutoUpdateSettings{
-							AgentVersion: "16.3.0",
-						},
-					}
-					config.Edition = "community"
-					if tt.flags&autoupdate.FlagEnterprise != 0 {
-						config.Edition = "ent"
-					}
-					if tt.agpl {
-						config.Edition = "oss"
-					}
-					config.FIPS = tt.flags&autoupdate.FlagFIPS != 0
-					err := json.NewEncoder(w).Encode(config)
-					require.NoError(t, err)
-				}))
-				t.Cleanup(server.Close)
+			if tt.userCfg.Proxy == "" {
+				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
+			}
+			updater.DefaultProxyAddr = tt.userCfg.Proxy
 
-				userCfg := tt.userCfg
-				if userCfg.Proxy == "" {
-					userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
-				}
-				updater.DefaultProxyAddr = userCfg.Proxy
-
-				var (
-					installedRevision   Revision
-					installedBaseURL    string
-					linkedRevision      Revision
-					removedRevision     Revision
-					revertFuncCalls     int
-					teleportReloadCalls int
-					tbotReloadCalls     int
-					setupCalls          int
-					revertSetupCalls    int
-					selinuxInstalls     int
-					selinuxRemovals     int
-				)
-				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
-						installedRevision = rev
-						installedBaseURL = baseURL
-						return tt.installErr
-					},
-					FuncLink: func(_ context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
-						linkedRevision = rev
-						return func(_ context.Context) bool {
-							revertFuncCalls++
-							return true
-						}, nil
-					},
-					FuncList: func(_ context.Context) (revs []Revision, err error) {
-						return []Revision{}, nil
-					},
-					FuncRemove: func(_ context.Context, rev Revision) error {
-						removedRevision = rev
-						return nil
-					},
-					FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
-						return false, nil
-					},
-				}
-				updater.TeleportProcess = &testProcess{
-					FuncName: func() string {
-						return "teleport"
-					},
-					FuncReload: func(_ context.Context) error {
-						teleportReloadCalls++
-						return tt.reloadErr
-					},
-					FuncIsPresent: func(ctx context.Context) (bool, error) {
-						return !tt.notPresent, nil
-					},
-					FuncIsEnabled: func(ctx context.Context) (bool, error) {
-						return !tt.notEnabled, nil
-					},
-					FuncIsActive: func(ctx context.Context) (bool, error) {
-						return !tt.notActive, nil
-					},
-				}
-				updater.TbotProcess = &testProcess{
-					FuncName: func() string {
-						return "tbot"
-					},
-					FuncReload: func(_ context.Context) error {
-						tbotReloadCalls++
-						return tt.reloadErr
-					},
-					FuncIsPresent: func(ctx context.Context) (bool, error) {
-						return !tt.notPresent, nil
-					},
-					FuncIsEnabled: func(ctx context.Context) (bool, error) {
-						return !tt.notEnabled, nil
-					},
-					FuncIsActive: func(ctx context.Context) (bool, error) {
-						return !tt.notActive, nil
-					},
-				}
-				var restarted bool
-				updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux, reload, tbot bool) error {
-					setupCalls++
-					if installSELinux {
-						selinuxInstalls++
-					}
-					restarted = reload
-					return tt.setupErr
-				}
-				updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
-					revertSetupCalls++
-					if installSELinux {
-						selinuxInstalls++
-					} else {
-						selinuxRemovals++
-					}
+			var (
+				installedRevision Revision
+				installedBaseURL  string
+				linkedRevision    Revision
+				removedRevision   Revision
+				revertFuncCalls   int
+				reloadCalls       int
+				setupCalls        int
+				revertSetupCalls  int
+				selinuxInstalls   int
+				selinuxRemovals   int
+			)
+			updater.Installer = &testInstaller{
+				FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool) error {
+					installedRevision = rev
+					installedBaseURL = baseURL
+					return tt.installErr
+				},
+				FuncLink: func(_ context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error) {
+					linkedRevision = rev
+					return func(_ context.Context) bool {
+						revertFuncCalls++
+						return true
+					}, nil
+				},
+				FuncList: func(_ context.Context) (revs []Revision, err error) {
+					return []Revision{}, nil
+				},
+				FuncRemove: func(_ context.Context, rev Revision) error {
+					removedRevision = rev
 					return nil
+				},
+				FuncIsLinked: func(ctx context.Context, rev Revision, path string) (bool, error) {
+					return false, nil
+				},
+			}
+			updater.Process = &testProcess{
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
+				},
+				FuncIsPresent: func(ctx context.Context) (bool, error) {
+					return !tt.notPresent, nil
+				},
+				FuncIsEnabled: func(ctx context.Context) (bool, error) {
+					return !tt.notEnabled, nil
+				},
+				FuncIsActive: func(ctx context.Context) (bool, error) {
+					return !tt.notActive, nil
+				},
+			}
+			var restarted bool
+			updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux bool, reload bool) error {
+				setupCalls++
+				if installSELinux {
+					selinuxInstalls++
 				}
-				updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
-					return !tbot, nil
-				}
-
-				ctx := context.Background()
-				err = updater.Install(ctx, userCfg)
-				if tt.errMatch != "" {
-					require.Error(t, err)
-					assert.Contains(t, err.Error(), tt.errMatch)
+				restarted = reload
+				return tt.setupErr
+			}
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
+				revertSetupCalls++
+				if installSELinux {
+					selinuxInstalls++
 				} else {
-					require.NoError(t, err)
+					selinuxRemovals++
 				}
-				require.Equal(t, tt.installedRevision, installedRevision)
-				require.Equal(t, tt.installedBaseURL, installedBaseURL)
-				require.Equal(t, tt.linkedRevision, linkedRevision)
-				require.Equal(t, tt.removedRevision, removedRevision)
-				require.Equal(t, tt.flags, installedRevision.Flags)
-				require.Equal(t, tt.requestGroup, requestedGroup)
-				require.Equal(t, tt.reloadCalls, teleportReloadCalls)
-				if tbot && tt.reloadErr == nil {
-					require.Equal(t, tt.reloadCalls, tbotReloadCalls)
-				} else {
-					require.Equal(t, 0, tbotReloadCalls)
-				}
-				require.Equal(t, tt.revertCalls, revertSetupCalls)
-				require.Equal(t, tt.revertCalls, revertFuncCalls)
-				require.Equal(t, tt.setupCalls, setupCalls)
-				require.Equal(t, tt.selinuxInstalls, selinuxInstalls)
-				require.Equal(t, tt.selinuxRemovals, selinuxRemovals)
-				require.Equal(t, tt.restarted, restarted)
+				return nil
+			}
 
-				data, err := os.ReadFile(cfgPath)
+			ctx := context.Background()
+			err = updater.Install(ctx, tt.userCfg)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+			} else {
 				require.NoError(t, err)
-				data = blankTestAddr(data)
+			}
+			require.Equal(t, tt.installedRevision, installedRevision)
+			require.Equal(t, tt.installedBaseURL, installedBaseURL)
+			require.Equal(t, tt.linkedRevision, linkedRevision)
+			require.Equal(t, tt.removedRevision, removedRevision)
+			require.Equal(t, tt.flags, installedRevision.Flags)
+			require.Equal(t, tt.requestGroup, requestedGroup)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.revertCalls, revertSetupCalls)
+			require.Equal(t, tt.revertCalls, revertFuncCalls)
+			require.Equal(t, tt.setupCalls, setupCalls)
+			require.Equal(t, tt.selinuxInstalls, selinuxInstalls)
+			require.Equal(t, tt.selinuxRemovals, selinuxRemovals)
+			require.Equal(t, tt.restarted, restarted)
 
-				if golden.ShouldSet() {
-					golden.Set(t, data)
-				}
-				require.Equal(t, string(golden.Get(t)), string(data))
-			})
-		}
+			data, err := os.ReadFile(cfgPath)
+			require.NoError(t, err)
+			data = blankTestAddr(data)
+
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
 	}
 }
 
@@ -2093,9 +1981,16 @@ func TestUpdater_Setup(t *testing.T) {
 			present: true,
 		},
 		{
-			name:    "not present",
-			restart: true,
-			present: false,
+			name:      "reload not needed",
+			restart:   true,
+			present:   true,
+			reloadErr: ErrNotNeeded,
+		},
+		{
+			name:     "not present",
+			restart:  true,
+			present:  false,
+			errMatch: "cannot find systemd",
 		},
 		{
 			name:     "setup error",
@@ -2202,22 +2097,7 @@ func TestUpdater_Setup(t *testing.T) {
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)
 
-			updater.TeleportProcess = &testProcess{
-				FuncName: func() string {
-					return "teleport"
-				},
-				FuncReload: func(_ context.Context) error {
-					return tt.reloadErr
-				},
-				FuncIsPresent: func(_ context.Context) (bool, error) {
-					return tt.present, tt.presentErr
-				},
-			}
-
-			updater.TbotProcess = &testProcess{
-				FuncName: func() string {
-					return "tbot"
-				},
+			updater.Process = &testProcess{
 				FuncReload: func(_ context.Context) error {
 					return tt.reloadErr
 				},
@@ -2233,15 +2113,7 @@ func TestUpdater_Setup(t *testing.T) {
 			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision) error {
 				require.Equal(t, "test", path)
 				require.Equal(t, "version", rev.Version)
-				return nil
-			}
-			updater.WriteTbotService = func(_ context.Context, path string, rev Revision) error {
-				require.Equal(t, "test", path)
-				require.Equal(t, "version", rev.Version)
-				return nil
-			}
-			updater.HasCustomTbot = func(ctx context.Context) (bool, error) {
-				return false, nil
+				return tt.setupErr
 			}
 
 			// Create config file only if provided in test case
@@ -2253,7 +2125,7 @@ func TestUpdater_Setup(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart, true)
+			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -2421,16 +2293,11 @@ func (ti *testInstaller) IsLinked(ctx context.Context, rev Revision, path string
 }
 
 type testProcess struct {
-	FuncName      func() string
 	FuncReload    func(ctx context.Context) error
 	FuncSync      func(ctx context.Context) error
 	FuncIsEnabled func(ctx context.Context) (bool, error)
 	FuncIsActive  func(ctx context.Context) (bool, error)
 	FuncIsPresent func(ctx context.Context) (bool, error)
-}
-
-func (tp *testProcess) Name() string {
-	return tp.FuncName()
 }
 
 func (tp *testProcess) Reload(ctx context.Context) error {
