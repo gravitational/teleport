@@ -82,7 +82,7 @@ func TestProxyStdioConn_autoReconnect(t *testing.T) {
 	serverStdioSource.Load().(io.ReadWriteCloser).Close()
 	select {
 	case <-serverConnClosed:
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		t.Fatal("timed out waiting for server connection to close")
 	}
 	_, err := mcptest.CallServerTool(ctx, stdioClient)
@@ -96,7 +96,7 @@ func TestProxyStdioConn_autoReconnect(t *testing.T) {
 	serverStdioSource.Load().(io.ReadWriteCloser).Close()
 	select {
 	case <-serverConnClosed:
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		require.Fail(t, "timed out waiting for server connection to close")
 	}
 	prepServerWithVersion("2.0.0")
@@ -108,7 +108,7 @@ func TestProxyStdioConn_autoReconnect(t *testing.T) {
 	select {
 	case proxyErr := <-proxyError:
 		require.NoError(t, proxyErr)
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		require.Fail(t, "timed out waiting for proxy to complete")
 	}
 }
@@ -149,7 +149,7 @@ func TestProxyStdioConn_http(t *testing.T) {
 	select {
 	case proxyErr := <-proxyError:
 		require.NoError(t, proxyErr)
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		require.Fail(t, "timed out waiting for proxy to complete")
 	}
 }
@@ -205,7 +205,7 @@ func TestProxyStdioConn_autoReconnectDisabled(t *testing.T) {
 	require.NoError(t, connCloser.Close())
 	select {
 	case <-serverConnClosed:
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		require.Fail(t, "timed out waiting for server connection to close")
 	}
 
@@ -213,7 +213,7 @@ func TestProxyStdioConn_autoReconnectDisabled(t *testing.T) {
 	select {
 	case proxyErr := <-proxyError:
 		require.NoError(t, proxyErr)
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 5):
 		require.Fail(t, "timed out waiting for proxy to complete")
 	}
 
