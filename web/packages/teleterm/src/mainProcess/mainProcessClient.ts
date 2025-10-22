@@ -189,9 +189,6 @@ export default function createMainProcessClient(): MainProcessClient {
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
-    refreshClusterList() {
-      ipcRenderer.send(MainProcessIpc.RefreshClusterList);
-    },
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
@@ -264,6 +261,28 @@ export default function createMainProcessClient(): MainProcessClient {
           ),
       };
     },
+    subscribeToClusterStore: listener => {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.InitClusterStoreSubscription,
+        listener
+      );
+
+      return {
+        cleanup: close,
+      };
+    },
+    addCluster: async (proxyAddress: string) => {
+      return await ipcRenderer.invoke(MainProcessIpc.AddCluster, proxyAddress);
+    },
+    syncRootClusters: async options => {
+      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters, options);
+    },
+    syncCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
+    },
+    logoutCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
+    },
   };
 }
 
@@ -274,7 +293,6 @@ export default function createMainProcessClient(): MainProcessClient {
  * The main process is expected to create an `AwaitableSender` using the received port,
  * enabling it to send messages that require acknowledgments from the renderer.
  */
-// eslint-disable-next-line unused-imports/no-unused-vars
 function startAwaitableSenderListener<T>(
   channel: string,
   listener: (value: T) => void

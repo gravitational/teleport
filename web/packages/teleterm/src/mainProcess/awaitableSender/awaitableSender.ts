@@ -148,7 +148,7 @@ export class AwaitableSender<T> {
 /** Error thrown when waiting for message acknowledgement confirmation was abandoned. */
 export class MessageAcknowledgementError extends Error {
   constructor(cause?: unknown) {
-    super('Stopped waiting for message acknowledgment from renderer', {
+    super('Failed to receive message acknowledgement from the renderer', {
       cause,
     });
   }
