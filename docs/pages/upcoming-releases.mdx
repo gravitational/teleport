@@ -37,7 +37,7 @@ Teleport's web UI will list all workload identity resources registered in the cl
 #### Relay Service
 
 Teleport will ship with a new relay service that acts as a lightweight proxy service,
-receiving connections from both SSH clients and agents. 
+receiving connections from both SSH clients and agents.
 
 The relay service can be used to avoid routing SSH connections through the broader Teleport
 control plane, providing the ability to optimize network flows in large or complex deployments.
@@ -49,7 +49,7 @@ discover the same EC2 instances without interfering with each other.
 
 #### Kubernetes Health Checks
 
-The Kubernetes service will perform regular health checks for registered Kubernetes clusters. 
+The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
 Health status will be reported in the Teleport web UI and reflected in kube_server resources.
 Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
 
