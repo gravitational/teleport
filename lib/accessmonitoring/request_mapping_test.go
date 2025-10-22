@@ -238,6 +238,41 @@ func TestEvaluateCondition(t *testing.T) {
 			},
 			match: false,
 		},
+		{
+			description: "(regexp.match) matches one of user 'level' trait",
+			condition:   `regexp.match(user.traits["level"], "^(L1|L2)$")`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level": {"L1"},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(regexp.match) does not match user 'level' trait",
+			condition:   `regexp.match(user.traits["level"], "^L1$")`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level": {"L2"},
+				},
+			},
+			match: false,
+		},
+		{
+			description: "(regexp.matc) matches some user traits",
+			condition: `
+				regexp.match(user.traits["level"], "^(L1|L2)$") &&
+				regexp.match(user.traits["team"], "^Cloud$") &&
+				regexp.match(user.traits["location"], "^Seattle$")`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level":    {"L1"},
+					"team":     {"Tools"},
+					"location": {"Seattle"},
+				},
+			},
+			match: false,
+		},
 	}
 
 	for _, test := range tests {

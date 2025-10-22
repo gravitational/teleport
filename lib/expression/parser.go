@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -89,6 +90,14 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 						return Set{}, trace.Wrap(err)
 					}
 					return NewSet(locals...), nil
+				}),
+			"regexp.match": typical.BinaryFunction[evaluationEnv](
+				func(inputs Set, expression string) (bool, error) {
+					match, err := utils.RegexMatchesAny(inputs.items(), expression)
+					if err != nil {
+						return false, trace.Wrap(err, "invalid regular expression %q", expression)
+					}
+					return match, nil
 				}),
 			"regexp.replace": typical.TernaryFunction[evaluationEnv](
 				func(inputs Set, match string, replacement string) (Set, error) {
