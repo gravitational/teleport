@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -223,6 +224,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
+					types.NewRule(scopedaccess.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindScopedToken, RW()),
 				},
 			},
 		},

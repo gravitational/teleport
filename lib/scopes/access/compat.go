@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // scopedRoleConditionsToRoleConditions converts scoped role conditions to classic role conditions.
@@ -63,8 +64,18 @@ func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditio
 		}
 	}
 
+	var nodeLabels types.Labels
+	for _, label := range src.GetNodeLabels() {
+		if nodeLabels == nil {
+			nodeLabels = make(types.Labels)
+		}
+		nodeLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+
 	return types.RoleConditions{
-		Rules: rules,
+		Rules:      rules,
+		Logins:     src.GetLogins(),
+		NodeLabels: nodeLabels,
 	}
 }
 
@@ -126,6 +137,23 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			// per-access lock evaluation specialization possible, but its likely that cert-creation locking behavior will
 			// need special handling of some kind.
 			Lock: "",
+			// ClientIdleTimeout is disabled until we can decide how to handle the cases where client idle timeout is
+			// being used independently of an access check (and therefore independent of a known target scope). It is possible
+			// that the correct way to handle this will be to break compatibility with classic roles and introduce separate
+			// per-protocol idle timeouts, with the global timeout always applying for operations that are not tied to a
+			// specific access check. By setting this value to zero we effectively make the default behavior one where we
+			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
+			// whatever solution we eventually land on.
+			ClientIdleTimeout: types.NewDuration(0),
+
+			// DisconnectExpiredCert is disabled until we can decide how to handle the cases where disconnect on expired cert is
+			// being used independently of an access check (and therefore independent of a known target scope). It is possible
+			// that the correct way to handle this will be to break compatibility with classic roles and introduce separate
+			// per-protocol disconnect on expired cert, with the global setting always applying for operations that are not tied to a
+			// specific access check. By setting this value to false we effectively make the default behavior one where we
+			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
+			// whatever solution we eventually land on	.
+			DisconnectExpiredCert: types.NewBool(false),
 		},
 	})
 	if err != nil {
