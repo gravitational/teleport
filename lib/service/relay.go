@@ -292,7 +292,7 @@ func (process *TeleportProcess) runRelayService() error {
 		FIPS:   process.Config.FIPS,
 		Logger: sublogger("transport_service"),
 		Dialer: relayRouter,
-		SignerFn: func(*authz.Context, string) agentless.SignerCreator {
+		SignerFn: func(*authz.ScopedContext, string) agentless.SignerCreator {
 			return func(context.Context, agentless.LocalAccessPoint, agentless.CertGenerator) (ssh.Signer, error) {
 				// the behavior of relayRouter is such that we should never
 				// attempt to connect to an agentless server

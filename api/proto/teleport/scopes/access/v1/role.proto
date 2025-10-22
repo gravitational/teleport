@@ -56,6 +56,13 @@ message ScopedRoleSpec {
 message ScopedRoleConditions {
   // Rules describe basic resource:verb permissions.
   repeated ScopedRule rules = 1;
+
+  // Logins is the list of *nix logins this role allows.
+  repeated string logins = 2;
+
+  // NodeLabels is a map of node labels (used to dynamically grant access to
+  // nodes).
+  map<string, string> node_labels = 3;
 }
 
 // Rule maps resources to verbs. This is the underlying type used to describe

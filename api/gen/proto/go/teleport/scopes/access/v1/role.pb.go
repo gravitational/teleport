@@ -188,7 +188,12 @@ func (x *ScopedRoleSpec) GetAllow() *ScopedRoleConditions {
 type ScopedRoleConditions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Rules describe basic resource:verb permissions.
-	Rules         []*ScopedRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	Rules []*ScopedRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	// Logins is the list of *nix logins this role allows.
+	Logins []string `protobuf:"bytes,2,rep,name=logins,proto3" json:"logins,omitempty"`
+	// NodeLabels is a map of node labels (used to dynamically grant access to
+	// nodes).
+	NodeLabels    map[string]string `protobuf:"bytes,3,rep,name=node_labels,json=nodeLabels,proto3" json:"node_labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -226,6 +231,20 @@ func (*ScopedRoleConditions) Descriptor() ([]byte, []int) {
 func (x *ScopedRoleConditions) GetRules() []*ScopedRule {
 	if x != nil {
 		return x.Rules
+	}
+	return nil
+}
+
+func (x *ScopedRoleConditions) GetLogins() []string {
+	if x != nil {
+		return x.Logins
+	}
+	return nil
+}
+
+func (x *ScopedRoleConditions) GetNodeLabels() map[string]string {
+	if x != nil {
+		return x.NodeLabels
 	}
 	return nil
 }
@@ -301,9 +320,15 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x84\x01\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
 	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12E\n" +
-	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\"S\n" +
+	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\"\x8c\x02\n" +
 	"\x14ScopedRoleConditions\x12;\n" +
-	"\x05rules\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\"@\n" +
+	"\x05rules\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12\x16\n" +
+	"\x06logins\x18\x02 \x03(\tR\x06logins\x12`\n" +
+	"\vnode_labels\x18\x03 \x03(\v2?.teleport.scopes.access.v1.ScopedRoleConditions.NodeLabelsEntryR\n" +
+	"nodeLabels\x1a=\n" +
+	"\x0fNodeLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -321,24 +346,26 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),           // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),       // 1: teleport.scopes.access.v1.ScopedRoleSpec
 	(*ScopedRoleConditions)(nil), // 2: teleport.scopes.access.v1.ScopedRoleConditions
 	(*ScopedRule)(nil),           // 3: teleport.scopes.access.v1.ScopedRule
-	(*v1.Metadata)(nil),          // 4: teleport.header.v1.Metadata
+	nil,                          // 4: teleport.scopes.access.v1.ScopedRoleConditions.NodeLabelsEntry
+	(*v1.Metadata)(nil),          // 5: teleport.header.v1.Metadata
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	4, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	5, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.allow:type_name -> teleport.scopes.access.v1.ScopedRoleConditions
 	3, // 3: teleport.scopes.access.v1.ScopedRoleConditions.rules:type_name -> teleport.scopes.access.v1.ScopedRule
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	4, // 4: teleport.scopes.access.v1.ScopedRoleConditions.node_labels:type_name -> teleport.scopes.access.v1.ScopedRoleConditions.NodeLabelsEntry
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -352,7 +379,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
