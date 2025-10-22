@@ -26,8 +26,8 @@ things like identify instances still running old versions of Teleport and need t
 ### Implementation
 
 The first version of this feature will primarily focus on adding the existing `tctl inventory` and `tctl bots instances` functionality
-to the Web UI and use most of the same underlying backend API. Both agents and bot instances will be fetched via streams and
-combined into a single paginated response ordered alphabetically by name by leveraging the `MergeStreams` utility.
+to the Web UI and use most of the same underlying backend API. Both agents and bot instances will be stored in a sorted cache ordered alphabetically
+by name.
 
 #### Web Endpoint
 
@@ -169,33 +169,29 @@ throughout the entire cluster, or possibly even break the cluster entirely due t
 the cache never gets healthy.
 
 Instances still need to be cached if exposed to the Web UI to maintain performance and prevent constant backend reads, so to
-prevent the aforementioned issues, instances will be cached in a separate "lazy" cache with rate-limited reads that is
-initialized after the primary cache has. This `InstancesCache` will wait for the primary cache to be ready and healthy, and only
-then begin populating itself with the instances from the backend. Its reads from the backend will be rate-limited variably,
-based on the size of the cluster which will be derived from the size of the primary cache. Larger clusters (which can be assumed
+prevent the aforementioned issues, instances will be cached in a separate "lazy" sortcache with rate-limited reads that is
+initialized after the primary cache has. This `InventoryCache` sortcache will wait for the primary cache to be ready and healthy, and only
+then begin populating itself with the agent instances and bot instances from the backend. Its reads from the backend will be rate-limited
+variably, based on the size of the cluster which will be derived from the size of the primary cache. Larger clusters (which can be assumed
 to have more bandwidth) will have more lenient rate-limits in order to prevent it from taking too long to populate.
 
-Aggregate counters such as the total number of up-to-date agents, total number of each service, etc. will be their own separate
+Aggregate counters such as the total number of up-to-date instances, total number of each service, etc. will be their own separate
 fields in the cache and tallied up during initialization, and updated as needed during create/edit/delete operations.
 
-The cache will hook into the backend events watcher and watch for `Instances` events and update the cache accordingly whenever
+The cache will hook into the backend events watcher and watch for `instance` and `bot_instance` events and update the cache accordingly whenever
 an update is detected (such as an instance no longer being connected). This cache will live in auth and the data will be exposed to
-the proxy via a new RPC service with a `ListInstances()` method which will build the page of instances by streaming from the
-instances cache and bot instances cache (which is already implemented). To achieve this, the `MergeStreams` utility will be used
-to iterate through both caches simultaneously and use a compare function that compares the names of the instances to ensure that
-the returned page is based on alphabetical order. The `next_key` will consist of the next keys in each cache separated by a comma,
-eg. `"server3,bot2"`, similar to the existing implementation for dual notifications streaming.
+the proxy via a new RPC service with a `ListUnifiedInstances()` method which will build the page of instances by streaming from the
+`InventoryCache` sortcache.
 
-The `tctl inventory` commands will remain unchanged, however it will be updated under the hood to utilize the new cache.
-
-Any requests made for instances will be rejected until the `InstancesCache` is initialized and healthy.
+Any requests made for instances will be rejected until the `InventoryCache` is initialized and healthy, if not, all requests will be rejected
+and there will not be a fallback to the backend.
 
 #### UX
 
 ![](assets/0229-agent-inventory-mockup.png)
 \*The above mockup is not finalized and may differ slightly from the implemented feature.
 
-The new `Agent Inventory` page will be available in the Web UI under the `Zero Trust Access` navigation section.
+The new `Instances Inventory` page will be available in the Web UI under the `Zero Trust Access` navigation section.
 
 The top of the page will contain aggregate metrics including the total number of up-to-date and out-of-date agents, number of
 agents using externally managed upgrades and their upgraders, and total active services.
@@ -212,7 +208,7 @@ Bot instances in the list will also contain a deep link to their dedicated bot i
 this will work by building the URL to the Bot Instances dashboard with a predicate language advacned search query that filters solely
 for the specific bot instance's name.
 
-If the page is loaded while the `InstancesCache` is still being initialized, the page will be empty and only show a banner message
+If the page is loaded while the `InventoryCache` is still being initialized, the page will be empty and only show a banner message
 with the text "The agent inventory is not yet ready to be displayed, please check back in a few minutes." Users who don't
 have `list` or `read` permissions for the `instance` resource kind will see a banner informing them that they need permissions
 for `instance.list` and `instance.list`. If a user has `list` and `read` permissions for the `instance` resource, but not
