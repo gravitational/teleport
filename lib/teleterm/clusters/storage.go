@@ -213,6 +213,10 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		clusterNameForKey = leafClusterName
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
 		cfg.SiteName = leafClusterName
+	} else {
+		// Reset SiteName as it may reference a leaf cluster.
+		// The correct root cluster value will be set during loadProfileStatusAndClusterKey.
+		cfg.SiteName = ""
 	}
 
 	clusterClient, err := client.NewClient(cfg)
@@ -243,13 +247,28 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	status := &client.ProfileStatus{}
 
 	// load profile status if key exists
-	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
+	key, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			s.Logger.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
 		} else {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	// If the key exists, and clusterClient is a root cluster client,
+	// extract the name from the key.
+	// We don't use SiteName from the profile as it can be changed
+	// through "tsh login leaf", so we would return a client that incorrectly
+	// points to the leaf cluster.
+	if err == nil && clusterClient.Config.SiteName == "" {
+		var rootClusterName string
+		rootClusterName, err = key.RootClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusterClient.Config.SiteName = rootClusterName
+		clusterClient.SiteName = rootClusterName
 	}
 
 	if err == nil && clusterClient.Username != "" {
