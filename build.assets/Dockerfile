@@ -249,7 +249,7 @@ RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://go.dev/dl/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
