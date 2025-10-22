@@ -74,11 +74,17 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	}
 	server, err := top.SelectServer(ctx, selector)
 	if err != nil {
+		if err := top.Disconnect(ctx); err != nil {
+			e.Log.WithError(err).Warn("Failed to close topology")
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 	e.Log.Debugf("Cluster topology: %v, selected server %v.", top, server)
 	conn, err := server.Connection(ctx)
 	if err != nil {
+		if err := top.Disconnect(ctx); err != nil {
+			e.Log.WithError(err).Warn("Failed to close topology")
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 
