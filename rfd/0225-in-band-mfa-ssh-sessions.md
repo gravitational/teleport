@@ -324,21 +324,21 @@ The following diagram depicts the SSH connection flow during the transition peri
 title: SSH MFA Connection Flow During Transition Period
 ---
 flowchart TD
-  NewConn[New SSH connection] --> VerifyCert[Verify client certificate]
+  NewConn[New SSH connection] --> VerifyCert[Verify client cert]
   VerifyCert -- Valid --> CheckMFA{MFA required?}
-  VerifyCert -- Invalid --> RejectCert[Reject: invalid client certificate]
+  VerifyCert -- Invalid --> RejectCert[Reject: invalid cert]
   RejectCert --> End[End]
 
   CheckMFA{MFA required?}
   CheckMFA -- No --> AcceptAll[Accept connection]
-  CheckMFA -- Yes --> CertType{Is certificate a per-session MFA cert?}
-  CertType -- Yes --> ValidatePS[Validate per-session MFA certificate]
+  CheckMFA -- Yes --> CertType{Is cert a per-session MFA cert?}
+  CertType -- Yes --> ValidatePS[Validate per-session MFA cert]
   ValidatePS -- Valid --> AcceptAll[Accept connection]
-  ValidatePS -- Invalid --> RejectPS[Reject: invalid per-session MFA certificate]
+  ValidatePS -- Invalid --> RejectPS[Reject: invalid MFA cert]
   RejectPS --> End[End]
 
   CertType -- No --> LegacyCheck{Is client a legacy client?}
-  LegacyCheck -- Yes --> RejectLegacy[Reject: legacy client must use per-session MFA cert]
+  LegacyCheck -- Yes --> RejectLegacy[Reject: Must use MFA cert]
   RejectLegacy --> End[End]
   LegacyCheck -- No --> InBand[Proceed with in-band MFA]
   InBand -- Valid --> AcceptAll[Accept connection]
