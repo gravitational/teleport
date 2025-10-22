@@ -51,6 +51,7 @@ export type JoinToken = {
     allow: OracleRules[];
   };
   github?: GithubConfig;
+  gitlab?: GitlabConfig;
 };
 
 // JoinRole defines built-in system roles and are roles associated with
@@ -123,10 +124,10 @@ type GithubConfig = {
   /** enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the include_enterprise_slug option in GHE. */
   enterprise_slug?: string | null;
   /** allow is an array of rule configurations for which GitHub Actions workflows should be allowed to join */
-  allow?: GithubRules[] | null;
+  allow?: GithubRule[] | null;
 };
 
-export type GithubRules = {
+export type GithubRule = {
   /** repository is a fully qualified (e.g. including the owner) name of a GitHub repository. */
   repository?: string | null;
   /** repository_owner is the name of an organization or user that a repository belongs to. */
@@ -143,6 +144,28 @@ export type GithubRules = {
   ref_type?: string | null;
   /** sub is a concatenated string of various attributes of the workflow run. GitHub explains the format of this string at: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims */
   sub?: string | null;
+};
+
+type GitlabConfig = {
+  /** domain should be the domain of your GitLab instance. If you are using GitLab's cloud hosted offering, omit this field entirely. */
+  domain?: string | null;
+  /** static_jwks allows the JSON Web Key Set (JWKS) used to verify the token issued by GitLab to be overridden. */
+  static_jwks?: string | null;
+  /** allow is an array of rule configurations for what GitLab CI jobs should be allowed to join. */
+  allow?: GitlabRule[] | null;
+};
+
+export type GitlabRule = {
+  /** project_path restricts joins to jobs that originate within the specified project. */
+  project_path?: string | null;
+  /** namespace_path restricts joins to any run within project that exists within the specified namespace. */
+  namespace_path?: string | null;
+  /** environment restricts joins to jobs that are associated with the specified environment */
+  environment?: string | null;
+  /** ref is the git ref that triggered the action run. */
+  ref?: string | null;
+  /** ref_type is the type of the git ref that triggered the action run. */
+  ref_type?: string | null;
 };
 
 export type JoinTokenRulesObject = AWSRules | GCPRules;
@@ -166,6 +189,7 @@ export type CreateJoinTokenRequest = {
     allow: OracleRules[];
   };
   github?: GithubConfig;
+  gitlab?: GitlabConfig;
 };
 
 export type JoinTokenRequest = {
