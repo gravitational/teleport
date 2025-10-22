@@ -113,7 +113,13 @@ The previous major version goes into maintenance mode the moment a new major ver
 In other words, even though we will now support two major releases, N and N-1, new features *MUST* only
 be included in version N. N-1 will continue to receive bug fixes and security patches, but not new features.
 
-The Test Plan should also be performed more frequently to help ensure stability of releases. Additionally,
+What does this mean in practice?
+
+All development will continue on the master branch. New features are only to be backported to
+the current release, i.e branch/v18. Bug fixes, security mitigations, will be backported to
+the current release and the stable release, i.e. branch/v18 and branch/v17.
+
+The Test Plan will be performed more frequently to help ensure stability of releases. Additionally,
 when the Cloud framework permits, release branches compatibility, performance, and stability should be
 automatically tested on a periodic cadence (i.e. nightly, weekly).
 
