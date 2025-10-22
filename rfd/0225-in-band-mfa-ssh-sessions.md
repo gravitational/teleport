@@ -300,32 +300,87 @@ message ValidateAuthenticateChallengeResponse {
 
 #### Transition Period
 
-The transition period will last at least 2 major releases to allow clients sufficient time for migration.
+The transition period will cover only two consecutive major releases: the current release (N) and the immediately
+previous release (N-1). During this period components must support both the legacy per‑session MFA certificate flow and
+the new in‑band MFA flow for compatibility between N and N-1. The transition ends with the next major release (N+1),
+after which all components must support the in‑band MFA flow exclusively.
+
+Example: if this RFD is implemented in Teleport 20.0.0, the transition period covers releases 20.x and 19.x and will end
+with the release of 21.0.0. Starting with 21.0.0, all components must support in‑band MFA enforcement only.
+
+This transition period might be too long for some environments that want to enforce in-band MFA sooner for improved
+security. To accommodate these environments, an [opt-out flag](#early-adopters--opt-out-flag) will be provided to allow
+early adopters to enable in-band MFA enforcement before the end of the transition period.
 
 #### SSH Service
 
 The SSH service will continue to support legacy clients that rely on per-session MFA SSH certificates during the
-transition period, while modern clients will be required to use the in-band MFA flow. After the transition period, the
-SSH service will no longer accept per-session MFA SSH certificates and will only support the in-band MFA flow.
+transition period, while modern clients will be _required_ to use the in-band MFA flow.
 
-MFA required connection flow during the transition period:
+The following diagram depicts the SSH connection flow during the transition period, with a focus on MFA enforcement:
 
-1. Upon a new connection, the SSH service will check whether the certificate is a per-session MFA SSH certificate or a
-   standard client certificate.
-1. If it is a per-session MFA SSH certificate, the SSH service will validate the certificate as before.
-1. If it is a standard client certificate with a legacy client, the SSH service will reject the connection since the
-   legacy client should be using a per-session MFA SSH certificate (client will retry with a per-session MFA SSH
-   certificate).
-1. If it is a standard client certificate with a modern client, the SSH service will proceed with the in-band MFA flow.
+```mermaid
+---
+title: SSH MFA Connection Flow During Transition Period
+---
+flowchart TD
+  NewConn[New SSH connection] --> VerifyCert[Verify client certificate]
+  VerifyCert -- Valid --> CheckMFA{MFA required?}
+  VerifyCert -- Invalid --> RejectCert[Reject: invalid client certificate]
+  RejectCert --> End[End]
 
-If MFA is not required, the SSH service will continue to accept both per-session MFA SSH certificates and standard
-client certificates from both legacy and modern clients.
+  CheckMFA{MFA required?}
+  CheckMFA -- No --> AcceptAll[Accept connection]
+  CheckMFA -- Yes --> CertType{Is certificate a per-session MFA cert?}
+  CertType -- Yes --> ValidatePS[Validate per-session MFA certificate]
+  ValidatePS -- Valid --> AcceptAll[Accept connection]
+  ValidatePS -- Invalid --> RejectPS[Reject: invalid per-session MFA certificate]
+  RejectPS --> End[End]
+
+  CertType -- No --> LegacyCheck{Is client a legacy client?}
+  LegacyCheck -- Yes --> RejectLegacy[Reject: legacy client must use per-session MFA cert]
+  RejectLegacy --> End[End]
+  LegacyCheck -- No --> InBand[Proceed with in-band MFA]
+  InBand -- Valid --> AcceptAll[Accept connection]
+  InBand -- Invalid --> RejectInBand[Reject: invalid MFA response]
+  RejectInBand --> End[End]
+
+  AcceptAll --> End[End]
+```
+
+After the transition period, the SSH service will no longer accept per-session MFA SSH certificates and will only
+support the in-band MFA flow.
 
 #### Modern Clients and Legacy Agents
 
 Modern clients will support legacy agents that rely on per-session MFA SSH certificates during the transition period.
+
 Modern clients will generate per-session MFA SSH certificates for legacy agents while using the in-band MFA flow for
 modern agents.
+
+#### Early Adopters / Opt-Out Flag
+
+Use the environment variable `TELEPORT_UNSTABLE_FORCE_INBAND_MFA` to force exclusive use of the in‑band MFA flow
+for testing and early adoption.
+
+For environments deploying a fresh Teleport cluster during the transition period, it is recommended to enable this flag
+to ensure that all components use the in‑band MFA flow from the start.
+
+To enable the flag, set the environment variable to `yes`. To disable the flag, unset the environment variable.
+
+When set on modern clients: the client will not request per-session MFA certificates and will use the in‑band
+MFA flow.
+
+When set on modern agents: the SSH service will reject per-session MFA certificates and require in‑band MFA for
+connections that need MFA. Additionally, clients will no longer be able to request per-session MFA certificates from the
+Auth service.
+
+> Warning: intended for testing/early adopters only. Enabling this will break connections from legacy clients or legacy
+> agents that still rely on per-session MFA certificates. Remove the flag once the environment has completed migration
+> to the in‑band flow.
+
+Once the transition period is over, the flag will be removed and modern clients and agents will exclusively use the
+in‑band MFA flow.
 
 ### Audit Events
 
