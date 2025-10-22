@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
+	scopedaccess "github.com/gravitational/teleport/api/client/scopes/access"
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
 	"github.com/gravitational/teleport/api/client/userloginstate"
@@ -826,8 +827,8 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 
 // ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
 // Auth gRPC connection.
-func (c *Client) ScopedAccessServiceClient() scopedaccessv1.ScopedAccessServiceClient {
-	return scopedaccessv1.NewScopedAccessServiceClient(c.conn)
+func (c *Client) ScopedAccessServiceClient() *scopedaccess.Client {
+	return scopedaccess.NewClient(scopedaccessv1.NewScopedAccessServiceClient(c.conn))
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying

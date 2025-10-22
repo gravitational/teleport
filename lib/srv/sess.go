@@ -853,7 +853,11 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 
-	policySets := scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	var policySets []*types.SessionTrackerPolicySet
+	if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
+
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
@@ -1887,9 +1891,14 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2072,9 +2081,14 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2207,9 +2221,14 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
 	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
+		var roles []types.Role
+		if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = scx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
-			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 		}
 
 		modes := s.access.CanJoin(accessContext)

@@ -18,6 +18,7 @@ package access
 
 import (
 	"iter"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -144,6 +145,37 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 				}
 			}
 		}
+	}
+
+	// verify that logins are well-formed
+	for _, login := range role.GetSpec().GetAllow().GetLogins() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// logins. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		if strings.ContainsAny(login, "{}^$*") {
+			return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
+		}
+	}
+
+	// verify that node labels are well-formed
+	for _, label := range role.GetSpec().GetAllow().GetNodeLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), "{}^$") {
+			return trace.BadParameter("scoped role %q has invalid node label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		for _, value := range label.GetValues() {
+			if strings.ContainsAny(value, "{}^$") {
+				return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+			}
+		}
+	}
+
+	// verify that scoped role converts to a valid unscoped role
+	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
+		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)
 	}
 
 	return nil
