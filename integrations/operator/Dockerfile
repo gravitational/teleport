@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -fsSL  https://go.dev/dl/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     chmod a+w /var/lib && \
     chmod a-w /
 ENV GOPATH="/go" \
