@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -155,7 +154,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindWindowsDesktop:              rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAccessList:                  rc.createAccessList,
-		types.KindDiscoveryConfig:             rc.createDiscoveryConfig,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
@@ -1310,31 +1308,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	remote := client.DiscoveryConfigClient()
-
-	if rc.force {
-		if _, err := remote.UpsertDiscoveryConfig(ctx, discoveryConfig); err != nil {
-			return trace.Wrap(err)
-		}
-
-		fmt.Printf("DiscoveryConfig %q has been written\n", discoveryConfig.GetName())
-		return nil
-	}
-
-	if _, err := remote.CreateDiscoveryConfig(ctx, discoveryConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("DiscoveryConfig %q has been created\n", discoveryConfig.GetName())
-
-	return nil
-}
-
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1706,13 +1679,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
-
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
 
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
@@ -2526,22 +2492,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &userTaskCollection{items: tasks}, nil
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if rc.ref.Name != "" {
-			dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &discoveryConfigCollection{discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dc}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, remote.ListDiscoveryConfigs))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &discoveryConfigCollection{discoveryConfigs: resources}, nil
 	case types.KindAuditQuery:
 		if rc.ref.Name != "" {
 			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
