@@ -305,128 +305,18 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 		return nil
 	}
 
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Get list of auth servers. Used to print friendly signup message.
-	authServers, err := client.GetAuthServers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(authServers) == 0 {
-		return trace.BadParameter("this cluster has no auth servers")
-	}
-
-	// Print signup message.
-	switch {
-	case roles.Include(types.RoleKube):
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(proxies) == 0 {
-			return trace.NotFound("cluster has no proxies")
-		}
-		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
-		return kubeMessageTemplate.Execute(c.Stdout,
-			map[string]interface{}{
-				"auth_server": proxies[0].GetPublicAddr(),
-				"token":       token,
-				"minutes":     c.ttl.Minutes(),
-				"set_roles":   setRoles,
-				"version":     proxies[0].GetTeleportVersion(),
-			})
-	case roles.Include(types.RoleApp):
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(proxies) == 0 {
-			return trace.BadParameter("cluster has no proxies")
-		}
-		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
-
-		return appMessageTemplate.Execute(c.Stdout,
-			map[string]interface{}{
-				"token":           token,
-				"minutes":         c.ttl.Minutes(),
-				"ca_pins":         caPins,
-				"auth_server":     proxies[0].GetPublicAddr(),
-				"app_name":        c.appName,
-				"app_uri":         c.appURI,
-				"app_public_addr": appPublicAddr,
-			})
-	case roles.Include(types.RoleDatabase):
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(proxies) == 0 {
-			return trace.NotFound("cluster has no proxies")
-		}
-		return dbMessageTemplate.Execute(c.Stdout,
-			map[string]interface{}{
-				"token":       token,
-				"minutes":     c.ttl.Minutes(),
-				"ca_pins":     caPins,
-				"auth_server": proxies[0].GetPublicAddr(),
-				"db_name":     c.dbName,
-				"db_protocol": c.dbProtocol,
-				"db_uri":      c.dbURI,
-			})
-	case roles.Include(types.RoleTrustedCluster):
-		fmt.Fprintf(c.Stdout, trustedClusterMessage,
-			token,
-			int(c.ttl.Minutes()))
-	case roles.Include(types.RoleWindowsDesktop):
-		return desktopMessageTemplate.Execute(c.Stdout,
-			map[string]interface{}{
-				"token":   token,
-				"minutes": c.ttl.Minutes(),
-			})
-	case roles.Include(types.RoleMDM):
-		return mdmTokenAddTemplate.Execute(c.Stdout, map[string]interface{}{
-			"token":   token,
-			"minutes": c.ttl.Minutes(),
-			"ca_pins": caPins,
-		})
-	default:
-		authServer := authServers[0].GetAddr()
-
-		pingResponse, err := client.Ping(ctx)
-		if err != nil {
-			slog.DebugContext(ctx, "unable to ping auth client", "error", err)
-		}
-
-		if err == nil && pingResponse.GetServerFeatures().Cloud {
-			proxies, err := client.GetProxies()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if len(proxies) != 0 {
-				authServer = proxies[0].GetPublicAddr()
-			}
-		}
-
-		return nodeMessageTemplate.Execute(c.Stdout, map[string]interface{}{
-			"token":       token,
-			"roles":       strings.ToLower(roles.String()),
-			"minutes":     int(c.ttl.Minutes()),
-			"ca_pins":     caPins,
-			"auth_server": authServer,
-		})
-	}
-
-	return nil
+	return trace.Wrap(showJoinInstructions(ctx, joinInstructionsInput{
+		out:        c.Stdout,
+		client:     client,
+		roles:      roles,
+		tokenName:  token,
+		ttl:        c.ttl,
+		appName:    c.appName,
+		appURI:     c.appURI,
+		dbName:     c.dbName,
+		dbURI:      c.dbURI,
+		dbProtocol: c.dbProtocol,
+	}))
 }
 
 // Del is called to execute "tokens del ..." command.
@@ -1063,4 +953,142 @@ func generateAgentValues(params valueGeneratorParams) ([]byte, error) {
 	}
 
 	return yaml.Marshal(agentValues)
+}
+
+type joinInstructionsInput struct {
+	client     *authclient.Client
+	roles      types.SystemRoles
+	out        io.Writer
+	tokenName  string
+	ttl        time.Duration
+	appName    string
+	appURI     string
+	dbName     string
+	dbURI      string
+	dbProtocol string
+}
+
+func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
+	// Calculate the CA pins for this cluster. The CA pins are used by the
+	// client to verify the identity of the Auth Server.
+	localCAResponse, err := in.client.GetClusterCACert(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Get list of auth servers. Used to print friendly signup message.
+	authServers, err := in.client.GetAuthServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(authServers) == 0 {
+		return trace.BadParameter("this cluster has no auth servers")
+	}
+
+	// Print signup message.
+	switch {
+	case in.roles.Include(types.RoleKube):
+		proxies, err := in.client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		setRoles := strings.ToLower(strings.Join(in.roles.StringSlice(), "\\,"))
+		return kubeMessageTemplate.Execute(in.out,
+			map[string]any{
+				"auth_server": proxies[0].GetPublicAddr(),
+				"token":       in.tokenName,
+				"minutes":     in.ttl.Minutes(),
+				"set_roles":   setRoles,
+				"version":     proxies[0].GetTeleportVersion(),
+			})
+	case in.roles.Include(types.RoleApp):
+		proxies, err := in.client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.BadParameter("cluster has no proxies")
+		}
+		appPublicAddr := fmt.Sprintf("%v.%v", in.appName, proxies[0].GetPublicAddr())
+
+		return appMessageTemplate.Execute(in.out,
+			map[string]any{
+				"token":           in.tokenName,
+				"minutes":         in.ttl.Minutes(),
+				"ca_pins":         caPins,
+				"auth_server":     proxies[0].GetPublicAddr(),
+				"app_name":        in.appName,
+				"app_uri":         in.appURI,
+				"app_public_addr": appPublicAddr,
+			})
+	case in.roles.Include(types.RoleDatabase):
+		proxies, err := in.client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		return dbMessageTemplate.Execute(in.out,
+			map[string]any{
+				"token":       in.tokenName,
+				"minutes":     in.ttl.Minutes(),
+				"ca_pins":     caPins,
+				"auth_server": proxies[0].GetPublicAddr(),
+				"db_name":     in.dbName,
+				"db_protocol": in.dbProtocol,
+				"db_uri":      in.dbURI,
+			})
+	case in.roles.Include(types.RoleTrustedCluster):
+		fmt.Fprintf(in.out, trustedClusterMessage,
+			in.tokenName,
+			int(in.ttl.Minutes()))
+	case in.roles.Include(types.RoleWindowsDesktop):
+		return desktopMessageTemplate.Execute(in.out,
+			map[string]any{
+				"token":   in.tokenName,
+				"minutes": in.ttl.Minutes(),
+			})
+	case in.roles.Include(types.RoleMDM):
+		return mdmTokenAddTemplate.Execute(in.out, map[string]any{
+			"token":   in.tokenName,
+			"minutes": in.ttl.Minutes(),
+			"ca_pins": caPins,
+		})
+	default:
+		authServer := authServers[0].GetAddr()
+
+		pingResponse, err := in.client.Ping(ctx)
+		if err != nil {
+			slog.DebugContext(ctx, "unable to ping auth client", "error", err)
+		}
+
+		if err == nil && pingResponse.GetServerFeatures().Cloud {
+			proxies, err := in.client.GetProxies()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(proxies) != 0 {
+				authServer = proxies[0].GetPublicAddr()
+			}
+		}
+
+		return nodeMessageTemplate.Execute(in.out, map[string]any{
+			"token":       in.tokenName,
+			"roles":       strings.ToLower(in.roles.String()),
+			"minutes":     int(in.ttl.Minutes()),
+			"ca_pins":     caPins,
+			"auth_server": authServer,
+		})
+	}
+
+	return nil
 }
