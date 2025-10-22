@@ -119,11 +119,12 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 
 	sessionEnd := apievents.SessionEnd{
 		Metadata: apievents.Metadata{
-			Index: 20,
-			Type:  events.SessionEndEvent,
-			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-			Code:  events.SessionEndCode,
-			Time:  params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
+			Index:       20,
+			Type:        events.SessionEndEvent,
+			ID:          "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:        events.SessionEndCode,
+			Time:        params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
+			ClusterName: params.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
 			ServerVersion:   teleport.Version,
@@ -142,6 +143,116 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 		Participants:       []string{params.UserName},
 		StartTime:          params.Clock.Now().UTC(),
 		EndTime:            params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
+	}
+
+	genEvents := []apievents.AuditEvent{&sessionStart}
+	for i, data := range params.PrintData {
+		event := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Index: int64(i) + 1,
+				Type:  events.SessionPrintEvent,
+				Time:  params.Clock.Now().UTC().Add(time.Minute + time.Duration(i)*time.Millisecond),
+			},
+			ChunkIndex:        int64(i),
+			DelayMilliseconds: int64(i),
+			Offset:            int64(i),
+			Data:              []byte(data),
+		}
+		event.Bytes = int64(len(event.Data))
+		event.Time = event.Time.Add(time.Duration(i) * time.Millisecond)
+
+		genEvents = append(genEvents, event)
+	}
+
+	sessionEnd.Metadata.Index = int64(len(genEvents))
+	genEvents = append(genEvents, &sessionEnd)
+
+	return genEvents
+}
+
+// GenerateTestKubeSession generates Kubernetes test session events starting
+// with session start event, adds printEvents events and returns the result.
+func GenerateTestKubeSession(params SessionParams) []apievents.AuditEvent {
+	params.SetDefaults()
+	connectionMetadata := apievents.ConnectionMetadata{
+		LocalAddr:  "127.0.0.1:3022",
+		RemoteAddr: "[::1]:37718",
+		Protocol:   events.EventProtocolKube,
+	}
+	kubernetesClusterMetadata := apievents.KubernetesClusterMetadata{
+		KubernetesCluster: "my-kube-cluster",
+		KubernetesUsers:   []string{"admin"},
+		KubernetesGroups:  []string{"viewers"},
+		KubernetesLabels: map[string]string{
+			"teleport.internal/resource-id": "ed910b7b-fe3b-4959-bf2e-ac45f4648f2a",
+		},
+	}
+	kubernetesPodMetadata := apievents.KubernetesPodMetadata{
+		KubernetesPodName:        "simple-shell-pod",
+		KubernetesPodNamespace:   "default",
+		KubernetesContainerName:  "shell-container",
+		KubernetesContainerImage: "busybox",
+		KubernetesNodeName:       "docker-desktop",
+	}
+	sessionStart := apievents.SessionStart{
+		Metadata: apievents.Metadata{
+			Index:       0,
+			Type:        events.SessionStartEvent,
+			ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
+			Code:        events.SessionStartCode,
+			Time:        params.Clock.Now().UTC(),
+			ClusterName: params.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion: teleport.Version,
+			ServerID:      params.ServerID,
+			ServerLabels: map[string]string{
+				"teleport.internal/resource-id": "ed910b7b-fe3b-4959-bf2e-ac45f4648f2a",
+			},
+			ServerHostname:  "planet",
+			ServerNamespace: "default",
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: params.SessionID,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:  params.UserName,
+			Login: "bob",
+		},
+		ConnectionMetadata:        connectionMetadata,
+		TerminalSize:              "80:25",
+		KubernetesClusterMetadata: kubernetesClusterMetadata,
+		KubernetesPodMetadata:     kubernetesPodMetadata,
+	}
+
+	sessionEnd := apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Index:       20,
+			Type:        events.SessionEndEvent,
+			ID:          "da455e0f-c27d-459f-a218-4e83b3db9426",
+			Code:        events.SessionEndCode,
+			Time:        params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
+			ClusterName: params.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        params.ServerID,
+			ServerNamespace: "default",
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: params.SessionID,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: params.UserName,
+		},
+		ConnectionMetadata:        connectionMetadata,
+		EnhancedRecording:         true,
+		Interactive:               true,
+		Participants:              []string{params.UserName},
+		StartTime:                 params.Clock.Now().UTC(),
+		EndTime:                   params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
+		KubernetesClusterMetadata: kubernetesClusterMetadata,
+		KubernetesPodMetadata:     kubernetesPodMetadata,
 	}
 
 	genEvents := []apievents.AuditEvent{&sessionStart}

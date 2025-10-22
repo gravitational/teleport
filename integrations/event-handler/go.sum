@@ -150,6 +150,8 @@ github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 h1:ZNTqv4nIdE/DiBfUUfXcLZ/Spcu
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34/go.mod h1:zf7Vcd1ViW7cPqYWEHLHJkS50X0JS2IKz9Cgaj6ugrs=
 github.com/aws/aws-sdk-go-v2/service/athena v1.50.4 h1:QWhxjrA0r+FQnDAATdGqLXUvYW0MdUIvCBK89BN3OfU=
 github.com/aws/aws-sdk-go-v2/service/athena v1.50.4/go.mod h1:xsG8Y2fMenmHTdukyknTUO1uQhEZ/entaNHvPmD1klE=
+github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0 h1:xdYdX+JpIFByMG8JQe9iWM9CqepyjhenukxTVQnuCbM=
+github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0/go.mod h1:c1Ik+59wgLIJFhsSY8cAnw6QooiogpTZKP0rtkVcpCQ=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.213.0 h1:9nUhN6dRT2chbA7E9y3JDGpIV1C7cZpfiRvX63EB5XA=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.213.0/go.mod h1:ouvGEfHbLaIlWwpDpOVWPWR+YwO0HDv3vm5tYLq8ImY=
 github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.28.2 h1:se3+XU16LNr8JoHdJBrBNJKvn1dnJcnW3qRlo5g2vKI=
