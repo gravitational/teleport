@@ -39,6 +39,8 @@ service RecordingEncryptionService {
   rpc CompleteRotation(CompleteRotationRequest) returns (CompleteRotationResponse);
   // RollbackRotation removes active keys and reverts rotating keys back to being active.
   rpc RollbackRotation(RollbackRotationRequest) returns (RollbackRotationResponse);
+  // UploadRecording uploads a stream of individual encrypted recording parts.
+  rpc UploadRecording(stream UploadRecordingRequest) returns (UploadRecordingResponse);
 }
 
 // The handle to an upload for an encrypted session.
@@ -137,3 +139,13 @@ message RollbackRotationRequest {}
 
 // The return value of a RollbackRotation request
 message RollbackRotationResponse {}
+
+// The request for RecordingRequest
+message UploadRecordingRequest {
+  Upload upload = 1;
+  int32 part_num = 2;
+  bytes part = 3;
+}
+
+// The request for RecordingResponse
+message UploadRecordingResponse {}

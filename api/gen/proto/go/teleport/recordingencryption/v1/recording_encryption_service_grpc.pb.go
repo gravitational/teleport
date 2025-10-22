@@ -40,6 +40,7 @@ const (
 	RecordingEncryptionService_GetRotationState_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/GetRotationState"
 	RecordingEncryptionService_CompleteRotation_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteRotation"
 	RecordingEncryptionService_RollbackRotation_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/RollbackRotation"
+	RecordingEncryptionService_UploadRecording_FullMethodName  = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadRecording"
 )
 
 // RecordingEncryptionServiceClient is the client API for RecordingEncryptionService service.
@@ -63,6 +64,8 @@ type RecordingEncryptionServiceClient interface {
 	CompleteRotation(ctx context.Context, in *CompleteRotationRequest, opts ...grpc.CallOption) (*CompleteRotationResponse, error)
 	// RollbackRotation removes active keys and reverts rotating keys back to being active.
 	RollbackRotation(ctx context.Context, in *RollbackRotationRequest, opts ...grpc.CallOption) (*RollbackRotationResponse, error)
+	// UploadRecording uploads a stream of individual encrypted recording parts.
+	UploadRecording(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadRecordingRequest, UploadRecordingResponse], error)
 }
 
 type recordingEncryptionServiceClient struct {
@@ -143,6 +146,19 @@ func (c *recordingEncryptionServiceClient) RollbackRotation(ctx context.Context,
 	return out, nil
 }
 
+func (c *recordingEncryptionServiceClient) UploadRecording(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UploadRecordingRequest, UploadRecordingResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &RecordingEncryptionService_ServiceDesc.Streams[0], RecordingEncryptionService_UploadRecording_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[UploadRecordingRequest, UploadRecordingResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RecordingEncryptionService_UploadRecordingClient = grpc.ClientStreamingClient[UploadRecordingRequest, UploadRecordingResponse]
+
 // RecordingEncryptionServiceServer is the server API for RecordingEncryptionService service.
 // All implementations must embed UnimplementedRecordingEncryptionServiceServer
 // for forward compatibility.
@@ -164,6 +180,8 @@ type RecordingEncryptionServiceServer interface {
 	CompleteRotation(context.Context, *CompleteRotationRequest) (*CompleteRotationResponse, error)
 	// RollbackRotation removes active keys and reverts rotating keys back to being active.
 	RollbackRotation(context.Context, *RollbackRotationRequest) (*RollbackRotationResponse, error)
+	// UploadRecording uploads a stream of individual encrypted recording parts.
+	UploadRecording(grpc.ClientStreamingServer[UploadRecordingRequest, UploadRecordingResponse]) error
 	mustEmbedUnimplementedRecordingEncryptionServiceServer()
 }
 
@@ -194,6 +212,9 @@ func (UnimplementedRecordingEncryptionServiceServer) CompleteRotation(context.Co
 }
 func (UnimplementedRecordingEncryptionServiceServer) RollbackRotation(context.Context, *RollbackRotationRequest) (*RollbackRotationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RollbackRotation not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) UploadRecording(grpc.ClientStreamingServer[UploadRecordingRequest, UploadRecordingResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method UploadRecording not implemented")
 }
 func (UnimplementedRecordingEncryptionServiceServer) mustEmbedUnimplementedRecordingEncryptionServiceServer() {
 }
@@ -343,6 +364,13 @@ func _RecordingEncryptionService_RollbackRotation_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RecordingEncryptionService_UploadRecording_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(RecordingEncryptionServiceServer).UploadRecording(&grpc.GenericServerStream[UploadRecordingRequest, UploadRecordingResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type RecordingEncryptionService_UploadRecordingServer = grpc.ClientStreamingServer[UploadRecordingRequest, UploadRecordingResponse]
+
 // RecordingEncryptionService_ServiceDesc is the grpc.ServiceDesc for RecordingEncryptionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -379,6 +407,12 @@ var RecordingEncryptionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RecordingEncryptionService_RollbackRotation_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "UploadRecording",
+			Handler:       _RecordingEncryptionService_UploadRecording_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "teleport/recordingencryption/v1/recording_encryption_service.proto",
 }
