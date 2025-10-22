@@ -17,18 +17,18 @@
 package awsra
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/spiffe/aws-spiffe-workload-helper/vendoredaws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,6 +36,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -46,8 +47,8 @@ import (
 )
 
 func Test_renderAWSCreds(t *testing.T) {
-	creds := &vendoredaws.CredentialProcessOutput{
-		AccessKeyId:     "AKIAIOSFODNN7EXAMPLEAKID",
+	creds := &createsession.CreateSessionResponse{
+		AccessKeyID:     "AKIAIOSFODNN7EXAMPLEAKID",
 		SessionToken:    "AQoDYXdzEJrtyWJ4NjK7PiEXAMPLEST",
 		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLESAK",
 		Expiration:      "2028-07-27T04:36:55Z",
@@ -140,8 +141,18 @@ aws_session_token=existing
 	}
 }
 
-type mockCreateSessionInputBody struct {
-	DurationSeconds int `json:"durationSeconds"`
+type createSessionRequestBody struct {
+	ProfileARN      string `json:"profileArn"`
+	RoleARN         string `json:"roleArn"`
+	TrustAnchorARN  string `json:"trustAnchorArn"`
+	RoleSessionName string `json:"roleSessionName,omitempty"`
+	DurationSeconds int    `json:"durationSeconds"`
+}
+
+type mockClientDoFunc func(req *http.Request) (*http.Response, error)
+
+func (m mockClientDoFunc) Do(req *http.Request) (*http.Response, error) {
+	return m(req)
 }
 
 func TestBotWorkloadIdentityAWSRA(t *testing.T) {
@@ -189,22 +200,17 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 			roleArn := "arn:aws:iam::123456789012:role/example-role"
 			trustAnchorArn := "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000"
 			profileArn := "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000"
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			client := mockClientDoFunc(func(r *http.Request) (*http.Response, error) {
+				assert.Equal(t, "rolesanywhere.us-east-1.amazonaws.com", r.Host)
 				assert.Equal(t, "/sessions", r.URL.Path)
 				assert.Equal(t, http.MethodPost, r.Method)
 
-				// Check query parameter inputs
-				// The AWS documentation "lies" about these inputs using the JSON body
-				// - the rolesanywhere API client in
-				//  `aws/rolesanywhere-credential-helper` uses query parameters for
-				// these.
-				assert.Equal(t, roleArn, r.URL.Query().Get("roleArn"))
-				assert.Equal(t, trustAnchorArn, r.URL.Query().Get("trustAnchorArn"))
-				assert.Equal(t, profileArn, r.URL.Query().Get("profileArn"))
-
 				// Check JSON body inputs
-				body := &mockCreateSessionInputBody{}
+				body := &createSessionRequestBody{}
 				assert.NoError(t, json.NewDecoder(r.Body).Decode(body))
+				assert.Equal(t, roleArn, body.RoleARN)
+				assert.Equal(t, trustAnchorArn, body.TrustAnchorARN)
+				assert.Equal(t, profileArn, body.ProfileARN)
 				assert.Equal(t, int((2 * time.Hour).Seconds()), body.DurationSeconds)
 
 				// Validate the X-Amz-X509 header contains the valid (and correct) SVID
@@ -245,29 +251,31 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 				authz := r.Header.Get("Authorization")
 				assert.NotEmpty(t, authz)
 
-				// Send mocked response
-				_, _ = w.Write([]byte(`{
-			"credentialSet":[
-			  {
-				"assumedRoleUser": {
-				"arn": "arn:aws:iam::123456789012:role/example-role",
-				"assumedRoleId": "assumedRoleId"
-				},
-				"credentials":{
-				  "accessKeyId": "accessKeyId",
-				  "expiration": "2028-07-27T04:36:55Z",
-				  "secretAccessKey": "secretAccessKey",
-				  "sessionToken": "sessionToken"
-				},
-				"packedPolicySize": 10,
-				"roleArn": "arn:aws:iam::123456789012:role/example-role",
-				"sourceIdentity": "sourceIdentity"
-			  }
-			],
-			"subjectArn": "arn:aws:rolesanywhere:us-east-1:000000000000:subject/41cl0bae-6783-40d4-ab20-65dc5d922e45"
-		  }`))
-			}))
-			t.Cleanup(srv.Close)
+				resp := &http.Response{
+					StatusCode: http.StatusCreated,
+					Body: io.NopCloser(bytes.NewReader([]byte(`{
+					  "credentialSet":[
+					    {
+						  "assumedRoleUser": {
+						  "arn": "arn:aws:iam::123456789012:role/example-role",
+						  "assumedRoleId": "assumedRoleId"
+						  },
+						  "credentials":{
+						    "accessKeyId": "accessKeyId",
+						    "expiration": "2028-07-27T04:36:55Z",
+						    "secretAccessKey": "secretAccessKey",
+						    "sessionToken": "sessionToken"
+						  },
+						  "packedPolicySize": 10,
+						  "roleArn": "arn:aws:iam::123456789012:role/example-role",
+						  "sourceIdentity": "sourceIdentity"
+					    }
+					  ],
+					  "subjectArn": "arn:aws:rolesanywhere:us-east-1:000000000000:subject/41cl0bae-6783-40d4-ab20-65dc5d922e45"
+				    }`))),
+				}
+				return resp, nil
+			})
 
 			role, err := types.NewRole("issue-foo", types.RoleSpecV6{
 				Allow: types.RoleConditions{
@@ -338,7 +346,7 @@ func TestBotWorkloadIdentityAWSRA(t *testing.T) {
 							Region:                 "us-east-1",
 							SessionDuration:        2 * time.Hour,
 							SessionRenewalInterval: 30 * time.Minute,
-							EndpointOverride:       srv.URL,
+							ClientOverride:         client,
 						},
 					),
 				},

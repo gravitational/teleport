@@ -22,8 +22,10 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -32,6 +34,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -63,15 +66,21 @@ type CreateSessionRequest struct {
 
 	// Certificate is the certificate that will be exchanged to obtain the credentials.
 	Certificate *x509.Certificate
+	// IntermediateCertificates are the intermediate certificates needed to
+	// chain Certificate to a trusted root.
+	IntermediateCertificates []*x509.Certificate
 	// PrivateKey is the private key that will be used to sign the request.
-	PrivateKey *ecdsa.PrivateKey
+	PrivateKey crypto.Signer
+	// RegionOverride is an optional AWS region override.
+	// If not provided, this is inferred from the TrustAnchorARN.
+	RegionOverride string
 
 	awsRegion string
 
-	// httpClient is the HTTP client used to make the request.
+	// HTTPClient is the HTTP client used to make the request.
 	// If not set, a default HTTP client will be used.
 	// Used for testing purposes.
-	httpClient utils.HTTPDoClient
+	HTTPClient utils.HTTPDoClient
 
 	// clock is the clock used to get the current time.
 	// If not set, a real clock will be used.
@@ -111,15 +120,15 @@ func (req *CreateSessionRequest) checkAndSetDefaults() error {
 		return trace.BadParameter("private key is required")
 	}
 
-	if req.httpClient == nil {
+	if req.HTTPClient == nil {
 		httpClient, err := defaults.HTTPClient()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.httpClient = httpClient
+		req.HTTPClient = httpClient
 	}
 
-	req.awsRegion = raTrustAnchor.Region
+	req.awsRegion = cmp.Or(req.RegionOverride, raTrustAnchor.Region)
 	if err := aws.IsValidRegion(req.awsRegion); err != nil {
 		return trace.BadParameter("invalid region: %v", err)
 	}
@@ -127,6 +136,47 @@ func (req *CreateSessionRequest) checkAndSetDefaults() error {
 	req.clock = cmp.Or(req.clock, clockwork.NewRealClock())
 
 	return nil
+}
+
+// From https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-sign-process.html
+// > Algorithm. As described above, instead of AWS4-HMAC-SHA256, the algorithm
+// > field will have the values of the form AWS4-X509-RSA-SHA256 or
+// > AWS4-X509-ECDSA-SHA256, depending on whether an RSA or Elliptic Curve
+// > algorithm is used. This, in turn, is determined by the key bound to the
+// > signing certificate.
+const (
+	awsV4X509RSASHA256   = "AWS4-X509-RSA-SHA256"
+	awsV4X509ECDSASHA256 = "AWS4-X509-ECDSA-SHA256"
+)
+
+func algoForKey(key crypto.Signer) (string, error) {
+	switch key.(type) {
+	case *rsa.PrivateKey:
+		return awsV4X509RSASHA256, nil
+	case *ecdsa.PrivateKey:
+		return awsV4X509ECDSASHA256, nil
+	default:
+		return "", trace.BadParameter("unsupported key type: %T", key)
+	}
+}
+
+func signWithKey(key crypto.Signer, hash []byte) ([]byte, error) {
+	switch key := key.(type) {
+	case *ecdsa.PrivateKey:
+		signature, err := ecdsa.SignASN1(rand.Reader, key, hash)
+		if err != nil {
+			return nil, trace.Wrap(err, "signing with ECDSA")
+		}
+		return signature, nil
+	case *rsa.PrivateKey:
+		signature, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, hash)
+		if err != nil {
+			return nil, fmt.Errorf("signing with RSA: %w", err)
+		}
+		return signature, nil
+	default:
+		return nil, trace.BadParameter("unsupported key type: %T", key)
+	}
 }
 
 // CreateSession exchanges a certificate for AWS credentials using the AWS IAM Roles Anywhere service.
@@ -176,43 +226,59 @@ func CreateSession(ctx context.Context, req CreateSessionRequest) (*CreateSessio
 
 	// Task 1-4,5
 	formatedDate := req.clock.Now().UTC().Round(time.Second).Format("20060102T150405Z")
-	const signedHeaders = "content-type;host;x-amz-date;x-amz-x509"
+	signedHeaders := "content-type;host;x-amz-date;x-amz-x509"
 	canonicalRequest.Header.Set("Content-Type", "application/json")
 	canonicalRequest.Header.Set("Host", canonicalRequest.Host)
 	canonicalRequest.Header.Set("X-Amz-Date", formatedDate)
 	canonicalRequest.Header.Set("X-Amz-X509", base64.StdEncoding.EncodeToString(req.Certificate.Raw))
+	if len(req.IntermediateCertificates) > 0 {
+		encodedDelimitedIntermediates := strings.Builder{}
+		for i, cert := range req.IntermediateCertificates {
+			encodedDelimitedIntermediates.WriteString(base64.StdEncoding.EncodeToString(cert.Raw))
+			if i < len(req.IntermediateCertificates)-1 {
+				encodedDelimitedIntermediates.WriteString(",")
+			}
+		}
+		canonicalRequest.Header.Set("X-Amz-X509-Chain", encodedDelimitedIntermediates.String())
+		signedHeaders += ";x-amz-x509-chain"
+	}
 
 	// Task 1-6
 	canonicalRequestBodyHash := sha256.Sum256(canonicalRequestBody)
 
 	// Task 1-7
-	canonicalRequestString := fmt.Sprintf(`POST
-/sessions
-
-content-type:application/json
-host:%s
-x-amz-date:%s
-x-amz-x509:%s
-
-%s
-%x`,
-		canonicalRequest.Header.Get("Host"),
-		canonicalRequest.Header.Get("X-Amz-Date"),
-		canonicalRequest.Header.Get("X-Amz-X509"),
-		signedHeaders,
-		canonicalRequestBodyHash,
-	)
+	canonicalReqStrBuilder := strings.Builder{}
+	canonicalReqStrBuilder.WriteString("POST\n")
+	canonicalReqStrBuilder.WriteString("/sessions\n")
+	// Blank line after method + path
+	canonicalReqStrBuilder.WriteString("\n")
+	// Headers
+	canonicalReqStrBuilder.WriteString("content-type:application/json\n")
+	canonicalReqStrBuilder.WriteString("host:" + canonicalRequest.Header.Get("Host") + "\n")
+	canonicalReqStrBuilder.WriteString("x-amz-date:" + canonicalRequest.Header.Get("X-Amz-Date") + "\n")
+	canonicalReqStrBuilder.WriteString("x-amz-x509:" + canonicalRequest.Header.Get("X-Amz-X509") + "\n")
+	if chain := canonicalRequest.Header.Get("X-Amz-X509-Chain"); chain != "" {
+		canonicalReqStrBuilder.WriteString("x-amz-x509-chain:" + chain + "\n")
+	}
+	// Blank line after headers
+	canonicalReqStrBuilder.WriteString("\n")
+	// List of signed headers
+	canonicalReqStrBuilder.WriteString(signedHeaders + "\n")
+	// Body hash encoded as hex
+	canonicalReqStrBuilder.WriteString(fmt.Sprintf("%x", canonicalRequestBodyHash))
 
 	// Task 1-8
+	canonicalRequestStr := canonicalReqStrBuilder.String()
 	canonicalRequestHashBytes := sha256.New()
-	canonicalRequestHashBytes.Write([]byte(canonicalRequestString))
+	canonicalRequestHashBytes.Write([]byte(canonicalRequestStr))
 	canonicalRequestHash := hex.EncodeToString(canonicalRequestHashBytes.Sum(nil))
 
 	// Task 2: Create a string to sign
 	// https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-sign-process.html#authentication-task2
-
-	// Teleport only uses ECDSA keys in Roles Anywhere integration.
-	const algorithm = "AWS4-X509-ECDSA-SHA256"
+	algorithm, err := algoForKey(req.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	credentialScope := formatedDate[:8] + "/" + req.awsRegion + "/rolesanywhere/aws4_request"
 
 	stringToSign := algorithm + "\n" +
@@ -223,7 +289,7 @@ x-amz-x509:%s
 	// Task 3: Calculate the signature
 	// https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-sign-process.html#authentication-task3
 	signatureHash := sha256.Sum256([]byte(stringToSign))
-	signature, err := ecdsa.SignASN1(rand.Reader, req.PrivateKey, signatureHash[:])
+	signature, err := signWithKey(req.PrivateKey, signatureHash[:])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,7 +304,7 @@ x-amz-x509:%s
 			"Signature="+hex.EncodeToString(signature),
 	)
 
-	resp, err := req.httpClient.Do(canonicalRequest)
+	resp, err := req.HTTPClient.Do(canonicalRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -29,14 +29,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	awsspiffe "github.com/spiffe/aws-spiffe-workload-helper"
-	"github.com/spiffe/aws-spiffe-workload-helper/vendoredaws"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"go.opentelemetry.io/otel"
 	"gopkg.in/ini.v1"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/client"
@@ -141,7 +140,7 @@ func (s *Service) generate(ctx context.Context) error {
 		"profile_arn", s.cfg.ProfileARN,
 		"trust_anchor_arn", s.cfg.TrustAnchorARN,
 	)
-	creds, err := s.exchangeSVID(svid)
+	creds, err := s.exchangeSVID(ctx, svid)
 	if err != nil {
 		return trace.Wrap(err, "exchanging SVID via Roles Anywhere")
 	}
@@ -157,29 +156,30 @@ func (s *Service) generate(ctx context.Context) error {
 // exchangeSVID will exchange the X.509 SVID for AWS credentials using the
 // AWS Roles Anywhere service.
 func (s *Service) exchangeSVID(
+	ctx context.Context,
 	svid *x509svid.SVID,
-) (*vendoredaws.CredentialProcessOutput, error) {
-	signer := &awsspiffe.X509SVIDSigner{
-		SVID: svid,
+) (*createsession.CreateSessionResponse, error) {
+	seconds := int(s.cfg.SessionDuration.Seconds())
+	req := createsession.CreateSessionRequest{
+		TrustAnchorARN:  s.cfg.TrustAnchorARN,
+		ProfileARN:      s.cfg.ProfileARN,
+		RoleARN:         s.cfg.RoleARN,
+		RegionOverride:  s.cfg.Region,
+		DurationSeconds: &seconds,
+		PrivateKey:      svid.PrivateKey,
+		Certificate:     svid.Certificates[0],
+		HTTPClient:      s.cfg.ClientOverride,
 	}
-	algo, err := signer.SignatureAlgorithm()
-	if err != nil {
-		return nil, trace.Wrap(err, "getting signature algorithm")
+	if len(svid.Certificates) > 1 {
+		req.IntermediateCertificates = svid.Certificates[1:]
 	}
 
-	credentials, err := vendoredaws.GenerateCredentials(&vendoredaws.CredentialsOpts{
-		RoleArn:           s.cfg.RoleARN,
-		ProfileArnStr:     s.cfg.ProfileARN,
-		Region:            s.cfg.Region,
-		TrustAnchorArnStr: s.cfg.TrustAnchorARN,
-		SessionDuration:   int(s.cfg.SessionDuration.Seconds()),
-		Endpoint:          s.cfg.EndpointOverride,
-	}, signer, algo)
+	res, err := createsession.CreateSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "exchanging credentials")
 	}
 
-	return &credentials, nil
+	return res, nil
 }
 
 func (s *Service) requestSVID(
@@ -276,7 +276,7 @@ func loadExistingAWSCredentialFile(
 // See https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html
 func (s *Service) renderAWSCreds(
 	ctx context.Context,
-	creds *vendoredaws.CredentialProcessOutput,
+	creds *createsession.CreateSessionResponse,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -307,7 +307,7 @@ func (s *Service) renderAWSCreds(
 	profileName := cmp.Or(s.cfg.CredentialProfileName, "default")
 	sec := f.Section(profileName)
 	sec.Key("aws_secret_access_key").SetValue(creds.SecretAccessKey)
-	sec.Key("aws_access_key_id").SetValue(creds.AccessKeyId)
+	sec.Key("aws_access_key_id").SetValue(creds.AccessKeyID)
 	sec.Key("aws_session_token").SetValue(creds.SessionToken)
 	sec.Key("expiration").SetValue(
 		fmt.Sprintf("%d", expiresAt.UnixMilli()),
