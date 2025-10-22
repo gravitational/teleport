@@ -165,6 +165,31 @@ func (c *Cache) ListPlugins(ctx context.Context, limit int, startKey string, wit
 	return plugins, nextKey, nil
 }
 
+// HasPluginType will return true if a plugin of the given type is registered.
+func (c *Cache) HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error) {
+	_, span := c.Tracer.Start(ctx, "cache/HasPluginType")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.plugins)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		// Cache is currently not available; check for the plugin type existence upstream.
+		ok, err := c.Config.Plugin.HasPluginType(ctx, pluginType)
+		return ok, trace.Wrap(err)
+	}
+
+	for plugin := range rg.store.resources(pluginNameIndex, "", "") {
+		if plugin.GetType() == pluginType {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // stripPluginSecrets returns a cloned plugin, optionally removing secrets.
 // This allows conditional filtering based on the `withSecrets` flag.
 func stripAndClonePluginSecrets(in types.Plugin, withSecrets bool) types.Plugin {
