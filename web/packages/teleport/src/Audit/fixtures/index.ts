@@ -18,8 +18,6 @@
 
 import { makeEvent } from 'teleport/services/audit';
 
-// TODO add cir update
-
 // events contains sample JSON's of ALL supported event types
 export const events = [
   {
@@ -4332,6 +4330,22 @@ export const events = [
     teleport_id: 'access-list-guid',
     external_id: 'external-id-00123456789',
     display: 'some group',
+  },
+  {
+    client_ip_restrictions: ['3.0.0.0/8'],
+    cluster_name: 'localhost',
+    code: 'CIR001I',
+    ei: 0,
+    event: 'cir.update',
+    expires: '0001-01-01T00:00:00Z',
+    name: 'client_ip_restriction',
+    success: true,
+    time: '2025-10-21T20:45:14.775Z',
+    updated_by: 'admin',
+    user: 'admin',
+    user_cluster_name: 'localhost',
+    user_kind: 1,
+    user_roles: ['editor'],
   },
 ].map(makeEvent);
 
