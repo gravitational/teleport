@@ -47,8 +47,8 @@ interface Range {
   start: number;
 }
 
-const LOAD_THRESHOLD_MS = 5 * 1000; // 5 seconds
-const LOAD_CHUNK_MS = 20 * 1000; // 20 seconds
+const BASE_LOAD_THRESHOLD_MS = 5 * 1000; // 5 seconds
+const BASE_LOAD_CHUNK_MS = 20 * 1000; // 20 seconds
 
 /**
  * SessionStream manages the loading and buffering of events from a WebSocket connection.
@@ -85,6 +85,7 @@ export class SessionStream<
   private requestId = 0;
   private state: PlayerState = PlayerState.Loading;
   private wasPlayingBeforeSeek = false;
+  private playbackSpeed = 1;
 
   constructor(
     private ws: WebSocket,
@@ -111,7 +112,7 @@ export class SessionStream<
   }
 
   loadInitial() {
-    this.load(0, LOAD_CHUNK_MS, false);
+    this.load(0, this.getLoadChunkMs(), false);
   }
 
   play() {
@@ -126,7 +127,7 @@ export class SessionStream<
     this.setState(PlayerState.Playing);
 
     if (this.pausedTime > 0) {
-      this.startTime = performance.now() - this.pausedTime;
+      this.startTime = performance.now() - this.pausedTime / this.playbackSpeed;
       this.pausedTime = 0;
     } else if (!this.startTime) {
       this.startTime = performance.now();
@@ -165,7 +166,7 @@ export class SessionStream<
         this.animationFrameId = null;
       }
 
-      this.startTime = performance.now() - time;
+      this.startTime = performance.now() - time / this.playbackSpeed;
       this.currentTime = time;
 
       if (
@@ -177,7 +178,7 @@ export class SessionStream<
 
       this.setState(PlayerState.Loading);
 
-      this.load(time, time + LOAD_CHUNK_MS, true);
+      this.load(time, time + this.getLoadChunkMs(), true);
 
       return;
     }
@@ -191,7 +192,7 @@ export class SessionStream<
       this.player.clear();
     }
 
-    this.startTime = performance.now() - time;
+    this.startTime = performance.now() - time / this.playbackSpeed;
 
     // play all events up until the requested time
     this.playEventsUpUntil(time);
@@ -217,11 +218,43 @@ export class SessionStream<
       this.animationFrameId = null;
     }
 
-    this.pausedTime = performance.now() - this.startTime;
+    this.pausedTime = (performance.now() - this.startTime) * this.playbackSpeed;
     this.currentTime = this.pausedTime;
     this.wasPlayingBeforeSeek = false;
 
     this.player.onPause();
+  }
+
+  setSpeed(speed: number) {
+    if (speed <= 0) {
+      return;
+    }
+
+    const wasPlaying = this.state === PlayerState.Playing;
+
+    if (wasPlaying) {
+      this.pause();
+    }
+
+    this.playbackSpeed = speed;
+
+    if (wasPlaying) {
+      this.play();
+    }
+  }
+
+  private getLoadThresholdMs(): number {
+    // For higher speeds, we need more buffer time to avoid stuttering
+    // At 2x speed, we want at least 10 seconds of buffer
+    // At 4x speed, we want at least 20 seconds of buffer
+    return BASE_LOAD_THRESHOLD_MS * Math.max(1, this.playbackSpeed);
+  }
+
+  private getLoadChunkMs(): number {
+    // Load bigger chunks at higher speeds
+    // At 2x speed, load 40 seconds
+    // At 4x speed, load 80 seconds
+    return BASE_LOAD_CHUNK_MS * Math.max(1, this.playbackSpeed);
   }
 
   private playEvents = () => {
@@ -229,7 +262,8 @@ export class SessionStream<
       return;
     }
 
-    const currentTime = performance.now() - this.startTime;
+    const currentTime =
+      (performance.now() - this.startTime) * this.playbackSpeed;
 
     this.currentTime = currentTime;
 
@@ -280,9 +314,10 @@ export class SessionStream<
       return;
     }
 
+    const loadThreshold = this.getLoadThresholdMs();
     const isWithinLoadedRange =
       currentTime >= this.loadedRange.start &&
-      currentTime + LOAD_THRESHOLD_MS <= this.loadedRange.end;
+      currentTime + loadThreshold <= this.loadedRange.end;
 
     if (isWithinLoadedRange) {
       return;
@@ -295,13 +330,9 @@ export class SessionStream<
 
     const remainingBufferTime = lastEventTime - currentTime;
 
-    if (
-      !this.atEnd &&
-      !this.loading &&
-      remainingBufferTime < LOAD_THRESHOLD_MS
-    ) {
+    if (!this.atEnd && !this.loading && remainingBufferTime < loadThreshold) {
       const newStartTime = this.loadedRange.end;
-      const newEndTime = newStartTime + LOAD_CHUNK_MS;
+      const newEndTime = newStartTime + this.getLoadChunkMs();
 
       this.load(newStartTime, newEndTime);
     }

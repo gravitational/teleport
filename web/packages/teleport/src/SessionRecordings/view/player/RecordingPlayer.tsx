@@ -85,6 +85,7 @@ export function RecordingPlayer<
   ws,
 }: RecordingPlayerProps<TEvent>) {
   const [playerState, setPlayerState] = useState(PlayerState.Loading);
+  const [speed, setSpeed] = useState(1);
 
   const [showPlayButton, setShowPlayButton] = useState(true);
 
@@ -118,6 +119,10 @@ export function RecordingPlayer<
       stream.destroy();
     };
   }, [stream, onTimeChange]);
+
+  useEffect(() => {
+    stream.setSpeed(speed);
+  }, [speed, stream]);
 
   useEffect(() => {
     if (!playerRef.current) {
@@ -201,6 +206,8 @@ export function RecordingPlayer<
           onPlay={handlePlay}
           onPause={handlePause}
           onSeek={handleSeek}
+          onSpeedChange={setSpeed}
+          speed={speed}
           state={playerState}
           ref={controlsRef}
         />
