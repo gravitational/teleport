@@ -178,8 +178,8 @@ autoupdate_config has been created
     skip this step, as it is managed by the Cloud team.
 </Admonition>
 
-By creating `autoupdate_version.yaml` we control the version of the Teleport that must be installed
-during EC2 instance bootstrap and enabled the managed updates.
+By creating `autoupdate_version` resource we define the version of the Teleport that must be initially installed
+during EC2 instance bootstrap.
 
 ```yaml
 # autoupdate_version.yaml
@@ -193,6 +193,7 @@ spec:
     schedule: regular
     mode: enabled
 ```
+Create or update `autoupdate_version` resource:
 
 ```code
 $ tctl create -f autoupdate_version.yaml
@@ -233,7 +234,7 @@ runcmd:
 
 ### Via AWS CLI
 
-To create  this, follow these steps:
+To create required IAM role, instance profile and launch EC2 instance, follow these steps:
 
 1. Create an IAM role with a trust policy that allows EC2 to assume it:
 
@@ -253,29 +254,6 @@ To create  this, follow these steps:
    $ aws iam create-role \
      --role-name EC2TeleportRole \
      --assume-role-policy-document file://trust-policy.json
-   ```
-
-1. Attach a permissions policy that allows reading only your secret (least privilege):
-
-   ```code
-   $ ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
-   $ cat > policy.json <<EOF
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": "secretsmanager:GetSecretValue",
-         "Resource": "arn:aws:secretsmanager:us-west-2:${ACCOUNT_ID}:``secret:teleport/join-token-*"
-       }
-     ]
-   }
-   EOF
-
-   $ aws iam put-role-policy \
-     --role-name EC2TeleportRole \
-     --policy-name TeleportSecretPolicy \
-     --policy-document file://policy.json
    ```
 
 1. Create an EC2 instance profile to use the role:
@@ -332,10 +310,10 @@ base_url: https://cdn.teleport.dev
 enabled: true
 pinned: false
 active:
-    version: 17.2.0
+    version: 18.2.2
     flags: [Enterprise]
 target:
-    version: 17.2.1
+    version: 18.2.2
     flags: [Enterprise]
 in_window: false
 ```
@@ -376,7 +354,7 @@ teleport[2246081]: 2025-10-21T20:51:44.698Z INFO [PROC:1]    Successfully obtain
 $ journalctl -u teleport-update -n100 -f
 
 systemd[1]: Starting teleport-update.service - Teleport auto-update service...
-teleport-update[160893]: INFO [UPDATER]   Teleport is up-to-date. Update window is active, but no action is needed. active_version:18.2.5 agent/updater.go:877
+teleport-update[160893]: INFO [UPDATER]   Teleport is up-to-date. Update window is active, but no action is needed. active_version:18.2.2 agent/updater.go:877
 systemd[1]: teleport-update.service: Deactivated successfully.
 systemd[1]: Finished teleport-update.service - Teleport auto-update service.
 systemd[1]: Starting teleport-update.service - Teleport auto-update service...
