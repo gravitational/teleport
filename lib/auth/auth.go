@@ -2296,16 +2296,7 @@ func (a *Server) Close() error {
 }
 
 func (a *Server) GetClock() clockwork.Clock {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
 	return a.clock
-}
-
-// SetClock sets clock, used in tests
-func (a *Server) SetClock(clock clockwork.Clock) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.clock = clock
 }
 
 // SetBcryptCost sets bcryptCostOverride, used in tests

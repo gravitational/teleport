@@ -146,28 +146,7 @@ func (c ec2ClientRunning) DescribeInstances(ctx context.Context, params *ec2.Des
 }
 
 func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
-	a := p.a
-
-	// upsert a node to test duplicates
-	node := &types.ServerV2{
-		Kind:    types.KindNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      instance2.account + "-" + instance2.instanceID,
-			Namespace: defaults.Namespace,
-		},
-	}
-	_, err = a.UpsertNode(ctx, node)
-	require.NoError(t, err)
-
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
-	require.NoError(t, err)
+	t.Parallel()
 
 	isNil := func(err error) bool {
 		return err == nil
@@ -540,11 +519,31 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			clock := tc.clock
-			if clock == nil {
-				clock = clockwork.NewRealClock()
+			t.Parallel()
+
+			p, err := newTestPack(t.Context(), testPackOptions{
+				DataDir: t.TempDir(),
+				Clock:   tc.clock,
+			})
+			require.NoError(t, err)
+
+			// upsert a node to test duplicates
+			node := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      instance2.account + "-" + instance2.instanceID,
+					Namespace: defaults.Namespace,
+				},
 			}
-			a.SetClock(clock)
+			_, err = p.a.UpsertNode(t.Context(), node)
+			require.NoError(t, err)
+
+			sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+			require.NoError(t, err)
 
 			token, err := types.NewProvisionTokenFromSpec(
 				"test_token",
@@ -552,20 +551,20 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 				tc.tokenSpec)
 			require.NoError(t, err)
 
-			err = a.UpsertToken(context.Background(), token)
+			err = p.a.UpsertToken(t.Context(), token)
 			require.NoError(t, err)
 
-			ctx := context.WithValue(context.Background(), auth.EC2ClientKey{}, tc.ec2Client)
+			ctx := context.WithValue(t.Context(), auth.EC2ClientKey{}, tc.ec2Client)
 
 			// set common request values here to avoid setting them in every
 			// testcase
 			tc.request.PublicSSHKey = sshPublicKey
 			tc.request.PublicTLSKey = tlsPublicKey
 
-			_, err = a.RegisterUsingToken(ctx, &tc.request)
+			_, err = p.a.RegisterUsingToken(ctx, &tc.request)
 			require.True(t, tc.expectError(err))
 
-			err = a.DeleteToken(context.Background(), token.GetName())
+			err = p.a.DeleteToken(t.Context(), token.GetName())
 			require.NoError(t, err)
 		})
 	}
@@ -582,12 +581,13 @@ func TestAWSCerts(t *testing.T) {
 
 // TestHostUniqueCheck tests the uniqueness check used by checkEC2JoinRequest
 func TestHostUniqueCheck(t *testing.T) {
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clockwork.NewFakeClockAt(instance1.pendingTime),
+	})
 	require.NoError(t, err)
 	a := p.a
-
-	a.SetClock(clockwork.NewFakeClockAt(instance1.pendingTime))
 
 	token, err := types.NewProvisionTokenFromSpec(
 		"test_token",
@@ -613,7 +613,7 @@ func TestHostUniqueCheck(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	err = a.UpsertToken(context.Background(), token)
+	err = a.UpsertToken(ctx, token)
 	require.NoError(t, err)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -637,7 +637,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				_, err := a.UpsertNode(context.Background(), node)
+				_, err := a.UpsertNode(ctx, node)
 				require.NoError(t, err)
 			},
 		},
@@ -652,7 +652,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(context.Background(), proxy)
+				err := a.UpsertProxy(ctx, proxy)
 				require.NoError(t, err)
 			},
 		},
@@ -675,7 +675,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						},
 					})
 				require.NoError(t, err)
-				_, err = a.UpsertKubernetesServer(context.Background(), kube)
+				_, err = a.UpsertKubernetesServer(ctx, kube)
 				require.NoError(t, err)
 			},
 		},
@@ -702,7 +702,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						},
 					})
 				require.NoError(t, err)
-				_, err = a.UpsertDatabaseServer(context.Background(), db)
+				_, err = a.UpsertDatabaseServer(ctx, db)
 				require.NoError(t, err)
 			},
 		},
@@ -728,7 +728,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						App:    app,
 					})
 				require.NoError(t, err)
-				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				_, err = a.UpsertApplicationServer(ctx, appServer)
 				require.NoError(t, err)
 			},
 		},
@@ -742,7 +742,7 @@ func TestHostUniqueCheck(t *testing.T) {
 					})
 				require.NoError(t, err)
 
-				_, err = a.UpsertWindowsDesktopService(context.Background(), wds)
+				_, err = a.UpsertWindowsDesktopService(ctx, wds)
 				require.NoError(t, err)
 			},
 		},
@@ -769,7 +769,7 @@ func TestHostUniqueCheck(t *testing.T) {
 					})
 				require.NoError(t, err)
 				appServer.SetOrigin(types.OriginOkta)
-				_, err = a.UpsertApplicationServer(context.Background(), appServer)
+				_, err = a.UpsertApplicationServer(ctx, appServer)
 				require.NoError(t, err)
 			},
 		},

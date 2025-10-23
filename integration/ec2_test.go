@@ -115,6 +115,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
+	config.Auth.Clock = clock
 	require.NoError(t, err)
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
@@ -188,7 +189,6 @@ func TestEC2NodeJoin(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
 
 	authServer := authSvc.GetAuthServer()
-	authServer.SetClock(clock)
 
 	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)

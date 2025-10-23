@@ -664,17 +664,14 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 func TestRegisterBot_RemoteAddr(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 	a := p.a
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	roleName := "test-role"
-	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err := authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	botName := "botty"

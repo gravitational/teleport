@@ -96,8 +96,11 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 		server.SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
 		return nil
 	}
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir:    t.TempDir(),
+		MutateAuth: withTokenValidator,
+	})
 	require.NoError(t, err)
 	authServer := p.a
 

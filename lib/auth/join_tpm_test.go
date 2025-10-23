@@ -77,11 +77,14 @@ func (m *mockTPMValidator) validate(
 }
 
 func TestServer_RegisterUsingTPMMethod(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockValidator := &mockTPMValidator{}
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetTPMValidator(mockValidator.validate)
-		return nil
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		MutateAuth: func(server *auth.Server) error {
+			server.SetTPMValidator(mockValidator.validate)
+			return nil
+		},
 	})
 	require.NoError(t, err)
 	authServer := p.a

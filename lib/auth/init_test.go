@@ -963,8 +963,6 @@ func TestPresets(t *testing.T) {
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
@@ -993,8 +991,6 @@ func TestPresets(t *testing.T) {
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
@@ -1017,8 +1013,6 @@ func TestPresets(t *testing.T) {
 
 	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		// an existing health check config should not be modified by init
 		cfg := services.NewPresetHealthCheckConfig()
@@ -1038,8 +1032,6 @@ func TestPresets(t *testing.T) {
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1090,8 +1082,6 @@ func TestPresets(t *testing.T) {
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1333,8 +1323,6 @@ func TestPresets(t *testing.T) {
 
 		t.Run("EmptyCluster", func(t *testing.T) {
 			as := newTestAuthServer(ctx, t)
-			clock := clockwork.NewFakeClock()
-			as.SetClock(clock)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still

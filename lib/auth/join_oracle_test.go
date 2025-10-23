@@ -305,9 +305,8 @@ func mapFromHeader(header http.Header) map[string]string {
 
 func TestRegisterUsingOracleMethod(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 	a := p.a
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
