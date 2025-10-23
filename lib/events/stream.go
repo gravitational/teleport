@@ -835,22 +835,16 @@ func (w *sliceWriter) completeStream() {
 		if w.proto.cfg.RecordingMetadataProvider != nil {
 			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
 
-			if !w.shouldProcessSession {
-				return
-			}
+			if w.shouldProcessSession {
+				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
+					duration := w.sessionEndTime.Sub(w.sessionStartTime)
 
-			if w.sessionStartTime.IsZero() || w.sessionEndTime.IsZero() {
-				slog.WarnContext(w.proto.cancelCtx, "Session start or end time is not set, skipping recording metadata processing")
-				return
-			}
-
-			duration := w.sessionEndTime.Sub(w.sessionStartTime)
-
-			// Process every session recording, as there may not be an end event.
-			// The processor will immediately return if the session recording type is not supported.
-			if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
-				return
+					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
+						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
+					}
+				} else {
+					slog.WarnContext(w.proto.cancelCtx, "Session start or end time is not set, skipping recording metadata processing")
+				}
 			}
 		}
 
