@@ -104,6 +104,9 @@ func TestJoinToken(t *testing.T) {
 	scopedToken2.Metadata.Name = "scoped2"
 	scopedToken2.Spec.AssignedScope = "/aa/cc"
 
+	scopedToken3 := proto.CloneOf(scopedToken1)
+	scopedToken3.Metadata.Name = "scoped3"
+
 	authService := newFakeAuthService(t)
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
@@ -115,6 +118,11 @@ func TestJoinToken(t *testing.T) {
 
 	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 		Token: scopedToken2,
+	})
+	require.NoError(t, err)
+
+	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		Token: scopedToken3,
 	})
 	require.NoError(t, err)
 
@@ -237,7 +245,7 @@ func TestJoinToken(t *testing.T) {
 		// its original certificate and the new token.
 		newIdentity, err := rejoinViaAuthClient(
 			t.Context(),
-			scopedToken1.GetMetadata().GetName(),
+			scopedToken3.GetMetadata().GetName(),
 			authClient,
 		)
 		require.NoError(t, err)
@@ -248,7 +256,7 @@ func TestJoinToken(t *testing.T) {
 		expectedSystemRoles = slices.DeleteFunc(
 			apiutils.Deduplicate(slices.Concat(
 				scopedToken1.GetSpec().GetRoles(),
-				scopedToken2.GetSpec().GetRoles(),
+				scopedToken3.GetSpec().GetRoles(),
 			)),
 			func(s string) bool { return s == types.RoleInstance.String() },
 		)
