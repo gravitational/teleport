@@ -5912,7 +5912,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
 		Authorizer:  cfg.Authorizer,
 		AuthService: cfg.AuthServer,
-		Clock:       cfg.AuthServer.clock,
 		FIPS:        cfg.AuthServer.fips,
 	}))
 
