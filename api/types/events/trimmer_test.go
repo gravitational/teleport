@@ -43,8 +43,9 @@ func (s *trimmerTestSuite[T]) Run(t *testing.T) {
 	require.NotEmpty(t, s.target)
 
 	trimmer := s.makeTrimmer(s.source, &s.target)
-	t.Run("target should be emptied on new trimmer", func(t *testing.T) {
-		require.Empty(t, s.target, "target should be empty on new trimmer")
+	t.Run("emptyTarget", func(t *testing.T) {
+		trimmer.emptyTarget()
+		require.Empty(t, s.target)
 	})
 
 	t.Run("nonEmptyStrs", func(t *testing.T) {

@@ -25,10 +25,12 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// fieldTrimer handles trimming a field from an event. fieldTrimmers usually
+// fieldTrimer handles trimming a field from an event. fieldTrimmer usually
 // holds both the field from the source event (for calculation) and the pointer
 // to the field from the target copy (for trimming updates).
 type fieldTrimmer interface {
+	// emptyTarget empties the target field.
+	emptyTarget()
 	// nonEmptyStrs calculates non-empty strings from this field.
 	nonEmptyStrs() int
 	// trimToMaxFieldSize trims and updates the target field.
@@ -48,10 +50,9 @@ func trimEventToMaxSize[T trimmableEvent](m T, maxSize int, makeTrimmer func(m T
 		return m
 	}
 
-	// Clone the message to "out". Call makeTrimmer to empty the fields in "out"
-	// before adjusting for max size.
 	out := utils.CloneProtoMsg(m)
 	trimmer := makeTrimmer(m, out)
+	trimmer.emptyTarget() // Empty before adjusting max size
 	maxSize = adjustedMaxSize(out, maxSize)
 	maxFieldSize := maxSizePerField(maxSize, trimmer.nonEmptyStrs())
 	trimmer.trimToMaxFieldSize(maxFieldSize)
@@ -61,20 +62,25 @@ func trimEventToMaxSize[T trimmableEvent](m T, maxSize int, makeTrimmer func(m T
 // fieldTrimmers is a slice of fieldTrimmer that implements fieldTrimmer.
 type fieldTrimmers []fieldTrimmer
 
+func (t fieldTrimmers) emptyTarget() {
+	for _, e := range t {
+		e.emptyTarget()
+	}
+}
 func (t fieldTrimmers) nonEmptyStrs() (sum int) {
 	for _, e := range t {
 		sum += e.nonEmptyStrs()
 	}
 	return sum
 }
-
 func (t fieldTrimmers) trimToMaxFieldSize(maxFieldSize int) {
 	for _, e := range t {
 		e.trimToMaxFieldSize(maxFieldSize)
 	}
 }
 
-type baseTrimmer[Source any, Target any] struct {
+type baseTrimmer struct {
+	emptyTargetFunc        func()
 	nonEmptyStrsFunc       func() int
 	trimToMaxFieldSizeFunc func(int)
 }
@@ -85,10 +91,11 @@ func newBaseTrimmer[Source any, Target any](
 	nonEmptyStrs func(Source) int,
 	trimToMaxFieldSize func(Source, int) Target,
 ) fieldTrimmer {
-	// We must empty the target first.
-	var empty Target
-	*target = empty
-	return &baseTrimmer[Source, Target]{
+	return &baseTrimmer{
+		emptyTargetFunc: func() {
+			var empty Target
+			*target = empty
+		},
 		nonEmptyStrsFunc: func() int {
 			return nonEmptyStrs(source)
 		},
@@ -98,12 +105,9 @@ func newBaseTrimmer[Source any, Target any](
 	}
 }
 
-func (s *baseTrimmer[Source, Target]) nonEmptyStrs() int {
-	return s.nonEmptyStrsFunc()
-}
-func (s *baseTrimmer[Source, Target]) trimToMaxFieldSize(maxFieldSize int) {
-	s.trimToMaxFieldSizeFunc(maxFieldSize)
-}
+func (t *baseTrimmer) emptyTarget()                        { t.emptyTargetFunc() }
+func (t *baseTrimmer) nonEmptyStrs() int                   { return t.nonEmptyStrsFunc() }
+func (t *baseTrimmer) trimToMaxFieldSize(maxFieldSize int) { t.trimToMaxFieldSizeFunc(maxFieldSize) }
 
 func newStrTrimmer(source string, target *string) fieldTrimmer {
 	return newBaseTrimmer(source, target, nonEmptyStr, trimStr)
@@ -116,18 +120,12 @@ func newStrSliceTrimmer(source []string, target *[]string) fieldTrimmer {
 		func(source []string) int {
 			return nonEmptyStrsInSlice(source)
 		},
-		func(source []string, maxFieldSize int) []string {
-			return trimStrSlice(source, maxFieldSize)
-		},
+		trimStrSlice,
 	)
 }
 
-func trimBytes(b []byte, maxFieldSize int) []byte {
-	return []byte(trimStr(string(b), maxFieldSize))
-}
-
 func newBytesTrimmer(source []byte, target *[]byte) fieldTrimmer {
-	return newBaseTrimmer(source, target, nonEmptyStr, trimBytes)
+	return newBaseTrimmer(source, target, nonEmptyStr, trimStr)
 }
 
 func newTraitsTrimmer(source wrappers.Traits, target *wrappers.Traits) fieldTrimmer {
