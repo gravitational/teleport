@@ -256,10 +256,9 @@ func analyzeAccessListForLongTermAccess(ctx context.Context, in accessListAnalys
 func validateCanUseAccessList(ctx context.Context, al *accesslist.AccessList, user types.User, clt modules.AccessResourcesGetter, clock clockwork.Clock) (bool, error) {
 	// Check if the user is already a member or doesn't meet requirements
 	_, err := accesslists.IsAccessListMember(ctx, user, al, clt, nil, clock)
-	if err != nil {
-		if trace.IsAccessDenied(err) {
-			return false, nil
-		}
+	// IsAccessListMember returns AccessDenied if the user is not a valid OR current member.
+	// Here, "not a member" is the precondition to consider assignment, so we proceed on AccessDenied.
+	if err != nil && !trace.IsAccessDenied(err) {
 		return false, trace.Wrap(err, "checking access list membership")
 	}
 
