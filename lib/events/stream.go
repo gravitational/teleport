@@ -839,8 +839,6 @@ func (w *sliceWriter) completeStream() {
 				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
 					duration := w.sessionEndTime.Sub(w.sessionStartTime)
 
-					// Process every session recording, as there may not be an end event.
-					// The processor will immediately return if the session recording type is not supported.
 					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
 						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
 					}
