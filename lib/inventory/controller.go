@@ -855,6 +855,10 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		return trace.AccessDenied("incorrect ssh server ID (expected %q, got %q)", handle.Hello().ServerID, sshServer.GetName())
 	}
 
+	if sshServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect ssh server scope (expected %q, got %q)", handle.Hello().GetScope(), sshServer.Scope)
+	}
+
 	// if a peer address is available in the context, use it to override zero-value addresses from
 	// the server heartbeat.
 	if handle.PeerAddr() != "" {
@@ -920,6 +924,10 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server ID (expected %q, got %q)", handle.Hello().ServerID, appServer.GetHostID())
 	}
 
+	if appServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
+	}
+
 	if handle.appServers == nil {
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
@@ -975,6 +983,10 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		return trace.AccessDenied("incorrect database server ID (expected %q, got %q)", handle.Hello().ServerID, databaseServer.GetHostID())
 	}
 
+	if databaseServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect database server scope (expected %q, got %q)", handle.Hello().GetScope(), databaseServer.Scope)
+	}
+
 	if handle.databaseServers == nil {
 		handle.databaseServers = make(map[resourceKey]*heartBeatInfo[*types.DatabaseServerV3])
 	}
@@ -1028,6 +1040,10 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	}
 	if kubernetesServer.GetHostID() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect kubernetes server ID (expected %q, got %q)", handle.Hello().ServerID, kubernetesServer.GetHostID())
+	}
+
+	if kubernetesServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect kubernetes server scope (expected %q, got %q)", handle.Hello().GetScope(), kubernetesServer.Scope)
 	}
 
 	if handle.kubernetesServers == nil {
