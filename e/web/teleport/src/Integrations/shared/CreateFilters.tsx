@@ -7,41 +7,50 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 import { Validator } from 'shared/components/Validation';
 
-import { FormDataField } from '../types';
-import { FilterOption, FormDataFilterField } from './types';
+/**
+ * FilterOption extends [Select] option with a
+ * boolean field to represent an invalid state.
+ */
+export type FilterOption = Option & { invalid: boolean };
 
+/**
+ * CreateFilters is a modified [FieldSelectCreatable] component
+ * that can be used to configure resource filters for plugins.
+ */
 export const CreateFilters = ({
   filters,
   validator,
-  filterKind,
+  label,
   onFilterChange,
   isDisabled,
+  placeholder = 'Type a filter and press enter - defaults to all if no filters are defined',
+  autoFocus = true,
 }: {
   filters: FilterOption[];
   validator: Validator;
-  filterKind: FormDataFilterField;
-  onFilterChange(o: FilterOption[], v: Validator, k: FormDataFilterField);
+  label: string;
+  onFilterChange(o: FilterOption[], v: Validator);
   isDisabled?: boolean;
+  placeholder?: string;
+  autoFocus?: boolean;
 }) => {
   const theme = useTheme();
   return (
     <Flex alignItems="center" gap={2}>
       <Box width="540px">
         <FieldSelectCreatable
-          ariaLabel={`input-${filterKind === FormDataField.AppFilters ? 'app' : 'group'}`}
-          autoFocus={true}
-          placeholder="Type a filter and press enter - defaults to all if no filters are defined"
+          ariaLabel={`input-${label}`}
+          autoFocus={autoFocus}
+          placeholder={placeholder}
           isMulti
           isClearable
           isSearchable
           options={filters}
           isDisabled={isDisabled}
-          onChange={(o: FilterOption[]) =>
-            onFilterChange(o, validator, filterKind)
-          }
+          onChange={(o: FilterOption[]) => onFilterChange(o, validator)}
           value={filters || []}
           noOptionsMessage={() => null}
-          label={`Filter by ${filterKind === FormDataField.AppFilters ? 'App' : 'Group'} Name(s) - Regex and glob supported`}
+          label={label}
           rule={validFilters}
           formatCreateLabel={userInput => `Apply filter: ${userInput}`}
           stylesConfig={filterCreateCss(theme)}

@@ -7,4 +7,16 @@ export enum FormDataField {
   ClientId = 'clientId',
   AccessGraph = 'accessGraph',
   AccessGraphCache = 'accessGraphCache',
+  GroupFilters = 'groupFilters',
 }
+
+/**
+ * Filters defines resource filter fields.
+ * Name matches with the proto PluginSyncFilter type.
+ */
+export type Filters = {
+  id: string[];
+  nameRegex: string[];
+  excludeId: string[];
+  excludeNameRegex: string[];
+};

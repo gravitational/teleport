@@ -20,6 +20,8 @@ import { userEventService } from 'teleport/services/userEvent';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { PluginEnroll } from '../../PluginEnroll';
+import { emptyFilter, filterCollection } from './FormMixin';
+import { Filters } from './types';
 
 jest.mock('shared/libs/logger', () => {
   const mockLogger = {
@@ -93,8 +95,9 @@ test('entra onboard with policy disabled', async () => {
   // Test init screen render.
   await expectInitRender(true);
   // TAG support should not be available
-  expect(screen.getByRole('checkbox')).not.toBeChecked();
-  expect(screen.getByRole('checkbox')).toBeDisabled();
+  expect(
+    screen.getByLabelText('Enable Access Graph integration')
+  ).toBeDisabled();
 
   // Fill initial fields
   setStep1Inputs();
@@ -139,8 +142,9 @@ test('entra onboard with policy enabled', async () => {
   // Test init screen render.
   await expectInitRender(false);
   // TAG support should be available and enabled by default
-  expect(screen.getByRole('checkbox')).toBeChecked();
-  expect(screen.getByRole('checkbox')).toBeEnabled();
+  expect(
+    screen.getByLabelText('Enable Access Graph integration')
+  ).toBeEnabled();
 
   // Fill initial fields
   setStep1Inputs();
@@ -184,6 +188,134 @@ test('entra onboard with policy enabled', async () => {
   expect(
     screen.getByText(/microsoft entra id is integrated successfully/i)
   ).toBeInTheDocument();
+});
+
+test('group filter toggle default on', async () => {
+  cfg.isEnterprise = true;
+  cfg.isPolicyEnabled = true;
+  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.Identity = { enabled: true, limit: 0 };
+
+  renderPluginEnroll('entra-id');
+
+  // Test init screen render.
+  await expectInitRender(false /*access graph locked*/);
+  // TAG support should be available and enabled by default
+  expect(
+    screen.getByLabelText('Enable Access Graph integration')
+  ).toBeEnabled();
+
+  expect(screen.getByText('Import All Groups')).toBeInTheDocument();
+
+  // Fill initial fields
+  setStep1Inputs();
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
+
+  let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('authConnectorName')).toEqual(
+    authConnectorValue
+  );
+  expect(calledWithFormData.get('defaultOwners')).toEqual('["alice"]');
+  expect(calledWithFormData.get('accessGraph')).toEqual('on');
+  expect(calledWithFormData.get('groupFilters')).toEqual(
+    JSON.stringify(emptyFilter)
+  );
+});
+
+test('group filter toggle off and configured filters', async () => {
+  cfg.isEnterprise = true;
+  cfg.isPolicyEnabled = true;
+  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.Identity = { enabled: true, limit: 0 };
+
+  renderPluginEnroll('entra-id');
+
+  // Test init screen render.
+  await expectInitRender(false /*access graph locked*/);
+  // TAG support should be available and enabled by default
+  expect(
+    screen.getByLabelText('Enable Access Graph integration')
+  ).toBeEnabled();
+
+  // Group filters
+  const importAll = screen.getByText('Import All Groups');
+  expect(importAll).toBeInTheDocument();
+  // Toggle off
+  fireEvent.click(importAll);
+
+  const filter: Filters = {
+    id: ['g1', 'g2'],
+    nameRegex: ['admin-*'],
+    excludeId: ['g2'],
+    excludeNameRegex: ['hr*'],
+  };
+  setFilterInputs(filter);
+
+  // Fill initial fields
+  setStep1Inputs();
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
+
+  let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('authConnectorName')).toEqual(
+    authConnectorValue
+  );
+  expect(calledWithFormData.get('defaultOwners')).toEqual('["alice"]');
+  expect(calledWithFormData.get('accessGraph')).toEqual('on');
+  expect(calledWithFormData.get('groupFilters')).toEqual(
+    JSON.stringify(filter)
+  );
+});
+
+test('group filter toggle on should wipe configured filters', async () => {
+  cfg.isEnterprise = true;
+  cfg.isPolicyEnabled = true;
+  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.Identity = { enabled: true, limit: 0 };
+
+  renderPluginEnroll('entra-id');
+
+  // Test init screen render.
+  await expectInitRender(false /*access graph locked*/);
+  // TAG support should be available and enabled by default
+  expect(
+    screen.getByLabelText('Enable Access Graph integration')
+  ).toBeEnabled();
+
+  const importAll = screen.getByText('Import All Groups');
+  expect(importAll).toBeInTheDocument();
+  // Toggle off
+  fireEvent.click(importAll);
+
+  const filter: Filters = {
+    id: ['g1', 'g2'],
+    nameRegex: ['admin-*'],
+    excludeId: ['g2'],
+    excludeNameRegex: ['hr*'],
+  };
+  setFilterInputs(filter);
+
+  // Toggle on, should wipe out filters
+  fireEvent.click(importAll);
+
+  // Fill initial fields
+  setStep1Inputs();
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
+
+  let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('authConnectorName')).toEqual(
+    authConnectorValue
+  );
+  expect(calledWithFormData.get('defaultOwners')).toEqual('["alice"]');
+  expect(calledWithFormData.get('accessGraph')).toEqual('on');
+  expect(calledWithFormData.get('groupFilters')).toEqual(
+    JSON.stringify(emptyFilter)
+  );
 });
 
 async function expectInitRender(accessGraphLocked: boolean) {
@@ -252,4 +384,31 @@ function renderPluginEnroll(pluginType: PluginKind, search?: string) {
       </TeleportContextProvider>
     </MemoryRouter>
   );
+}
+
+function setFilterInputs(filter: Filters) {
+  const includeId = screen.getByLabelText(filterCollection[0].label);
+  expect(includeId).toBeInTheDocument();
+  fireEvent.change(includeId, { target: { value: filter.id[0] } });
+  fireEvent.keyDown(includeId, { key: 'Enter' });
+
+  fireEvent.change(includeId, { target: { value: filter.id[1] } });
+  fireEvent.keyDown(includeId, { key: 'Enter' });
+
+  const includeNameRegex = screen.getByLabelText(filterCollection[1].label);
+  expect(includeNameRegex).toBeInTheDocument();
+  fireEvent.change(includeNameRegex, { target: { value: filter.nameRegex } });
+  fireEvent.keyDown(includeNameRegex, { key: 'Enter' });
+
+  const excludeId = screen.getByLabelText(filterCollection[2].label);
+  expect(excludeId).toBeInTheDocument();
+  fireEvent.change(excludeId, { target: { value: filter.excludeId } });
+  fireEvent.keyDown(excludeId, { key: 'Enter' });
+
+  const excludeNameRegex = screen.getByLabelText(filterCollection[3].label);
+  expect(excludeNameRegex).toBeInTheDocument();
+  fireEvent.change(excludeNameRegex, {
+    target: { value: filter.excludeNameRegex },
+  });
+  fireEvent.keyDown(excludeNameRegex, { key: 'Enter' });
 }

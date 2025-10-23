@@ -17,20 +17,15 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import type { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { getErrMessage } from 'shared/utils/errorType';
 
 import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
-import { CreateFilters } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/CreateFilters';
 import {
   AppTable,
   UserGroupsTable,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/FilterTable';
-import {
-  FilterOption,
-  FormDataFilterField,
-} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/types';
+import { FormDataFilterField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/ImportUserGroupsAndApps/types';
 import { useOktaIntegrationSetUpContext } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import {
   APP_GROUP_SYNC_CONFIG,
@@ -41,6 +36,10 @@ import type { OktaIntegrationStepFormProps } from 'e-teleport/Integrations/Integ
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
 import { StyledBox } from 'e-teleport/Integrations/Shared';
+import {
+  CreateFilters,
+  FilterOption,
+} from 'e-teleport/Integrations/shared/CreateFilters';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import { Redirect } from 'teleport/components/Router';
@@ -271,36 +270,32 @@ export const AppGroupSyncForm = ({
     [getFetchAppsGroupsFormData, queryClient]
   );
 
-  const handleFilterOnChange = useCallback(
-    (
-      opts: FilterOption[],
-      validator: Validator,
-      formDataFilterField: FormDataFilterField
-    ) => {
-      switch (formDataFilterField) {
-        case FormDataField.AppFilters:
-          return updateFilters({
-            applyFilters: pluginsService.getPluginConfigOktaApps,
-            queryKey: ['okta', 'apps'],
-            setHasInvalidFilters: setInvalidAppFilters,
-            setFilter: setAppFilters,
-            formDataFilterField,
-            validator,
-            updatedFilters: opts,
-          });
-        case FormDataField.GroupFilters:
-          return updateFilters({
-            applyFilters: pluginsService.getPluginConfigOktaGroups,
-            queryKey: ['okta', 'groups'],
-            setHasInvalidFilters: setInvalidGroupFilters,
-            setFilter: setGroupFilters,
-            formDataFilterField,
-            validator,
-            updatedFilters: opts,
-          });
-        default:
-          assertUnreachable(formDataFilterField);
-      }
+  const handleAppFilterChange = useCallback(
+    (opts: FilterOption[], validator: Validator) => {
+      return updateFilters({
+        applyFilters: pluginsService.getPluginConfigOktaApps,
+        queryKey: ['okta', 'apps'],
+        setHasInvalidFilters: setInvalidAppFilters,
+        setFilter: setAppFilters,
+        formDataFilterField: FormDataField.AppFilters,
+        validator,
+        updatedFilters: opts,
+      });
+    },
+    [updateFilters]
+  );
+
+  const handleGroupFilterChange = useCallback(
+    (opts: FilterOption[], validator: Validator) => {
+      return updateFilters({
+        applyFilters: pluginsService.getPluginConfigOktaGroups,
+        queryKey: ['okta', 'groups'],
+        setHasInvalidFilters: setInvalidGroupFilters,
+        setFilter: setGroupFilters,
+        formDataFilterField: FormDataField.GroupFilters,
+        validator,
+        updatedFilters: opts,
+      });
     },
     [updateFilters]
   );
@@ -410,8 +405,8 @@ export const AppGroupSyncForm = ({
                 <CreateFilters
                   filters={groupFilters}
                   validator={validator}
-                  filterKind={FormDataField.GroupFilters}
-                  onFilterChange={handleFilterOnChange}
+                  label="Filter by Group Name(s) - Regex and glob supported"
+                  onFilterChange={handleGroupFilterChange}
                   isDisabled={updatePlugin.isPending || groups.isPending}
                 />
               )}
@@ -464,8 +459,8 @@ export const AppGroupSyncForm = ({
                 <CreateFilters
                   filters={appFilters}
                   validator={validator}
-                  filterKind={FormDataField.AppFilters}
-                  onFilterChange={handleFilterOnChange}
+                  label="Filter by App Name(s) - Regex and glob supported"
+                  onFilterChange={handleAppFilterChange}
                   isDisabled={updatePlugin.isPending || apps.isPending}
                 />
               )}
