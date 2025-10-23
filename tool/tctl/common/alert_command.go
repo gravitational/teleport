@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -74,7 +74,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.config = config
 	alert := app.Command("alerts", "Manage cluster alerts.").Alias("alert")
 
-	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
+	formats := defaults.DefaultFormats
 
 	c.alertList = alert.Command("list", "List cluster alerts.").Alias("ls")
 	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts.").Short('v').BoolVar(&c.verbose)
@@ -185,11 +185,12 @@ func (c *AlertCommand) Ack(ctx context.Context, client *authclient.Client) error
 	case teleport.Text:
 		fmt.Fprintf(c.stdout, "Successfully acknowledged alert %q. Alerts with this ID won't be pushed for %s.\n", c.alertID, c.ttl)
 	case teleport.JSON:
-		out, err := json.MarshalIndent(ack, "", "  ")
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal alert ack")
-		}
-		fmt.Fprint(c.stdout, string(out))
+		// // out, err := json.MarshalIndent(ack, "", "  ")
+		// if err != nil {
+		// 	return trace.Wrap(err, "failed to marshal alert ack")
+		// }
+		// fmt.Fprint(c.stdout, string(out))
+		return trace.Wrap(utils.WriteJSON(c.stdout, ack), "failed to marshal alert ack")
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(c.stdout, ack), "failed to marshal alert ack")
 	default:
