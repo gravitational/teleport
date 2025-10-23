@@ -178,8 +178,8 @@ importers:
         specifier: ^11.4.2
         version: 11.4.2
       playwright:
-        specifier: ^1.47.2
-        version: 1.47.2
+        specifier: ^1.55.1
+        version: 1.56.1
       prettier:
         specifier: ^3.3.3
         version: 3.3.3
@@ -200,6 +200,15 @@ importers:
         version: 5.4.8(@types/node@22.14.1)
 
   e/web/teleport: {}
+
+  e2e:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.55.1
+        version: 1.56.1
+      typescript:
+        specifier: ^5.1.6
+        version: 5.7.2
 
   web/packages/build:
     dependencies:
@@ -2253,6 +2262,11 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@playwright/test@1.56.1':
+    resolution: {integrity: sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   '@protobuf-ts/grpc-transport@2.9.4':
     resolution: {integrity: sha512-CgjTR3utmkMkkThpfgtOz9tNR9ZARbNoQYL7TCKqFU2sgAX0LgzAkwOx+sfgtUsZn9J08+yvn307nNJdYocLRA==}
@@ -5804,8 +5818,13 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.47.2:
-    resolution: {integrity: sha512-nx1cLMmQWqmA3UsnjaaokyoUpdVaaDhJhMoxX2qj3McpjnsqFHs516QAKYhqHAgOP+oCFTEOCOAaD1RgD/RQfA==}
+  playwright-core@1.56.1:
+    resolution: {integrity: sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.56.1:
+    resolution: {integrity: sha512-aFi5B0WovBHTEvpM3DzXTUaeN6eN0qWnTkKx4NQaH4Wvcmc153PdaY2UBdSYKaGYw+UyWXSVyxDUg5DoPEttjw==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -9192,6 +9211,10 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
+  '@playwright/test@1.56.1':
+    dependencies:
+      playwright: 1.56.1
+
   '@protobuf-ts/grpc-transport@2.9.4(@grpc/grpc-js@1.11.3)':
     dependencies:
       '@grpc/grpc-js': 1.11.3
@@ -9414,7 +9437,7 @@ snapshots:
       jest-serializer-html: 7.1.0
       jest-watch-typeahead: 2.2.2(jest@29.7.0(@types/node@22.14.1)(babel-plugin-macros@3.1.0))
       nyc: 15.1.0
-      playwright: 1.47.2
+      playwright: 1.56.1
       storybook: 9.0.17(@testing-library/dom@10.1.0)(prettier@3.3.3)
     transitivePeerDependencies:
       - '@swc/helpers'
@@ -13528,9 +13551,11 @@ snapshots:
 
   playwright-core@1.47.2: {}
 
-  playwright@1.47.2:
+  playwright-core@1.56.1: {}
+
+  playwright@1.56.1:
     dependencies:
-      playwright-core: 1.47.2
+      playwright-core: 1.56.1
     optionalDependencies:
       fsevents: 2.3.2
 
