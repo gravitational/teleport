@@ -425,11 +425,7 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 				return
 			}
 
-			// If there is no room for the part in the current buffer, yield the current buffer before continuing.
-			// TODO(Joerger): Remove padding from part.
-			innerPartSize := int64(header.PartSize + header.PaddingSize)
-			totalPartSize := int64(len(header.Bytes())) + innerPartSize
-
+			totalPartSize := int64(len(header.Bytes())) + int64(header.PartSize)
 			if buf.Len()+int(totalPartSize) > maxUploadSize {
 				if !yieldNext() {
 					return
@@ -442,15 +438,27 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 			}
 
 			// Copy the part into the current buffer.
-			reader := io.LimitReader(in, innerPartSize)
+			reader := io.LimitReader(in, int64(header.PartSize))
 			copied, err := io.Copy(&buf, reader)
 			if err != nil && !errors.Is(err, io.EOF) {
 				yield(nil, trace.Wrap(err))
 				return
 			}
 
-			if copied != innerPartSize {
-				yield(nil, trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, innerPartSize))
+			if copied != int64(header.PartSize) {
+				yield(nil, trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, int64(header.PartSize)))
+				return
+			}
+
+			// Discard the padding since we are reconstructing the part to reach the minimum size anyways.
+			discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(header.PaddingSize)))
+			if err != nil && !errors.Is(err, io.EOF) {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			if discarded != int64(header.PaddingSize) {
+				yield(nil, trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(header.PaddingSize)))
 				return
 			}
 
