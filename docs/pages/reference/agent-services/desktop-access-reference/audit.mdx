@@ -23,10 +23,10 @@ Successful connection event:
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP00I",
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "desktop_labels": {
     "teleport.dev/computer_name": "WIN-I44F9TN11M3",
     "teleport.dev/dns_host_name": "WIN-I44F9TN11M3.teleport.example.com",
@@ -55,10 +55,10 @@ Access denied event:
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP00W",
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "desktop_labels": {
     "teleport.dev/computer_name": "WIN-I44F9TN11M3",
     "teleport.dev/dns_host_name": "WIN-I44F9TN11M3.teleport.example.com",
@@ -93,7 +93,7 @@ Emitted when a client disconnects from the desktop.
 {
   "cluster_name": "root",
   "code": "TDP01I",
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "desktop_labels": {
     "teleport.dev/computer_name": "WIN-I44F9TN11M3",
     "teleport.dev/dns_host_name": "WIN-I44F9TN11M3.teleport.example.com",
@@ -129,10 +129,10 @@ bytes that were sent.
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP02I",
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "ei": 0,
   "event": "desktop.clipboard.send",
   "length": 4, // number of bytes sent
@@ -152,10 +152,10 @@ were received.
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP03I",
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "ei": 0,
   "event": "desktop.clipboard.receive",
   "length": 4, // number of bytes received
@@ -173,10 +173,10 @@ Emitted when Teleport starts sharing a directory on a local machine to the remot
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP04I", // TDP04W if the operation failed
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "directory_id": 2,
   "directory_name": "local-files",
   "ei": 0,
@@ -202,10 +202,10 @@ that were sent.
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP05I", // TDP05W if the operation failed
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "directory_id": 2,
   "directory_name": "local-files",
   "ei": 0,
@@ -234,10 +234,10 @@ that were written.
 
 ```json
 {
-  "addr.remote": "192.168.1.206:3389",
+  "addr.remote": "192.0.2.206:3389",
   "cluster_name": "root",
   "code": "TDP06I", // TDP06W if the operation failed
-  "desktop_addr": "192.168.1.206:3389",
+  "desktop_addr": "192.0.2.206:3389",
   "directory_id": 2,
   "directory_name": "local-files",
   "ei": 0,

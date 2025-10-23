@@ -82,7 +82,7 @@ following example, replacing `proxy.example.com` with the address of your proxy:
 ```
 HTTP_PROXY=http://proxy.example.com:8080/
 HTTPS_PROXY=http://proxy.example.com:8080/
-NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/8
+NO_PROXY=localhost,127.0.0.1,192.0.2.0/24,203.0.113.0/24
 ```
 
 When Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
