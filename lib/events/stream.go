@@ -1299,6 +1299,21 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 
+			// Empty parts may be created for padding. Just skip them and discard any padding.
+			if header.PartSize == 0 {
+				if header.PaddingSize != 0 {
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, int64(header.PaddingSize)), r.messageBytes[:])
+					if err != nil {
+						return nil, r.setError(trace.ConvertSystemError(err))
+					}
+					if skipped != int64(header.PaddingSize) {
+						return nil, r.setError(trace.BadParameter(
+							"data truncated, expected to read %v bytes, but got %v", r.padding, skipped))
+					}
+				}
+				continue
+			}
+
 			r.padding = int64(header.PaddingSize)
 			reader := io.LimitReader(r.reader, int64(header.PartSize))
 			if header.Flags&ProtoStreamFlagEncrypted != 0 {

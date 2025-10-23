@@ -648,40 +648,68 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "creating upload")
 	}
 
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
+	// TODO(Joerger): With the iterator being passed here, it is not safe to call
+	// next without consuming the current value. This needs to be fixed by the caller.
+	currentPart := make([]byte, len(part))
+	copy(currentPart, part)
+
 	var streamParts []StreamPart
+
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
 	// configured for the auth service
 	var partNumber int64 = 1
-	for part, err := range parts {
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
+	for {
 		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
 			return trace.Wrap(err, "reserving upload part")
 		}
 
-		if len(part) < MinUploadPartSizeBytes {
-			r := bytes.NewReader(part)
-
-			partHeader, err := ParsePartHeader(r)
-			if err != nil {
-				return trace.Wrap(err, "failed to parse part header from upload part")
-			}
-
-			partHeader.PaddingSize += uint64(MinUploadPartSizeBytes - len(part))
-			paddedPart := make([]byte, MinUploadPartSizeBytes)
-			headerLen := copy(paddedPart, partHeader.Bytes())
-			copy(paddedPart[headerLen:], part[headerLen:])
-
-			part = paddedPart
+		// Before uploading the current part, try getting the next part to determine if padding is needed.
+		nextPart, err, hasNext := next()
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
+		// If the upload part is not at least the minimum upload part size, and this isn't
+		// the last part, append an empty part to pad up to the minimum upload size.
+		if hasNext && len(currentPart) < MinUploadPartSizeBytes {
+			paddingBytes := max(MinUploadPartSizeBytes-len(currentPart), ProtoStreamV2PartHeaderSize)
+			paddedPart := make([]byte, paddingBytes)
+
+			paddedPartHeader := PartHeader{
+				ProtoVersion: ProtoStreamV2,
+				PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
+				PartSize:     0,
+			}
+			copy(paddedPart, paddedPartHeader.Bytes())
+			currentPart = append(currentPart, paddedPart...)
+		}
+
+		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(currentPart))
 		if err != nil {
 			return trace.Wrap(err, "uploading part")
 		}
 		streamParts = append(streamParts, *streamPart)
+
+		if !hasNext {
+			break
+		}
+
+		// TODO(Joerger): With the iterator being passed here, it is not safe to call
+		// next without consuming the current value. This needs to be fixed by the caller.
+		currentPart = make([]byte, len(nextPart))
+		copy(currentPart, nextPart)
+
 		partNumber++
 	}
 
