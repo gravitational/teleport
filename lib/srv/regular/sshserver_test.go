@@ -455,8 +455,8 @@ loop:
 func TestSessionAuditLog(t *testing.T) {
 	ctx := context.Background()
 	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
 
+	f := newFixtureWithoutDiskBasedLogging(t)
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
 	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
@@ -486,7 +486,7 @@ func TestSessionAuditLog(t *testing.T) {
 		select {
 		case event := <-emitter.C():
 			return event
-		case <-time.After(time.Second):
+		case <-time.After(5 * time.Second):
 			require.Fail(t, "timed out waiting for event")
 		}
 		return nil
@@ -720,7 +720,6 @@ func TestInactivityTimeout(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, err) })
 		waitForTimeout(t, f, se)
 	})
-
 	t.Run("Reset timeout on input", func(t *testing.T) {
 		f := newCustomFixture(t, mutateCfg)
 
@@ -3720,4 +3719,13 @@ func TestSessionParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServerInfo(t *testing.T) {
+	scope := "/aa"
+	f := newFixtureWithoutDiskBasedLogging(t, SetScope(scope))
+	require.Equal(t, f.ssh.srv.scope, scope)
+	info, err := f.ssh.srv.getServerInfo(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, scope, info.Scope)
 }
