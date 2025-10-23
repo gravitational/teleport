@@ -599,3 +599,34 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
 	return trace.Wrap(err)
 }
+
+// EqualAccessListForReconciliationMutating compares two access lists for semantic equality,
+// ignoring ephemeral fields that are managed by reconcilers or the backend.
+// This function mimics the behavior of services.CompareResources for AccessList types.
+//
+// The following fields are ignored during comparison:
+//   - Metadata.Revision: Managed by the backend
+//   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
+//   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
+//
+// This function modifies the input AccessLists by clearing the ignored fields.
+//
+// WARNING: If you need to preserve the original values, clone the AccessLists before calling.
+func EqualAccessListForReconciliationMutating(a, b *AccessList) bool {
+	resetFieldsForReconciliationAccessList(a)
+	resetFieldsForReconciliationAccessList(b)
+	return deriveTeleportEqualAccessList(a, b)
+}
+
+// resetFieldsForReconciliationAccessList clears ephemeral fields that should be
+// ignored when comparing access lists for reconciliation purposes.
+func resetFieldsForReconciliationAccessList(a *AccessList) {
+	if a == nil {
+		return
+	}
+	a.Metadata.Revision = ""
+	a.Status = Status{}
+	for i := range a.Spec.Owners {
+		a.Spec.Owners[i].IneligibleStatus = ""
+	}
+}
