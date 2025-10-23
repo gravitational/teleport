@@ -527,6 +527,7 @@ func testEnv0Join(t *testing.T, tc *env0JoinTestCase) {
 			Role:     types.RoleInstance,
 			NodeName: "test-node",
 		},
+		// joinWithMethod only creates a tokenSource when this is unset
 		IDToken:    tc.oidcToken,
 		AuthClient: nopClient,
 	})

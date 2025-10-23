@@ -249,9 +249,12 @@ func joinWithMethod(
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEnv0:
-		joinParams.IDToken, err = env0.NewIDTokenSource(os.Getenv).GetIDToken()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// Tests may specify their own IDToken, so only overwrite it when empty.
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = env0.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		return oidcJoin(stream, joinParams, clientParams)
 	default:
