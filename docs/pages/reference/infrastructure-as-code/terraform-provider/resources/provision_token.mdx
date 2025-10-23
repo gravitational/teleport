@@ -88,6 +88,7 @@ Optional:
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
 - `bound_keypair` (Attributes) BoundKeypair allows the configuration of options specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
+- `env0` (Attributes) Env0 allows the configuration of options specific to the "env0" join method. (see [below for nested schema](#nested-schema-for-specenv0))
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
 - `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
@@ -205,6 +206,30 @@ Optional:
 
 - `context_id` (String)
 - `project_id` (String)
+
+
+
+### Nested Schema for `spec.env0`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of Rules, jobs using this token must match at least one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specenv0allow))
+
+### Nested Schema for `spec.env0.allow`
+
+Optional:
+
+- `deployer_email` (String) DeployerEmail is the email of the person that triggered the deployment, corresponding to `deployerEmail` in an Env0 OIDC token.
+- `deployment_type` (String) DeploymentType is the env0 deployment type, such as "deploy", "destroy", etc. Corresponds to `deploymentType` in an Env0 OIDC token.
+- `env0_tag` (String) Env0Tag is a custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
+- `environment_id` (String) EnvironmentID is the unique identifier of the Env0 environment, corresponding to `environmentId` in an Env0 OIDC token.
+- `environment_name` (String) EnvironmentName is the name of the Env0 environment, corresponding to `environmentName` in an Env0 OIDC token.
+- `organization_id` (String) OrganizationID is the unique organization identifier, corresponding to `organizationId` in an Env0 OIDC token.
+- `project_id` (String) ProjectID is a unique project identifier, corresponding to `projectId` in an Env0 OIDC token.
+- `project_name` (String) ProjectName is the name of the project under which the job was run corresponding to `projectName` in an Env0 OIDC token.
+- `template_id` (String) TemplateID is the unique identifier of the Env0 template, corresponding to `templateId` in an Env0 OIDC token.
+- `template_name` (String) TemplateName is the name of the Env0 template, corresponding to `templateName` in an Env0 OIDC token.
+- `workspace_name` (String) WorkspaceName is the name of the Env0 workspace, corresponding to `workspaceName` in an Env0 OIDC token.
 
 
 
