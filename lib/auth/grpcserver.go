@@ -5006,7 +5006,7 @@ func (g *GRPCServer) GetDomainName(ctx context.Context, req *emptypb.Empty) (*au
 func (g *GRPCServer) GetClusterCACert(
 	ctx context.Context, req *emptypb.Empty,
 ) (*authpb.GetClusterCACertResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6081,9 +6081,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	scopedaccessv1.RegisterScopedAccessServiceServer(server, scopedAccessControl)
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer,
-		Logger:     logger,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Backend:          cfg.AuthServer,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
