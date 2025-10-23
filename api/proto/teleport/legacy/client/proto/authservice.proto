@@ -2483,6 +2483,27 @@ message UpsertSAMLConnectorRequest {
   types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
 }
 
+message ListSAMLConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+  // NoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  bool no_follow_urls = 4;
+}
+
+message ListSAMLConnectorsResponse {
+  // Connectors is a list of SAML connectors.
+  repeated types.SAMLConnectorV2 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // CreateGithubConnectorRequest is a request for CreateGithubConnector.
 message CreateGithubConnectorRequest {
   // Connector to be created.
@@ -3455,6 +3476,8 @@ service AuthService {
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
   rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+  // ListSAMLConnectors returns a page of current SAML connector resources.
+  rpc ListSAMLConnectors(ListSAMLConnectorsRequest) returns (ListSAMLConnectorsResponse);
   // CreateSAMLConnector creates a new SAML connector in the backend.
   rpc CreateSAMLConnector(CreateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // UpdateSAMLConnector updates an existing SAML connector in the backend.

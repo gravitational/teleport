@@ -219,6 +219,9 @@ type Identity interface {
 	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
 	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
