@@ -135,7 +135,6 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetLocks":                                                {},
 			"proto.AuthService.GetMFADevices":                                           {},
 			"proto.AuthService.GetPluginData":                                           {},
-			"proto.AuthService.GetSAMLConnectors":                                       {},
 			"proto.AuthService.GetSemaphores":                                           {},
 			"proto.AuthService.GetSessionEvents":                                        {},
 			"proto.AuthService.GetSSHTargets":                                           {},
