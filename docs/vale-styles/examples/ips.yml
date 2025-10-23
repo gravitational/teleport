@@ -1,5 +1,5 @@
 extends: conditional
-message: "%s is not an RFC 5737-compliant IP address for documentation. Use 192.0.2.0/24, 203.0.113.0/24 or 198.51.100.0/24. For more information see https://www.rfc-editor.org/rfc/rfc5737.html."
+message: "%s is not an RFC 5737-compliant IP address for documentation. Use reserved IP blocks for documentation: 192.0.2.0/24, 203.0.113.0/24 or 198.51.100.0/24 (0.0.0.0 and 127.0.0.1 are also allowed). For more information see https://www.rfc-editor.org/rfc/rfc5737.html."
 level: error
 scope: 
 - raw
