@@ -2945,6 +2945,40 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	}, nil
 }
 
+// ListSAMLConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (g *GRPCServer) ListSAMLConnectors(ctx context.Context, req *authpb.ListSAMLConnectorsRequest) (*authpb.ListSAMLConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	scs, next, err := auth.ServerWithRoles.ListSAMLConnectorsWithOptions(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.WithSecrets,
+		types.SAMLConnectorValidationFollowURLs(!req.NoFollowUrls),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSAMLConnectorsResponse{
+		NextPageToken: next,
+		Connectors:    make([]*types.SAMLConnectorV2, 0, len(scs)),
+	}
+	for _, sc := range scs {
+		scpb, ok := sc.(*types.SAMLConnectorV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected SAML connector type: %T", sc)
+		}
+		resp.Connectors = append(resp.Connectors, scpb)
+	}
+
+	return resp, nil
+}
+
 // CreateSAMLConnector creates a new SAML connector.
 func (g *GRPCServer) CreateSAMLConnector(ctx context.Context, req *authpb.CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
 	auth, err := g.authenticate(ctx)
