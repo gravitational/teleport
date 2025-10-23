@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/openai/openai-go"
@@ -19,11 +22,11 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	summopenai "github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -32,11 +35,13 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 )
 
 type summarizerTestPlugin struct {
-	clock *clockwork.FakeClock
+	clock         *clockwork.FakeClock
+	enableBedrock bool
 }
 
 func (p *summarizerTestPlugin) GetName() string {
@@ -72,12 +77,17 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	openAIClientFactory := &fakeOpenAIClientFactory{
 		clock: p.clock,
 	}
+	bedrockClientFactory := &bedrock.FakeClientFactory{
+		Clock: p.clock,
+	}
 	summarizer, err := NewSessionSummarizer(SummarizerConfig{
-		Backend:             authServer.AuthServer,
-		Streamer:            authServer.AuthServer,
-		SummaryUploader:     authServer.AuthServer,
-		OpenAIClientFactory: openAIClientFactory,
-		Clock:               authServer.AuthServer.GetClock(),
+		Backend:              authServer.AuthServer,
+		Streamer:             authServer.AuthServer,
+		SummaryUploader:      authServer.AuthServer,
+		OpenAIClientFactory:  openAIClientFactory,
+		BedrockClientFactory: bedrockClientFactory,
+		Clock:                authServer.AuthServer.GetClock(),
+		EnableBedrock:        p.enableBedrock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -87,11 +97,16 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	return nil
 }
 
-func newSummarizerTestTLSServer(t *testing.T, uploader events.MultipartHandler) *authtest.TLSServer {
+type summarizerTestTLSServerConfig struct {
+	uploader      events.MultipartHandler
+	enableBedrock bool
+}
+
+func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
 	sessionSummarizerProvider := &summarizer.SessionSummarizerProvider{}
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader:                  uploader,
+		Uploader:                  scfg.uploader,
 		SessionSummarizerProvider: sessionSummarizerProvider,
 	})
 	require.NoError(t, err)
@@ -100,7 +115,7 @@ func newSummarizerTestTLSServer(t *testing.T, uploader events.MultipartHandler) 
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:                       t.TempDir(),
 		Clock:                     clock,
-		UploadHandler:             uploader,
+		UploadHandler:             scfg.uploader,
 		Streamer:                  streamer,
 		SessionSummarizerProvider: sessionSummarizerProvider,
 	})
@@ -109,7 +124,8 @@ func newSummarizerTestTLSServer(t *testing.T, uploader events.MultipartHandler) 
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
 		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
 		err = cfg.APIConfig.PluginRegistry.Add(&summarizerTestPlugin{
-			clock: clock,
+			clock:         clock,
+			enableBedrock: scfg.enableBedrock,
 		})
 		require.NoError(t, err)
 	})
@@ -157,20 +173,23 @@ func createTestUser(
 	return user
 }
 
+// createSummarizerConfig creates a summarizer configuration that matches all
+// sessions from cluster "openai-cluster" to OpenAI inference provider, and all
+// sessions from cluster "bedrock-cluster" to Bedrock inference provider.
 func createSummarizerConfig(t *testing.T, ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) {
 	_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
-		Secret: apisummarizer.NewInferenceSecret("test-secret", &summarizerv1pb.InferenceSecretSpec{
+		Secret: apisummarizer.NewInferenceSecret("openai-secret", &summarizerv1pb.InferenceSecretSpec{
 			Value: "my-secret-value",
 		}),
 	})
 	require.NoError(t, err)
 
 	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
-		Model: apisummarizer.NewInferenceModel("test-model", &summarizerv1pb.InferenceModelSpec{
+		Model: apisummarizer.NewInferenceModel("openai-model", &summarizerv1pb.InferenceModelSpec{
 			Provider: &summarizerv1pb.InferenceModelSpec_Openai{
 				Openai: &summarizerv1pb.OpenAIProvider{
 					OpenaiModelId:   "gpt-4o",
-					ApiKeySecretRef: "test-secret",
+					ApiKeySecretRef: "openai-secret",
 				},
 			},
 		}),
@@ -178,11 +197,35 @@ func createSummarizerConfig(t *testing.T, ctx context.Context, sclt summarizerv1
 	require.NoError(t, err)
 
 	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
-		Policy: apisummarizer.NewInferencePolicy("test-policy", &summarizerv1pb.InferencePolicySpec{
+		Policy: apisummarizer.NewInferencePolicy("openai-policy", &summarizerv1pb.InferencePolicySpec{
 			Kinds: []string{
 				string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
 			},
-			Model: "test-model",
+			Filter: `session.cluster_name == "openai-cluster"`,
+			Model:  "openai-model",
+		}),
+	})
+	require.NoError(t, err)
+
+	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		Model: apisummarizer.NewInferenceModel("bedrock-model", &summarizerv1pb.InferenceModelSpec{
+			Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1pb.BedrockProvider{
+					BedrockModelId: "amazon.nova-lite-v1:0",
+					Region:         "us-west-2",
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+		Policy: apisummarizer.NewInferencePolicy("bedrock-policy", &summarizerv1pb.InferencePolicySpec{
+			Kinds: []string{
+				string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
+			},
+			Filter: `session.cluster_name == "bedrock-cluster"`,
+			Model:  "bedrock-model",
 		}),
 	})
 	require.NoError(t, err)
@@ -207,6 +250,18 @@ func (m fakeOpenAIClient) NewChatCompletion(
 ) (*openai.ChatCompletion, error) {
 	// Advance the clock to test if the inference end timestamp is captured.
 	m.clock.Advance(10 * time.Second)
+
+	systemPrompt := body.Messages[0].OfSystem.Content.OfString.Value
+	var responsePrefix string
+	switch {
+	case strings.Contains(systemPrompt, "Analyze this terminal session"):
+		responsePrefix = "The user wrote: "
+	case strings.Contains(systemPrompt, "Analyze this database session"):
+		responsePrefix = "The user queried: "
+	default:
+		return nil, errors.New("Unrecognized prompt")
+	}
+
 	content := body.Messages[1].OfUser.Content.OfString.Value
 	switch content {
 	case "cause an error":
@@ -226,7 +281,7 @@ func (m fakeOpenAIClient) NewChatCompletion(
 		return &openai.ChatCompletion{
 			Choices: []openai.ChatCompletionChoice{{
 				Message: openai.ChatCompletionMessage{
-					Content: "The user wrote: " + content,
+					Content: responsePrefix + content,
 				},
 				FinishReason: "stop",
 			}},
@@ -252,7 +307,10 @@ func TestSummarizer(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	srv := newSummarizerTestTLSServer(t, eventstest.NewMemoryUploader())
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:      eventstest.NewMemoryUploader(),
+		enableBedrock: true,
+	})
 
 	createTestUser(t, srv, "alice")
 	clt, err := srv.NewClient(authtest.TestUser("alice"))
@@ -260,137 +318,213 @@ func TestSummarizer(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 	createSummarizerConfig(t, ctx, sclt)
 
-	sshSessionID := "24d8542a-8a7d-4683-a59b-18adc3a71f11"
-	kubeSessionID := "8fef2bf5-3efa-4c5d-8502-9410dea3dc94"
-	dbSessionID := "44608ee9-af78-4970-b523-ac4eb6121de7"
-	errorSessionID := "9a0ec7f5-2d1c-4c15-bb8c-9ac45864a627"
-	tooLongOutputSessionID := "db309e60-27d3-4f07-9c50-1a088771727a"
-	noChoicesSessionID := "da9f14f7-f068-4269-b2f4-6061a3a133c8"
 	serverID := "9d68b09f-8c0c-49a3-b54d-f8791f0c3941"
+
+	// Test cases will be executed against all known inference provider kinds.
 	cases := []struct {
-		name      string
-		sessionID string
-		events    []apievents.AuditEvent
-		state     summarizerv1pb.SummaryState
-		summary   string
-		error     string
+		name    string
+		setup   func(clusterName string, sessionID string) []apievents.AuditEvent
+		state   summarizerv1pb.SummaryState
+		summary string
+		// errors are mostly inference-provider-specific, so they're indexed by
+		// provider name.
+		errors map[string]string
 	}{
 		{
-			name:      "SSH session",
-			sessionID: sshSessionID,
-			events: eventstest.GenerateTestSession(eventstest.SessionParams{
-				UserName:  "alice",
-				SessionID: sshSessionID,
-				// OpenSSH nodes have cluster name as a suffix.
-				ServerID:  serverID + ".testcluster",
-				PrintData: []string{"net", "stat"},
-			}),
+			name: "SSH session",
+			setup: func(clusterName string, sessionID string) []apievents.AuditEvent {
+				return eventstest.GenerateTestSession(eventstest.SessionParams{
+					ClusterName: clusterName,
+					UserName:    "alice",
+					SessionID:   sessionID,
+					// OpenSSH nodes have cluster name as a suffix.
+					ServerID:  serverID + ".testcluster",
+					PrintData: []string{"net", "stat"},
+				})
+			},
 			state:   summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
 			summary: "The user wrote: netstat",
 		},
 		{
-			name:      "Kubernetes session",
-			sessionID: kubeSessionID,
-			events: generateTestKubeSession(eventstest.SessionParams{
-				UserName:  "alice",
-				SessionID: kubeSessionID,
-				PrintData: []string{"ps ", "aux"},
-			}),
+			name: "Kubernetes session",
+			setup: func(clusterName, sessionID string) []apievents.AuditEvent {
+				return eventstest.GenerateTestKubeSession(eventstest.SessionParams{
+					ClusterName: clusterName,
+					UserName:    "alice",
+					SessionID:   sessionID,
+					PrintData:   []string{"ps ", "aux"},
+				})
+			},
 			state:   summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
 			summary: "The user wrote: ps aux",
 		},
 		{
-			name:      "dynamic database session",
-			sessionID: dbSessionID,
-			events: eventstest.GenerateTestDBSession(eventstest.DBSessionParams{
-				UserName:        "alice",
-				SessionID:       dbSessionID,
-				DatabaseService: "treasure-trove",
-				Queries:         1,
-			}),
+			name: "dynamic database session",
+			setup: func(clusterName string, sessionID string) []apievents.AuditEvent {
+				return eventstest.GenerateTestDBSession(eventstest.DBSessionParams{
+					ClusterName:     clusterName,
+					UserName:        "alice",
+					SessionID:       sessionID,
+					DatabaseService: "treasure-trove",
+					Queries:         1,
+				})
+			},
 			state:   summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
-			summary: "The user wrote: SELECT order_id FROM order where customer_id=0",
+			summary: "The user queried: SELECT order_id FROM order where customer_id=0",
 		},
 		{
-			name:      "error",
-			sessionID: errorSessionID,
-			events: eventstest.GenerateTestSession(eventstest.SessionParams{
-				UserName:  "alice",
-				SessionID: errorSessionID,
-				ServerID:  serverID,
-				// This text will trigger the fake inference provider to fail.
-				PrintData: []string{"cause an error"},
-			}),
+			name: "error",
+			setup: func(clusterName string, sessionID string) []apievents.AuditEvent {
+				return eventstest.GenerateTestSession(eventstest.SessionParams{
+					ClusterName: clusterName,
+					UserName:    "alice",
+					SessionID:   sessionID,
+					ServerID:    serverID,
+					// This text will trigger the fake inference provider to fail.
+					PrintData: []string{"cause an error"},
+				})
+			},
 			state: summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR,
-			error: "OpenAI error",
+			errors: map[string]string{
+				"openai":  "OpenAI error",
+				"bedrock": "operation error Bedrock Runtime: Converse, api error dummy: OMG",
+			},
 		},
 		{
-			name:      "output too long",
-			sessionID: tooLongOutputSessionID,
-			events: eventstest.GenerateTestSession(eventstest.SessionParams{
-				UserName:  "alice",
-				SessionID: tooLongOutputSessionID,
-				ServerID:  serverID,
-				// This text will trigger the fake inference provider to simulate too
-				// long model output.
-				PrintData: []string{"make the output too long"},
-			}),
+			name: "output too long",
+			setup: func(clusterName string, sessionID string) []apievents.AuditEvent {
+				return eventstest.GenerateTestSession(eventstest.SessionParams{
+					ClusterName: clusterName,
+					UserName:    "alice",
+					SessionID:   sessionID,
+					ServerID:    serverID,
+					// This text will trigger the fake inference provider to simulate too
+					// long model output.
+					PrintData: []string{"make the output too long"},
+				})
+			},
 			state: summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR,
-			error: "model response length limit exceeded",
+			errors: map[string]string{
+				"openai":  "model response length limit exceeded",
+				"bedrock": "model response length limit exceeded",
+			},
 		},
 		{
-			name:      "no choices",
-			sessionID: noChoicesSessionID,
-			events: eventstest.GenerateTestSession(eventstest.SessionParams{
-				UserName:  "alice",
-				SessionID: noChoicesSessionID,
-				ServerID:  serverID,
-				// This text will trigger returning an empty choices slice.
-				PrintData: []string{"no choices"},
-			}),
+			name: "no choices",
+			setup: func(clusterName string, sessionID string) []apievents.AuditEvent {
+				return eventstest.GenerateTestSession(eventstest.SessionParams{
+					ClusterName: clusterName,
+					UserName:    "alice",
+					SessionID:   sessionID,
+					ServerID:    serverID,
+					// This text will trigger returning an empty choices slice.
+					PrintData: []string{"no choices"},
+				})
+			},
 			state: summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR,
-			error: "model returned no choices",
+			errors: map[string]string{
+				"openai":  "model returned no choices",
+				"bedrock": "model returned a message without content",
+			},
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := t.Context()
-			startTime := srv.Clock().Now()
+	for _, providerName := range []string{"openai", "bedrock"} {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("%s provider %s", providerName, tc.name), func(t *testing.T) {
+				ctx := t.Context()
+				startTime := srv.Clock().Now()
+				sessionID := uuid.NewString()
+				sessEvents := tc.setup(providerName+"-cluster", sessionID)
 
-			// Ingest an example session.
-			stream, err := srv.Auth().CreateAuditStream(ctx, session.ID(tc.sessionID))
-			require.NoError(t, err)
-			for _, event := range tc.events {
-				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+				// Ingest an example session.
+				stream, err := srv.Auth().CreateAuditStream(ctx, session.ID(sessionID))
 				require.NoError(t, err)
-			}
-			err = stream.Complete(ctx)
-			require.NoError(t, err)
+				for _, event := range sessEvents {
+					err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+					require.NoError(t, err)
+				}
+				err = stream.Complete(ctx)
+				require.NoError(t, err)
 
-			summary := waitForSummary(t, ctx, sclt, tc.sessionID)
+				summary := waitForSummary(t, ctx, sclt, sessionID)
 
-			sef, err := events.ToEventFields(tc.events[len(tc.events)-1])
-			require.NoError(t, err)
-			expectedEndEvent, err := structpb.NewStruct(sef)
-			require.NoError(t, err)
+				sef, err := events.ToEventFields(sessEvents[len(sessEvents)-1])
+				require.NoError(t, err)
+				expectedEndEvent, err := structpb.NewStruct(sef)
+				require.NoError(t, err)
 
-			assert.Empty(t, cmp.Diff(
-				&summarizerv1pb.Summary{
-					SessionId:           tc.sessionID,
-					State:               tc.state,
-					InferenceStartedAt:  timestamppb.New(startTime),
-					InferenceFinishedAt: timestamppb.New(startTime.Add(10 * time.Second)),
-					Content:             tc.summary,
-					ModelName:           "test-model",
-					SessionEndEvent:     expectedEndEvent,
-					ErrorMessage:        tc.error,
-				},
-				summary,
-				protocmp.Transform(),
-			))
-		})
+				assert.Empty(t, cmp.Diff(
+					&summarizerv1pb.Summary{
+						SessionId:           sessionID,
+						State:               tc.state,
+						InferenceStartedAt:  timestamppb.New(startTime),
+						InferenceFinishedAt: timestamppb.New(startTime.Add(10 * time.Second)),
+						Content:             tc.summary,
+						ModelName:           providerName + "-model",
+						SessionEndEvent:     expectedEndEvent,
+						ErrorMessage:        tc.errors[providerName],
+					},
+					summary,
+					protocmp.Transform(),
+				))
+			})
+		}
 	}
+}
+
+func TestSummarizer_BedrockDisabled(t *testing.T) {
+	ctx := t.Context()
+
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:      eventstest.NewMemoryUploader(),
+		enableBedrock: false,
+	})
+
+	// What we test here is a secondary line of defense in case a Bedrock
+	// resource somehow appears in the backend. Since a server that has Bedrock
+	// disabled will also disable adding Bedrock models, we need to inject one by
+	// creating a separate summarizer service with the same backend, but Bedrock
+	// enabled.
+	ssrvWithBedrock, err := local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend:       srv.AuthServer.Backend,
+		EnableBedrock: true,
+	})
+	require.NoError(t, err)
+
+	_, err = ssrvWithBedrock.CreateInferenceModel(ctx, apisummarizer.NewInferenceModel(
+		"bedrock-model",
+		&summarizerv1pb.InferenceModelSpec{
+			Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1pb.BedrockProvider{
+					BedrockModelId: "amazon.nova-lite-v1:0",
+					Region:         "us-west-2",
+				},
+			},
+		}),
+	)
+	require.NoError(t, err)
+
+	_, err = ssrvWithBedrock.CreateInferencePolicy(ctx, apisummarizer.NewInferencePolicy(
+		"bedrock-policy",
+		&summarizerv1pb.InferencePolicySpec{
+			Kinds: []string{
+				string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
+			},
+			Filter: `session.cluster_name == "bedrock-cluster"`,
+			Model:  "bedrock-model",
+		}),
+	)
+	require.NoError(t, err)
+
+	sessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		ClusterName: "bedrock-cluster",
+	})
+
+	err = srv.AuthServer.SessionSummarizerProvider.SessionSummarizer().SummarizeSSH(
+		ctx, sessEvents[len(sessEvents)-1].(*apievents.SessionEnd))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, trace.AccessDenied("Amazon Bedrock models are unavailable in Teleport Cloud"))
 }
 
 func TestSummarizerNoEndEvent(t *testing.T) {
@@ -402,10 +536,11 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 	sshSessionID := "24d8542a-8a7d-4683-a59b-18adc3a71f11"
 	serverID := "9d68b09f-8c0c-49a3-b54d-f8791f0c3941"
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{
-		UserName:  "alice",
-		SessionID: sshSessionID,
-		ServerID:  serverID,
-		PrintData: []string{"net", "stat"},
+		ClusterName: "openai-cluster",
+		UserName:    "alice",
+		SessionID:   sshSessionID,
+		ServerID:    serverID,
+		PrintData:   []string{"net", "stat"},
 	})
 
 	// Ingest an example session.
@@ -425,7 +560,9 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create the auth server.
-	srv := newSummarizerTestTLSServer(t, uploader)
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader: uploader,
+	})
 
 	createTestUser(t, srv, "alice")
 	clt, err := srv.NewClient(authtest.TestUser("alice"))
@@ -453,121 +590,11 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 			InferenceStartedAt:  timestamppb.New(startTime),
 			InferenceFinishedAt: timestamppb.New(startTime.Add(10 * time.Second)),
 			Content:             "The user wrote: netstat",
-			ModelName:           "test-model",
+			ModelName:           "openai-model",
 			SessionEndEvent:     expectedEndEvent,
 			ErrorMessage:        "",
 		},
 		summary,
 		protocmp.Transform(),
 	))
-}
-
-// generateTestKubeSession is a copy of [eventstest.GenerateTestSession]
-// modified to return a dummy Kubernetes session data.
-// TODO(bl-nero): move it where it belongs.
-func generateTestKubeSession(params eventstest.SessionParams) []apievents.AuditEvent {
-	params.SetDefaults()
-	connectionMetadata := apievents.ConnectionMetadata{
-		LocalAddr:  "127.0.0.1:3022",
-		RemoteAddr: "[::1]:37718",
-		Protocol:   events.EventProtocolKube,
-	}
-	kubernetesClusterMetadata := apievents.KubernetesClusterMetadata{
-		KubernetesCluster: "my-kube-cluster",
-		KubernetesUsers:   []string{"admin"},
-		KubernetesGroups:  []string{"viewers"},
-		KubernetesLabels: map[string]string{
-			"teleport.internal/resource-id": "ed910b7b-fe3b-4959-bf2e-ac45f4648f2a",
-		},
-	}
-	kubernetesPodMetadata := apievents.KubernetesPodMetadata{
-		KubernetesPodName:        "simple-shell-pod",
-		KubernetesPodNamespace:   "default",
-		KubernetesContainerName:  "shell-container",
-		KubernetesContainerImage: "busybox",
-		KubernetesNodeName:       "docker-desktop",
-	}
-	sessionStart := apievents.SessionStart{
-		Metadata: apievents.Metadata{
-			Index:       0,
-			Type:        events.SessionStartEvent,
-			ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
-			Code:        events.SessionStartCode,
-			Time:        params.Clock.Now().UTC(),
-			ClusterName: params.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion: teleport.Version,
-			ServerID:      params.ServerID,
-			ServerLabels: map[string]string{
-				"teleport.internal/resource-id": "ed910b7b-fe3b-4959-bf2e-ac45f4648f2a",
-			},
-			ServerHostname:  "planet",
-			ServerNamespace: "default",
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: params.SessionID,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:  params.UserName,
-			Login: "bob",
-		},
-		ConnectionMetadata:        connectionMetadata,
-		TerminalSize:              "80:25",
-		KubernetesClusterMetadata: kubernetesClusterMetadata,
-		KubernetesPodMetadata:     kubernetesPodMetadata,
-	}
-
-	sessionEnd := apievents.SessionEnd{
-		Metadata: apievents.Metadata{
-			Index: 20,
-			Type:  events.SessionEndEvent,
-			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-			Code:  events.SessionEndCode,
-			Time:  params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        params.ServerID,
-			ServerNamespace: "default",
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: params.SessionID,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User: params.UserName,
-		},
-		ConnectionMetadata:        connectionMetadata,
-		EnhancedRecording:         true,
-		Interactive:               true,
-		Participants:              []string{params.UserName},
-		StartTime:                 params.Clock.Now().UTC(),
-		EndTime:                   params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
-		KubernetesClusterMetadata: kubernetesClusterMetadata,
-		KubernetesPodMetadata:     kubernetesPodMetadata,
-	}
-
-	genEvents := []apievents.AuditEvent{&sessionStart}
-	for i, data := range params.PrintData {
-		event := &apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Index: int64(i) + 1,
-				Type:  events.SessionPrintEvent,
-				Time:  params.Clock.Now().UTC().Add(time.Minute + time.Duration(i)*time.Millisecond),
-			},
-			ChunkIndex:        int64(i),
-			DelayMilliseconds: int64(i),
-			Offset:            int64(i),
-			Data:              []byte(data),
-		}
-		event.Bytes = int64(len(event.Data))
-		event.Time = event.Time.Add(time.Duration(i) * time.Millisecond)
-
-		genEvents = append(genEvents, event)
-	}
-
-	sessionEnd.Metadata.Index = int64(len(genEvents))
-	genEvents = append(genEvents, &sessionEnd)
-
-	return genEvents
 }

@@ -350,6 +350,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Streamer:        p.authServer.AuthServer,
 			SummaryUploader: p.authServer.AuthServer,
 			Clock:           p.authServer.AuthServer.GetClock(),
+			// TODO(bl-nero): Relax this condition once we implement spend controls.
+			EnableBedrock: !modules.GetModules().Features().Cloud,
 		})
 		if err != nil {
 			return trace.Wrap(err)

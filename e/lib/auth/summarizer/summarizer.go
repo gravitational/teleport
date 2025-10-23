@@ -22,8 +22,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -46,8 +48,15 @@ type SummarizerConfig struct {
 	// OpenAIClientFactory creates OpenAI clients. Defaults to a production
 	// implementation.
 	OpenAIClientFactory openai.ClientFactory
+	// BedrockClientFactory creates Amazon Bedrock clients. Defaults to a
+	// production implementation.
+	BedrockClientFactory bedrock.ClientFactory
 	// Clock is used for time calculations. Defaults to a real clock.
 	Clock clockwork.Clock
+	// EnableBedrock enables access to Amazon Bedrock models. Currently, this
+	// should only be turned on outside Teleport Cloud. Setting it to true allows
+	// using inference_model resources for inference.
+	EnableBedrock bool
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -63,7 +72,7 @@ type InferenceProvider interface {
 	// Summarizes a session. Should close the session reader when it's no longer
 	// needed.
 	Summarize(
-		ctx context.Context, sessionID session.ID, sessionKind types.SessionKind, reader io.ReadCloser,
+		ctx context.Context, sessionID session.ID, systemPrompt string, reader io.ReadCloser,
 	) (string, error)
 }
 
@@ -71,13 +80,15 @@ type InferenceProvider interface {
 // inference.
 type SessionSummarizer struct {
 	// TODO(bl-nero): use cache instead of raw backend.
-	backend             services.Summarizer
-	streamer            events.SessionStreamer
-	summaryUploader     SummaryUploader
-	openAIClientFactory openai.ClientFactory
-	clock               clockwork.Clock
-	logger              *slog.Logger
-	concurrencyLimiter  *semaphore.Weighted
+	backend              services.Summarizer
+	streamer             events.SessionStreamer
+	summaryUploader      SummaryUploader
+	openAIClientFactory  openai.ClientFactory
+	bedrockClientFactory bedrock.ClientFactory
+	clock                clockwork.Clock
+	logger               *slog.Logger
+	concurrencyLimiter   *semaphore.Weighted
+	enableBedrock        bool
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -101,13 +112,15 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	}
 
 	return &SessionSummarizer{
-		backend:             cfg.Backend,
-		streamer:            cfg.Streamer,
-		summaryUploader:     cfg.SummaryUploader,
-		openAIClientFactory: cfg.OpenAIClientFactory,
-		clock:               clock,
-		logger:              slog.With(teleport.ComponentKey, "summarizer"),
-		concurrencyLimiter:  semaphore.NewWeighted(concurrencyLimit),
+		backend:              cfg.Backend,
+		streamer:             cfg.Streamer,
+		summaryUploader:      cfg.SummaryUploader,
+		openAIClientFactory:  cfg.OpenAIClientFactory,
+		bedrockClientFactory: cfg.BedrockClientFactory,
+		clock:                clock,
+		logger:               slog.With(teleport.ComponentKey, "summarizer"),
+		concurrencyLimiter:   semaphore.NewWeighted(concurrencyLimit),
+		enableBedrock:        cfg.EnableBedrock,
 	}, nil
 }
 
@@ -166,6 +179,16 @@ func (s *SessionSummarizer) summarize(
 	sessionEndEvent apievents.AuditEvent,
 	userName string,
 ) error {
+	var systemPrompt string
+	switch kind {
+	case types.SSHSessionKind, types.KubernetesSessionKind:
+		systemPrompt = prompts.SSHPrompt
+	case types.DatabaseSessionKind:
+		systemPrompt = prompts.DatabasePrompt
+	default:
+		return trace.BadParameter("unsupported session kind: %v", kind)
+	}
+
 	user, err := buildUserFromEvent(sessionEndEvent)
 	if err != nil {
 		return trace.Wrap(err, "failed to build user from event")
@@ -219,7 +242,7 @@ func (s *SessionSummarizer) summarize(
 	// wildly inconsistent behavior when overwriting existing files, so we can
 	// only save the terminal state. Fix this and then enable the pending state.
 
-	go s.summarizeNowAndReportMetrics(ctx, sessionID, provider, kind, pendingResult)
+	go s.summarizeNowAndReportMetrics(ctx, sessionID, provider, systemPrompt, pendingResult)
 	return nil
 }
 
@@ -227,11 +250,11 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(
 	ctx context.Context,
 	sessionID session.ID,
 	provider InferenceProvider,
-	kind types.SessionKind,
+	systemPrompt string,
 	pendingResult *summarizerv1pb.Summary,
 ) {
 	metrics.SummarizationsTotal.WithLabelValues(pendingResult.ModelName).Inc()
-	err := s.summarizeNow(ctx, sessionID, provider, kind, pendingResult)
+	err := s.summarizeNow(ctx, sessionID, provider, systemPrompt, pendingResult)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", sessionID, "error", err)
 		metrics.SummarizationErrors.WithLabelValues(pendingResult.ModelName).Inc()
@@ -251,7 +274,7 @@ func (s *SessionSummarizer) summarizeNow(
 	ctx context.Context,
 	sessionID session.ID,
 	provider InferenceProvider,
-	kind types.SessionKind,
+	systemPrompt string,
 	pendingResult *summarizerv1pb.Summary,
 ) error {
 	// TODO(bl-nero): Make the timeout configurable, or at least depend on the
@@ -281,7 +304,7 @@ func (s *SessionSummarizer) summarizeNow(
 	} else {
 		defer s.concurrencyLimiter.Release(1)
 		var summaryContent string // Need to declare it here to prevent shadowing sumErr
-		summaryContent, sumErr = provider.Summarize(ctx, sessionID, kind, reader)
+		summaryContent, sumErr = provider.Summarize(ctx, sessionID, systemPrompt, reader)
 		if sumErr != nil {
 			sumErr = trace.Wrap(sumErr)
 			// log.ErrorContext(ctx, "Failed to summarize session", "error", sumErr)
@@ -403,6 +426,18 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			Backend:           s.backend,
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.openAIClientFactory,
+			ModelResourceName: modelName,
+		})
+		return p, trace.Wrap(err)
+
+	case *summarizerv1pb.InferenceModelSpec_Bedrock:
+		if !s.enableBedrock {
+			return nil, trace.AccessDenied("Amazon Bedrock models are unavailable in Teleport Cloud")
+		}
+		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
+			Spec:              providerCfg.Bedrock,
+			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
+			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: modelName,
 		})
 		return p, trace.Wrap(err)

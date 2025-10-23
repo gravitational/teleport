@@ -1,4 +1,4 @@
-package openai
+package bedrock
 
 import (
 	"context"
@@ -7,10 +7,12 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/param"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -18,17 +20,18 @@ import (
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
 	// TODO(bl-nero): add context window size detection and adaptive algorithm.
-	defaultMaxSessionLength       = 200_000 // bytes
-	maxCompletionTokens     int64 = 4000
-	// labelApiErrorCode is a Prometheus metric label that carries the OpenAI API
-	// error code.
+	// Nova Lite gives us 300k tokens, so we should never exceed this value in
+	// practice if this model is used.
+	defaultMaxSessionLength       = 300_000 // bytes
+	maxCompletionTokens     int32 = 4000
+	// labelApiErrorCode is a Prometheus metric label that carries the Bedrock
+	// API error code.
 	labelApiErrorCode = "api_error_code"
 )
 
@@ -36,22 +39,22 @@ var (
 	apiRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: metrics.SummarizerSubsystem,
-		Name:      "openai_api_requests",
-		Help:      "Number of requests to the OpenAI API",
+		Name:      "bedrock_api_requests",
+		Help:      "Number of requests to the Amazon Bedrock API",
 	}, []string{metrics.LabelInferenceModelName})
 
 	apiErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: metrics.SummarizerSubsystem,
-		Name:      "openai_api_errors",
-		Help:      "Number of errors returned by OpenAI API",
+		Name:      "bedrock_api_errors",
+		Help:      "Number of errors returned by Amazon Bedrock API",
 	}, []string{metrics.LabelInferenceModelName, labelApiErrorCode})
 
 	apiRequestsInFlight = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: teleport.MetricNamespace,
 		Subsystem: metrics.SummarizerSubsystem,
-		Name:      "openai_api_requests_in_flight",
-		Help:      "Number of OpenAI API requests currently in flight",
+		Name:      "bedrock_api_requests_in_flight",
+		Help:      "Number of Amazon Bedrock API requests currently in flight",
 	}, []string{metrics.LabelInferenceModelName})
 )
 
@@ -59,11 +62,11 @@ func init() {
 	libmetrics.RegisterPrometheusCollectors(apiRequests, apiErrors, apiRequestsInFlight)
 }
 
-// ProviderConfig holds the configuration for the OpenAI inference provider.
+// ProviderConfig holds the configuration for the Amazon Bedrock inference
+// provider.
 type ProviderConfig struct {
-	Spec    *summarizerv1pb.OpenAIProvider
-	Backend services.Summarizer
-	// ClientFactory is used to create OpenAI clients. Can be overridden for
+	Spec *summarizerv1pb.BedrockProvider
+	// ClientFactory is used to create Bedrock clients. Can be overridden for
 	// testing. Defaults to a production implementation.
 	ClientFactory ClientFactory
 	// MaxSessionLength is the maximum length of a session recording that can be
@@ -75,57 +78,43 @@ type ProviderConfig struct {
 	ModelResourceName string
 }
 
-// ClientFactory is an interface for creating OpenAI clients.
+// ClientFactory is an interface for creating Bedrock clients.
 type ClientFactory interface {
-	NewClient(opts ...option.RequestOption) Client
-}
-
-// Client is an interface for the OpenAI client used to make requests.
-type Client interface {
-	NewChatCompletion(
-		ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
-	) (*openai.ChatCompletion, error)
+	NewFromConfig(cfg aws.Config) Client
 }
 
 type defaultClientFactory struct{}
 
-func (defaultClientFactory) NewClient(opts ...option.RequestOption) Client {
-	return &defaultClient{clt: openai.NewClient(opts...)}
+func (defaultClientFactory) NewFromConfig(cfg aws.Config) Client {
+	return bedrockruntime.NewFromConfig(cfg)
 }
 
-type defaultClient struct {
-	clt openai.Client
+type Client interface {
+	Converse(
+		ctx context.Context, params *bedrockruntime.ConverseInput, optFns ...func(*bedrockruntime.Options),
+	) (*bedrockruntime.ConverseOutput, error)
 }
 
-// NewChatCompletion makes a new chat completion request to the real OpenAI
-// API.
-func (c *defaultClient) NewChatCompletion(
-	ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
-) (*openai.ChatCompletion, error) {
-	return c.clt.Chat.Completions.New(ctx, body, opts...)
-}
-
-// InferenceProvider is an OpenAI inference provider that summarizes session
-// recordings.
+// InferenceProvider is an Amazon Bedrock inference provider that summarizes
+// session recordings.
 type InferenceProvider struct {
-	openAIModelName   openai.ChatModel
-	temperature       float64
+	bedrockModelID    string
+	temperature       float32
 	maxSessionLength  int64
 	client            Client
 	logger            *slog.Logger
 	modelResourceName string
 }
 
-// NewProvider creates a new OpenAI inference provider.
 func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, error) {
 	if cfg.Spec == nil {
 		return nil, trace.BadParameter("provider spec is required")
 	}
-	if cfg.Backend == nil {
-		return nil, trace.BadParameter("backend is required")
-	}
 	if cfg.ModelResourceName == "" {
 		return nil, trace.BadParameter("model resource name is required")
+	}
+	if cfg.Spec.GetRegion() == "" {
+		return nil, trace.BadParameter("region is required")
 	}
 
 	clientFactory := cfg.ClientFactory
@@ -138,21 +127,19 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 		maxSessionLength = defaultMaxSessionLength
 	}
 
-	apiKey, err := cfg.Backend.GetInferenceSecret(ctx, cfg.Spec.ApiKeySecretRef)
+	awscfg, err := config.LoadDefaultConfig(
+		ctx,
+		config.WithRegion(cfg.Spec.GetRegion()),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clientOptions := []option.RequestOption{option.WithAPIKey(apiKey.GetSpec().GetValue())}
-	baseURL := cfg.Spec.GetBaseUrl()
-	if baseURL != "" {
-		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
-	}
-	client := clientFactory.NewClient(clientOptions...)
+	client := clientFactory.NewFromConfig(awscfg)
 
-	logger := slog.With(teleport.ComponentKey, "openai", "inference_model", cfg.ModelResourceName)
+	logger := slog.With(teleport.ComponentKey, "bedrock", "inference_model", cfg.ModelResourceName)
 	return &InferenceProvider{
-		openAIModelName:   cfg.Spec.GetOpenaiModelId(),
+		bedrockModelID:    cfg.Spec.GetBedrockModelId(),
 		temperature:       cfg.Spec.GetTemperature(),
 		maxSessionLength:  maxSessionLength,
 		client:            client,
@@ -161,7 +148,7 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 	}, nil
 }
 
-// Summarize summarizes a session recording using OpenAI. Closes the reader
+// Summarize summarizes a session recording using Bedrock. Closes the reader
 // when it's no longer needed.
 func (p *InferenceProvider) Summarize(
 	ctx context.Context, sessionID session.ID, systemPrompt string, reader io.ReadCloser,
@@ -185,22 +172,35 @@ func (p *InferenceProvider) Summarize(
 	// We have read enough, we may close the reader.
 	reader.Close()
 
-	completionParams := openai.ChatCompletionNewParams{
-		Model: p.openAIModelName,
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(systemPrompt),
-			openai.UserMessage(string(transcript)),
+	maxTokens := maxCompletionTokens
+	convInput := bedrockruntime.ConverseInput{
+		ModelId: &p.bedrockModelID,
+		InferenceConfig: &bedrocktypes.InferenceConfiguration{
+			MaxTokens: &maxTokens,
 		},
-		MaxCompletionTokens: param.NewOpt(maxCompletionTokens),
+		System: []bedrocktypes.SystemContentBlock{
+			&bedrocktypes.SystemContentBlockMemberText{
+				Value: systemPrompt,
+			},
+		},
+		Messages: []bedrocktypes.Message{{
+			Role: bedrocktypes.ConversationRoleUser,
+			Content: []bedrocktypes.ContentBlock{
+				&bedrocktypes.ContentBlockMemberText{
+					Value: string(transcript),
+				},
+			},
+		},
+		},
 	}
 
 	if p.temperature > 0.0 {
-		completionParams.Temperature = param.NewOpt(p.temperature)
+		convInput.InferenceConfig.Temperature = &p.temperature
 	}
 
-	p.logger.DebugContext(ctx, "Sending request to OpenAI",
+	p.logger.DebugContext(ctx, "Sending request to Bedrock",
 		"session_id", sessionID,
-		"model", completionParams.Model,
+		"model", convInput.ModelId,
 	)
 
 	apiRequests.WithLabelValues(p.modelResourceName).Inc()
@@ -208,41 +208,53 @@ func (p *InferenceProvider) Summarize(
 	reqInFlightMetric.Inc()
 	defer reqInFlightMetric.Dec()
 
-	completion, err := p.client.NewChatCompletion(ctx, completionParams)
+	resp, err := p.client.Converse(ctx, &convInput)
 	if err != nil {
-		var apierr *openai.Error
+		var apierr smithy.APIError
 		if errors.As(err, &apierr) {
 			apiErrors.With(prometheus.Labels{
 				metrics.LabelInferenceModelName: p.modelResourceName,
-				labelApiErrorCode:               apierr.Code,
+				labelApiErrorCode:               apierr.ErrorCode(),
 			}).Inc()
 		}
+
 		return "", trace.Wrap(err)
 	}
 
-	if len(completion.Choices) == 0 {
-		return "", trace.Wrap(summarizererrors.BadResponseError{
-			Message: "model returned no choices",
-		})
-	}
+	switch resp.StopReason {
+	case bedrocktypes.StopReasonEndTurn:
+		msg, ok := resp.Output.(*bedrocktypes.ConverseOutputMemberMessage)
+		if !ok {
+			return "", trace.Wrap(summarizererrors.BadResponseError{
+				Message: fmt.Sprintf("expected ConverseOutputMemberMessage, got %T", resp.Output),
+			})
+		}
+		if msg == nil {
+			return "", trace.Wrap(summarizererrors.BadResponseError{
+				Message: "model did not return any output message",
+			})
+		}
 
-	choice := completion.Choices[0]
-	p.logger.DebugContext(ctx, "Session summary generated",
-		"session_id", sessionID,
-		"session_length", len(transcript),
-		"prompt_tokens", completion.Usage.PromptTokens,
-		"completion_tokens", completion.Usage.CompletionTokens,
-		"finish_reason", choice.FinishReason,
-	)
+		result := ""
+		for _, block := range msg.Value.Content {
+			text, ok := block.(*bedrocktypes.ContentBlockMemberText)
+			if ok {
+				result += text.Value
+			}
+		}
 
-	switch choice.FinishReason {
-	case string(openai.CompletionChoiceFinishReasonStop):
-		return choice.Message.Content, nil
-	case string(openai.CompletionChoiceFinishReasonLength):
-		return choice.Message.Content, trace.LimitExceeded("model response length limit exceeded")
+		if result == "" {
+			return "", trace.Wrap(summarizererrors.BadResponseError{
+				Message: "model returned a message without content",
+			})
+		}
+
+		return result, nil
+	case bedrocktypes.StopReasonMaxTokens:
+		return "", trace.LimitExceeded("model response length limit exceeded")
 	default:
-		return choice.Message.Content, trace.Wrap(summarizererrors.BadResponseError{
-			Message: fmt.Sprintf("model returned unexpected finish reason: %q", choice.FinishReason),
+		return "", trace.Wrap(summarizererrors.BadResponseError{
+			Message: fmt.Sprintf("model returned unexpected stop reason: %q", resp.StopReason),
 		})
 	}
 }
