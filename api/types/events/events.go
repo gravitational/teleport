@@ -80,15 +80,16 @@ func computeEventID(evt AuditEvent, payload []byte) string {
 }
 
 // trimStr trims a string to a given length.
-func trimStr(s string, n int) string {
+func trimStr[T string | []byte](s T, n int) T {
 	// Starting at 2 to leave room for quotes at the begging and end.
 	charCount := 2
-	for i, r := range s {
+	for i := range len(s) {
 		// Make sure we always have room to add an escape character if necessary.
 		if charCount+1 > n {
 			return s[:i]
 		}
-		if r == rune('"') || r == '\\' {
+		r := rune(s[i])
+		if r == '"' || r == '\\' {
 			charCount++
 		}
 		charCount++
