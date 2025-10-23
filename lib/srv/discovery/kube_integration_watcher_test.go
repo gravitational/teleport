@@ -406,10 +406,9 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
 					},
-					Emitter:            authClient,
-					Log:                logtest.NewLogger(),
-					DiscoveryGroup:     mainDiscoveryGroup,
-					PublicProxyAddress: "proxy.example.com",
+					Emitter:        authClient,
+					Log:            logtest.NewLogger(),
+					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
 			require.NoError(t, err)
