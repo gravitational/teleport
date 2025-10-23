@@ -70,7 +70,7 @@ import {
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
   ConfigService,
@@ -394,33 +394,6 @@ export default class MainProcess {
       return this.resolvedChildProcessAddresses;
     });
 
-    // the handler can remove a single kube config file or entire directory for given cluster
-    ipcMain.handle(
-      'main-process-remove-kube-config',
-      (
-        _,
-        options: {
-          relativePath: string;
-          isDirectory?: boolean;
-        }
-      ) => {
-        const { kubeConfigsDir } = this.settings;
-        const filePath = path.join(kubeConfigsDir, options.relativePath);
-        const isOutOfRoot = filePath.indexOf(kubeConfigsDir) !== 0;
-
-        if (isOutOfRoot) {
-          return Promise.reject('Invalid path');
-        }
-        return fs
-          .rm(filePath, { recursive: !!options.isDirectory })
-          .catch(error => {
-            if (error.code !== 'ENOENT') {
-              throw error;
-            }
-          });
-      }
-    );
-
     ipcMain.handle('main-process-show-file-save-dialog', (_, filePath) =>
       dialog.showSaveDialog({
         defaultPath: path.basename(filePath),
@@ -689,16 +662,6 @@ export default class MainProcess {
       ) => this.appUpdater.changeManagingCluster(args.clusterUri)
     );
 
-    ipcMain.handle(
-      MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
-      (
-        event,
-        args: {
-          clusterUri: RootClusterUri;
-        }
-      ) => this.appUpdater.maybeRemoveManagingCluster(args.clusterUri)
-    );
-
     ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () =>
       this.appUpdater.download()
     );
@@ -723,9 +686,16 @@ export default class MainProcess {
       this.clusterStore.sync(args.clusterUri)
     );
 
-    ipcMain.handle(MainProcessIpc.LogoutAndRemove, (_, args) =>
-      this.clusterStore.logoutAndRemove(args.clusterUri)
-    );
+    ipcMain.handle(MainProcessIpc.Logout, async (_, args) => {
+      // This function checks for updates, do not wait for it.
+      this.appUpdater
+        .maybeRemoveManagingCluster(args.clusterUri)
+        .catch(error => {
+          this.logger.error('Failed to remove managing cluster', error);
+        });
+      await this.removeKubeConfig(args.clusterUri);
+      await this.clusterStore.logoutAndRemove(args.clusterUri);
+    });
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
       const port = ev.ports[0];
@@ -863,6 +833,19 @@ export default class MainProcess {
     });
     daemonStop.stderr.setEncoding('utf-8');
     daemonStop.stderr.on('data', data => logger.error(data));
+  }
+
+  private async removeKubeConfig(clusterUri: RootClusterUri): Promise<void> {
+    const { kubeConfigsDir } = this.settings;
+    const profileName = routing.parseClusterName(clusterUri);
+    const dirPath = path.join(kubeConfigsDir, 'keys', profileName);
+    const isOutOfRoot = dirPath.indexOf(kubeConfigsDir) !== 0;
+
+    if (isOutOfRoot) {
+      throw new Error(`Path is outside kubeConfigsDir ${dirPath}`);
+    }
+    // force: true - exceptions will be ignored if the path does not exist.
+    await fs.rm(dirPath, { recursive: true, force: true });
   }
 
   private logProcessExitAndError(
