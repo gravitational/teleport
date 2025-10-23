@@ -29,6 +29,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	grpc "google.golang.org/grpc"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
@@ -176,20 +177,35 @@ func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *conn
 		return trace.Wrap(err, "starting server stream")
 	}
 
+	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream))
+}
+
+func (s *deviceTrustServer) AuthenticateDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.AuthenticateDeviceRequest, devicepb.AuthenticateDeviceResponse]) error {
+	s.logger.InfoContext(ctx, "AuthenticateDevice has started")
+	defer s.logger.InfoContext(ctx, "AuthenticateDevice has ended")
+	serverStream, err := s.devicesClient.AuthenticateDevice(ctx)
+	if err != nil {
+		return trace.Wrap(err, "starting server stream")
+	}
+
+	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream))
+}
+
+func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger, clientStream *connect.BidiStream[Req, Res], serverStream grpc.BidiStreamingClient[Req, Res]) error {
 	errChan := make(chan error, 2)
 
 	// Forward messages from client to server.
 	go func() {
-		defer s.logger.InfoContext(ctx, "Finished forwarding from client to server")
+		defer logger.InfoContext(ctx, "Finished forwarding from client to server")
 		defer func() {
 			// CloseSend always returns nil error.
 			_ = serverStream.CloseSend()
 		}()
 
 		for {
-			s.logger.InfoContext(ctx, "Waiting for client message")
+			logger.InfoContext(ctx, "Waiting for client message")
 			clientMsg, err := clientStream.Receive()
-			s.logger.InfoContext(ctx, "Got client message", "message", clientMsg, "error", err)
+			logger.InfoContext(ctx, "Got client message", "message", clientMsg, "error", err)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// Client is done sending messages.
@@ -209,11 +225,11 @@ func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *conn
 
 	// Forward messages from server to client.
 	go func() {
-		defer s.logger.InfoContext(ctx, "Finished forwarding from server to client")
+		defer logger.InfoContext(ctx, "Finished forwarding from server to client")
 		for {
-			s.logger.InfoContext(ctx, "Waiting for server message")
+			logger.InfoContext(ctx, "Waiting for server message")
 			serverMsg, err := serverStream.Recv()
-			s.logger.InfoContext(ctx, "Got server message", "message", serverMsg, "error", err)
+			logger.InfoContext(ctx, "Got server message", "message", serverMsg, "error", err)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// Server stream has terminated with an OK status.
