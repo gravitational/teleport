@@ -563,6 +563,14 @@ type sliceWriter struct {
 	retryConfig retryutils.LinearConfig
 	// encrypter wraps writes with encryption
 	encrypter EncryptionWrapper
+	// sessionStartTime is the time of the first event in the session
+	sessionStartTime time.Time
+	// sessionEndTime is the time of the last event in the session
+	sessionEndTime time.Time
+	// shouldProcessSession is set to true if the session should be processed
+	// by the recording metadata service (currently, this is true if the session
+	// is a SSH session).
+	shouldProcessSession bool
 	// sshSessionEndEvent is an event that marked the end of this session if it was
 	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
 	// be nil if the stream picked up after an auth server start from a point
@@ -678,10 +686,22 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 				continue
 			}
-			// Capture the session end event.
+			// Capture the session start time and the last relevant end event time, and the actual end event.
 			switch e := event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionStart:
+				w.sessionStartTime = e.SessionStart.Time
+				w.shouldProcessSession = true
+
+			case *apievents.OneOf_SessionPrint:
+				w.sessionEndTime = e.SessionPrint.Time
+
+			case *apievents.OneOf_Resize:
+				w.sessionEndTime = e.Resize.Time
+
 			case *apievents.OneOf_SessionEnd:
 				w.sshSessionEndEvent = e.SessionEnd
+				w.sessionEndTime = e.SessionEnd.Time
+
 			case *apievents.OneOf_DatabaseSessionEnd:
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
 			}
@@ -814,11 +834,17 @@ func (w *sliceWriter) completeStream() {
 
 		if w.proto.cfg.RecordingMetadataProvider != nil {
 			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
-			// Process every session recording, as there may not be an end event.
-			// The processor will immediately return if the session recording type is not supported.
-			if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID); err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
-				return
+
+			if w.shouldProcessSession {
+				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
+					duration := w.sessionEndTime.Sub(w.sessionStartTime)
+
+					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
+						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
+					}
+				} else {
+					slog.WarnContext(w.proto.cancelCtx, "Session start or end time is not set, skipping recording metadata processing")
+				}
 			}
 		}
 

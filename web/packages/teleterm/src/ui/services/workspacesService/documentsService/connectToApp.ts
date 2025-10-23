@@ -17,6 +17,7 @@
  */
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { getAppProtocol } from 'shared/services/apps';
 
 import {
   getAwsAppLaunchUrl,
@@ -121,7 +122,12 @@ export async function connectToApp(
     targetPort = target.tcpPorts[0].port;
   }
 
-  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
+  const targetProtocol = getAppProtocol(target.endpointUri);
+  await setUpAppGateway(ctx, target.uri, {
+    telemetry,
+    targetPort,
+    targetProtocol,
+  });
 }
 
 export async function setUpAppGateway(
@@ -134,6 +140,10 @@ export async function setUpAppGateway(
      * only for multi-port TCP apps.
      */
     targetPort?: number;
+    /**
+     * targetProtocol is the protocol of the resource proxied by the gateway.
+     */
+    targetProtocol?: string;
   }
 ) {
   const rootClusterUri = routing.ensureRootClusterUri(targetUri);
@@ -146,6 +156,7 @@ export async function setUpAppGateway(
     targetName: routing.parseAppUri(targetUri).params.appId,
     targetUser: '',
     targetSubresourceName: options.targetPort?.toString(),
+    targetProtocol: options.targetProtocol,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);

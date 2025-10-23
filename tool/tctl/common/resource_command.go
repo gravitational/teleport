@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -155,7 +154,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindWindowsDesktop:              rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAccessList:                  rc.createAccessList,
-		types.KindDiscoveryConfig:             rc.createDiscoveryConfig,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
@@ -170,7 +168,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindUserTask:                    rc.createUserTask,
 		types.KindAutoUpdateConfig:            rc.createAutoUpdateConfig,
 		types.KindAutoUpdateVersion:           rc.createAutoUpdateVersion,
-		types.KindGitServer:                   rc.createGitServer,
 		types.KindAutoUpdateAgentRollout:      rc.createAutoUpdateAgentRollout,
 		types.KindAutoUpdateAgentReport:       rc.upsertAutoUpdateAgentReport,
 		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
@@ -197,7 +194,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:            rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:           rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:       rc.updateDynamicWindowsDesktop,
-		types.KindGitServer:                   rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:      rc.updateAutoUpdateAgentRollout,
 		types.KindAutoUpdateAgentReport:       rc.upsertAutoUpdateAgentReport,
 		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
@@ -1310,31 +1306,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	remote := client.DiscoveryConfigClient()
-
-	if rc.force {
-		if _, err := remote.UpsertDiscoveryConfig(ctx, discoveryConfig); err != nil {
-			return trace.Wrap(err)
-		}
-
-		fmt.Printf("DiscoveryConfig %q has been written\n", discoveryConfig.GetName())
-		return nil
-	}
-
-	if _, err := remote.CreateDiscoveryConfig(ctx, discoveryConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("DiscoveryConfig %q has been created\n", discoveryConfig.GetName())
-
-	return nil
-}
-
 func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1707,13 +1678,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
 
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("DiscoveryConfig %q removed\n", rc.ref.Name)
-
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1786,11 +1750,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
-	case types.KindGitServer:
-		if err := client.GitServerClient().DeleteGitServer(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("git_server %q has been deleted\n", rc.ref.Name)
 	case types.KindAutoUpdateConfig:
 		if err := client.DeleteAutoUpdateConfig(ctx); err != nil {
 			return trace.Wrap(err)
@@ -2023,8 +1982,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
-	case types.KindNamespace:
-		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
@@ -2526,22 +2483,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &userTaskCollection{items: tasks}, nil
-	case types.KindDiscoveryConfig:
-		remote := client.DiscoveryConfigClient()
-		if rc.ref.Name != "" {
-			dc, err := remote.GetDiscoveryConfig(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &discoveryConfigCollection{discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dc}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, remote.ListDiscoveryConfigs))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &discoveryConfigCollection{discoveryConfigs: resources}, nil
 	case types.KindAuditQuery:
 		if rc.ref.Name != "" {
 			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
@@ -2704,22 +2645,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &accessMonitoringRuleCollection{items: rules}, nil
-	case types.KindGitServer:
-		if rc.ref.Name != "" {
-			server, err := client.GitServerClient().GetGitServer(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return resources.NewServerCollection([]types.Server{server}), nil
-		}
-
-		servers, err := stream.Collect(clientutils.Resources(ctx, client.GitServerClient().ListGitServers))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// TODO(greedy52) consider making dedicated git server collection.
-		return resources.NewServerCollection(servers), nil
 
 	case types.KindHealthCheckConfig:
 		if rc.ref.Name != "" {
@@ -3231,35 +3156,5 @@ func (rc *ResourceCommand) updateAutoUpdateAgentRollout(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")
-	return nil
-}
-
-func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	server, err := services.UnmarshalGitServer(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if rc.IsForced() {
-		_, err = client.GitServerClient().UpsertGitServer(ctx, server)
-	} else {
-		_, err = client.GitServerClient().CreateGitServer(ctx, server)
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("git server %q has been created\n", server.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	server, err := services.UnmarshalGitServer(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = client.GitServerClient().UpdateGitServer(ctx, server)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("git server %q has been updated\n", server.GetName())
 	return nil
 }
