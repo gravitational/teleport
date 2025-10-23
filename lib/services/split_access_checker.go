@@ -22,6 +22,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/trace"
 )
 
 // CommonAccessChecker defines the common methods that are identical across both scoped and unscoped access checkers.
@@ -153,6 +154,11 @@ func NewScopedSplitAccessCheckerContext(ctx *ScopedAccessCheckerContext) *SplitA
 	return &SplitAccessCheckerContext{
 		scopedContext: ctx,
 	}
+}
+
+// Scoped
+func (c *SplitAccessCheckerContext) Scoped() *ScopedAccessCheckerContext {
+	return c.scopedContext
 }
 
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided rules. in practice
