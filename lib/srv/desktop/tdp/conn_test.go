@@ -254,14 +254,16 @@ func TestConnProxy(t *testing.T) {
 
 func TestInterceptor(t *testing.T) {
 	testConn := newMockRWC()
-	fooToBar := func(message Message) (Message, error) {
+	fooToBar := func(message Message) ([]Message, error) {
 		switch string(message.(mockMessage)) {
 		case "foo":
-			return mockMessage("bar"), nil
+			return []Message{mockMessage("bar")}, nil
+		case "many":
+			return []Message{mockMessage("first"), mockMessage("last")}, nil
 		case "omit":
 			return nil, nil
 		}
-		return message, nil
+		return []Message{message}, nil
 	}
 
 	interceptedRWC := NewReadWriteInterceptor(&testConn, fooToBar, fooToBar)
@@ -280,6 +282,12 @@ func TestInterceptor(t *testing.T) {
 	// "omit" message should be dropped, so the next message is "noreplace"
 	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
 
+	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("many")))
+	msg = <-testConn.writeChan
+	assert.Equal(t, "first", string(msg.(mockMessage)))
+	msg = <-testConn.writeChan
+	assert.Equal(t, "last", string(msg.(mockMessage)))
+
 	// Test read interceptor
 	testConn.readChan <- mockMessage("noreplace")
 	msg, err := interceptedRWC.ReadMessage()
@@ -297,4 +305,16 @@ func TestInterceptor(t *testing.T) {
 	msg, err = interceptedRWC.ReadMessage()
 	require.NoError(t, err)
 	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+
+	testConn.readChan <- mockMessage("many")
+	msg, err = interceptedRWC.ReadMessage()
+	require.NoError(t, err)
+	assert.Equal(t, "first", string(msg.(mockMessage)))
+	msg, err = interceptedRWC.ReadMessage()
+	require.NoError(t, err)
+	assert.Equal(t, "last", string(msg.(mockMessage)))
+
+	require.NoError(t, interceptedRWC.Close())
+	_, err = interceptedRWC.ReadMessage()
+	require.Error(t, err)
 }
