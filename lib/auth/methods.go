@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -695,19 +696,21 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var loginIP, userAgent string
+	var loginIP, userAgent, proxyPublicAddr string
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userAgent = cm.UserAgent
+		proxyPublicAddr = cm.ProxyPublicAddr
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:                 user.GetName(),
 		LoginIP:              loginIP,
 		LoginUserAgent:       userAgent,
+		LoginProxyPublicAddr: proxyPublicAddr,
 		Roles:                user.GetRoles(),
 		Traits:               user.GetTraits(),
 		LoginTime:            a.clock.Now().UTC(),
@@ -812,7 +815,16 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	UserLoginCount.Inc()
+
+	var userAgent, proxyPublicAddr string
+	if req.ClientMetadata != nil {
+		userAgent = req.ClientMetadata.UserAgent
+		proxyPublicAddr = req.ClientMetadata.ProxyPublicAddr
+	}
+	UserLoginCount.With(prometheus.Labels{
+		teleport.TagUserAgent: userAgent,
+		teleport.TagProxy:     proxyPublicAddr,
+	}).Inc()
 
 	var clientOptions authclient.ClientOptions
 	if o, err := a.ClientOptionsForLogin(user); err == nil {

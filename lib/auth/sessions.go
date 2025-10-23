@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -58,6 +59,8 @@ type NewWebSessionRequest struct {
 	// LoginUserAgent is the user agent of the client's browser, as captured by
 	// the Proxy.
 	LoginUserAgent string
+	// LoginProxyPublicAddr is the proxy public address where request is generated.
+	LoginProxyPublicAddr string
 	// Roles optionally lists additional user roles
 	Roles []string
 	// Traits optionally lists role traits
@@ -344,7 +347,11 @@ func (a *Server) newWebSession(
 		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
 	}
-	UserLoginCount.Inc()
+
+	UserLoginCount.With(prometheus.Labels{
+		teleport.TagUserAgent: "web/" + teleport.Version,
+		teleport.TagProxy:     req.LoginProxyPublicAddr,
+	}).Inc()
 
 	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
 	if err != nil {
@@ -609,7 +616,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
-	UserLoginCount.Inc()
+
+	UserLoginCount.With(prometheus.Labels{
+		teleport.TagUserAgent: "web/" + teleport.Version,
+		teleport.TagProxy:     req.LoginProxyPublicAddr,
+	}).Inc()
 
 	// Do not send app session start for MCP. They have their own events on
 	// connections.
