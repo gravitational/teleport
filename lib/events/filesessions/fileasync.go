@@ -399,8 +399,12 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 
 		var buf bytes.Buffer
 		yieldNext := func() bool {
-			defer buf.Reset()
-			return yield(buf.Bytes(), nil)
+			// Copy the buffer to a new []byte so that the next
+			// iteration doesn't wipe the previous yielded bytes.
+			bytes := make([]byte, buf.Len())
+			copy(bytes, buf.Bytes())
+			buf.Reset()
+			return yield(bytes, nil)
 		}
 
 		for {

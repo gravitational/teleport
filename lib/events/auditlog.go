@@ -658,11 +658,6 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.BadParameter("unexpected empty upload")
 	}
 
-	// TODO(Joerger): With the iterator being passed here, it is not safe to call
-	// next without consuming the current value. This needs to be fixed by the caller.
-	currentPart := make([]byte, len(part))
-	copy(currentPart, part)
-
 	var streamParts []StreamPart
 
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
@@ -682,8 +677,8 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 
 		// If the upload part is not at least the minimum upload part size, and this isn't
 		// the last part, append an empty part to pad up to the minimum upload size.
-		if hasNext && len(currentPart) < MinUploadPartSizeBytes {
-			paddingBytes := max(MinUploadPartSizeBytes-len(currentPart), ProtoStreamV2PartHeaderSize)
+		if hasNext && len(part) < MinUploadPartSizeBytes {
+			paddingBytes := max(MinUploadPartSizeBytes-len(part), ProtoStreamV2PartHeaderSize)
 			paddedPart := make([]byte, paddingBytes)
 
 			paddedPartHeader := PartHeader{
@@ -692,10 +687,10 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 				PartSize:     0,
 			}
 			copy(paddedPart, paddedPartHeader.Bytes())
-			currentPart = append(currentPart, paddedPart...)
+			part = append(part, paddedPart...)
 		}
 
-		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(currentPart))
+		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
 		if err != nil {
 			return trace.Wrap(err, "uploading part")
 		}
@@ -705,11 +700,7 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 			break
 		}
 
-		// TODO(Joerger): With the iterator being passed here, it is not safe to call
-		// next without consuming the current value. This needs to be fixed by the caller.
-		currentPart = make([]byte, len(nextPart))
-		copy(currentPart, nextPart)
-
+		part = nextPart
 		partNumber++
 	}
 
