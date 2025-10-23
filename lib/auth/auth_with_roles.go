@@ -792,6 +792,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	}
 
 	hello.Services = filteredServices
+	hello.Scope = a.context.Identity.GetIdentity().AgentScope
 
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }

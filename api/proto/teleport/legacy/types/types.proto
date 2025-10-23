@@ -208,6 +208,9 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "status"
   ];
+  // The advertized scope of the server. A server's scope can not change once assigned, so
+  // heartbeats must include a scope value matching the one declared in the hello message.
+  string scope = 7;
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -923,6 +926,9 @@ message ServerV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server. A server's scope can not change once assigned, so
+  // heartbeats must include a scope value matching the one declared in the hello message.
+  string scope = 6;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -1030,6 +1036,9 @@ message AppServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the app. An app's scope can not change once assigned, so
+  // heartbeats must include a scope value matching the one declared in the hello message.
+  string scope = 6;
 }
 
 // AppServerSpecV3 is the app access server spec.
@@ -5186,6 +5195,9 @@ message KubernetesServerV3 {
   ];
   // Status is the Kubernetes server status.
   KubernetesServerStatusV3 status = 6;
+  // The advertized scope of the server. A server's scope can not change once assigned, so
+  // heartbeats must include a scope value matching the one declared in the hello message.
+  string scope = 7;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
