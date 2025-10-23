@@ -52,6 +52,7 @@ import (
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/process"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
@@ -185,7 +186,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// create the new pid file only after started successfully
 	if b.cfg.PIDFile != "" {
-		if err := utils.CreateLockedPIDFile(b.cfg.PIDFile); err != nil {
+		if err := process.CreateLockedPIDFile(b.cfg.PIDFile); err != nil {
 			return trace.Wrap(err, "creating pidfile")
 		}
 	}

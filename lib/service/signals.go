@@ -294,7 +294,7 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
-	// When the process exists, the socket files are left behind (to cover
+	// When the process exits, the socket files are left behind (to cover
 	// forking scenarios). To guarantee there won't be errors like "address
 	// already in use", delete the file before starting the listener.
 	if typ.Network() == "unix" {
@@ -318,7 +318,7 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 
 	// The default behavior for unix listeners is to delete the file when the
 	// listener closes (unlinking). However, if the process forks, the file
-	// descriptor will be gone when its parent process exists, causing the new
+	// descriptor will be gone when its parent process exits, causing the new
 	// listener to have no socket file.
 	if unixListener, ok := listener.(*net.UnixListener); ok {
 		unixListener.SetUnlinkOnClose(false)

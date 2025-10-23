@@ -139,7 +139,7 @@ func (s *Service) Run(ctx context.Context) error {
 		}
 	}()
 
-	// When the process exists, the socket files are left behind (to cover
+	// When the process exits, the socket files are left behind (to cover
 	// forking scenarios). To guarantee there won't be errors like "address
 	// already in use", delete the file before starting the listener.
 	if s.diagNetwork == "unix" {
@@ -156,7 +156,7 @@ func (s *Service) Run(ctx context.Context) error {
 
 	// The default behavior for unix listeners is to delete the file when the
 	// listener closes (unlinking). However, if the process forks, the file
-	// descriptor will be gone when its parent process exists, causing the new
+	// descriptor will be gone when its parent process exits, causing the new
 	// listener to have no socket file.
 	if unixListener, ok := listener.(*net.UnixListener); ok {
 		unixListener.SetUnlinkOnClose(false)
