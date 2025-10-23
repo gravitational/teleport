@@ -214,10 +214,17 @@ type OktaAssignment interface {
 	GetCleanupTime() time.Time
 	// SetCleanupTime will set the cleanup time.
 	SetCleanupTime(time.Time)
-	// GetStatus gets the status of the assignment.
+	// GetStatus gets the status (from the resource spec) of the assignment.
 	GetStatus() string
-	// SetStatus sets the status of the eassignment. Only allows valid transitions.
+	// SetStatus sets the status (from the resource spec) of the assignment. Only allows valid
+	// transitions.
 	SetStatus(status string) error
+	// GetResourceStatus gets the actual status field of the resource.
+	// TODO(kopiczko) replace GetStatus with OktaAssignmentStatus.Phase.
+	GetResourceStatus() OktaAssignmentStatus
+	// SetResourceStatus sets the actual status field of the resource.
+	// TODO(kopiczko) replace SetStatus with OktaAssignmentStatus.Phase.
+	SetResourceStatus(status OktaAssignmentStatus)
 	// SetLastTransition sets the last transition time.
 	SetLastTransition(time.Time)
 	// GetLastTransition returns the time that the action last transitioned.
@@ -242,6 +249,22 @@ func NewOktaAssignment(metadata Metadata, spec OktaAssignmentSpecV1) (OktaAssign
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+func ValidateOktaAssignment(a OktaAssignment) error {
+	if a == nil {
+		return nil
+	}
+	protoA, ok := a.(*OktaAssignmentV1)
+	if !ok {
+		return trace.BadParameter("unexpected type %T, want %T", a, protoA)
+	}
+
+	status := a.GetResourceStatus()
+
+	// Use proto to get targets because OktaAssignment.GetTargets makes a copy of the slice.
+	err := status.validate(protoA.Spec.Targets)
+	return trace.Wrap(err)
 }
 
 // SetMetadata will set the metadata for the Okta assignment.
@@ -342,6 +365,14 @@ func (o *OktaAssignmentV1) SetStatus(status string) error {
 	return nil
 }
 
+func (o *OktaAssignmentV1) GetResourceStatus() OktaAssignmentStatus {
+	return oktaAssignmentResourceStatusFromProto(o.Status)
+}
+
+func (o *OktaAssignmentV1) SetResourceStatus(status OktaAssignmentStatus) {
+	o.Status = oktaAssignmentResourceStatusToProto(status)
+}
+
 // SetLastTransition sets the last transition time.
 func (o *OktaAssignmentV1) SetLastTransition(time time.Time) {
 	o.Spec.LastTransition = time.UTC()
@@ -437,6 +468,175 @@ func (o *OktaAssignmentTargetV1) GetID() string {
 	return o.Id
 }
 
+type OktaAssignmentTargetType string
+
+func (t OktaAssignmentTargetType) IsValid() bool {
+	switch t {
+	case OktaAssignmentTargetTypeApplication:
+	case OktaAssignmentTargetTypeGroup:
+	default:
+		return false
+	}
+	return true
+}
+
+type OktaAssignmentPhase string
+
+func (p OktaAssignmentPhase) IsValid() bool {
+	switch p {
+	case OktaAssignmentPhaseProvisioned:
+	case OktaAssignmentPhaseFailed:
+	default:
+		return false
+	}
+	return true
+}
+
+type OktaAssignmentTargetPhase string
+
+func (p OktaAssignmentTargetPhase) IsValid() bool {
+	switch p {
+	case OktaAssignmentTargetPhaseCreated:
+	case OktaAssignmentTargetPhaseError:
+	case OktaAssignmentTargetPhaseUnauthorized:
+	case OktaAssignmentTargetPhaseImported:
+	case OktaAssignmentTargetPhaseDangling:
+	default:
+		return false
+	}
+	return true
+}
+
+const (
+	// OktaAssignmentTargetTypeApplication is an application target of an Okta assignment.
+	OktaAssignmentTargetTypeApplication OktaAssignmentTargetType = constants.OktaAssignmentTargetApplication
+	// OktaAssignmentTargetTypeGroup is a group target of an Okta assignment.
+	OktaAssignmentTargetTypeGroup OktaAssignmentTargetType = constants.OktaAssignmentTargetGroup
+
+	// OktaAssignmentPhaseProvisioned means that all the assignment targets are in either
+	// "created" or "imported" phase.
+	OktaAssignmentPhaseProvisioned OktaAssignmentPhase = "provisioned"
+	// OktaAssignmentPhaseFailed means that one or more of the assignment targets are in either
+	// "error", "unauthorized" or "dangling" phase.
+	OktaAssignmentPhaseFailed OktaAssignmentPhase = "failed"
+
+	// OktaAssignmentTargetPhaseCreated means target was successfully created in Okta.
+	OktaAssignmentTargetPhaseCreated OktaAssignmentTargetPhase = "created"
+	// OktaAssignmentTargetPhaseError means there was an unexpected error during target
+	// provisioning.
+	OktaAssignmentTargetPhaseError OktaAssignmentTargetPhase = "error"
+	// OktaAssignmentTargetPhaseUnauthorized means this target is not managed by Okta
+	// integration or there was a failure establishing if it is managed by the Okta service.
+	// This should not happen and probably indicates a bug.
+	OktaAssignmentTargetPhaseUnauthorized OktaAssignmentTargetPhase = "unauthorized"
+	// OktaAssignmentTargetPhaseImported means the assignment for the target is originated from
+	// Okta (i.e. was created in Okta and not Teleport) and should not be provisioned by
+	// Teleport to not overwrite Okta-side changes.
+	OktaAssignmentTargetPhaseImported OktaAssignmentTargetPhase = "imported"
+	// OktaAssignmentTargetPhaseDangling means that the corresponding Teleport resource
+	// (app_server or user_group) was not found. The resource should be eventually synced back
+	// by the App and Group sync.
+	OktaAssignmentTargetPhaseDangling OktaAssignmentTargetPhase = "dangling"
+)
+
+// OktaAssignmentStatus is the status of the Okta assignment.
+type OktaAssignmentStatus struct {
+	// Phase of the assignment. It can be:
+	// - "provisioned" - all the assignment targets are in either "created" or "imported" phase
+	// - "failed" - one or more of the assignment targets are in either "error", "unauthorized"
+	//   or "dangling" phase
+	// TODO(kopiczko): replace spec.status and spec.finalized with this status.phase; this will most likely need a new "provisioning" phase
+	Phase OktaAssignmentPhase `json:"phase,omitempty" yaml:"phase,omitempty"`
+	// ProcessedAt is the time the resource was processed.
+	ProcessedAt time.Time `json:"processed_at,omitempty" yaml:"processed_at,omitempty"`
+	// Targets status information.
+	Targets OktaAssignmentStatusTargets `json:"targets,omitempty" yaml:"targets,omitempty"`
+}
+
+func (s *OktaAssignmentStatus) validate(specTargets []*OktaAssignmentTargetV1) error {
+	if s == nil {
+		return nil
+	}
+
+	if s.Phase != "" {
+		if !s.Phase.IsValid() {
+			return trace.BadParameter("status.phase: unknown value %q", s.Phase)
+		}
+		if s.ProcessedAt.IsZero() {
+			return trace.BadParameter("status.processed_at: must be set when status.phase is set")
+		}
+
+		if s.Targets.Stats.Total != len(specTargets) {
+			return trace.BadParameter("status.targets.stats.total: [%d] not equal to len(spec.targets) [%d]",
+				s.Targets.Stats.Total, len(specTargets))
+		}
+	}
+
+	if s.Targets.Stats.Total != len(s.Targets.Status) {
+		return trace.BadParameter("status.targets.stats.total: [%d] not equal to len(status.targets.status) [%d]",
+			s.Targets.Stats.Total, len(s.Targets.Status))
+	}
+
+	if s.Targets.Stats.Total != s.Targets.Stats.Provisioned+s.Targets.Stats.Failed {
+		return trace.BadParameter("status.targets.stats: .total [%d] not equal to .provisioned [%d] + .failed [%d]",
+			s.Targets.Stats.Total, s.Targets.Stats.Provisioned, s.Targets.Stats.Failed)
+	}
+
+	for i, ts := range s.Targets.Status {
+		if !ts.Type.IsValid() {
+			return trace.BadParameter("status.targets.status[%d].type: unknown value %q", i, ts.Type)
+		}
+
+		if ts.ID == "" {
+			return trace.BadParameter("status.targets.status[%d].id: must be set", i)
+		}
+
+		if !ts.Phase.IsValid() {
+			return trace.BadParameter("status.targets.status[%d].phase: unknown value %q", i, ts.Phase)
+		}
+
+		if ts.ProcessedAt.IsZero() {
+			return trace.BadParameter("status.targets.status[%d].processed_at: must be set", i)
+		}
+
+		if ts.ProcessedAt.After(s.ProcessedAt) {
+			return trace.BadParameter("status.targets.status[%d].processed_at: is after status.processed_at", i)
+		}
+	}
+
+	return nil
+}
+
+type OktaAssignmentStatusTargets struct {
+	// Stats of the targets.
+	Stats OktaAssignmentStatusTargetsStats `json:"stats,omitempty" yaml:"stats,omitempty"`
+	// Status is a list of individual targets' statuses.
+	Status []OktaAssignmentStatusTargetStatus `json:"status,omitempty" yaml:"status,omitempty"`
+}
+
+type OktaAssignmentStatusTargetsStats struct {
+	// Total is the number of all targets.
+	Total int `json:"total,omitempty" yaml:"total,omitempty"`
+	// Provisioned is the number of targets in "provisioned" phase.
+	Provisioned int `json:"provisioned,omitempty" yaml:"provisioned,omitempty"`
+	// Failed is the number of targets in "failed" phase.
+	Failed int `json:"failed,omitempty" yaml:"failed,omitempty"`
+}
+
+type OktaAssignmentStatusTargetStatus struct {
+	// Type is the type of targeted Okta resource. Can be either "app" or "group".
+	Type OktaAssignmentTargetType `json:"type,omitempty" yaml:"type,omitempty"`
+	// ID is the ID of the targeted Okta resource.
+	ID string `json:"id,omitempty" yaml:"id,omitempty"`
+	// Phase of this assignment target. Can be either "provisioned" or "failed".
+	Phase OktaAssignmentTargetPhase `json:"phase,omitempty" yaml:"phase,omitempty"`
+	// ProcessedAt is the time the target was processed.
+	ProcessedAt time.Time `json:"processed_at,omitempty" yaml:"processed_at,omitempty"`
+	// FailedAttempts is only relevant if the target's phase is "failed" and then it is the
+	// number of failed processing attempts made to provision this target.
+	FailedAttempts int64 `json:"failed_attempts,omitempty" yaml:"failed_attempts,omitempty"`
+}
+
 // OktaAssignments is a list of OktaAssignment resources.
 type OktaAssignments []OktaAssignment
 
@@ -466,23 +666,6 @@ func (o OktaAssignments) Less(i, j int) bool { return o[i].GetName() < o[j].GetN
 
 // Swap swaps two Okta assignments.
 func (o OktaAssignments) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
-
-// OktaAssignmentStatusToProto will convert the internal notion of an Okta status into the Okta status
-// message understood by protobuf.
-func OktaAssignmentStatusToProto(status string) OktaAssignmentSpecV1_OktaAssignmentStatus {
-	switch status {
-	case constants.OktaAssignmentStatusPending:
-		return OktaAssignmentSpecV1_PENDING
-	case constants.OktaAssignmentStatusProcessing:
-		return OktaAssignmentSpecV1_PROCESSING
-	case constants.OktaAssignmentStatusSuccessful:
-		return OktaAssignmentSpecV1_SUCCESSFUL
-	case constants.OktaAssignmentStatusFailed:
-		return OktaAssignmentSpecV1_FAILED
-	default:
-		return OktaAssignmentSpecV1_UNKNOWN
-	}
-}
 
 // OktaAssignmentStatusProtoToString will convert the Okta status known to protobuf into the internal notion
 // of an Okta status.
