@@ -245,6 +245,18 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 		}},
 	}
+	staticMatcherUsingManagedSSMDoc := Matchers{
+		AWS: []types.AWSMatcher{{
+			Types:   []string{"ec2"},
+			Regions: []string{"eu-central-1"},
+			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &types.AWSSSM{DocumentName: "AWS-RunShellScript"},
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+				EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+			},
+		}},
+	}
 
 	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: uuid.NewString()},
@@ -319,7 +331,8 @@ func TestDiscoveryServer(t *testing.T) {
 	require.NoError(t, err)
 
 	tcs := []struct {
-		name string
+		name          string
+		requiresProxy bool
 		// presentInstances is a list of servers already present in teleport.
 		presentInstances          []types.Server
 		foundEC2Instances         []ec2types.Instance
@@ -377,6 +390,88 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "no nodes present, 1 found, using the pre-defined SSM-RunShellScript",
+			requiresProxy:    true,
+			presentInstances: []types.Server{},
+			foundEC2Instances: []ec2types.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
+					}, ae)
+				},
+			},
+			staticMatchers:         staticMatcherUsingManagedSSMDoc,
+			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "fails if proxy address is not available when using AWS-RunShellScript",
+			requiresProxy:    false,
+			presentInstances: []types.Server{},
+			foundEC2Instances: []ec2types.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+				},
+			},
+			staticMatchers:         staticMatcherUsingManagedSSMDoc,
+			wantInstalledInstances: []string{},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -706,6 +801,19 @@ func TestDiscoveryServer(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
+			if tc.requiresProxy {
+				err = testAuthServer.AuthServer.UpsertProxy(ctx, &types.ServerV2{
+					Kind: types.KindProxy,
+					Metadata: types.Metadata{
+						Name: "proxy",
+					},
+					Spec: types.ServerSpecV2{
+						PublicAddrs: []string{"proxy.example.com:443"},
+					},
+				})
+				require.NoError(t, err)
+			}
+
 			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
 				Name: "my-integration",
 			}, &types.AWSOIDCIntegrationSpecV1{
@@ -764,15 +872,14 @@ func TestDiscoveryServer(t *testing.T) {
 				AWSFetchersClients: &mockFetchersClients{
 					AWSConfigProvider: fakeConfigProvider,
 				},
-				ClusterFeatures:    func() proto.Features { return proto.Features{} },
-				KubernetesClient:   fake.NewSimpleClientset(),
-				AccessPoint:        getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
-				Matchers:           tc.staticMatchers,
-				Emitter:            tc.emitter,
-				Log:                logger,
-				DiscoveryGroup:     defaultDiscoveryGroup,
-				clock:              fakeClock,
-				PublicProxyAddress: "proxy.example.com",
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
+				KubernetesClient: fake.NewSimpleClientset(),
+				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
+				Matchers:         tc.staticMatchers,
+				Emitter:          tc.emitter,
+				Log:              logger,
+				DiscoveryGroup:   defaultDiscoveryGroup,
+				clock:            fakeClock,
 			})
 			require.NoError(t, err)
 			server.ec2Installer = installer
@@ -945,31 +1052,29 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 
 	// Create Server1
 	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-		CloudClients:       testCloudClients,
-		GetEC2Client:       getEC2Client,
-		ClusterFeatures:    func() proto.Features { return proto.Features{} },
-		KubernetesClient:   fake.NewSimpleClientset(),
-		AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-		Matchers:           staticMatcher,
-		Emitter:            emitter,
-		Log:                logger,
-		DiscoveryGroup:     defaultDiscoveryGroup,
-		PublicProxyAddress: "proxy.example.com",
+		CloudClients:     testCloudClients,
+		GetEC2Client:     getEC2Client,
+		ClusterFeatures:  func() proto.Features { return proto.Features{} },
+		KubernetesClient: fake.NewSimpleClientset(),
+		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		Matchers:         staticMatcher,
+		Emitter:          emitter,
+		Log:              logger,
+		DiscoveryGroup:   defaultDiscoveryGroup,
 	})
 	require.NoError(t, err)
 
 	// Create Server2
 	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-		CloudClients:       testCloudClients,
-		GetEC2Client:       getEC2Client,
-		ClusterFeatures:    func() proto.Features { return proto.Features{} },
-		KubernetesClient:   fake.NewSimpleClientset(),
-		AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-		Matchers:           staticMatcher,
-		Emitter:            emitter,
-		Log:                logger,
-		DiscoveryGroup:     defaultDiscoveryGroup,
-		PublicProxyAddress: "proxy.example.com",
+		CloudClients:     testCloudClients,
+		GetEC2Client:     getEC2Client,
+		ClusterFeatures:  func() proto.Features { return proto.Features{} },
+		KubernetesClient: fake.NewSimpleClientset(),
+		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		Matchers:         staticMatcher,
+		Emitter:          emitter,
+		Log:              logger,
+		DiscoveryGroup:   defaultDiscoveryGroup,
 	})
 	require.NoError(t, err)
 
@@ -1171,10 +1276,9 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
 					},
-					PublicProxyAddress: "proxy.example.com",
-					Emitter:            authClient,
-					DiscoveryGroup:     mainDiscoveryGroup,
-					protocolChecker:    &noopProtocolChecker{},
+					Emitter:         authClient,
+					DiscoveryGroup:  mainDiscoveryGroup,
+					protocolChecker: &noopProtocolChecker{},
 				})
 
 			require.NoError(t, err)
@@ -1510,7 +1614,6 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					ClusterFeatures:    func() proto.Features { return proto.Features{} },
 					KubernetesClient:   fake.NewSimpleClientset(),
 					AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-					PublicProxyAddress: "proxy.example.com",
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1664,7 +1767,6 @@ func TestDiscoveryServer_New(t *testing.T) {
 					Matchers:           tt.matchers,
 					Emitter:            &mockEmitter{},
 					protocolChecker:    &noopProtocolChecker{},
-					PublicProxyAddress: "proxy.example.com",
 				})
 
 			tt.errAssertion(t, err)
@@ -2459,7 +2561,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 					AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					AWSDatabaseFetcherFactory: dbFetcherFactory,
 					AWSConfigProvider:         fakeConfigProvider,
-					PublicProxyAddress:        "proxy.example.com",
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -2595,7 +2696,6 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			Matchers:                  Matchers{},
 			Emitter:                   authClient,
 			DiscoveryGroup:            mainDiscoveryGroup,
-			PublicProxyAddress:        "proxy.example.com",
 			clock:                     clock,
 		})
 
@@ -3023,15 +3123,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:       testCloudClients,
-				ClusterFeatures:    func() proto.Features { return proto.Features{} },
-				KubernetesClient:   fake.NewSimpleClientset(),
-				AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-				Matchers:           tc.staticMatchers,
-				Emitter:            emitter,
-				Log:                logger,
-				DiscoveryGroup:     defaultDiscoveryGroup,
-				PublicProxyAddress: "proxy.example.com",
+				CloudClients:     testCloudClients,
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
+				KubernetesClient: fake.NewSimpleClientset(),
+				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+				Matchers:         tc.staticMatchers,
+				Emitter:          emitter,
+				Log:              logger,
+				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -3330,15 +3429,14 @@ func TestGCPVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:       testCloudClients,
-				ClusterFeatures:    func() proto.Features { return proto.Features{} },
-				KubernetesClient:   fake.NewSimpleClientset(),
-				AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-				Matchers:           tc.staticMatchers,
-				Emitter:            emitter,
-				Log:                logger,
-				DiscoveryGroup:     defaultDiscoveryGroup,
-				PublicProxyAddress: "proxy.example.com",
+				CloudClients:     testCloudClients,
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
+				KubernetesClient: fake.NewSimpleClientset(),
+				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+				Matchers:         tc.staticMatchers,
+				Emitter:          emitter,
+				Log:              logger,
+				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -3530,8 +3628,7 @@ func TestEmitUsageEvents(t *testing.T) {
 				ResourceTags:   types.Labels{"teleport": {"yes"}},
 			}},
 		},
-		PublicProxyAddress: "proxy.example.com",
-		Emitter:            &mockEmitter{},
+		Emitter: &mockEmitter{},
 	})
 	require.NoError(t, err)
 

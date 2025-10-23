@@ -273,13 +273,12 @@ func TestDiscoveryServerEKS(t *testing.T) {
 						AWSConfigProvider: fakeConfigProvider,
 						eksClusters:       tt.eksClusters,
 					},
-					ClusterFeatures:    func() proto.Features { return proto.Features{} },
-					AccessPoint:        mockAccessPoint,
-					Matchers:           Matchers{},
-					Emitter:            tt.emitter,
-					DiscoveryGroup:     defaultDiscoveryGroup,
-					Log:                logtest.NewLogger(),
-					PublicProxyAddress: "proxy.example.com",
+					ClusterFeatures: func() proto.Features { return proto.Features{} },
+					AccessPoint:     mockAccessPoint,
+					Matchers:        Matchers{},
+					Emitter:         tt.emitter,
+					DiscoveryGroup:  defaultDiscoveryGroup,
+					Log:             logtest.NewLogger(),
 				})
 				require.NoError(t, err)
 
