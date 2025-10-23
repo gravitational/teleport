@@ -6426,7 +6426,7 @@ type MFAAuthenticateChallenge struct {
 	//
 	// If `MFA_REQUIRED_NO` is returned then the server may opt to end ongoing
 	// communications, in case of streaming RPCs. It may also return empty
-	// challenges for all other fields.
+	// challenges for all other fields.``
 	MFARequired MFARequired `protobuf:"varint,4,opt,name=MFARequired,proto3,enum=proto.MFARequired" json:"MFARequired,omitempty"`
 	// SSO Challenge is an SSO MFA challenge. If set, the client can go to the
 	// IdP redirect URL to perform an MFA check in the IdP and obtain an MFA token.

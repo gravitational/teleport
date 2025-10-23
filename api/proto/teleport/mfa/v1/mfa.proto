@@ -1,38 +1,34 @@
 // Copyright 2023 Gravitational, Inc
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+// the License. You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 syntax = "proto3";
 
 package teleport.mfa.v1;
 
 import "gogoproto/gogo.proto";
+import "teleport/legacy/types/types.proto";
+import "teleport/legacy/types/webauthn/webauthn.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
-// ChallengeExtensions contains MFA challenge extensions used by Teleport
-// during MFA authentication.
+// ChallengeExtensions contains MFA challenge extensions used by Teleport during MFA authentication.
 message ChallengeExtensions {
-  // Scope is an authorization scope for this MFA challenge.
-  // Required.
+  // Scope is an authorization scope for this MFA challenge. Required.
   ChallengeScope scope = 1;
-  // AllowReuse determines whether the MFA challenge allows reuse.
-  // Defaults to CHALLENGE_ALLOW_REUSE_NO.
+  // AllowReuse determines whether the MFA challenge allows reuse. Defaults to CHALLENGE_ALLOW_REUSE_NO.
   //
-  // Note that reuse is only permitted for specific actions by the discretion
-  // of the server. See the server implementation for details.
+  // Note that reuse is only permitted for specific actions by the discretion of the server. See the server
+  // implementation for details.
   ChallengeAllowReuse allow_reuse = 2;
   // User verification requirement for the challenge.
   //
@@ -41,10 +37,6 @@ message ChallengeExtensions {
   //
   // Optional. Empty is equivalent to "discouraged".
   string user_verification_requirement = 3;
-  // action_id is an optional field that associates the MFA challenge with a specific user action.
-  // If provided, the challenge will be correlated to the action based on this ID. This field is only applicable when
-  // ChallengeScope is set to CHALLENGE_SCOPE_ACTION.
-  string action_id = 4;
 }
 
 // ChallengeScope is a scope authorized by an MFA challenge resolution.
@@ -63,25 +55,21 @@ enum ChallengeScope {
   CHALLENGE_SCOPE_ACCOUNT_RECOVERY = 5;
   // Used for per-session MFA and moderated session presence checks.
   CHALLENGE_SCOPE_USER_SESSION = 6;
-  // Used for various administrative actions, such as adding, updating, or
-  // deleting administrative resources (users, roles, etc.).
+  // Used for various administrative actions, such as adding, updating, or deleting administrative resources (users,
+  // roles, etc.).
   //
-  // Note: this scope should not be used for new MFA capabilities that have
-  // more precise scope. Instead, new scopes should be added. This scope may
-  // also be split into multiple smaller scopes in the future.
+  // Note: this scope should not be used for new MFA capabilities that have more precise scope. Instead, new scopes
+  // should be added. This scope may also be split into multiple smaller scopes in the future.
   CHALLENGE_SCOPE_ADMIN_ACTION = 7;
   // Used for changing user's password.
   CHALLENGE_SCOPE_CHANGE_PASSWORD = 8;
-  // CHALLENGE_SCOPE_ACTION indicates that the challenge is tied to a specific user action.
-  // The action must be satisfied to proceed with the action.
-  CHALLENGE_SCOPE_ACTION = 9;
 }
 
-// ChallengeAllowReuse determines whether an MFA challenge response can be used
-// to authenticate the user more than once until the challenge expires.
+// ChallengeAllowReuse determines whether an MFA challenge response can be used to authenticate the user more than once
+// until the challenge expires.
 //
-// Reuse is only permitted for specific actions by the discretion of the server.
-// See the server implementation for details.
+// Reuse is only permitted for specific actions by the discretion of the server. See the server implementation for
+// details.
 enum ChallengeAllowReuse {
   // Reuse unspecified, treated as CHALLENGE_ALLOW_REUSE_NO.
   CHALLENGE_ALLOW_REUSE_UNSPECIFIED = 0;
@@ -91,8 +79,98 @@ enum ChallengeAllowReuse {
   CHALLENGE_ALLOW_REUSE_NO = 2;
 }
 
-// MFARequiredError is returned when multi-factor authentication is required but has not been completed.
-message MFARequiredError {
-  // Error message describing why MFA is required.
-  string message = 1;
+// MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
+// of the AuthService.
+service MFAService {
+  // CreateChallengeForAction creates an MFA challenge that is tied to a specific user action. The action_id is required
+  // and the created challenge will be correlated to that action.
+  rpc CreateChallengeForAction(CreateChallengeForActionRequest) returns (CreateChallengeForActionResponse);
+  // ValidateChallengeForAction validates the MFA challenge response provided by the user for a specific user action.
+  // The action_id is required and must match the action the challenge was created for.
+  rpc ValidateChallengeForAction(ValidateChallengeForActionRequest) returns (ValidateChallengeForActionResponse);
+}
+
+// CreateChallengeForActionRequest is the request message for CreateChallengeForAction.
+message CreateChallengeForActionRequest {
+  // action_id is a required unique identifier associated with the MFA challenge. The challenge will be correlated to a
+  // specific user action based on this ID. This field MUST be a UUID v4 (RFC 4122, version 4).
+  string action_id = 1;
+  // user is the username of the user attempting to authenticate.
+  string user = 2;
+  // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
+  // return non-SSO challenges.
+  string sso_client_redirect_url = 3;
+  // proxy_address is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
+  // is required to determine which URL to redirect the user to when there are multiple options.
+  string proxy_address = 4;
+}
+
+// CreateChallengeForActionResponse is the response message for CreateChallengeForAction.
+message CreateChallengeForActionResponse {
+  // action_id is the unique identifier associated with the MFA challenge. It indicates which action the
+  // challenge/response will be tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
+  string action_id = 1;
+  // mfa_challenge contains the MFA challenge that the user must respond to.
+  MFAAuthenticateChallenge mfa_challenge = 2;
+}
+
+// ValidateChallengeForActionRequest is the request message for ValidateChallengeForAction.
+message ValidateChallengeForActionRequest {
+  // action_id is a required unique identifier associated with the MFA challenge. It validates that the challenge and
+  // response are tied to a specific user action. This field MUST be a UUID v4 (RFC 4122, version 4).
+  string action_id = 1;
+  // mfa_response contains the MFA challenge response provided by the user.
+  MFAAuthenticateResponse mfa_response = 2;
+  // user is the username of the user attempting to authenticate.
+  string user = 3;
+}
+
+// ValidateChallengeForActionResponse is the response message for ValidateChallengeForAction.
+message ValidateChallengeForActionResponse {
+  // action_id is the unique identifier associated with the MFA challenge. It indicates which action the
+  // challenge/response was tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
+  string action_id = 1;
+  // user is the username of the user authenticated by the MFA challenge.
+  string user = 2;
+  // device contains information about the user's MFA device used to authenticate.
+  types.MFADevice device = 3;
+}
+
+// MFAAuthenticateChallenge is a challenge for all MFA devices registered for a user.
+message MFAAuthenticateChallenge {
+  // webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
+  // assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
+  // Webauthn device registered by the user).
+  webauthn.CredentialAssertion webauthn_challenge = 1;
+  // sso_challenge is an SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check in
+  // the IdP and obtain an MFA token. This token paired with the request id can then be used as MFA verification.
+  SSOChallenge sso_challenge = 2;
+}
+
+// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one of the MFA devices registered for a user.
+message MFAAuthenticateResponse {
+  oneof response {
+    // webauthn is a response to a Webauthn challenge.
+    webauthn.CredentialAssertionResponse webauthn = 1;
+    // sso is a response to an SSO challenge.
+    SSOChallengeResponse sso = 2;
+  }
+}
+
+// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
+message SSOChallenge {
+  // request_id is the ID of an SSO auth request.
+  string request_id = 1;
+  // redirect_url is an IdP redirect URL to initiate the SSO MFA flow.
+  string redirect_url = 2;
+  // device is the SSO device corresponding to the challenge.
+  types.SSOMFADevice device = 3;
+}
+
+// SSOChallengeResponse is a response to SSOChallenge.
+message SSOChallengeResponse {
+  // request_id is the ID of an SSO auth request.
+  string request_id = 1;
+  // token is a secret token used to verify the user's SSO MFA session.
+  string token = 2;
 }

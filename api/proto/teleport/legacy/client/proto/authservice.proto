@@ -1255,7 +1255,7 @@ message MFAAuthenticateChallenge {
   //
   // If `MFA_REQUIRED_NO` is returned then the server may opt to end ongoing
   // communications, in case of streaming RPCs. It may also return empty
-  // challenges for all other fields.
+  // challenges for all other fields.``
   MFARequired MFARequired = 4;
   // SSO Challenge is an SSO MFA challenge. If set, the client can go to the
   // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA token.

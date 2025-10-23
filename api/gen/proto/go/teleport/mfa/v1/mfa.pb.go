@@ -7,6 +7,8 @@ import (
 	fmt "fmt"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	types "github.com/gravitational/teleport/api/types"
+	webauthn "github.com/gravitational/teleport/api/types/webauthn"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -41,18 +43,14 @@ const (
 	ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY ChallengeScope = 5
 	// Used for per-session MFA and moderated session presence checks.
 	ChallengeScope_CHALLENGE_SCOPE_USER_SESSION ChallengeScope = 6
-	// Used for various administrative actions, such as adding, updating, or
-	// deleting administrative resources (users, roles, etc.).
+	// Used for various administrative actions, such as adding, updating, or deleting administrative resources (users,
+	// roles, etc.).
 	//
-	// Note: this scope should not be used for new MFA capabilities that have
-	// more precise scope. Instead, new scopes should be added. This scope may
-	// also be split into multiple smaller scopes in the future.
+	// Note: this scope should not be used for new MFA capabilities that have more precise scope. Instead, new scopes
+	// should be added. This scope may also be split into multiple smaller scopes in the future.
 	ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION ChallengeScope = 7
 	// Used for changing user's password.
 	ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD ChallengeScope = 8
-	// CHALLENGE_SCOPE_ACTION indicates that the challenge is tied to a specific user action.
-	// The action must be satisfied to proceed with the action.
-	ChallengeScope_CHALLENGE_SCOPE_ACTION ChallengeScope = 9
 )
 
 var ChallengeScope_name = map[int32]string{
@@ -65,7 +63,6 @@ var ChallengeScope_name = map[int32]string{
 	6: "CHALLENGE_SCOPE_USER_SESSION",
 	7: "CHALLENGE_SCOPE_ADMIN_ACTION",
 	8: "CHALLENGE_SCOPE_CHANGE_PASSWORD",
-	9: "CHALLENGE_SCOPE_ACTION",
 }
 
 var ChallengeScope_value = map[string]int32{
@@ -78,7 +75,6 @@ var ChallengeScope_value = map[string]int32{
 	"CHALLENGE_SCOPE_USER_SESSION":       6,
 	"CHALLENGE_SCOPE_ADMIN_ACTION":       7,
 	"CHALLENGE_SCOPE_CHANGE_PASSWORD":    8,
-	"CHALLENGE_SCOPE_ACTION":             9,
 }
 
 func (x ChallengeScope) String() string {
@@ -89,11 +85,11 @@ func (ChallengeScope) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_eb9e544d66a5853a, []int{0}
 }
 
-// ChallengeAllowReuse determines whether an MFA challenge response can be used
-// to authenticate the user more than once until the challenge expires.
+// ChallengeAllowReuse determines whether an MFA challenge response can be used to authenticate the user more than once
+// until the challenge expires.
 //
-// Reuse is only permitted for specific actions by the discretion of the server.
-// See the server implementation for details.
+// Reuse is only permitted for specific actions by the discretion of the server. See the server implementation for
+// details.
 type ChallengeAllowReuse int32
 
 const (
@@ -125,17 +121,14 @@ func (ChallengeAllowReuse) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_eb9e544d66a5853a, []int{1}
 }
 
-// ChallengeExtensions contains MFA challenge extensions used by Teleport
-// during MFA authentication.
+// ChallengeExtensions contains MFA challenge extensions used by Teleport during MFA authentication.
 type ChallengeExtensions struct {
-	// Scope is an authorization scope for this MFA challenge.
-	// Required.
+	// Scope is an authorization scope for this MFA challenge. Required.
 	Scope ChallengeScope `protobuf:"varint,1,opt,name=scope,proto3,enum=teleport.mfa.v1.ChallengeScope" json:"scope,omitempty"`
-	// AllowReuse determines whether the MFA challenge allows reuse.
-	// Defaults to CHALLENGE_ALLOW_REUSE_NO.
+	// AllowReuse determines whether the MFA challenge allows reuse. Defaults to CHALLENGE_ALLOW_REUSE_NO.
 	//
-	// Note that reuse is only permitted for specific actions by the discretion
-	// of the server. See the server implementation for details.
+	// Note that reuse is only permitted for specific actions by the discretion of the server. See the server
+	// implementation for details.
 	AllowReuse ChallengeAllowReuse `protobuf:"varint,2,opt,name=allow_reuse,json=allowReuse,proto3,enum=teleport.mfa.v1.ChallengeAllowReuse" json:"allow_reuse,omitempty"`
 	// User verification requirement for the challenge.
 	//
@@ -143,14 +136,10 @@ type ChallengeExtensions struct {
 	// * https://pkg.go.dev/github.com/go-webauthn/webauthn/protocol#UserVerificationRequirement.
 	//
 	// Optional. Empty is equivalent to "discouraged".
-	UserVerificationRequirement string `protobuf:"bytes,3,opt,name=user_verification_requirement,json=userVerificationRequirement,proto3" json:"user_verification_requirement,omitempty"`
-	// action_id is an optional field that associates the MFA challenge with a specific user action.
-	// If provided, the challenge will be correlated to the action based on this ID. This field is only applicable when
-	// ChallengeScope is set to CHALLENGE_SCOPE_ACTION.
-	ActionId             string   `protobuf:"bytes,4,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	UserVerificationRequirement string   `protobuf:"bytes,3,opt,name=user_verification_requirement,json=userVerificationRequirement,proto3" json:"user_verification_requirement,omitempty"`
+	XXX_NoUnkeyedLiteral        struct{} `json:"-"`
+	XXX_unrecognized            []byte   `json:"-"`
+	XXX_sizecache               int32    `json:"-"`
 }
 
 func (m *ChallengeExtensions) Reset()         { *m = ChallengeExtensions{} }
@@ -207,34 +196,36 @@ func (m *ChallengeExtensions) GetUserVerificationRequirement() string {
 	return ""
 }
 
-func (m *ChallengeExtensions) GetActionId() string {
-	if m != nil {
-		return m.ActionId
-	}
-	return ""
-}
-
-// MFARequiredError is returned when multi-factor authentication is required but has not been completed.
-type MFARequiredError struct {
-	// Error message describing why MFA is required.
-	Message              string   `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+// CreateChallengeForActionRequest is the request message for CreateChallengeForAction.
+type CreateChallengeForActionRequest struct {
+	// action_id is a required unique identifier associated with the MFA challenge. The challenge will be correlated to a
+	// specific user action based on this ID. This field MUST be a UUID v4 (RFC 4122, version 4).
+	ActionId string `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
+	// user is the username of the user attempting to authenticate.
+	User string `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	// sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
+	// return non-SSO challenges.
+	SsoClientRedirectUrl string `protobuf:"bytes,3,opt,name=sso_client_redirect_url,json=ssoClientRedirectUrl,proto3" json:"sso_client_redirect_url,omitempty"`
+	// proxy_address is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
+	// is required to determine which URL to redirect the user to when there are multiple options.
+	ProxyAddress         string   `protobuf:"bytes,4,opt,name=proxy_address,json=proxyAddress,proto3" json:"proxy_address,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *MFARequiredError) Reset()         { *m = MFARequiredError{} }
-func (m *MFARequiredError) String() string { return proto.CompactTextString(m) }
-func (*MFARequiredError) ProtoMessage()    {}
-func (*MFARequiredError) Descriptor() ([]byte, []int) {
+func (m *CreateChallengeForActionRequest) Reset()         { *m = CreateChallengeForActionRequest{} }
+func (m *CreateChallengeForActionRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateChallengeForActionRequest) ProtoMessage()    {}
+func (*CreateChallengeForActionRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_eb9e544d66a5853a, []int{1}
 }
-func (m *MFARequiredError) XXX_Unmarshal(b []byte) error {
+func (m *CreateChallengeForActionRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *MFARequiredError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *CreateChallengeForActionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_MFARequiredError.Marshal(b, m, deterministic)
+		return xxx_messageInfo_CreateChallengeForActionRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -244,21 +235,512 @@ func (m *MFARequiredError) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return b[:n], nil
 	}
 }
-func (m *MFARequiredError) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MFARequiredError.Merge(m, src)
+func (m *CreateChallengeForActionRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateChallengeForActionRequest.Merge(m, src)
 }
-func (m *MFARequiredError) XXX_Size() int {
+func (m *CreateChallengeForActionRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *MFARequiredError) XXX_DiscardUnknown() {
-	xxx_messageInfo_MFARequiredError.DiscardUnknown(m)
+func (m *CreateChallengeForActionRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateChallengeForActionRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_MFARequiredError proto.InternalMessageInfo
+var xxx_messageInfo_CreateChallengeForActionRequest proto.InternalMessageInfo
 
-func (m *MFARequiredError) GetMessage() string {
+func (m *CreateChallengeForActionRequest) GetActionId() string {
 	if m != nil {
-		return m.Message
+		return m.ActionId
+	}
+	return ""
+}
+
+func (m *CreateChallengeForActionRequest) GetUser() string {
+	if m != nil {
+		return m.User
+	}
+	return ""
+}
+
+func (m *CreateChallengeForActionRequest) GetSsoClientRedirectUrl() string {
+	if m != nil {
+		return m.SsoClientRedirectUrl
+	}
+	return ""
+}
+
+func (m *CreateChallengeForActionRequest) GetProxyAddress() string {
+	if m != nil {
+		return m.ProxyAddress
+	}
+	return ""
+}
+
+// CreateChallengeForActionResponse is the response message for CreateChallengeForAction.
+type CreateChallengeForActionResponse struct {
+	// action_id is the unique identifier associated with the MFA challenge. It indicates which action the
+	// challenge/response will be tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
+	ActionId string `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
+	// mfa_challenge contains the MFA challenge that the user must respond to.
+	MfaChallenge         *MFAAuthenticateChallenge `protobuf:"bytes,2,opt,name=mfa_challenge,json=mfaChallenge,proto3" json:"mfa_challenge,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
+}
+
+func (m *CreateChallengeForActionResponse) Reset()         { *m = CreateChallengeForActionResponse{} }
+func (m *CreateChallengeForActionResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateChallengeForActionResponse) ProtoMessage()    {}
+func (*CreateChallengeForActionResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{2}
+}
+func (m *CreateChallengeForActionResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateChallengeForActionResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateChallengeForActionResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CreateChallengeForActionResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateChallengeForActionResponse.Merge(m, src)
+}
+func (m *CreateChallengeForActionResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateChallengeForActionResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateChallengeForActionResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateChallengeForActionResponse proto.InternalMessageInfo
+
+func (m *CreateChallengeForActionResponse) GetActionId() string {
+	if m != nil {
+		return m.ActionId
+	}
+	return ""
+}
+
+func (m *CreateChallengeForActionResponse) GetMfaChallenge() *MFAAuthenticateChallenge {
+	if m != nil {
+		return m.MfaChallenge
+	}
+	return nil
+}
+
+// ValidateChallengeForActionRequest is the request message for ValidateChallengeForAction.
+type ValidateChallengeForActionRequest struct {
+	// action_id is a required unique identifier associated with the MFA challenge. It validates that the challenge and
+	// response are tied to a specific user action. This field MUST be a UUID v4 (RFC 4122, version 4).
+	ActionId string `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
+	// mfa_response contains the MFA challenge response provided by the user.
+	MfaResponse *MFAAuthenticateResponse `protobuf:"bytes,2,opt,name=mfa_response,json=mfaResponse,proto3" json:"mfa_response,omitempty"`
+	// user is the username of the user attempting to authenticate.
+	User                 string   `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ValidateChallengeForActionRequest) Reset()         { *m = ValidateChallengeForActionRequest{} }
+func (m *ValidateChallengeForActionRequest) String() string { return proto.CompactTextString(m) }
+func (*ValidateChallengeForActionRequest) ProtoMessage()    {}
+func (*ValidateChallengeForActionRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{3}
+}
+func (m *ValidateChallengeForActionRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ValidateChallengeForActionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ValidateChallengeForActionRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ValidateChallengeForActionRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidateChallengeForActionRequest.Merge(m, src)
+}
+func (m *ValidateChallengeForActionRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ValidateChallengeForActionRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidateChallengeForActionRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ValidateChallengeForActionRequest proto.InternalMessageInfo
+
+func (m *ValidateChallengeForActionRequest) GetActionId() string {
+	if m != nil {
+		return m.ActionId
+	}
+	return ""
+}
+
+func (m *ValidateChallengeForActionRequest) GetMfaResponse() *MFAAuthenticateResponse {
+	if m != nil {
+		return m.MfaResponse
+	}
+	return nil
+}
+
+func (m *ValidateChallengeForActionRequest) GetUser() string {
+	if m != nil {
+		return m.User
+	}
+	return ""
+}
+
+// ValidateChallengeForActionResponse is the response message for ValidateChallengeForAction.
+type ValidateChallengeForActionResponse struct {
+	// action_id is the unique identifier associated with the MFA challenge. It indicates which action the
+	// challenge/response was tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
+	ActionId string `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
+	// user is the username of the user authenticated by the MFA challenge.
+	User string `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	// device contains information about the user's MFA device used to authenticate.
+	Device               *types.MFADevice `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *ValidateChallengeForActionResponse) Reset()         { *m = ValidateChallengeForActionResponse{} }
+func (m *ValidateChallengeForActionResponse) String() string { return proto.CompactTextString(m) }
+func (*ValidateChallengeForActionResponse) ProtoMessage()    {}
+func (*ValidateChallengeForActionResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{4}
+}
+func (m *ValidateChallengeForActionResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ValidateChallengeForActionResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ValidateChallengeForActionResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ValidateChallengeForActionResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidateChallengeForActionResponse.Merge(m, src)
+}
+func (m *ValidateChallengeForActionResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ValidateChallengeForActionResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidateChallengeForActionResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ValidateChallengeForActionResponse proto.InternalMessageInfo
+
+func (m *ValidateChallengeForActionResponse) GetActionId() string {
+	if m != nil {
+		return m.ActionId
+	}
+	return ""
+}
+
+func (m *ValidateChallengeForActionResponse) GetUser() string {
+	if m != nil {
+		return m.User
+	}
+	return ""
+}
+
+func (m *ValidateChallengeForActionResponse) GetDevice() *types.MFADevice {
+	if m != nil {
+		return m.Device
+	}
+	return nil
+}
+
+// MFAAuthenticateChallenge is a challenge for all MFA devices registered for a user.
+type MFAAuthenticateChallenge struct {
+	// webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
+	// assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
+	// Webauthn device registered by the user).
+	WebauthnChallenge *webauthn.CredentialAssertion `protobuf:"bytes,1,opt,name=webauthn_challenge,json=webauthnChallenge,proto3" json:"webauthn_challenge,omitempty"`
+	// sso_challenge is an SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check in
+	// the IdP and obtain an MFA token. This token paired with the request id can then be used as MFA verification.
+	SsoChallenge         *SSOChallenge `protobuf:"bytes,2,opt,name=sso_challenge,json=ssoChallenge,proto3" json:"sso_challenge,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *MFAAuthenticateChallenge) Reset()         { *m = MFAAuthenticateChallenge{} }
+func (m *MFAAuthenticateChallenge) String() string { return proto.CompactTextString(m) }
+func (*MFAAuthenticateChallenge) ProtoMessage()    {}
+func (*MFAAuthenticateChallenge) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{5}
+}
+func (m *MFAAuthenticateChallenge) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MFAAuthenticateChallenge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MFAAuthenticateChallenge.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MFAAuthenticateChallenge) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MFAAuthenticateChallenge.Merge(m, src)
+}
+func (m *MFAAuthenticateChallenge) XXX_Size() int {
+	return m.Size()
+}
+func (m *MFAAuthenticateChallenge) XXX_DiscardUnknown() {
+	xxx_messageInfo_MFAAuthenticateChallenge.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MFAAuthenticateChallenge proto.InternalMessageInfo
+
+func (m *MFAAuthenticateChallenge) GetWebauthnChallenge() *webauthn.CredentialAssertion {
+	if m != nil {
+		return m.WebauthnChallenge
+	}
+	return nil
+}
+
+func (m *MFAAuthenticateChallenge) GetSsoChallenge() *SSOChallenge {
+	if m != nil {
+		return m.SsoChallenge
+	}
+	return nil
+}
+
+// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one of the MFA devices registered for a user.
+type MFAAuthenticateResponse struct {
+	// Types that are valid to be assigned to Response:
+	//	*MFAAuthenticateResponse_Webauthn
+	//	*MFAAuthenticateResponse_Sso
+	Response             isMFAAuthenticateResponse_Response `protobuf_oneof:"response"`
+	XXX_NoUnkeyedLiteral struct{}                           `json:"-"`
+	XXX_unrecognized     []byte                             `json:"-"`
+	XXX_sizecache        int32                              `json:"-"`
+}
+
+func (m *MFAAuthenticateResponse) Reset()         { *m = MFAAuthenticateResponse{} }
+func (m *MFAAuthenticateResponse) String() string { return proto.CompactTextString(m) }
+func (*MFAAuthenticateResponse) ProtoMessage()    {}
+func (*MFAAuthenticateResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{6}
+}
+func (m *MFAAuthenticateResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MFAAuthenticateResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MFAAuthenticateResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MFAAuthenticateResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MFAAuthenticateResponse.Merge(m, src)
+}
+func (m *MFAAuthenticateResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *MFAAuthenticateResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_MFAAuthenticateResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MFAAuthenticateResponse proto.InternalMessageInfo
+
+type isMFAAuthenticateResponse_Response interface {
+	isMFAAuthenticateResponse_Response()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type MFAAuthenticateResponse_Webauthn struct {
+	Webauthn *webauthn.CredentialAssertionResponse `protobuf:"bytes,1,opt,name=webauthn,proto3,oneof" json:"webauthn,omitempty"`
+}
+type MFAAuthenticateResponse_Sso struct {
+	Sso *SSOChallengeResponse `protobuf:"bytes,2,opt,name=sso,proto3,oneof" json:"sso,omitempty"`
+}
+
+func (*MFAAuthenticateResponse_Webauthn) isMFAAuthenticateResponse_Response() {}
+func (*MFAAuthenticateResponse_Sso) isMFAAuthenticateResponse_Response()      {}
+
+func (m *MFAAuthenticateResponse) GetResponse() isMFAAuthenticateResponse_Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (m *MFAAuthenticateResponse) GetWebauthn() *webauthn.CredentialAssertionResponse {
+	if x, ok := m.GetResponse().(*MFAAuthenticateResponse_Webauthn); ok {
+		return x.Webauthn
+	}
+	return nil
+}
+
+func (m *MFAAuthenticateResponse) GetSso() *SSOChallengeResponse {
+	if x, ok := m.GetResponse().(*MFAAuthenticateResponse_Sso); ok {
+		return x.Sso
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*MFAAuthenticateResponse) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*MFAAuthenticateResponse_Webauthn)(nil),
+		(*MFAAuthenticateResponse_Sso)(nil),
+	}
+}
+
+// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
+type SSOChallenge struct {
+	// request_id is the ID of an SSO auth request.
+	RequestId string `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// redirect_url is an IdP redirect URL to initiate the SSO MFA flow.
+	RedirectUrl string `protobuf:"bytes,2,opt,name=redirect_url,json=redirectUrl,proto3" json:"redirect_url,omitempty"`
+	// device is the SSO device corresponding to the challenge.
+	Device               *types.SSOMFADevice `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
+	XXX_unrecognized     []byte              `json:"-"`
+	XXX_sizecache        int32               `json:"-"`
+}
+
+func (m *SSOChallenge) Reset()         { *m = SSOChallenge{} }
+func (m *SSOChallenge) String() string { return proto.CompactTextString(m) }
+func (*SSOChallenge) ProtoMessage()    {}
+func (*SSOChallenge) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{7}
+}
+func (m *SSOChallenge) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SSOChallenge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SSOChallenge.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SSOChallenge) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SSOChallenge.Merge(m, src)
+}
+func (m *SSOChallenge) XXX_Size() int {
+	return m.Size()
+}
+func (m *SSOChallenge) XXX_DiscardUnknown() {
+	xxx_messageInfo_SSOChallenge.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SSOChallenge proto.InternalMessageInfo
+
+func (m *SSOChallenge) GetRequestId() string {
+	if m != nil {
+		return m.RequestId
+	}
+	return ""
+}
+
+func (m *SSOChallenge) GetRedirectUrl() string {
+	if m != nil {
+		return m.RedirectUrl
+	}
+	return ""
+}
+
+func (m *SSOChallenge) GetDevice() *types.SSOMFADevice {
+	if m != nil {
+		return m.Device
+	}
+	return nil
+}
+
+// SSOChallengeResponse is a response to SSOChallenge.
+type SSOChallengeResponse struct {
+	// request_id is the ID of an SSO auth request.
+	RequestId string `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// token is a secret token used to verify the user's SSO MFA session.
+	Token                string   `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SSOChallengeResponse) Reset()         { *m = SSOChallengeResponse{} }
+func (m *SSOChallengeResponse) String() string { return proto.CompactTextString(m) }
+func (*SSOChallengeResponse) ProtoMessage()    {}
+func (*SSOChallengeResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_eb9e544d66a5853a, []int{8}
+}
+func (m *SSOChallengeResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SSOChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SSOChallengeResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SSOChallengeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SSOChallengeResponse.Merge(m, src)
+}
+func (m *SSOChallengeResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *SSOChallengeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SSOChallengeResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SSOChallengeResponse proto.InternalMessageInfo
+
+func (m *SSOChallengeResponse) GetRequestId() string {
+	if m != nil {
+		return m.RequestId
+	}
+	return ""
+}
+
+func (m *SSOChallengeResponse) GetToken() string {
+	if m != nil {
+		return m.Token
 	}
 	return ""
 }
@@ -267,46 +749,80 @@ func init() {
 	proto.RegisterEnum("teleport.mfa.v1.ChallengeScope", ChallengeScope_name, ChallengeScope_value)
 	proto.RegisterEnum("teleport.mfa.v1.ChallengeAllowReuse", ChallengeAllowReuse_name, ChallengeAllowReuse_value)
 	proto.RegisterType((*ChallengeExtensions)(nil), "teleport.mfa.v1.ChallengeExtensions")
-	proto.RegisterType((*MFARequiredError)(nil), "teleport.mfa.v1.MFARequiredError")
+	proto.RegisterType((*CreateChallengeForActionRequest)(nil), "teleport.mfa.v1.CreateChallengeForActionRequest")
+	proto.RegisterType((*CreateChallengeForActionResponse)(nil), "teleport.mfa.v1.CreateChallengeForActionResponse")
+	proto.RegisterType((*ValidateChallengeForActionRequest)(nil), "teleport.mfa.v1.ValidateChallengeForActionRequest")
+	proto.RegisterType((*ValidateChallengeForActionResponse)(nil), "teleport.mfa.v1.ValidateChallengeForActionResponse")
+	proto.RegisterType((*MFAAuthenticateChallenge)(nil), "teleport.mfa.v1.MFAAuthenticateChallenge")
+	proto.RegisterType((*MFAAuthenticateResponse)(nil), "teleport.mfa.v1.MFAAuthenticateResponse")
+	proto.RegisterType((*SSOChallenge)(nil), "teleport.mfa.v1.SSOChallenge")
+	proto.RegisterType((*SSOChallengeResponse)(nil), "teleport.mfa.v1.SSOChallengeResponse")
 }
 
 func init() { proto.RegisterFile("teleport/mfa/v1/mfa.proto", fileDescriptor_eb9e544d66a5853a) }
 
 var fileDescriptor_eb9e544d66a5853a = []byte{
-	// 521 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0xd3, 0xdd, 0x6e, 0xda, 0x3e,
-	0x14, 0x00, 0xf0, 0x7f, 0xe8, 0x27, 0xfe, 0x4b, 0x5d, 0xe4, 0x7d, 0x28, 0x94, 0x16, 0x18, 0xeb,
-	0xa6, 0xaa, 0x9a, 0x88, 0xd8, 0xb4, 0xab, 0x5d, 0xb9, 0xc1, 0x85, 0x48, 0x21, 0x41, 0x76, 0xa1,
-	0xea, 0x6e, 0x22, 0x17, 0x4c, 0x1a, 0x29, 0xc4, 0xcc, 0x09, 0xd9, 0xf6, 0x86, 0xbb, 0xdc, 0x23,
-	0x4c, 0xdc, 0xec, 0x05, 0xf6, 0x00, 0x53, 0x42, 0xf9, 0x58, 0xca, 0xae, 0x62, 0xfb, 0xfc, 0x8e,
-	0x95, 0x63, 0x9d, 0x03, 0x4a, 0x31, 0x0f, 0xf8, 0x54, 0xc8, 0x58, 0x9f, 0x8c, 0x99, 0x9e, 0x34,
-	0xd3, 0x4f, 0x63, 0x2a, 0x45, 0x2c, 0xe0, 0x93, 0x65, 0xa8, 0x91, 0x9e, 0x25, 0xcd, 0xe3, 0x67,
-	0x9e, 0xf0, 0x44, 0x16, 0xd3, 0xd3, 0xd5, 0x82, 0xd5, 0x7f, 0x2b, 0xe0, 0xa9, 0x71, 0xcf, 0x82,
-	0x80, 0x87, 0x1e, 0xc7, 0x5f, 0x63, 0x1e, 0x46, 0xbe, 0x08, 0x23, 0xf8, 0x01, 0xec, 0x45, 0x43,
-	0x31, 0xe5, 0x9a, 0x52, 0x53, 0xce, 0x8f, 0xde, 0x55, 0x1b, 0xb9, 0xeb, 0x1a, 0xab, 0x24, 0x9a,
-	0x32, 0xb2, 0xd0, 0x10, 0x83, 0xff, 0x59, 0x10, 0x88, 0x2f, 0xae, 0xe4, 0xb3, 0x88, 0x6b, 0x85,
-	0x2c, 0xf9, 0xec, 0xdf, 0xc9, 0x28, 0xc5, 0x24, 0xb5, 0x04, 0xb0, 0xd5, 0x1a, 0x5e, 0x82, 0xd3,
-	0x59, 0xc4, 0xa5, 0x9b, 0x70, 0xe9, 0x8f, 0xfd, 0x21, 0x8b, 0x7d, 0x11, 0xba, 0x92, 0x7f, 0x9e,
-	0xf9, 0x92, 0x4f, 0x78, 0x18, 0x6b, 0x3b, 0x35, 0xe5, 0xbc, 0x48, 0xca, 0x29, 0x1a, 0x6c, 0x18,
-	0xb2, 0x26, 0xb0, 0x0c, 0x8a, 0x6c, 0x98, 0x25, 0xfa, 0x23, 0x6d, 0x37, 0xf3, 0x87, 0x8b, 0x03,
-	0x73, 0x54, 0x7f, 0x0b, 0xd4, 0xee, 0x15, 0x7a, 0xe0, 0x23, 0x2c, 0xa5, 0x90, 0x50, 0x03, 0x07,
-	0x13, 0x1e, 0x45, 0xcc, 0x5b, 0x14, 0x5d, 0x24, 0xcb, 0xed, 0xc5, 0xaf, 0x02, 0x38, 0xfa, 0xbb,
-	0x5e, 0x58, 0x05, 0x65, 0xa3, 0x83, 0x2c, 0x0b, 0xdb, 0x6d, 0xec, 0x52, 0xc3, 0xe9, 0x61, 0xb7,
-	0x6f, 0xd3, 0x1e, 0x36, 0xcc, 0x2b, 0x13, 0xb7, 0xd4, 0xff, 0x60, 0x09, 0x3c, 0xcf, 0x03, 0xcb,
-	0x69, 0x9b, 0xb6, 0xaa, 0xc0, 0x37, 0xa0, 0x9e, 0x0f, 0xf5, 0x10, 0xa5, 0x37, 0x0e, 0x69, 0x59,
-	0x98, 0xd2, 0x07, 0x57, 0x80, 0x75, 0x50, 0xc9, 0xbb, 0x0e, 0x46, 0x9b, 0x66, 0x67, 0x9b, 0xe9,
-	0x22, 0x1b, 0xb5, 0xb1, 0xdb, 0xc2, 0x03, 0xd3, 0xc0, 0x54, 0xdd, 0x85, 0x67, 0xa0, 0x96, 0x37,
-	0xc8, 0x30, 0x9c, 0xbe, 0x7d, 0xed, 0x12, 0x6c, 0x38, 0x03, 0x4c, 0x6e, 0xd5, 0x3d, 0x58, 0x03,
-	0x27, 0x8f, 0x2a, 0xa2, 0x98, 0xb8, 0x14, 0x53, 0x6a, 0x3a, 0xb6, 0xba, 0xbf, 0x4d, 0xa0, 0x56,
-	0xd7, 0xb4, 0x5d, 0x64, 0x5c, 0xa7, 0xe2, 0x00, 0xbe, 0x02, 0xd5, 0xbc, 0x30, 0x3a, 0x28, 0xdd,
-	0x2c, 0x0b, 0x54, 0x0f, 0xe1, 0x31, 0x78, 0xf1, 0xf8, 0x77, 0xb2, 0x0b, 0x8a, 0x17, 0xdf, 0x36,
-	0xba, 0x71, 0xdd, 0x1b, 0xf0, 0x35, 0x78, 0xb9, 0x4e, 0x41, 0x96, 0xe5, 0xdc, 0xb8, 0x04, 0xf7,
-	0x69, 0xfe, 0xcd, 0x4f, 0x41, 0x69, 0x3b, 0xbb, 0xc5, 0x54, 0x55, 0xe0, 0x09, 0xd0, 0xb6, 0x87,
-	0x6d, 0x47, 0x2d, 0x5c, 0x0e, 0xbe, 0xcf, 0x2b, 0xca, 0x8f, 0x79, 0x45, 0xf9, 0x39, 0xaf, 0x28,
-	0x9f, 0x3a, 0x9e, 0x1f, 0xdf, 0xcf, 0xee, 0x1a, 0x43, 0x31, 0xd1, 0x3d, 0xc9, 0x12, 0x3f, 0xce,
-	0x1a, 0x8c, 0x05, 0xfa, 0x6a, 0xe4, 0xd8, 0xd4, 0xd7, 0x3d, 0x1e, 0xea, 0xcb, 0x99, 0xd2, 0x73,
-	0xc3, 0xf8, 0x71, 0x32, 0x66, 0x49, 0xf3, 0x6e, 0x3f, 0x8b, 0xbf, 0xff, 0x13, 0x00, 0x00, 0xff,
-	0xff, 0x0a, 0xc7, 0xdb, 0xb4, 0xac, 0x03, 0x00, 0x00,
+	// 953 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x96, 0x4d, 0x6f, 0x1a, 0x47,
+	0x18, 0xc7, 0xb3, 0xf8, 0xa5, 0xe6, 0xc1, 0x4e, 0xe9, 0xc4, 0x55, 0x30, 0x0e, 0x36, 0xde, 0xc4,
+	0x95, 0x9b, 0xaa, 0x50, 0x13, 0xe5, 0x50, 0xf5, 0xb4, 0x5e, 0x06, 0x83, 0x02, 0xac, 0xb5, 0x13,
+	0x13, 0xa5, 0x97, 0xd5, 0x18, 0x06, 0xbc, 0xea, 0xb2, 0x4b, 0x67, 0x16, 0x12, 0x1f, 0xaa, 0x9c,
+	0x7a, 0xee, 0xa9, 0x1f, 0xa0, 0x87, 0xde, 0xaa, 0x7e, 0x8e, 0x4a, 0xbd, 0xf4, 0xd6, 0x6b, 0xe5,
+	0x4f, 0x52, 0xed, 0x2b, 0x64, 0x79, 0x71, 0xd3, 0x0b, 0xcc, 0x3e, 0xcf, 0xef, 0x99, 0xf9, 0xcf,
+	0xf3, 0xcc, 0x1b, 0xec, 0xb9, 0xcc, 0x62, 0x23, 0x87, 0xbb, 0xe5, 0x61, 0x9f, 0x96, 0x27, 0xa7,
+	0xde, 0x5f, 0x69, 0xc4, 0x1d, 0xd7, 0x41, 0x1f, 0x47, 0xae, 0x92, 0x67, 0x9b, 0x9c, 0xe6, 0x77,
+	0x07, 0xce, 0xc0, 0xf1, 0x7d, 0x65, 0xaf, 0x15, 0x60, 0xf9, 0xa3, 0xb8, 0x07, 0x8b, 0x0d, 0x68,
+	0xf7, 0xa6, 0xec, 0xde, 0x8c, 0x98, 0x08, 0x7e, 0x43, 0xe4, 0xcb, 0xc5, 0xc8, 0x1b, 0x76, 0x45,
+	0xc7, 0xee, 0xb5, 0x1d, 0x37, 0x02, 0x5c, 0xfe, 0x5b, 0x82, 0x07, 0xea, 0x35, 0xb5, 0x2c, 0x66,
+	0x0f, 0x18, 0x7e, 0xeb, 0x32, 0x5b, 0x98, 0x8e, 0x2d, 0xd0, 0x73, 0xd8, 0x10, 0x5d, 0x67, 0xc4,
+	0x72, 0x52, 0x51, 0x3a, 0xb9, 0x5f, 0x39, 0x2c, 0x25, 0x04, 0x96, 0xe2, 0x20, 0xe2, 0x61, 0x7a,
+	0x40, 0x23, 0x0c, 0x19, 0x6a, 0x59, 0xce, 0x1b, 0x83, 0xb3, 0xb1, 0x60, 0xb9, 0x94, 0x1f, 0xfc,
+	0x64, 0x79, 0xb0, 0xe2, 0xc1, 0xba, 0xc7, 0xea, 0x40, 0xe3, 0x36, 0x3a, 0x83, 0xc2, 0x58, 0x30,
+	0x6e, 0x4c, 0x18, 0x37, 0xfb, 0x66, 0x97, 0xba, 0xa6, 0x63, 0x1b, 0x9c, 0x7d, 0x3f, 0x36, 0x39,
+	0x1b, 0x32, 0xdb, 0xcd, 0xad, 0x15, 0xa5, 0x93, 0xb4, 0xbe, 0xef, 0x41, 0x9d, 0x19, 0x46, 0x9f,
+	0x22, 0xf2, 0xef, 0x12, 0x1c, 0xaa, 0x9c, 0x51, 0x97, 0xc5, 0xa3, 0xd5, 0x1c, 0xae, 0x74, 0x23,
+	0x8e, 0x09, 0x17, 0xed, 0x43, 0x9a, 0xfa, 0x06, 0xc3, 0xec, 0xf9, 0x33, 0x4d, 0xeb, 0x5b, 0x81,
+	0xa1, 0xd1, 0x43, 0x08, 0xd6, 0xbd, 0xfe, 0xfd, 0x49, 0xa4, 0x75, 0xbf, 0x8d, 0x9e, 0xc3, 0x43,
+	0x21, 0x1c, 0xa3, 0x6b, 0x99, 0xcc, 0x76, 0x0d, 0xce, 0x7a, 0x26, 0x67, 0x5d, 0xd7, 0x18, 0x73,
+	0x2b, 0x94, 0xb4, 0x2b, 0x84, 0xa3, 0xfa, 0x5e, 0x3d, 0x74, 0x5e, 0x72, 0x0b, 0x3d, 0x86, 0x9d,
+	0x11, 0x77, 0xde, 0xde, 0x18, 0xb4, 0xd7, 0xe3, 0x4c, 0x88, 0xdc, 0xba, 0x0f, 0x6f, 0xfb, 0x46,
+	0x25, 0xb0, 0xc9, 0x3f, 0x49, 0x50, 0x5c, 0x2e, 0x58, 0x8c, 0x1c, 0x5b, 0xb0, 0xd5, 0x8a, 0xdb,
+	0xb0, 0x33, 0xec, 0x53, 0xa3, 0x1b, 0x85, 0xfb, 0xd2, 0x33, 0x95, 0xcf, 0xe7, 0xf2, 0xdf, 0xaa,
+	0x29, 0xca, 0xd8, 0xbd, 0x66, 0xb6, 0xeb, 0x25, 0x6e, 0x3a, 0x9e, 0xbe, 0x3d, 0xec, 0xd3, 0xf8,
+	0x4b, 0xfe, 0x45, 0x82, 0xa3, 0x0e, 0xb5, 0xcc, 0xde, 0xff, 0x4f, 0xe2, 0x0b, 0xf0, 0xba, 0x34,
+	0x78, 0xa8, 0x3f, 0x54, 0x74, 0x72, 0x97, 0xa2, 0x68, 0xbe, 0x7a, 0x66, 0xd8, 0xa7, 0xf1, 0xe4,
+	0xa3, 0x8a, 0xac, 0x4d, 0x2b, 0x22, 0xbf, 0x03, 0x79, 0x95, 0xc4, 0xff, 0x92, 0xb6, 0x45, 0x85,
+	0x3e, 0x81, 0xcd, 0x1e, 0x9b, 0x98, 0x5d, 0xe6, 0x0f, 0x96, 0xa9, 0x64, 0x4b, 0xc1, 0x26, 0x6b,
+	0xd5, 0x94, 0xaa, 0x6f, 0xd7, 0x43, 0xbf, 0xfc, 0x9b, 0x04, 0xb9, 0x65, 0xf9, 0x44, 0x4d, 0x40,
+	0xd1, 0x86, 0x9b, 0x29, 0x8b, 0xe4, 0x77, 0x59, 0x28, 0xc5, 0x7b, 0x51, 0xe5, 0xac, 0xe7, 0x05,
+	0x53, 0x4b, 0x11, 0x82, 0x71, 0x5f, 0xfa, 0x27, 0x91, 0x77, 0xda, 0xdb, 0x19, 0xec, 0xf8, 0xab,
+	0x2f, 0x51, 0xdf, 0xc2, 0x5c, 0x36, 0x09, 0xd1, 0x66, 0x6a, 0xea, 0x2d, 0xc9, 0xb8, 0xa6, 0xbf,
+	0x4a, 0xf0, 0x70, 0x49, 0xb2, 0x91, 0x0a, 0x5b, 0xd1, 0xa0, 0xa1, 0xc6, 0xe3, 0xd5, 0x1a, 0xc3,
+	0xc0, 0xfa, 0x3d, 0x3d, 0x0e, 0x44, 0x5f, 0xc3, 0x9a, 0x10, 0x4e, 0x28, 0xed, 0x78, 0xb5, 0xb4,
+	0x69, 0xbc, 0x17, 0x73, 0x06, 0xb0, 0x15, 0x2d, 0x14, 0xf9, 0x07, 0xd8, 0x9e, 0x45, 0x51, 0x01,
+	0x80, 0x07, 0x0b, 0x6e, 0x5a, 0xc2, 0x74, 0x68, 0x69, 0xf4, 0xd0, 0x11, 0x6c, 0xbf, 0xb7, 0x1b,
+	0x83, 0x5a, 0x66, 0xf8, 0xcc, 0x26, 0xfc, 0x22, 0x51, 0xd2, 0x07, 0x61, 0x49, 0x09, 0xd1, 0xe6,
+	0xab, 0xfa, 0x02, 0x76, 0x17, 0x29, 0xbd, 0x4b, 0xc6, 0x2e, 0x6c, 0xb8, 0xce, 0x77, 0xcc, 0x0e,
+	0xc7, 0x0f, 0x3e, 0x9e, 0xfe, 0x99, 0x82, 0xfb, 0xef, 0x9f, 0x97, 0xe8, 0x10, 0xf6, 0xd5, 0xba,
+	0xd2, 0x6c, 0xe2, 0xf6, 0x39, 0x36, 0x88, 0xaa, 0x5d, 0x60, 0xe3, 0xb2, 0x4d, 0x2e, 0xb0, 0xda,
+	0xa8, 0x35, 0x70, 0x35, 0x7b, 0x0f, 0xed, 0xc1, 0xa7, 0x49, 0xa0, 0xa9, 0x9d, 0x37, 0xda, 0x59,
+	0x09, 0x7d, 0x06, 0x72, 0xd2, 0x75, 0xa1, 0x10, 0xf2, 0x4a, 0xd3, 0xab, 0x4d, 0x4c, 0x48, 0xc8,
+	0xa5, 0x90, 0x0c, 0x07, 0x49, 0xae, 0x8e, 0x95, 0x59, 0x66, 0x6d, 0x11, 0xd3, 0x52, 0xda, 0xca,
+	0x39, 0x36, 0xaa, 0xb8, 0xd3, 0x50, 0x31, 0xc9, 0xae, 0xa3, 0x27, 0x50, 0x4c, 0x32, 0x8a, 0xaa,
+	0x6a, 0x97, 0xed, 0x97, 0x86, 0x8e, 0x55, 0xad, 0x83, 0xf5, 0xd7, 0xd9, 0x0d, 0x54, 0x84, 0x47,
+	0x73, 0x33, 0x22, 0x58, 0x37, 0x08, 0x26, 0xa4, 0xa1, 0xb5, 0xb3, 0x9b, 0x8b, 0x08, 0xa5, 0xda,
+	0x6a, 0xb4, 0x0d, 0x45, 0x7d, 0xe9, 0x11, 0x1f, 0xa1, 0xc7, 0x70, 0x98, 0x24, 0xd4, 0xba, 0xe2,
+	0x7d, 0x44, 0x13, 0xcc, 0x6e, 0x3d, 0xbd, 0x99, 0xb9, 0xb1, 0xa6, 0xf7, 0x07, 0x3a, 0x86, 0xa3,
+	0x69, 0xac, 0xd2, 0x6c, 0x6a, 0xaf, 0x0c, 0x1d, 0x5f, 0x92, 0x64, 0x5e, 0x0b, 0xb0, 0xb7, 0x18,
+	0x7b, 0x8d, 0x49, 0x56, 0x42, 0x8f, 0x20, 0xb7, 0xd8, 0xdd, 0xd6, 0xb2, 0xa9, 0xca, 0xcf, 0x29,
+	0x80, 0x56, 0x4d, 0x21, 0x8c, 0x7b, 0x8b, 0x04, 0xbd, 0x83, 0xdc, 0xb2, 0x03, 0x1b, 0x7d, 0x35,
+	0x7f, 0xe9, 0xad, 0xbe, 0x8c, 0xf2, 0xa7, 0x1f, 0x10, 0x11, 0xae, 0xc6, 0x1f, 0x25, 0xc8, 0x2f,
+	0x3f, 0xfd, 0x50, 0x65, 0xae, 0xc7, 0x3b, 0x4f, 0xf3, 0xfc, 0xb3, 0x0f, 0x8a, 0x09, 0x74, 0x9c,
+	0x75, 0xfe, 0xb8, 0x3d, 0x90, 0xfe, 0xba, 0x3d, 0x90, 0xfe, 0xb9, 0x3d, 0x90, 0xbe, 0xad, 0x0f,
+	0x4c, 0xf7, 0x7a, 0x7c, 0x55, 0xea, 0x3a, 0xc3, 0xf2, 0x80, 0xd3, 0x89, 0xe9, 0xfa, 0x97, 0x33,
+	0xb5, 0xca, 0xf1, 0xdb, 0x84, 0x8e, 0xcc, 0xf2, 0x80, 0xd9, 0xe5, 0xe8, 0x85, 0x53, 0x4e, 0x3c,
+	0x8d, 0xbe, 0x19, 0xf6, 0xe9, 0xe4, 0xf4, 0x6a, 0xd3, 0xf7, 0x3f, 0xfb, 0x37, 0x00, 0x00, 0xff,
+	0xff, 0xad, 0x5d, 0x00, 0x6b, 0x3a, 0x09, 0x00, 0x00,
 }
 
 func (m *ChallengeExtensions) Marshal() (dAtA []byte, err error) {
@@ -333,13 +849,6 @@ func (m *ChallengeExtensions) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.ActionId) > 0 {
-		i -= len(m.ActionId)
-		copy(dAtA[i:], m.ActionId)
-		i = encodeVarintMfa(dAtA, i, uint64(len(m.ActionId)))
-		i--
-		dAtA[i] = 0x22
-	}
 	if len(m.UserVerificationRequirement) > 0 {
 		i -= len(m.UserVerificationRequirement)
 		copy(dAtA[i:], m.UserVerificationRequirement)
@@ -360,7 +869,7 @@ func (m *ChallengeExtensions) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *MFARequiredError) Marshal() (dAtA []byte, err error) {
+func (m *CreateChallengeForActionRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -370,12 +879,12 @@ func (m *MFARequiredError) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *MFARequiredError) MarshalTo(dAtA []byte) (int, error) {
+func (m *CreateChallengeForActionRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *MFARequiredError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *CreateChallengeForActionRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -384,10 +893,406 @@ func (m *MFARequiredError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Message) > 0 {
-		i -= len(m.Message)
-		copy(dAtA[i:], m.Message)
-		i = encodeVarintMfa(dAtA, i, uint64(len(m.Message)))
+	if len(m.ProxyAddress) > 0 {
+		i -= len(m.ProxyAddress)
+		copy(dAtA[i:], m.ProxyAddress)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.ProxyAddress)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.SsoClientRedirectUrl) > 0 {
+		i -= len(m.SsoClientRedirectUrl)
+		copy(dAtA[i:], m.SsoClientRedirectUrl)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.SsoClientRedirectUrl)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.User) > 0 {
+		i -= len(m.User)
+		copy(dAtA[i:], m.User)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.User)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ActionId) > 0 {
+		i -= len(m.ActionId)
+		copy(dAtA[i:], m.ActionId)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.ActionId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CreateChallengeForActionResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateChallengeForActionResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateChallengeForActionResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.MfaChallenge != nil {
+		{
+			size, err := m.MfaChallenge.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ActionId) > 0 {
+		i -= len(m.ActionId)
+		copy(dAtA[i:], m.ActionId)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.ActionId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ValidateChallengeForActionRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ValidateChallengeForActionRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ValidateChallengeForActionRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.User) > 0 {
+		i -= len(m.User)
+		copy(dAtA[i:], m.User)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.User)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.MfaResponse != nil {
+		{
+			size, err := m.MfaResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ActionId) > 0 {
+		i -= len(m.ActionId)
+		copy(dAtA[i:], m.ActionId)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.ActionId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ValidateChallengeForActionResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ValidateChallengeForActionResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ValidateChallengeForActionResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Device != nil {
+		{
+			size, err := m.Device.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.User) > 0 {
+		i -= len(m.User)
+		copy(dAtA[i:], m.User)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.User)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ActionId) > 0 {
+		i -= len(m.ActionId)
+		copy(dAtA[i:], m.ActionId)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.ActionId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *MFAAuthenticateChallenge) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MFAAuthenticateChallenge) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MFAAuthenticateChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.SsoChallenge != nil {
+		{
+			size, err := m.SsoChallenge.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.WebauthnChallenge != nil {
+		{
+			size, err := m.WebauthnChallenge.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *MFAAuthenticateResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MFAAuthenticateResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MFAAuthenticateResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Response != nil {
+		{
+			size := m.Response.Size()
+			i -= size
+			if _, err := m.Response.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *MFAAuthenticateResponse_Webauthn) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MFAAuthenticateResponse_Webauthn) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Webauthn != nil {
+		{
+			size, err := m.Webauthn.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *MFAAuthenticateResponse_Sso) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MFAAuthenticateResponse_Sso) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Sso != nil {
+		{
+			size, err := m.Sso.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *SSOChallenge) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SSOChallenge) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SSOChallenge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Device != nil {
+		{
+			size, err := m.Device.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMfa(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.RedirectUrl) > 0 {
+		i -= len(m.RedirectUrl)
+		copy(dAtA[i:], m.RedirectUrl)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.RedirectUrl)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.RequestId) > 0 {
+		i -= len(m.RequestId)
+		copy(dAtA[i:], m.RequestId)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.RequestId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SSOChallengeResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SSOChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SSOChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Token) > 0 {
+		i -= len(m.Token)
+		copy(dAtA[i:], m.Token)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.Token)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.RequestId) > 0 {
+		i -= len(m.RequestId)
+		copy(dAtA[i:], m.RequestId)
+		i = encodeVarintMfa(dAtA, i, uint64(len(m.RequestId)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -421,7 +1326,31 @@ func (m *ChallengeExtensions) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovMfa(uint64(l))
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateChallengeForActionRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	l = len(m.ActionId)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.User)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.SsoClientRedirectUrl)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.ProxyAddress)
 	if l > 0 {
 		n += 1 + l + sovMfa(uint64(l))
 	}
@@ -431,13 +1360,168 @@ func (m *ChallengeExtensions) Size() (n int) {
 	return n
 }
 
-func (m *MFARequiredError) Size() (n int) {
+func (m *CreateChallengeForActionResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.Message)
+	l = len(m.ActionId)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.MfaChallenge != nil {
+		l = m.MfaChallenge.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ValidateChallengeForActionRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ActionId)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.MfaResponse != nil {
+		l = m.MfaResponse.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.User)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ValidateChallengeForActionResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ActionId)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.User)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.Device != nil {
+		l = m.Device.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MFAAuthenticateChallenge) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.WebauthnChallenge != nil {
+		l = m.WebauthnChallenge.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.SsoChallenge != nil {
+		l = m.SsoChallenge.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MFAAuthenticateResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Response != nil {
+		n += m.Response.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *MFAAuthenticateResponse_Webauthn) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Webauthn != nil {
+		l = m.Webauthn.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	return n
+}
+func (m *MFAAuthenticateResponse_Sso) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Sso != nil {
+		l = m.Sso.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	return n
+}
+func (m *SSOChallenge) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RequestId)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.RedirectUrl)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.Device != nil {
+		l = m.Device.Size()
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *SSOChallengeResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RequestId)
+	if l > 0 {
+		n += 1 + l + sovMfa(uint64(l))
+	}
+	l = len(m.Token)
 	if l > 0 {
 		n += 1 + l + sovMfa(uint64(l))
 	}
@@ -552,7 +1636,58 @@ func (m *ChallengeExtensions) Unmarshal(dAtA []byte) error {
 			}
 			m.UserVerificationRequirement = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateChallengeForActionRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateChallengeForActionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateChallengeForActionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ActionId", wireType)
 			}
@@ -584,60 +1719,9 @@ func (m *ChallengeExtensions) Unmarshal(dAtA []byte) error {
 			}
 			m.ActionId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipMfa(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthMfa
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *MFARequiredError) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowMfa
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: MFARequiredError: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: MFARequiredError: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
+		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field User", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -665,7 +1749,1002 @@ func (m *MFARequiredError) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Message = string(dAtA[iNdEx:postIndex])
+			m.User = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SsoClientRedirectUrl", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SsoClientRedirectUrl = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProxyAddress", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ProxyAddress = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateChallengeForActionResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateChallengeForActionResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateChallengeForActionResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ActionId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ActionId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MfaChallenge", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.MfaChallenge == nil {
+				m.MfaChallenge = &MFAAuthenticateChallenge{}
+			}
+			if err := m.MfaChallenge.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ValidateChallengeForActionRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ValidateChallengeForActionRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ValidateChallengeForActionRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ActionId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ActionId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MfaResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.MfaResponse == nil {
+				m.MfaResponse = &MFAAuthenticateResponse{}
+			}
+			if err := m.MfaResponse.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field User", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.User = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ValidateChallengeForActionResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ValidateChallengeForActionResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ValidateChallengeForActionResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ActionId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ActionId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field User", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.User = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Device", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Device == nil {
+				m.Device = &types.MFADevice{}
+			}
+			if err := m.Device.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MFAAuthenticateChallenge) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MFAAuthenticateChallenge: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MFAAuthenticateChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field WebauthnChallenge", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.WebauthnChallenge == nil {
+				m.WebauthnChallenge = &webauthn.CredentialAssertion{}
+			}
+			if err := m.WebauthnChallenge.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SsoChallenge", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.SsoChallenge == nil {
+				m.SsoChallenge = &SSOChallenge{}
+			}
+			if err := m.SsoChallenge.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MFAAuthenticateResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MFAAuthenticateResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MFAAuthenticateResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Webauthn", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &webauthn.CredentialAssertionResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &MFAAuthenticateResponse_Webauthn{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sso", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SSOChallengeResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &MFAAuthenticateResponse_Sso{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SSOChallenge) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SSOChallenge: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SSOChallenge: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RequestId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RequestId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RedirectUrl", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RedirectUrl = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Device", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Device == nil {
+				m.Device = &types.SSOMFADevice{}
+			}
+			if err := m.Device.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMfa(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SSOChallengeResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMfa
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SSOChallengeResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SSOChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RequestId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RequestId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Token", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMfa
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMfa
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMfa
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Token = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
