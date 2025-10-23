@@ -3323,7 +3323,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 func getSAMLConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.SAMLConnector, error) {
 	if name == "" {
-		connectors, err := client.GetSAMLConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectors
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.SAMLConnector, string, error) {
+				return client.ListSAMLConnectorsWithOptions(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.SAMLConnector, error) {
+				//nolint:staticcheck // support older backends during migration
+				return client.GetSAMLConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

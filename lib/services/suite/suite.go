@@ -894,6 +894,10 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	t.Cleanup(func() {
+		s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
+	})
+
 	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.SAMLConnector{connector}, connectors, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -948,6 +952,126 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NotEmpty(t, upserted.GetRevision())
 	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
+}
+
+func (s *ServicesTestSuite) SAMLPagination(t *testing.T) {
+	ctx := t.Context()
+
+	newResource := func(name string) *types.SAMLConnectorV2 {
+		return &types.SAMLConnectorV2{
+			Kind:    types.KindSAML,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.SAMLConnectorSpecV2{
+				Display:                  "SAML",
+				Issuer:                   "http://example.com",
+				SSO:                      "https://example.com/saml/sso",
+				AssertionConsumerService: "https://localhost/acs",
+				Audience:                 "https://localhost/aud",
+				ServiceProviderIssuer:    "https://localhost/iss",
+				AttributesToRoles: []types.AttributeMapping{
+					{Name: "groups", Value: "admin", Roles: []string{"admin"}},
+				},
+				Cert: fixtures.TLSCACertPEM,
+				SigningKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: fixtures.TLSCAKeyPEM,
+					Cert:       fixtures.TLSCACertPEM,
+				},
+			},
+		}
+	}
+
+	pageSize := 2
+	totalItems := pageSize*2 + (pageSize / 2)
+	var expected []types.SAMLConnector
+	var expectedWithoutSecrets []types.SAMLConnector
+	for i := range totalItems {
+		connector := newResource(fmt.Sprintf("connector-%d", i))
+		_, err := s.WebS.UpsertSAMLConnector(ctx, connector)
+		require.NoError(t, err)
+		expected = append(expected, connector)
+
+		connectorNoSecrets := *connector
+		connectorNoSecrets.Spec.SigningKeyPair = &types.AsymmetricKeyPair{
+			PrivateKey: "",
+			Cert:       fixtures.TLSCACertPEM,
+		}
+		expectedWithoutSecrets = append(expectedWithoutSecrets, &connectorNoSecrets)
+	}
+
+	t.Cleanup(func() {
+		for _, conn := range expected {
+			s.WebS.DeleteSAMLConnector(ctx, conn.GetName())
+		}
+	})
+
+	t.Run("GetSAMLConnectors", func(t *testing.T) {
+		// Verify legacy getters still work as expected.
+		conns, err := s.WebS.GetSAMLConnectors(ctx, false)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expectedWithoutSecrets, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("GetSAMLConnectors with secrets", func(t *testing.T) {
+		// Verify legacy getters still work as expected.
+		conns, err := s.WebS.GetSAMLConnectors(ctx, true)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expected, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("ListSAMLConnectorsWithOptions", func(t *testing.T) {
+		withSecrets := false
+		want := expectedWithoutSecrets
+
+		// no limits
+		conns, next, err := s.WebS.ListSAMLConnectorsWithOptions(ctx, 0, "", withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// page limit
+		page1, page2Start, err := s.WebS.ListSAMLConnectorsWithOptions(ctx, pageSize, "", withSecrets)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Empty(t, cmp.Diff(want[:pageSize], page1, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// rest with start
+		page2, next, err := s.WebS.ListSAMLConnectorsWithOptions(ctx, 0, page2Start, withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want[pageSize:], page2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("ListSAMLConnectorsWithOptions with secrets", func(t *testing.T) {
+		withSecrets := true
+		want := expected
+
+		// no limits
+		conns, next, err := s.WebS.ListSAMLConnectorsWithOptions(ctx, 0, "", withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// page limit
+		page1, page2Start, err := s.WebS.ListSAMLConnectorsWithOptions(ctx, pageSize, "", withSecrets)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Empty(t, cmp.Diff(want[:pageSize], page1, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// rest with start
+		page2, next, err := s.WebS.ListSAMLConnectorsWithOptions(ctx, 0, page2Start, withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want[pageSize:], page2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
 }
 
 func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {

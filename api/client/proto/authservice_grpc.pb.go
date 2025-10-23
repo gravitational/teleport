@@ -165,6 +165,7 @@ const (
 	AuthService_GetOIDCAuthRequest_FullMethodName                  = "/proto.AuthService/GetOIDCAuthRequest"
 	AuthService_GetSAMLConnector_FullMethodName                    = "/proto.AuthService/GetSAMLConnector"
 	AuthService_GetSAMLConnectors_FullMethodName                   = "/proto.AuthService/GetSAMLConnectors"
+	AuthService_ListSAMLConnectors_FullMethodName                  = "/proto.AuthService/ListSAMLConnectors"
 	AuthService_CreateSAMLConnector_FullMethodName                 = "/proto.AuthService/CreateSAMLConnector"
 	AuthService_UpdateSAMLConnector_FullMethodName                 = "/proto.AuthService/UpdateSAMLConnector"
 	AuthService_UpsertSAMLConnector_FullMethodName                 = "/proto.AuthService/UpsertSAMLConnector"
@@ -660,6 +661,8 @@ type AuthServiceClient interface {
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(ctx context.Context, in *CreateSAMLConnectorRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -2552,6 +2555,15 @@ func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
+func (c *authServiceClient) ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error) {
+	out := new(ListSAMLConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSAMLConnectors_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateSAMLConnector(ctx context.Context, in *CreateSAMLConnectorRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error) {
 	out := new(types.SAMLConnectorV2)
 	err := c.cc.Invoke(ctx, AuthService_CreateSAMLConnector_FullMethodName, in, out, opts...)
@@ -4229,6 +4241,8 @@ type AuthServiceServer interface {
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -4983,6 +4997,9 @@ func (UnimplementedAuthServiceServer) GetSAMLConnector(context.Context, *types.R
 }
 func (UnimplementedAuthServiceServer) GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSAMLConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSAMLConnector not implemented")
@@ -7808,6 +7825,24 @@ func _AuthService_GetSAMLConnectors_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetSAMLConnectors(ctx, req.(*types.ResourcesWithSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListSAMLConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSAMLConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSAMLConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, req.(*ListSAMLConnectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10767,6 +10802,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSAMLConnectors",
 			Handler:    _AuthService_GetSAMLConnectors_Handler,
+		},
+		{
+			MethodName: "ListSAMLConnectors",
+			Handler:    _AuthService_ListSAMLConnectors_Handler,
 		},
 		{
 			MethodName: "CreateSAMLConnector",
