@@ -118,6 +118,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/ec2join"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -488,7 +489,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.WorkloadIdentity = workloadIdentity
 	}
 	if cfg.Summarizer == nil {
-		summarizer, err := local.NewSummarizerService(cfg.Backend)
+		summarizer, err := local.NewSummarizerService(local.SummarizerServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(bl-nero): Relax this condition once we implement spend controls.
+			EnableBedrock: !modules.GetModules().Features().Cloud,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
 		}
@@ -569,6 +574,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.ScopedTokenService == nil {
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -635,6 +647,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		ScopedTokenService:              cfg.ScopedTokenService,
 	}
 
 	as = &Server{
@@ -903,6 +916,7 @@ type Services struct {
 	RecordingEncryptionManager
 	events.MultipartHandler
 	services.Summarizer
+	services.ScopedTokenService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1293,6 +1307,10 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// ec2ClientForEC2JoinMethod overrides the default client used for making
+	// requests to the AWS ec2 service during EC2 join attempt verification.
+	ec2ClientForEC2JoinMethod ec2join.EC2Client
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool

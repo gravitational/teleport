@@ -67,6 +67,7 @@ Optional:
 
 - `db_labels` (Attributes List) DBLabels matches database labels. An empty value is ignored. The match result is logically ANDed with DBLabelsExpression, if both are non-empty. (see [below for nested schema](#nested-schema-for-specmatchdb_labels))
 - `db_labels_expression` (String) DBLabelsExpression is a label predicate expression to match databases. An empty value is ignored. The match result is logically ANDed with DBLabels, if both are non-empty.
+- `disabled` (Boolean) Disabled disables matches for all labels and expressions.
 - `kubernetes_labels` (Attributes List) KubernetesLabels matches Kubernetes labels. An empty value is ignored. The match result is logically ANDed with KubernetesLabelsExpression, if both are non-empty. (see [below for nested schema](#nested-schema-for-specmatchkubernetes_labels))
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a label predicate expression to match Kubernetes. An empty value is ignored. The match result is logically ANDed with KubernetesLabels, if both are non-empty.
 

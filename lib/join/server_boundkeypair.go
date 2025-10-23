@@ -116,7 +116,7 @@ func (s *Server) handleBoundKeypairJoin(
 		IssueChallenge:       issueChallenge,
 		IssueRotationRequest: issueRotationRequest,
 		GenerateBotCerts:     generateBotCerts,
-		Clock:                s.clock,
+		Clock:                s.cfg.AuthService.GetClock(),
 		Logger:               log,
 	})
 }
