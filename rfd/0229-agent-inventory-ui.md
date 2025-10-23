@@ -101,6 +101,7 @@ The response will be a JSON object containing the page of agents requested.
       }
     }
   ],
+  "updaterGroups": ["group1", "group2"],
   "totalCount": 4,
   "startKey": ""
 }
@@ -176,7 +177,8 @@ variably, based on the size of the cluster which will be derived from the size o
 to have more bandwidth) will have more lenient rate-limits in order to prevent it from taking too long to populate.
 
 Aggregate counters such as the total number of up-to-date instances, total number of each service, etc. will be their own separate
-fields in the cache and tallied up during initialization, and updated as needed during create/edit/delete operations.
+fields in the cache and tallied up during initialization, and updated as needed during create/edit/delete operations. All updater
+groups reported by agents will also be tallied into a deduplicated list.
 
 The cache will hook into the backend events watcher and watch for `instance` and `bot_instance` events and update the cache accordingly whenever
 an update is detected (such as an instance no longer being connected). This cache will live in auth and the data will be exposed to
@@ -198,11 +200,21 @@ agents using externally managed upgrades and their upgraders, and total active s
 
 The list of instances will be a paginated list with infinite scroll support, and contain columns for hostname,
 version, services, and external upgrader (if any). A search bar will be available to use in either basic mode (default),
-which searches by hostname, or advanced mode using predicate language to perform queries. The `versions` filter controls will
-merely populate the advanced search bar with a predicate query to filter for the desired range of version(s). Filters for
-services, upgrader, updater group, and types will be dropdowns containing checkbox lists that allow the user to select one
-or more options. Where applicable, the predicate language query functions will be kept consistent with those used in the Bot Instances
-dashboard.
+which searches by hostname/intstance ID, or advanced mode using predicate language to perform queries. Where applicable, the predicate
+language query functions will be kept consistent with those that can be used on the Bot Instances dashboard.
+
+The `versions` UI filter control will contain 4 preset options:
+
+- `Up-to-date`: Filter for instances running the current version of the cluster (eg. `18.2.4`).
+- `Patch available`: Filter for instances running the same major version, but a lower minor version (eg. `>=18.0.0`)
+- `Upgrade required`: Filter for instances running 1 major version behind. (eg. `>=17.0.0 && <18.0.0`).
+- `Unsupported`: Filter for instances running more than 2 major versions behind, or more than 1 major version ahead. (eg. `<17.0.0 && >=19.0.0`)
+
+More fine-tuned filtering is also available via a predicate query, by querying for `status.latest_heartbeat.version`, as in the
+Bot Instances dashboard.
+
+Filter controls for services, upgrader, updater groups, and type will be dropdowns containing checkbox lists that allow the user to select one
+or more options.
 
 Bot instances in the list will also contain a deep link to their dedicated bot instance page in the Bot Instances dashboard (RFD 0222),
 this will work by building the URL to the Bot Instances dashboard with a predicate language advacned search query that filters solely
