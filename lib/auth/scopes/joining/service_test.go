@@ -19,9 +19,9 @@ package joining_test
 import (
 	"cmp"
 	"context"
-	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -38,26 +39,33 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestScopedJoiningService(t *testing.T) {
-	ctx := withAuthCtx(t.Context(), newAuthCtx(types.RoleAdmin))
+	pack := newBackendPack(t)
+	service := pack.scopedTokenService
 
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	svc, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
-	require.NoError(t, err)
+	cases := []struct{
+		name string
+		accessInfo *services.AccessInfo,
+	}{
 
-	service, err := joining.New(joining.Config{
-		Logger:     logtest.NewLogger(),
-		Backend:    svc,
-		Authorizer: fakeAuthorizer{},
+	}
+	newServerForIdentity(t, pack, &services.AccessInfo{
+		ScopePin: &scopesv1.Pin{
+			Scope: "/staging",
+			Assignments: map[string]*scopesv1.PinnedAssignments{
+				"/staging": {
+					Roles: []string{"staging-admin"},
+				},
+			},
+		},
 	})
-	require.NoError(t, err)
-
 	token := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
@@ -161,39 +169,219 @@ func TestScopedJoiningService(t *testing.T) {
 	}
 }
 
-type fakeChecker struct {
-	services.AccessChecker
-	role string
+const testClusterName = "test-cluster"
+
+// fakeSplitAuthorizer is a mock implementation of ScopedAuthorizer that provides a hard-coded context.
+type fakeSplitAuthorizer struct {
+	ctx *authz.ScopedContext
 }
 
-func (f *fakeChecker) HasRole(role string) bool {
-	return role == f.role
+func (a *fakeSplitAuthorizer) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	return a.ctx, nil
 }
 
-type authKey struct{}
+// newFakeScopedAuthorizer builds a fake split authorizer with a hard-coded context based on the provided scoped access info and reader.
+// this means that while the identity/assignments can be fake, the underlying reader must contain the expected scoped
+// roles in order for the context to be built successfully.
+func newFakeScopedAuthorizer(t *testing.T, accessInfo *services.AccessInfo, reader services.ScopedRoleReader) *fakeSplitAuthorizer {
+	t.Helper()
 
-func withAuthCtx(ctx context.Context, authCtx authz.Context) context.Context {
-	return context.WithValue(ctx, authKey{}, authCtx)
-}
+	scopedCtx, err := services.NewScopedAccessCheckerContext(t.Context(), accessInfo, testClusterName, reader)
+	require.NoError(t, err)
 
-func newAuthCtx(role types.SystemRole) authz.Context {
-	return authz.Context{
-		Identity: authz.BuiltinRole{
-			Role: role,
-		},
-		Checker: &fakeChecker{
-			role: string(role),
+	return &fakeSplitAuthorizer{
+		ctx: &authz.ScopedContext{
+			User: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: accessInfo.Username,
+				},
+			},
+			CheckerContext: services.NewScopedSplitAccessCheckerContext(scopedCtx),
 		},
 	}
 }
 
-type fakeAuthorizer struct{}
+// newServerForIdentity builds a server with an access checker that is hard-coded to the provided access info. The backend pack
+// much be pre-seeded with the relevant scoped/unscoped roles, but assignments are drawn from the access info (as they would be
+// if the access info was being taken from a certificate).
+func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.AccessInfo) *joining.Server {
+	t.Helper()
 
-func (f fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
-	authCtx, ok := ctx.Value(authKey{}).(authz.Context)
-	if !ok {
-		return nil, errors.New("no auth context found")
+	var authz authz.ScopedAuthorizer
+	if accessInfo.ScopePin != nil {
+		authz = newFakeScopedAuthorizer(t, accessInfo, bk.cache)
 	}
 
-	return &authCtx, nil
+	srv, err := joining.New(joining.Config{
+		ScopedAuthorizer: authz,
+		Backend:          bk.scopedTokenService,
+		Logger:           logtest.NewLogger(),
+	})
+	require.NoError(t, err)
+
+	return srv
+}
+
+type backendPack struct {
+	backend            backend.Backend
+	service            *local.ScopedAccessService
+	classicService     *local.AccessService
+	cache              *scopedaccesscache.Cache
+	scopedTokenService *local.ScopedTokenService
+}
+
+func (p *backendPack) Close() {
+	p.cache.Close()
+	p.backend.Close()
+}
+
+// newBackendPack creates a scoped access service and populates it with the provided scoped roles.
+func newBackendPack(t *testing.T) *backendPack {
+	t.Helper()
+
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { backend.Close() })
+
+	service := local.NewScopedAccessService(backend)
+	classicService := local.NewAccessService(backend)
+	events := local.NewEventsService(backend)
+	scopedTokenService, err := local.NewScopedTokenService(backend)
+	require.NoError(t, err)
+
+	cache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
+		Events: events,
+		Reader: service,
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-cache.Init():
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "timed out waiting for scoped access cache to initialize")
+	}
+
+	roles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-admin",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-create",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbCreate},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-read",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbReadNoSecrets},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-list",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbList},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-delete",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbDelete},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "prod-admin",
+			},
+			Scope: "/prod",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/prod"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	for _, role := range roles {
+		_, err := service.CreateScopedRole(t.Context(), role)
+		require.NoError(t, err)
+	}
+	return &backendPack{
+		backend:            backend,
+		service:            service,
+		classicService:     classicService,
+		cache:              cache,
+		scopedTokenService: scopedTokenService,
+	}
 }

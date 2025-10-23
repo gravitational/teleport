@@ -176,6 +176,11 @@ func NewScopedSplitAccessCheckerContext(ctx *ScopedAccessCheckerContext) *SplitA
 	}
 }
 
+// Scoped
+func (c *SplitAccessCheckerContext) Scoped() *ScopedAccessCheckerContext {
+	return c.scopedContext
+}
+
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided rules. in practice
 // this currently just serves to exit early in the event that we are dealing with an unscoped identity without appropriate
 // permissions, but it could be extended in future to perform more complex checks if needed.
