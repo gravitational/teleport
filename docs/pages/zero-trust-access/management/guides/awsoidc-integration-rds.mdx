@@ -250,7 +250,7 @@ which may take a few minutes after it enters the "Pending" state.
 The most common failure is that a task cannot pull the Teleport image:
 
 ```code
-CannotPullContainerError: pull image manifest has been retried 5 time(s): failed to resolve ref public.ecr.aws/gravitational/teleport-ent-distroless:16.4.3: failed to do request: Head "https://public.ecr.aws/v2/gravitational/teleport-ent-distroless/manifests/16.4.3": dial tcp 99.83.145.10:443: i/o timeout
+CannotPullContainerError: pull image manifest has been retried 5 time(s): failed to resolve ref public.ecr.aws/gravitational/teleport-ent-distroless:16.4.3: failed to do request: Head "https://public.ecr.aws/v2/gravitational/teleport-ent-distroless/manifests/16.4.3": dial tcp 192.0.2.10:443: i/o timeout
 ```
 
 This is caused by a network connectivity issue that prevents the ECS task from

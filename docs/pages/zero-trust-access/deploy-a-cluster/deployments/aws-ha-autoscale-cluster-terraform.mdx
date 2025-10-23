@@ -593,7 +593,7 @@ To add users to the Teleport cluster, you will need to connect to a Teleport Aut
    ```code
    $ export BASTION_IP=$(terraform output -raw bastion_ip_public)
    $ echo ${BASTION_IP}
-   # 1.2.3.4
+   # 192.0.2.4
    ```
 
 1. Get the IP of an Auth Service instance by using `terraform output -json auth_instance_private_ips` and piping to `awk` to extract the first IP.
@@ -601,7 +601,7 @@ To add users to the Teleport cluster, you will need to connect to a Teleport Aut
    ```code
    $ export AUTH_IP=$(terraform output -json auth_instance_private_ips | awk -F\" '{print $2}')
    $ echo ${AUTH_IP}
-   # 172.31.0.196
+   # 192.0.2.196
    ```
 
 1. Use both these values to SSH into the Auth Service instance. Make sure that the AWS keypair that you specified in the
@@ -610,15 +610,15 @@ To add users to the Teleport cluster, you will need to connect to a Teleport Aut
    ```code
    $ export KEY_NAME=$(terraform output -raw key_name)
    $ ssh -i ${KEY_NAME}.pem -o ProxyCommand="ssh -i ${KEY_NAME}.pem -W '[%h]:%p' ec2-user@${BASTION_IP}" ec2-user@${AUTH_IP}
-   # The authenticity of host '1.2.3.4 (1.2.3.4)' can't be established.
+   # The authenticity of host '192.0.2.4 (192.0.2.4)' can't be established.
    # ECDSA key fingerprint is SHA256:vFPnCFliRsRQ1Dk+muIv2B1Owm96hXiihlOUsj5H3bg.
    # Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-   # Warning: Permanently added '1.2.3.4' (ECDSA) to the list of known hosts.
-   # The authenticity of host '172.31.0.196 (<no hostip for proxy command>)' can't be established.
+   # Warning: Permanently added '192.0.2.4' (ECDSA) to the list of known hosts.
+   # The authenticity of host '192.0.2.196 (<no hostip for proxy command>)' can't be established.
    # ECDSA key fingerprint is SHA256:vFPnCFliRsRQ1Dk+muIv2B1Owm96hXiihlOUsj5H3bg.
    # Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-   # Warning: Permanently added '172.31.0.196' (ECDSA) to the list of known hosts.
-   # Last login: Tue Mar  3 18:57:12 2020 from 1.2.3.5
+   # Warning: Permanently added '192.0.2.196' (ECDSA) to the list of known hosts.
+   # Last login: Tue Mar  3 18:57:12 2020 from 192.0.2.5
 
    #       __|  __|_  )
    #       _|  (     /   Amazon Linux 2 AMI
@@ -687,9 +687,9 @@ You can [download the Teleport package containing the `tsh` client from here](ht
   #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 
   $ tsh ls
-  # Node Name                    Address           Labels
-  # ---------------------------- ----------------- ------
-  # ip-172-31-11-69-ec2-internal 172.31.11.69:3022
+  # Node Name                  Address         Labels
+  # -------------------------- --------------- ------
+  # ip-192-0-2-69-ec2-internal 192.0.2.69:3022
 
   $ tsh ssh root@ip-172-31-11-69-ec2-internal
   # [root@ip-172-31-11-69 ~]#
@@ -774,8 +774,8 @@ The `systemd` service name for the Teleport Proxy Service is different between L
   #   CGroup: /system.slice/teleport-proxy.service
   #           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
-  # Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3024->172.31.2.143:1577: read: connection reset by peer
-  # Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
+  # Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 192.0.2.109:3024->192.0.2.143:1577: read: connection reset by peer
+  # Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 192.0.2.109:3023->192.0.2.143:38011: read: connection reset by peer
   ```
 
   You can get detailed logs for the Teleport Proxy Service using the `journalctl` command:
@@ -802,8 +802,8 @@ The `systemd` service name for the Teleport Proxy Service is different between L
   #   CGroup: /system.slice/teleport-proxy-acm.service
   #           └─4514 /usr/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 
-  # Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3024->172.31.2.143:1577: read: connection reset by peer
-  # Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 172.31.2.109:3023->172.31.2.143:38011: read: connection reset by peer
+  # Mar 05 20:58:25 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 192.0.2.109:3024->192.0.2.143:1577: read: connection reset by peer
+  # Mar 05 20:58:50 ip-172-31-2-109.ec2.internal /usr/bin/teleport[4514]: ERRO             read tcp 192.0.2.109:3023->192.0.2.143:38011: read: connection reset by peer
   ```
 
   You can get detailed logs for the Teleport Proxy Service using the `journalctl` command:
