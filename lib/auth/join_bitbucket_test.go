@@ -83,10 +83,13 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetBitbucketIDTokenValidator(idTokenValidator)
-		return nil
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		MutateAuth: func(server *auth.Server) error {
+			server.SetBitbucketIDTokenValidator(idTokenValidator)
+			return nil
+		},
 	})
 	require.NoError(t, err)
 	auth := p.a

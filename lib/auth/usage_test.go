@@ -118,8 +118,13 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 		TestFeatures: features,
 	})
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	// Create a clock in the middle of the month for easy manipulation
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 07, 15, 1, 2, 3, 0, time.UTC))
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clock,
+	})
 	require.NoError(t, err)
 
 	// Set up RBAC
@@ -143,12 +148,6 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	require.NoError(t, err)
 	_, err = p.a.CreateUser(ctx, alice)
 	require.NoError(t, err)
-
-	// Mock audit log
-	// Create a clock in the middle of the month for easy manipulation
-	clock := clockwork.NewFakeClockAt(
-		time.Date(2023, 07, 15, 1, 2, 3, 0, time.UTC))
-	p.a.SetClock(clock)
 
 	july := clock.Now()
 	august := clock.Now().AddDate(0, 1, 0)

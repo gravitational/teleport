@@ -193,7 +193,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

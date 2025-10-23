@@ -47,9 +47,7 @@ import (
 func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	p := newAuthSuite(t)
 
 	// test create new role
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
@@ -59,6 +57,7 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Creating a role should emit a RoleCreatedEvent.
+	ctx := authz.ContextWithClientSrcAddr(t.Context(), clientAddr)
 	role, err = p.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
@@ -103,9 +102,8 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 
 func TestUpsertDeleteDependentRoles(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	// test create new role
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
@@ -1120,9 +1118,8 @@ func TestDeleteRole(t *testing.T) {
 
 func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{MFADevice: "mfa-device-id"},
