@@ -159,8 +159,8 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 	// If upload part is not at least the minimum upload part size, append an empty part
 	// to pad up to the minimum upload size.
 	part := req.Part
-	if len(part) < events.MinUploadPartSizeBytes {
-		paddingBytes := min(events.MinUploadPartSizeBytes-len(part), events.ProtoStreamV2PartHeaderSize)
+	if !req.IsLast && len(part) < events.MinUploadPartSizeBytes {
+		paddingBytes := max(events.MinUploadPartSizeBytes-len(part), events.ProtoStreamV2PartHeaderSize)
 		paddedPart := make([]byte, paddingBytes)
 
 		paddedPartHeader := events.PartHeader{
