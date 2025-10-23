@@ -92,8 +92,7 @@ Example trust policy for EC2:
 }
 ```
 
-This policy might be created by AWS web console or via [AWS CLI](#via-aws-cli).
-
+This policy might be created using the [AWS Management Console or the AWS CLI](#step-45-create-an-ec2-instance).
 
 ## Step 2/5. Define groups and schedules
 
@@ -202,7 +201,74 @@ autoupdate_version has been created
 
 ## Step 4/5. Create an EC2 Instance
 
-### Via the AWS web console
+<Tabs>
+<TabItem label="AWS CLI">
+
+To create required IAM role, instance profile and launch EC2 instance, follow these steps:
+
+1. Create an IAM role with a trust policy that allows EC2 to assume it:
+
+```code
+$ cat > trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Service": "ec2.amazonaws.com" },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+$ aws iam create-role \
+  --role-name EC2TeleportRole \
+  --assume-role-policy-document file://trust-policy.json
+   ```
+
+1. Create an EC2 instance profile to use the role:
+
+```code
+$ aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
+$ aws iam add-role-to-instance-profile \
+  --instance-profile-name EC2TeleportInstanceProfile \
+  --role-name EC2TeleportRole
+   ```
+
+1. Create `cloud-init.yaml` configuration file with cloud init data.
+
+```yaml
+#cloud-config
+packages:
+- curl
+
+runcmd:
+  # Install Teleport using your cluster's script and define the group by query parameter.
+  # Script persists your updater flags (group, proxy, etc.)
+  - curl "https://<Var name="example.teleport.sh:443" />/scripts/install.sh?group=<Var name="development" />" | sudo bash
+
+  # Write agent config (join token) before starting the service.
+  - teleport configure --roles node --proxy <Var name="example.teleport.sh:443" /> --join-method iam --token iam-join > /etc/teleport.yaml
+
+  # Enable and start Teleport service.
+  - systemctl enable --now teleport
+   ```
+
+1. Launch the EC2 instance with the instance profile:
+
+```code
+# Specify the AMI image ID for the instance and a security group that allows at least outbound traffic.
+$ aws ec2 run-instances \
+  --image-id <Var name="ami-xxxx" /> \
+  --instance-type t3.micro \
+  --iam-instance-profile Name=EC2TeleportInstanceProfile \
+  --security-group-ids <Var name="sg-xxxx" /> \
+  --region us-west-2 \
+  --user-data file://cloud-init.yaml
+   ```
+</TabItem>
+
+<TabItem label="AWS web console">
 
 Follow the procedure for [launching an instance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-launch-instance-wizard.html)
 and [providing user data](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
@@ -231,71 +297,9 @@ runcmd:
   # Enable and start Teleport service.
   - systemctl enable --now teleport
 ```
+</TabItem>
+</Tabs>
 
-### Via AWS CLI
-
-To create required IAM role, instance profile and launch EC2 instance, follow these steps:
-
-1. Create an IAM role with a trust policy that allows EC2 to assume it:
-
-   ```code
-   $ cat > trust-policy.json <<EOF
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Principal": { "Service": "ec2.amazonaws.com" },
-         "Action": "sts:AssumeRole"
-       }
-     ]
-   }
-   EOF
-   $ aws iam create-role \
-     --role-name EC2TeleportRole \
-     --assume-role-policy-document file://trust-policy.json
-   ```
-
-1. Create an EC2 instance profile to use the role:
-
-   ```code
-   $ aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
-   $ aws iam add-role-to-instance-profile \
-     --instance-profile-name EC2TeleportInstanceProfile \
-     --role-name EC2TeleportRole
-   ```
-
-1. Create `cloud-init.yaml` configuration file with cloud init data.
-
-   ```yaml
-   #cloud-config
-   packages:
-   - curl
-
-   runcmd:
-     # Install Teleport using your cluster's script and define the group by query parameter.
-     # Script persists your updater flags (group, proxy, etc.)
-     - curl "https://<Var name="example.teleport.sh:443" />/scripts/install.sh?group=<Var name="development" />" | sudo bash
-
-     # Write agent config (join token) before starting the service.
-     - teleport configure --roles node --proxy <Var name="example.teleport.sh:443" /> --join-method iam --token iam-join > /etc/teleport.yaml
-
-     # Enable and start Teleport service.
-     - systemctl enable --now teleport
-   ```
-
-1. Launch the EC2 instance with the instance profile:
-
-   ```code
-   # Specify the AMI image ID for the instance and a security group that allows at least outbound traffic.
-   $ aws ec2 run-instances \
-     --image-id <Var name="ami-xxxx" /> \
-     --instance-type t3.micro \
-     --iam-instance-profile Name=EC2TeleportInstanceProfile \
-     --security-group-ids <Var name="sg-xxxx" /> \
-     --region us-west-2 \
-     --user-data file://cloud-init.yaml
-   ```
 
 ## Step 5/5. Verifying on the instance
 Once the EC2 instance is started, SSH on it to check the updater status:
