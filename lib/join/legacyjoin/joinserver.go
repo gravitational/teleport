@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -41,7 +42,11 @@ import (
 
 // Disabled returns true if the legacy join service is disabled in this environment.
 func Disabled() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_NO_AGENT_ID_SELECTION") != ""
+	disabledVar := os.Getenv("TELEPORT_UNSTABLE_NO_AGENT_ID_SELECTION")
+	// Some of our env variables support strconv.ParseBool, others "yes", this will handle both.
+	truthy, _ := strconv.ParseBool(disabledVar)
+	truthy = truthy || disabledVar == "yes"
+	return truthy
 }
 
 // ErrDisabled is an error that will be returned of all legacy join RPCs when
