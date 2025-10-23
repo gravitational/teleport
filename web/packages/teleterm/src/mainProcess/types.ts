@@ -237,7 +237,7 @@ export type MainProcessClient = {
   syncRootClusters(options: {
     abortSignal: CloneableAbortSignal;
   }): Promise<Cluster[]>;
-  logoutCluster(clusterUri: RootClusterUri): Promise<void>;
+  logoutAndRemoveCluster(clusterUri: RootClusterUri): Promise<void>;
   subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
     cleanup: () => void;
   };
@@ -370,7 +370,7 @@ export enum MainProcessIpc {
   SyncCluster = 'main-process-sync-cluster',
   AddCluster = 'main-process-add-cluster',
   SyncRootClusters = 'main-process-sync-root-clusters',
-  Logout = 'main-process-logout',
+  LogoutAndRemove = 'main-process-logout-and-remove',
 }
 
 export enum WindowsManagerIpc {

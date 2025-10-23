@@ -723,8 +723,8 @@ export default class MainProcess {
       this.clusterStore.sync(args.clusterUri)
     );
 
-    ipcMain.handle(MainProcessIpc.Logout, (_, args) =>
-      this.clusterStore.logout(args.clusterUri)
+    ipcMain.handle(MainProcessIpc.LogoutAndRemove, (_, args) =>
+      this.clusterStore.logoutAndRemove(args.clusterUri)
     );
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {

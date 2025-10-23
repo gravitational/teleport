@@ -65,5 +65,5 @@ export async function logoutWithCleanup(
   });
 
   // Remove the cluster, it does not depend on anything.
-  await ctx.clustersService.logout(clusterUri);
+  await ctx.mainProcessClient.logoutAndRemoveCluster(clusterUri);
 }

@@ -280,8 +280,8 @@ export default function createMainProcessClient(): MainProcessClient {
     syncCluster: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
     },
-    logoutCluster: (clusterUri: RootClusterUri) => {
-      return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
+    logoutAndRemoveCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.LogoutAndRemove, { clusterUri });
     },
   };
 }
