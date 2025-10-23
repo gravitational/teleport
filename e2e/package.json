@@ -7,7 +7,7 @@
   "private": true,
   "dependencies": {},
   "devDependencies": {
-    "@playwright/test": "^1.35.1",
+    "@playwright/test": "^1.55.1",
     "typescript": "^5.1.6"
   },
   "scripts": {
