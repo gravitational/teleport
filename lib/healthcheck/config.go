@@ -33,13 +33,14 @@ import (
 // healthCheckConfig is an internal health check config type converted from a
 // [*healthcheckconfigv1.HealthCheckConfig] with defaults set.
 type healthCheckConfig struct {
-	name                  string
-	protocol              types.TargetHealthProtocol
-	interval              time.Duration
-	timeout               time.Duration
-	healthyThreshold      uint32
-	unhealthyThreshold    uint32
-	databaseLabelMatchers types.LabelMatchers
+	name                    string
+	interval                time.Duration
+	timeout                 time.Duration
+	healthyThreshold        uint32
+	unhealthyThreshold      uint32
+	disabled                bool
+	databaseLabelMatchers   types.LabelMatchers
+	kubernetesLabelMatchers types.LabelMatchers
 }
 
 // newHealthCheckConfig converts a health check config protobuf message into a
@@ -48,15 +49,14 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 	spec := cfg.GetSpec()
 	match := spec.GetMatch()
 	return &healthCheckConfig{
-		name:               cfg.GetMetadata().GetName(),
-		timeout:            cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
-		interval:           cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
-		healthyThreshold:   cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
-		unhealthyThreshold: cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
-		// we only support plain TCP health checks currently, but eventually we
-		// may add support for other protocols such as TLS or HTTP
-		protocol:              types.TargetHealthProtocolTCP,
-		databaseLabelMatchers: newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
+		name:                    cfg.GetMetadata().GetName(),
+		timeout:                 cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
+		interval:                cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
+		healthyThreshold:        cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
+		unhealthyThreshold:      cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
+		disabled:                match.Disabled,
+		databaseLabelMatchers:   newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
+		kubernetesLabelMatchers: newLabelMatchers(match.GetKubernetesLabelsExpression(), match.GetKubernetesLabels()),
 	}
 }
 
@@ -66,22 +66,26 @@ func (h *healthCheckConfig) equivalent(other *healthCheckConfig) bool {
 	return (h == nil && other == nil) ||
 		h != nil && other != nil &&
 			h.name == other.name &&
-			h.protocol == other.protocol &&
 			h.interval == other.interval &&
 			h.timeout == other.timeout &&
 			h.healthyThreshold == other.healthyThreshold &&
-			h.unhealthyThreshold == other.unhealthyThreshold
+			h.unhealthyThreshold == other.unhealthyThreshold &&
+			h.disabled == other.disabled
 }
 
 // getLabelMatchers returns the label matchers to use for the given resource
 // kind.
 func (h *healthCheckConfig) getLabelMatchers(kind string) types.LabelMatchers {
-	switch kind {
-	case types.KindDatabase:
-		return h.databaseLabelMatchers
+	if !h.disabled {
+		switch kind {
+		case types.KindDatabase:
+			return h.databaseLabelMatchers
+		case types.KindKubernetesCluster:
+			return h.kubernetesLabelMatchers
+		}
 	}
-	// unreachable since we enforce a list of supported target resource kinds,
-	// but empty matchers do the right thing anyway: don't match anything.
+
+	// empty matchers don't match anything.
 	return types.LabelMatchers{}
 }
 

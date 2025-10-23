@@ -51,7 +51,8 @@
     },
     "kubernetes": {
       "major_version": "1",
-      "minor_version": "17"
+      "minor_version": "17",
+      "health_check_min_version": "18.3.0"
     },
     "mongodb": {
       "min_version": "3.6"

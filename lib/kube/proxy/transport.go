@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -319,19 +320,21 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 			return nil, trace.Wrap(err)
 		}
 
+		// Dial kube servers in the order of health status healthy, unknown, and unhealthy.
+		// Each health group is shuffled to distribute load.
+		// Unknown servers and unhealthy servers are still dialed
+		// in case health status changed since last check.
 		var errs []error
-		// Shuffle the list of servers to avoid always connecting to the same
-		// server.
-		for _, s := range utils.ShuffleVisit(kubeServers) {
+		for server := range healthcheck.OrderByTargetHealthStatus(kubeServers) {
 			// Validate that the requested kube cluster is registered.
-			kubeCluster := s.GetCluster()
-			if kubeCluster.GetName() != kubeClusterName || !opt.matches(s.GetHostID()) {
+			if server.GetCluster().GetName() != kubeClusterName || !opt.matches(server.GetHostID()) {
 				continue
 			}
+
 			// serverID is a unique identifier of the server in the cluster.
 			// It is a combination of the server's hostname and the cluster name.
 			// <host_id>.<cluster_name>
-			serverID := fmt.Sprintf("%s.%s", s.GetHostID(), f.cfg.ClusterName)
+			serverID := server.GetHostID() + "." + f.cfg.ClusterName
 			conn, err := localCluster.DialTCP(reversetunnelclient.DialParams{
 				// Send a sentinel value to the remote cluster because this connection
 				// will be used to forward multiple requests to the remote cluster from
@@ -339,18 +342,17 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				// IP Pinning is based on the source IP address of the connection that
 				// we transport over HTTP headers so it's not affected.
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: s.GetHostname()},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: server.GetHostname()},
 				ConnType: types.KubeTunnel,
 				ServerID: serverID,
-				ProxyIDs: s.GetProxyIDs(),
+				ProxyIDs: server.GetProxyIDs(),
 			})
 			if err == nil {
-				opt.collect(s.GetHostID())
+				opt.collect(server.GetHostID())
 				return conn, nil
 			}
-			errs = append(errs, trace.Wrap(err))
+			errs = append(errs, err)
 		}
-
 		if len(errs) > 0 {
 			return nil, trace.NewAggregate(errs...)
 		}

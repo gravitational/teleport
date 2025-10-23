@@ -67,6 +67,8 @@ import { ListGatewaysRequest } from "./service_pb";
 import { RemoveClusterRequest } from "./service_pb";
 import { Cluster } from "./cluster_pb";
 import { AddClusterRequest } from "./service_pb";
+import { ListKubernetesServersResponse } from "./service_pb";
+import { ListKubernetesServersRequest } from "./service_pb";
 import { ListKubernetesResourcesResponse } from "./service_pb";
 import { ListKubernetesResourcesRequest } from "./service_pb";
 import { GetSuggestedAccessListsResponse } from "./service_pb";
@@ -213,6 +215,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: ListKubernetesResources(teleport.lib.teleterm.v1.ListKubernetesResourcesRequest) returns (teleport.lib.teleterm.v1.ListKubernetesResourcesResponse);
      */
     listKubernetesResources: grpc.handleUnaryCall<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>;
+    /**
+     * Lists Kubernetes servers.
+     *
+     * @generated from protobuf rpc: ListKubernetesServers(teleport.lib.teleterm.v1.ListKubernetesServersRequest) returns (teleport.lib.teleterm.v1.ListKubernetesServersResponse);
+     */
+    listKubernetesServers: grpc.handleUnaryCall<ListKubernetesServersRequest, ListKubernetesServersResponse>;
     /**
      * AddCluster adds a cluster to profile
      *
@@ -586,6 +594,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => ListKubernetesResourcesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListKubernetesResourcesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListKubernetesResourcesRequest.toBinary(value))
+    },
+    listKubernetesServers: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesServers",
+        originalName: "ListKubernetesServers",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListKubernetesServersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListKubernetesServersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListKubernetesServersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListKubernetesServersRequest.toBinary(value))
     },
     addCluster: {
         path: "/teleport.lib.teleterm.v1.TerminalService/AddCluster",

@@ -108,6 +108,7 @@ export function makeUnifiedResourceViewItemKube(
       resourceType: 'Kubernetes',
     },
     requiresRequest: resource.requiresRequest,
+    status: resource.targetHealth?.status,
   };
 }
 
