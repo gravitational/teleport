@@ -44,16 +44,23 @@ export function AuditContainer() {
 
 export function Audit(props: State) {
   const {
-    attempt,
     range,
     setRange,
     rangeOptions,
     events,
     clusterId,
-    fetchMore,
-    fetchStatus,
+    onFetchNext,
+    error,
+    onFetchPrev,
+    isSuccess,
+    isLoadingPage,
+    search,
+    setSearch,
+    sort,
+    setSort,
     ctx,
   } = props;
+
   const [errorMessage, setErrorMessage] = useState('');
 
   return (
@@ -68,7 +75,7 @@ export function Audit(props: State) {
         />
       </FeatureHeader>
       <ExternalAuditStorageCta />
-      {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
+      {error && <Danger> {error.message} </Danger>}
       {!errorMessage && (
         <ClusterDropdown
           clusterLoader={ctx.clusterService}
@@ -78,17 +85,24 @@ export function Audit(props: State) {
         />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
-      {attempt.status === 'processing' && (
+      {isLoadingPage && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
-        <EventList
-          events={events}
-          fetchMore={fetchMore}
-          fetchStatus={fetchStatus}
-        />
+      {isSuccess && (
+        <Box mt={2}>
+          <EventList
+            events={events}
+            onFetchNext={onFetchNext}
+            onFetchPrev={onFetchPrev}
+            isLoadingPage={isLoadingPage}
+            search={search}
+            setSearch={setSearch}
+            sort={sort}
+            setSort={setSort}
+          />
+        </Box>
       )}
     </FeatureBox>
   );

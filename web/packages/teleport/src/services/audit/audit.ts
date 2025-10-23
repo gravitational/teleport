@@ -19,11 +19,42 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
+import { isPathNotFoundError } from '../version/unsupported';
 import makeEvent from './makeEvent';
 import { EventQuery, EventResponse } from './types';
 
 class AuditService {
   maxFetchLimit = 5000;
+
+  fetchEventsV2(clusterId: string, params: EventQuery): Promise<EventResponse> {
+    const start = params.from.toISOString();
+    const end = params.to.toISOString();
+    const limit = params.limit || this.maxFetchLimit;
+
+    const url = cfg.getClusterEventsUrl(clusterId, {
+      start,
+      end,
+      limit,
+      include: params.filterBy || undefined,
+      startKey: params.startKey || undefined,
+      search: params.search || undefined,
+      order: params.order || undefined,
+    });
+
+    return api
+      .get(url)
+      .then(json => {
+        const events = json.events || [];
+
+        return { events: events.map(makeEvent), startKey: json.startKey };
+      })
+      .catch(err => {
+        if (isPathNotFoundError(err)) {
+          return this.fetchEvents(clusterId, params);
+        }
+        throw err;
+      });
+  }
 
   fetchEvents(clusterId: string, params: EventQuery): Promise<EventResponse> {
     const start = params.from.toISOString();
