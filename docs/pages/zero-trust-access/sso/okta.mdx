@@ -103,14 +103,27 @@ Provide the following values to their respective fields:
 
 #### General
 
-- Single sign on URL: `https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`
-- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`</nobr>
-- Name ID format `EmailAddress`
-- Application username `Okta username`
+Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service
+or Enterprise Cloud account domain and port (`443` by default). If you have a
+self-hosted cluster with multiple public addresses for the Teleport Proxy
+Service (the value of `proxy_service.public_addr` in the Teleport configuration
+file), ensure that this address points to the first one listed.
 
-Replace `<cluster-url>` with your Teleport Proxy Service address or Enterprise
-Cloud tenant (e.g. `mytenant.teleport.sh`). Replace `<port>` with your Proxy
-Service listening port (`443` by default).
+- Single sign on URL:
+
+  ```
+  https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
+  ```
+
+- Audience URI (SP Entity ID):
+
+  ```
+  https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
+  ```
+
+- Name ID format `EmailAddress`
+
+- Application username `Okta username`
 
 #### Attribute Statements
 
@@ -179,7 +192,7 @@ flags for this command:
 
 ```code
 $ tctl sso configure saml --preset=okta \
---entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
+--entity-descriptor "https://example.okta.com/app/000000/sso/saml/metadata" \
 --attributes-to-roles=groups,okta-admin,editor \
 --attributes-to-roles=groups,okta-dev,dev > okta-connector.yaml
 ```

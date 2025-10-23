@@ -184,7 +184,7 @@ provider and how they are being mapped by your Login Rules.
 
 `tctl sso test` expects a connector spec.
 Run the following command to debug with a connector currently installed in your
-cluster.
+cluster, assigning <Var name="SSO connector name"/> to the connector name:
 
 ```code
 $ tctl get connector/<Var name="SSO connector name"/> --with-secrets | tctl sso test
