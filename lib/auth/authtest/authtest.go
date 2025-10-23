@@ -684,7 +684,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			})
+			}, "")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -697,7 +697,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			})
+			}, "")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1308,7 +1308,7 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

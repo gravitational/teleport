@@ -30,7 +30,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -63,8 +62,7 @@ func TestScopedJoiningService(t *testing.T) {
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:      "testtoken",
-			Namespace: defaults.Namespace,
+			Name: "testtoken",
 		},
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{

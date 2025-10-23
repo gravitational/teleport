@@ -1612,7 +1612,7 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/join/token"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -314,7 +314,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 		if c.withSecrets {
 			return tok.GetMetadata().GetName()
 		}
-		scoped, err := token.NewScoped(tok)
+		scoped, err := joining.NewToken(tok)
 		if err != nil {
 			return tok.GetMetadata().GetName()
 		}

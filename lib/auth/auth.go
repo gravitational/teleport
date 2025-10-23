@@ -5103,7 +5103,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5237,6 +5237,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 			ClusterName: clusterName.GetClusterName(),
 			SystemRole:  req.Role,
 			Principals:  req.AdditionalPrincipals,
+			AgentScope:  scope,
 		},
 	})
 	if err != nil {
@@ -5258,6 +5259,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
+		AgentScope:      scope,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5290,6 +5292,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &proto.Certs{
 		SSH:        hostSSHCert,
 		TLS:        hostTLSCert,
