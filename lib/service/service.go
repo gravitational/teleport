@@ -180,7 +180,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/process"
+	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -1646,7 +1646,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		if err := process.CreateLockedPIDFile(cfg.PIDFile); err != nil {
+		if err := procutils.CreateLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
 	}
