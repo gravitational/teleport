@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
@@ -132,9 +131,8 @@ func awsS3Bucket(name string,
 	accountID string,
 ) *accessgraphv1alpha.AWSS3BucketV1 {
 	s3 := &accessgraphv1alpha.AWSS3BucketV1{
-		Name:         name,
-		AccountId:    accountID,
-		LastSyncTime: timestamppb.Now(),
+		Name:      name,
+		AccountId: accountID,
 	}
 	if policy != nil {
 		s3.PolicyDocument = []byte(aws.ToString(policy.Policy))

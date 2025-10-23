@@ -1,9 +1,11 @@
 ---
 title: Access Monitoring Rule Reference
+sidebar_label: Access Monitoring Rules
 description: An explanation and overview of Access Monitoring Rules.
 tags:
  - reference
  - identity-governance
+ - privileged-access
 ---
 
 Access Monitoring Rules allow administrators to monitor Access Requests and apply
@@ -242,7 +244,7 @@ condition: access_request.spec.resource_labels_intersection["env"].contains("dev
 condition: access_request.spec.resource_labels_union["env"].contains("prod")
 ```
 
-See [Predicate Language](../predicate-language.mdx) for more details.
+See [Predicate Language](predicate-language.mdx) for more details.
 
 ## SSO users and IdP attributes
 
@@ -317,5 +319,5 @@ resource "teleport_access_monitoring_rule" "example_rule" {
 }
 ```
 
-See [Terraform Provider](../terraform-provider/resources/access_monitoring_rule.mdx)
+See [Terraform Provider](../infrastructure-as-code/terraform-provider/resources/access_monitoring_rule.mdx)
 for more details.

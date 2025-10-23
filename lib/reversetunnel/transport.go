@@ -389,7 +389,7 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 	}
 }
 
-// getConn checks if the local site holds a connection to the target host,
+// getConn checks if the local cluster holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
 func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, error) {
@@ -442,12 +442,12 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 	return conn, true, nil
 }
 
-// tunnelDial looks up the search names in the local site for a matching tunnel
+// tunnelDial looks up the search names in the local cluster for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
 func (p *transport) tunnelDial(ctx context.Context, r *sshutils.DialReq) (net.Conn, error) {
-	// Extract the local site from the tunnel server. If no tunnel server
+	// Extract the local cluster from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
-	// remote site.
+	// leaf cluster.
 	if p.reverseTunnelServer == nil {
 		return nil, trace.NotFound("not found")
 	}
@@ -455,7 +455,7 @@ func (p *transport) tunnelDial(ctx context.Context, r *sshutils.DialReq) (net.Co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	localCluster, ok := cluster.(*localSite)
+	localCluster, ok := cluster.(*localCluster)
 	if !ok {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}

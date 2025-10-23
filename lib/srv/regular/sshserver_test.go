@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -351,10 +352,8 @@ func TestTerminalSizeRequest(t *testing.T) {
 		// initiating the client request for the window size to prevent flakiness.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
-			if assert.NoError(t, err) {
-				return
-			}
-			assert.Empty(t, cmp.Diff(expectedSize, size, cmp.AllowUnexported(term.Winsize{})))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expectedSize, *size, cmp.AllowUnexported(term.Winsize{})))
 		}, 10*time.Second, 100*time.Millisecond)
 
 		// Send a request for the window size now that we know the window change
@@ -508,13 +507,13 @@ func TestSessionAuditLog(t *testing.T) {
 	sessionID := startEvent.SessionID
 
 	// Request agent forwarding, no individual event emitted.
-	err = agent.RequestAgentForwarding(se.Session)
+	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
 
 	// Request x11 forwarding, event should be emitted immediately.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	err = x11.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
 	x11Event := nextEvent()
@@ -716,7 +715,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSession(context.Background())
+		se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 		waitForTimeout(t, f, se)
@@ -728,7 +727,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSession(context.Background())
+		se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 
@@ -1155,7 +1154,7 @@ func TestAgentForwardPermission(t *testing.T) {
 
 	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
 	// however that does not mean the users agent will actually be forwarded.
-	require.NoError(t, agent.RequestAgentForwarding(se.Session))
+	require.NoError(t, sshagent.RequestAgentForwarding(ctx, se))
 
 	// the output of env, we should not see SSH_AUTH_SOCK in the output
 	output, err := se.Output(ctx, "env")
@@ -1264,7 +1263,7 @@ func TestAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
-	err = agent.RequestAgentForwarding(se.Session)
+	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -1404,7 +1403,7 @@ func TestX11Forward(t *testing.T) {
 // echoing XServer requests received back to the client. Returns the Display opened on the
 // session, which is set in $DISPLAY.
 func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11.Display {
-	se, err := clt.NewSession(context.Background())
+	se, err := clt.NewSessionWithParams(context.Background(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -1454,7 +1453,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// Client requests x11 forwarding for the server session.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
 	require.NoError(t, err)
-	err = x11.RequestForwarding(se.Session, clientXAuthEntry)
+	err = x11.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
 	// prepare to send virtual "keyboard input" into the shell:
@@ -1482,9 +1481,9 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 		_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
-		assert.Eventually(t, func() bool {
+		require.Eventually(t, func() bool {
 			output, err := os.ReadFile(tmpFile.Name())
 			if err == nil && len(output) != 0 {
 				select {
@@ -1740,7 +1739,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via TCP
-	conn, chans, reqs, err := tracessh.NewClientConn(
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(
 		ctx,
 		pipeNetConn,
 		f.ssh.srv.Addr(),
@@ -2614,7 +2613,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
-			se, err := f.ssh.clt.NewSession(context.Background())
+			se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = se.Close() })
 			return se
@@ -2839,7 +2838,7 @@ func TestX11ProxySupport(t *testing.T) {
 	cltConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
 	// Perform ssh handshake and setup client for X11 test server.
-	cltConn, chs, reqs, err := tracessh.NewClientConn(ctx, netConn, node.addr, &cltConfig)
+	cltConn, chs, reqs, err := tracessh.NewClientConnWithTimeout(ctx, netConn, node.addr, &cltConfig)
 	require.NoError(t, err)
 	clt := tracessh.NewClient(cltConn, chs, reqs)
 
@@ -3026,7 +3025,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via proxy subsystem's TCP tunnel
-	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pipeNetConn,
+	conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, pipeNetConn,
 		f.ssh.srv.Addr(), sshConfig)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -3069,7 +3068,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-func TestTargetMetadata(t *testing.T) {
+func TestEventMetadata(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -3137,7 +3136,7 @@ func TestTargetMetadata(t *testing.T) {
 		serverOptions...)
 	require.NoError(t, err)
 
-	metadata := sshSrv.TargetMetadata()
+	metadata := sshSrv.EventMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
 	require.Empty(t, metadata.ServerAddr)
@@ -3611,4 +3610,114 @@ func (f *fakeHostUsersBackend) UserExists(name string) error {
 
 func (f *fakeHostUsersBackend) SetHostUserDeletionGrace(grace time.Duration) {
 	f.functionCalled("SetHostUserDeletionGrace")
+}
+
+func TestSessionParams(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := t.Context()
+
+	// Start one session that can be used to test joining in the test cases below.
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, se.Close()) })
+	require.NoError(t, se.Shell(ctx))
+	sessions, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	joinSID := sessions[0].GetSessionID()
+
+	for _, baseCase := range []struct {
+		name   string
+		params *tracessh.SessionParams
+	}{
+		{
+			name: "new session",
+			params: &tracessh.SessionParams{
+				Reason:  "For science.",
+				Invited: []string{"Esqueleto"},
+			},
+		}, {
+			name: "join session",
+			params: &tracessh.SessionParams{
+				JoinSessionID: joinSID,
+				JoinMode:      types.SessionObserverMode,
+			},
+		},
+	} {
+		t.Run(baseCase.name, func(t *testing.T) {
+			envVars := map[string]string{
+				teleport.EnvSSHSessionReason: baseCase.params.Reason,
+				sshutils.SessionEnvVar:       baseCase.params.JoinSessionID,
+				teleport.EnvSSHJoinMode:      string(baseCase.params.JoinMode),
+			}
+			if baseCase.params.Invited != nil {
+				invitedJSON, err := json.Marshal(baseCase.params.Invited)
+				require.NoError(t, err)
+				envVars[teleport.EnvSSHSessionInvited] = string(invitedJSON)
+			}
+
+			for _, sessionCase := range []struct {
+				name    string
+				params  *tracessh.SessionParams
+				envVars map[string]string
+			}{
+				{
+					// TODO(Joerger): DELETE IN v20.0.0 - params are needed to join a session.
+					name:    "env vars only", // v18- client
+					params:  nil,
+					envVars: envVars,
+				}, {
+					// TODO(Joerger): DELETE IN v20.0.0 - only params are needed to join a session.
+					name:    "params and env vars", // v19 client
+					params:  baseCase.params,
+					envVars: envVars,
+				}, {
+					name:   "params only", // v20+ client
+					params: baseCase.params,
+				},
+			} {
+				t.Run(sessionCase.name, func(t *testing.T) {
+					sidC := make(chan string)
+					err := f.ssh.clt.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+						sidC <- string(req.Payload)
+					})
+					require.NoError(t, err)
+
+					se, err := f.ssh.clt.NewSessionWithParams(ctx, sessionCase.params)
+					require.NoError(t, err)
+					t.Cleanup(func() { require.NoError(t, se.Close()) })
+
+					if sessionCase.envVars != nil {
+						err := se.SetEnvs(ctx, sessionCase.envVars)
+						require.NoError(t, err)
+					}
+
+					require.NoError(t, se.Shell(ctx))
+
+					var sid string
+					select {
+					case sid = <-sidC:
+					case <-time.After(time.Second):
+						t.Fatalf("Failed to received session ID from server")
+					}
+
+					sessionTracker, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetSessionTracker(ctx, sid)
+					require.NoError(t, err)
+
+					require.Equal(t, baseCase.params.Invited, sessionTracker.GetInvited())
+					require.Equal(t, baseCase.params.Reason, sessionTracker.GetReason())
+
+					participants := sessionTracker.GetParticipants()
+					if baseCase.params.JoinSessionID != "" {
+						require.Equal(t, baseCase.params.JoinSessionID, sid, "Expected to join session %q, but got a new session ID instead", baseCase.params.JoinSessionID)
+						require.Len(t, participants, 2)
+						require.Equal(t, string(baseCase.params.JoinMode), participants[1].Mode)
+					} else {
+						require.Len(t, participants, 1)
+						require.Equal(t, string(types.SessionPeerMode), participants[0].Mode)
+					}
+				})
+			}
+		})
+	}
 }

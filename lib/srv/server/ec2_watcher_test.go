@@ -20,12 +20,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -54,11 +56,11 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 	return &output, nil
 }
 
-func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) innerEC2ClientGetter {
-	return func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) matcherEC2ClientGetter {
+	return func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		var roleARN string
-		if assumeRole != nil {
-			roleARN = assumeRole.RoleARN
+		if matcher.AssumeRole != nil {
+			roleARN = matcher.AssumeRole.RoleARN
 		}
 		return &mockEC2Client{
 			output: m[roleARN],
@@ -275,9 +277,13 @@ func TestEC2Watcher(t *testing.T) {
 		"alternate-role-arn": &altAccountOutput,
 	})
 
-	const noDiscoveryConfig = ""
 	fetchersFn := func() []Fetcher {
-		fetchers, err := matchersToEC2InstanceFetchers(t.Context(), matchers, getClient, noDiscoveryConfig)
+		fetchers, err := matchersToEC2InstanceFetchers(MatcherToEC2FetcherParams{
+			Matchers: matchers,
+			PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+				return "proxy.example.com:3080", nil
+			},
+		}, getClient)
 		require.NoError(t, err)
 
 		return fetchers
@@ -327,6 +333,29 @@ func TestEC2Watcher(t *testing.T) {
 		require.Fail(t, "unexpected instance: %v", inst)
 	default:
 	}
+}
+
+func TestMatchersToEC2InstanceFetchers(t *testing.T) {
+	ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		return nil, errors.New("ec2 client getter invocation must not fail when creating fetchers")
+	}
+
+	matchers := []types.AWSMatcher{{
+		Params: &types.InstallerParams{
+			InstallTeleport: true,
+		},
+		Types:   []string{"EC2"},
+		Regions: []string{"us-west-2"},
+		Tags:    map[string]utils.Strings{"*": {"*"}},
+		SSM:     &types.AWSSSM{},
+	}}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers:        matchers,
+		EC2ClientGetter: ec2ClientGetter,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, fetchers)
 }
 
 func TestConvertEC2InstancesToServerInfos(t *testing.T) {
@@ -482,6 +511,121 @@ func TestToEC2Instances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ToEC2Instances(tt.input)
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestSSMRunCommandParameters(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		cfg            ec2FetcherConfig
+		errCheck       require.ErrorAssertionFunc
+		expectedParams map[string]string
+	}{
+		{
+			name: "using custom ssm document",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document: "TeleportDiscoveryInstaller",
+			},
+			errCheck: require.NoError,
+			expectedParams: map[string]string{
+				"token":      "my-token",
+				"scriptName": "default-installer",
+			},
+		},
+		{
+			name: "using custom ssm document without agentless install",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: false,
+						JoinToken:       "my-token",
+						ScriptName:      "default-agentless-installer",
+						SSHDConfig:      "/etc/ssh/sshd_config",
+					},
+				},
+				Document: "TeleportDiscoveryInstaller",
+			},
+			errCheck: require.NoError,
+			expectedParams: map[string]string{
+				"token":          "my-token",
+				"scriptName":     "default-agentless-installer",
+				"sshdConfigPath": "/etc/ssh/sshd_config",
+			},
+		},
+		{
+			name: "using pre-defined AWS document",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document: "AWS-RunShellScript",
+				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
+					return "proxy.example.com", nil
+				},
+			},
+			errCheck: require.NoError,
+			expectedParams: map[string]string{
+				"commands": "curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+			},
+		},
+		{
+			name: "using pre-defined AWS document with env vars defined",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document: "AWS-RunShellScript",
+				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
+					return "proxy.example.com", nil
+				},
+				InstallSuffix: "cluster-green",
+			},
+			errCheck: require.NoError,
+			expectedParams: map[string]string{
+				"commands": "export TELEPORT_INSTALL_SUFFIX=cluster-green; curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+			},
+		},
+		{
+			name: "error if using AWS-RunShellScript but proxy addr is not yet available",
+			cfg: ec2FetcherConfig{
+				Matcher: types.AWSMatcher{
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+						JoinToken:       "my-token",
+						ScriptName:      "default-installer",
+					},
+				},
+				Document: "AWS-RunShellScript",
+				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
+					return "", trace.NotFound("proxy is not yet available")
+				},
+				InstallSuffix: "cluster-green",
+			},
+			errCheck: require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ssmRunCommandParameters(t.Context(), tt.cfg)
+			tt.errCheck(t, err)
+			if tt.expectedParams != nil {
+				require.Equal(t, tt.expectedParams, got)
+			}
 		})
 	}
 }

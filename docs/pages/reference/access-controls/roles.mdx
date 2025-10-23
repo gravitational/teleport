@@ -1,10 +1,12 @@
 ---
-title: Access Controls Reference
+title: Teleport Role Reference
+sidebar_label: Roles
 description: Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 tocDepth: 3
 tags:
  - reference
  - zero-trust
+ - privileged-access
 ---
 
 This guide shows you how to use Teleport roles to manage role-based access
@@ -70,7 +72,7 @@ user:
 | `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | The lowest value takes precedence. |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` |Defines the [Session recording mode](../monitoring/audit.mdx).|The strictest value takes precedence.|
+| `record_session` |Defines the [Session recording mode](../deployment/monitoring/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `desktop_directory_sharing` | Allows sharing local workstation directory to remote desktop | Logical "AND" i.e. evaluates to "yes" if all roles enable directory sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
@@ -250,7 +252,7 @@ conditions:
 - `workload_identity_labels_expression`
 
 Check out our
-[predicate language](../predicate-language.mdx)
+[predicate language](predicate-language.mdx)
 guide for a more in depth explanation of the language.
 
 Typically you will only want to use one of `<kind>_labels` or
@@ -279,7 +281,10 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it would
-prohibit users from getting a list of active sessions. You can see all of the
+prohibit users from getting a list of active sessions. If a role does not allow
+access to list a resource, the user will not be able to view it in the Web UI
+or remotely with `tctl`.  The only exception is that a user can always view their 
+assigned roles and their own user information with `tctl`.  You can see all of the
 available resources and verbs under the `allow` section in the example role
 configuration below.
 
@@ -607,6 +612,8 @@ for Kubernetes sessions together with the user and session fields above.
 The following database session fields can be used in `where` expressions to filter access
 for database sessions together with the user and session fields above.
 
+{/* vale messaging.capitalization = NO */}
+
 | Database Session Field | Description | Type |
 |---|---|---|
 | `session.db_service` | The name of the database service where the session took place. | `string` |
@@ -616,6 +623,8 @@ for database sessions together with the user and session fields above.
 | `session.db_user` | The database user used during the session. | `string` |
 | `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
 | `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
+
+{/* vale messaging.capitalization = YES */}
 
 </TabItem>
 <TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">
@@ -755,7 +764,7 @@ Labels for resources enrolled with Teleport:
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
-|`workload_identity_labels`|[Workload Identities](../workload-identity/workload-identity-resource.mdx)|
+|`workload_identity_labels`|[Workload Identities](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
@@ -813,7 +822,7 @@ sign-on provider.
 The `internal` trait namespace includes only the exact internal trait names
 included in the above table.
 For local Teleport users, these traits can be set in the `spec.traits` field of the
-[user resource](../resources.mdx#user).
+[user resource](../infrastructure-as-code/resources.mdx#user).
 These trait names can also be set for SSO users if they are included in an
 attribute or claim from your IdP.
 
@@ -845,7 +854,7 @@ included in the `spec.allow.logins` field of roles the user holds in the root cl
 #### Referring to external traits in Teleport roles
 
 For local Teleport users, the `external` trait namespace includes all values
-from the `spec.traits` field of the [user resource](../resources.mdx#user).
+from the `spec.traits` field of the [user resource](../infrastructure-as-code/resources.mdx#user).
 This includes any custom trait names, as well as names matching the `internal`
 traits listed above.
 For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways
@@ -954,5 +963,5 @@ within this guide:
 | `user.metadata.name`       | The user's name                                   |
 
 Read the [predicate
-language](../predicate-language.mdx)
+language](predicate-language.mdx)
 guide for a more in depth explanation of the language.

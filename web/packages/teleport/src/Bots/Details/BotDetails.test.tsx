@@ -46,6 +46,7 @@ import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   deleteBotSuccess,
+  EditBotApiVersion,
   editBotSuccess,
   getBotError,
   getBotSuccess,
@@ -147,6 +148,9 @@ describe('BotDetails', () => {
     expect(panel).toBeInTheDocument();
 
     expect(within(panel!).getByText('test-bot-name')).toBeInTheDocument();
+    expect(
+      within(panel!).getByText("This is the bot's description.")
+    ).toBeInTheDocument();
     expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
@@ -363,7 +367,7 @@ describe('BotDetails', () => {
       // Change something to enable the save button
       await inputMaxSessionDuration(user, '12h 30m');
 
-      withSaveSuccess(2, {
+      withSaveSuccess('v2', {
         roles: ['role-1'],
         traits: [
           {
@@ -748,29 +752,32 @@ const withFetchJoinTokensOutdatedProxy = () => {
 
 function withFetchInstancesSuccess() {
   server.use(
-    listBotInstancesSuccess({
-      bot_instances: [
-        {
-          bot_name: 'ansible-worker',
-          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
-          active_at_latest: '2025-07-22T10:54:00Z',
-          host_name_latest: 'svr-lon-01-ab23cd',
-          join_method_latest: 'github',
-          os_latest: 'linux',
-          version_latest: '4.4.16',
-        },
-      ],
-      next_page_token: '',
-    })
+    listBotInstancesSuccess(
+      {
+        bot_instances: [
+          {
+            bot_name: 'ansible-worker',
+            instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+            active_at_latest: '2025-07-22T10:54:00Z',
+            host_name_latest: 'svr-lon-01-ab23cd',
+            join_method_latest: 'github',
+            os_latest: 'linux',
+            version_latest: '4.4.16',
+          },
+        ],
+        next_page_token: '',
+      },
+      'v1'
+    )
   );
 }
 
-const withSaveSuccess = (
-  version: 1 | 2 = 2,
+function withSaveSuccess(
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
-) => {
+) {
   server.use(editBotSuccess(version, overrides));
-};
+}
 
 function withFetchRolesSuccess() {
   server.use(

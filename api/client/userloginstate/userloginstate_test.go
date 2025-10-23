@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 type mockClient struct {
@@ -74,7 +76,31 @@ func (m *mockClient) DeleteAllUserLoginStates(_ context.Context, in *userloginst
 	return nil, nil
 }
 
-func TestGetUserLoginStates(t *testing.T) {
+func (m *mockClient) ListUserLoginStates(ctx context.Context, in *userloginstatev1.ListUserLoginStatesRequest, opts ...grpc.CallOption) (*userloginstatev1.ListUserLoginStatesResponse, error) {
+	if in.PageSize != 1 {
+		return nil, trace.BadParameter("unsupported page size, expected 1, got %d", in.PageSize)
+	}
+	switch in.PageToken {
+	case "", "uls1":
+		return &userloginstatev1.ListUserLoginStatesResponse{
+			UserLoginStates: []*userloginstatev1.UserLoginState{newUserLoginStateProto(m.t, "uls1")},
+			NextPageToken:   "uls2",
+		}, nil
+	case "uls2":
+		return &userloginstatev1.ListUserLoginStatesResponse{
+			UserLoginStates: []*userloginstatev1.UserLoginState{newUserLoginStateProto(m.t, "uls2")},
+			NextPageToken:   "uls3",
+		}, nil
+	case "uls3":
+		return &userloginstatev1.ListUserLoginStatesResponse{
+			UserLoginStates: []*userloginstatev1.UserLoginState{newUserLoginStateProto(m.t, "uls3")},
+			NextPageToken:   "",
+		}, nil
+	}
+	return nil, trace.BadParameter("unsupported page token")
+}
+
+func TestGetListUserLoginStates(t *testing.T) {
 	t.Parallel()
 	mockClient := &mockClient{t: t}
 	client := NewClient(mockClient)
@@ -89,6 +115,20 @@ func TestGetUserLoginStates(t *testing.T) {
 		newUserLoginState(t, "uls2"),
 		newUserLoginState(t, "uls3"),
 	}, states))
+
+	t.Run("test list user login state with pagination", func(t *testing.T) {
+		var items []*userloginstate.UserLoginState
+		for item, err := range clientutils.ResourcesWithPageSize(context.Background(), client.ListUserLoginStates, 1) {
+			require.NoError(t, err)
+			items = append(items, item)
+		}
+
+		require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{
+			newUserLoginState(t, "uls1"),
+			newUserLoginState(t, "uls2"),
+			newUserLoginState(t, "uls3"),
+		}, items))
+	})
 }
 
 func TestGetUserLoginState(t *testing.T) {

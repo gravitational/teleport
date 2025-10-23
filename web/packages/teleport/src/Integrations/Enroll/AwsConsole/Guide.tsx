@@ -48,7 +48,7 @@ const GuideReferenceLinks = {
   },
   TeleportSetUp: {
     title: 'Teleport AWS Console and CLI access: Set up access',
-    href: 'https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console-without-agent/#step-34-set-up-access',
+    href: 'https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere#step-34-set-up-access',
   },
 };
 

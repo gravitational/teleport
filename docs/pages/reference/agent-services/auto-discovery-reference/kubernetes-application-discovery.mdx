@@ -1,9 +1,11 @@
 ---
 title: Kubernetes Application Discovery Reference
+sidebar_label: Kubernetes Application Discovery
 description: This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
 tags:
  - reference
  - zero-trust
+ - infrastructure-identity
 ---
 
 Kubernetes Application Discovery involves the Teleport Discovery Service,
@@ -71,7 +73,7 @@ app_service:
 
 Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
 
-For more information you can take a look at [`discovery_service`](../../config.mdx) and [`app_service`](../../config.mdx) configuration references.
+For more information you can take a look at [`discovery_service`](../../deployment/config.mdx) and [`app_service`](../../deployment/config.mdx) configuration references.
 
 ## Annotations
 

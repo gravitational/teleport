@@ -43,6 +43,9 @@ message InferenceModelSpec {
     // Openai indicates that this model uses OpenAI as the inference provider
     // and specifies OpenAI-specific parameters.
     OpenAIProvider openai = 1;
+    // Bedrock indicates that this model uses Amazon Bedrock as the inference
+    // provider and specifies Bedrock-specific parameters.
+    BedrockProvider bedrock = 3;
   }
   // MaxSessionLengthBytes is the maximum session length that can be sent to
   // inference provider. Currently, it's determined by the size of model's
@@ -77,6 +80,17 @@ message OpenAIProvider {
   // such as LiteLLM. In such case, the `api_key_secret_ref` must point to a
   // secret that contains the API key for that custom API.
   string base_url = 4;
+}
+
+// BedrockProvider specifies parameters specific to Amazon Bedrock.
+message BedrockProvider {
+  // Region is the AWS region which will be used for inference.
+  string region = 1;
+  // BedrockModelId specifies a model ID or an inference profile as understood
+  // by the Bedrock API.
+  string bedrock_model_id = 2;
+  // Temperature controls the randomness of the model's output.
+  float temperature = 3;
 }
 
 // InferenceSecret resource stores session summarization inference provider

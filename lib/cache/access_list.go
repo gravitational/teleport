@@ -19,7 +19,6 @@ package cache
 import (
 	"cmp"
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -38,22 +37,9 @@ type accessListIndex string
 
 const (
 	accessListNameIndex          accessListIndex = "name"
+	accessListTitleIndex         accessListIndex = "title"
 	accessListAuditNextDateIndex accessListIndex = "auditNextDate"
 )
-
-func accessListNameIndexFn(al *accesslist.AccessList) string {
-	return al.GetMetadata().Name
-}
-
-func accessListAuditNextDateIndexFn(al *accesslist.AccessList) string {
-	if al.Spec.Audit.NextAuditDate.IsZero() {
-		// last lexical char make sure that if ACL don't have aduit date it will be at the end.
-		// Otherwise we will compare against `0001-01-01 00:00:00` which is the first element
-		// but means that the access list is not eligible for review.
-		return "z/" + al.GetName()
-	}
-	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + al.GetName()
-}
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
 	if upstream == nil {
@@ -66,9 +52,11 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
 				// sorted by name
-				accessListNameIndex: accessListNameIndexFn,
+				accessListNameIndex: services.AccessListNameIndexKey,
+				// sorted by title, sanitized.
+				accessListTitleIndex: services.AccessListTitleIndexKey,
 				// sorted by upcoming audit date. lists with no audit dates sorted to the back
-				accessListAuditNextDateIndex: accessListAuditNextDateIndexFn,
+				accessListAuditNextDateIndex: services.AccessListAuditDateIndexKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
@@ -118,7 +106,6 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 	defer span.End()
 
 	index := accessListNameIndex
-	keyFn := accessListNameIndexFn
 
 	var isDesc bool
 	sortBy := req.GetSortBy()
@@ -128,12 +115,12 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 		switch sortBy.Field {
 		case "name", "":
 			index = accessListNameIndex
-			keyFn = accessListNameIndexFn
 		case "auditNextDate":
 			index = accessListAuditNextDateIndex
-			keyFn = accessListAuditNextDateIndexFn
+		case "title":
+			index = accessListTitleIndex
 		default:
-			return nil, "", trace.BadParameter("unsupported sort %q but expected name or auditNextDate", sortBy.Field)
+			return nil, "", trace.BadParameter("unsupported sort %q but expected name, title or auditNextDate", sortBy.Field)
 		}
 	}
 	lister := genericLister[*accesslist.AccessList, accessListIndex]{
@@ -149,7 +136,10 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 			return services.MatchAccessList(al, req.GetFilter())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
-			return keyFn(al)
+			// ignore error because CreateAccessListNextKey only errors
+			// if the index is invalid, which we already check above
+			nextKey, _ := services.CreateAccessListNextKey(al, string(index))
+			return nextKey
 		},
 	}
 	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
@@ -279,9 +269,6 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member list.
 func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
 	defer span.End()
@@ -336,9 +323,6 @@ func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, page
 }
 
 // GetAccessListMember returns the specified access list member resource.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member record.
 func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
 	defer span.End()

@@ -310,6 +310,20 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    workloadIdentity: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    clientIpRestriction: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({

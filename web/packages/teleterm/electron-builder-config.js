@@ -1,6 +1,6 @@
 const { env, platform } = require('process');
 const fs = require('fs');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const isMac = platform === 'darwin';
 const isWindows = platform === 'win32';
 
@@ -170,13 +170,13 @@ module.exports = {
       // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
       // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
       signingHashAlgorithms: ['sha256'],
-      sign: customSign => {
+      sign: async customSign => {
         if (process.env.CI !== 'true') {
           console.warn('Not running in CI pipeline: signing will be skipped');
           return;
         }
 
-        spawnSync(
+        await promisifiedSpawn(
           'powershell',
           [
             '-noprofile',
@@ -258,3 +258,26 @@ module.exports = {
     output: 'build/release',
   },
 };
+
+function promisifiedSpawn(cmd, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, options);
+
+    child.on('error', reject);
+
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const codeOrSignal = [
+          // code can be 0, so we cannot just check it the same way as the signal.
+          code != null && `code ${code}`,
+          signal && `signal ${signal}`,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        reject(new Error(`Exited with ${codeOrSignal}`));
+      }
+    });
+  });
+}

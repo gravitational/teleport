@@ -176,6 +176,7 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -192,6 +193,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -227,6 +229,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryA
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: m.Name,
 		DirectoryID:   m.DirectoryID,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -257,6 +260,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 		DesktopAddr:        d.desktop.GetAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        m.DirectoryID,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -305,6 +309,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirecto
 		Path:          path,
 		Length:        m.Length,
 		Offset:        offset,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -357,6 +362,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 		Path:               path,
 		Length:             m.ReadDataLength,
 		Offset:             offset,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -401,6 +407,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
+		DesktopName:   d.desktop.GetName(),
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
@@ -458,6 +465,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 		Path:               path,
 		Length:             m.BytesWritten,
 		Offset:             offset,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 

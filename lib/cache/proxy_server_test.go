@@ -43,16 +43,12 @@ func TestProxies(t *testing.T) {
 				},
 			}, nil
 		},
-		create: p.presenceS.UpsertProxy,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetProxies()
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
-			return p.cache.GetProxies()
-		},
-		update: p.presenceS.UpsertProxy,
+		create:    p.presenceS.UpsertProxy,
+		list:      getAllAdapter(func(_ context.Context) ([]types.Server, error) { return p.presenceS.GetProxies() }),
+		cacheList: getAllAdapter(func(_ context.Context) ([]types.Server, error) { return p.cache.GetProxies() }),
+		update:    p.presenceS.UpsertProxy,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllProxies()
 		},
-	})
+	}, withSkipPaginationTest())
 }

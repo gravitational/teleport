@@ -82,7 +82,6 @@ type ProvisioningStates interface {
 	// may not be unique across all downstream receivers. Check the records'
 	// `DownstreamID` field to disambiguate.
 	ListProvisioningStatesForAllDownstreams(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
-	ListProvisioningStatesForAllDownstreams2(context.Context, int, string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// DeleteAllProvisioningStates deletes all provisioning state records for
 	// all downstream receivers.

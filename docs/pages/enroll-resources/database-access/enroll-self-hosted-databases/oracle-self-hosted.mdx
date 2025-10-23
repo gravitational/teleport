@@ -5,6 +5,7 @@ description: How to configure Teleport database access with Oracle.
 tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="Oracle"!)
@@ -158,7 +159,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <Tabs>
 <TabItem label="Linux Server">
 
-(!docs/pages/includes/install-linux-enterprise.mdx!)
+(!docs/pages/includes/install-linux.mdx!)
 
 (!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
 
@@ -261,6 +262,10 @@ $ tsh db logout oracle
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/oracle-troubleshooting.mdx!)
 
 ## Next steps
 

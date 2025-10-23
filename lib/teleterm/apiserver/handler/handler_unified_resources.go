@@ -132,5 +132,6 @@ func newAPIServer(server clusters.Server) *api.Server {
 		Addr:     server.GetAddr(),
 		SubKind:  server.GetSubKind(),
 		Labels:   apiLabels,
+		Logins:   server.Logins,
 	}
 }

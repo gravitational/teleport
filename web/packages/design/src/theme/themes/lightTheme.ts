@@ -497,15 +497,22 @@ const colors: ThemeColors = {
   sessionRecording: {
     resource: '#004570',
     user: '#311C79',
+    player: {
+      progressBar: {
+        background: 'rgba(0, 0, 0, 0.1)',
+        seeking: 'rgba(0, 0, 0, 0.15)',
+        progress: '#9F85FF',
+      },
+    },
   },
 
   sessionRecordingTimeline: {
-    background: '#FBFBFC',
+    background: levels.deep,
     headerBackground: 'rgba(0, 0, 0, 0.05)',
     frameBorder: 'rgba(0, 0, 0, 0.2)',
     progressLine: '#E53E3E',
     border: {
-      default: '#4c516e',
+      default: '#9a9dab',
       hover: '#5f659e',
     },
     cursor: 'rgba(0, 0, 0, 0.4)',

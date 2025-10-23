@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -373,7 +374,7 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	// TODO(greedy52) decouple from srv.NewServerContext. We only need
 	// connection monitoring.
-	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
+	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -399,11 +400,18 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 		return
 	}
 
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.reply.RejectWithAcceptError(ctx, nch, err)
+		return
+	}
+
 	if s.remoteClient == nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, trace.NotFound("missing remote client"))
 		return
 	}
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, err)
 		return
@@ -451,6 +459,7 @@ type sessionContext struct {
 	channel       ssh.Channel
 	remoteSession *tracessh.Session
 	waitExec      chan error
+	sessionID     rsession.ID
 }
 
 func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSession *tracessh.Session) *sessionContext {
@@ -459,7 +468,15 @@ func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSessi
 		channel:       ch,
 		remoteSession: remoteSession,
 		waitExec:      make(chan error, 1),
+		sessionID:     rsession.NewID(),
 	}
+}
+
+func (c *sessionContext) GetSessionMetadata() apievents.SessionMetadata {
+	// Overwrite with our own session ID.
+	metadata := c.ServerContext.GetSessionMetadata()
+	metadata.SessionID = c.sessionID.String()
+	return metadata
 }
 
 // dispatch executes an incoming request. If successful, it returns the ok value
@@ -556,7 +573,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 			RemoteAddr: sctx.ServerConn.RemoteAddr().String(),
 			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
 		},
-		ServerMetadata: s.TargetMetadata(),
+		ServerMetadata: s.EventMetadata(),
 	}
 	if err != nil {
 		event.Metadata.Code = events.GitCommandFailureCode
@@ -616,7 +633,7 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	clientConfig.KeyExchanges = s.cfg.KEXAlgorithms
 	clientConfig.MACs = s.cfg.MACAlgorithms
 
-	s.remoteClient, err = tracessh.NewClientConnWithDeadline(
+	s.remoteClient, err = tracessh.NewClientWithTimeout(
 		s.cfg.ParentContext,
 		s.cfg.TargetConn,
 		s.cfg.DstAddr.String(),
@@ -653,7 +670,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-func (s *ForwardServer) TargetMetadata() apievents.ServerMetadata {
+func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.cfg.TargetServer.GetNamespace(),

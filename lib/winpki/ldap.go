@@ -40,7 +40,7 @@ import (
 const (
 	// ldapDialTimeout is the timeout for dialing the LDAP server
 	// when making an initial connection
-	ldapDialTimeout = 15 * time.Second
+	ldapDialTimeout = 30 * time.Second
 
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
@@ -384,6 +384,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		return nil, trace.NotFound("no LDAP servers found for domain %q", c.Domain)
 	}
 
+	var lastErr error
 	for _, server := range servers {
 		conn, err := ldap.DialURL(
 			"ldaps://"+server,
@@ -396,6 +397,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 			conn.SetTimeout(ldapRequestTimeout)
 			return conn, nil
 		}
+		lastErr = err
 
 		if c.LocateServer.Enabled {
 			// If the connection fails and we're using LocateServer, log that a server failed.
@@ -403,5 +405,5 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		}
 	}
 
-	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q", c.Domain)
+	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q: %v", c.Domain, lastErr)
 }

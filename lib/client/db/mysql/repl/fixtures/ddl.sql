@@ -80,6 +80,18 @@ RENAME
 
 SELECT * from test_table;
 
+INSERT INTO test_table (value)
+WITH RECURSIVE numbers(n) AS (
+  SELECT 4
+  UNION ALL
+  SELECT n + 1 FROM numbers WHERE n < 120
+)
+SELECT 'especially wide column' AS value
+UNION ALL
+SELECT CONCAT('value_', n) FROM numbers;
+
+SELECT * from test_table;
+
 -- there is no "test_server", this should make an error.
 ALTER SERVER test_server OPTIONS (HOST '127.0.0.1');
 

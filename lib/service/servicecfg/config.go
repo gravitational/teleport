@@ -138,10 +138,6 @@ type Config struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
-	// HostUUID is a unique UUID of this host (it will be known via this UUID within
-	// a teleport cluster). It's automatically generated on 1st start
-	HostUUID string
-
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
 	ReverseTunnels []types.ReverseTunnel

@@ -267,6 +267,6 @@ test('allows custom action slot', async () => {
   const customAction = screen.getByTestId('custom-action');
 
   expect(customAction).toBeInTheDocument();
-  expect(actionSlot).toHaveBeenCalledWith(mockRecording.sid);
+  expect(actionSlot).toHaveBeenCalledWith(mockRecording.sid, 'ssh');
   expect(customAction).toHaveTextContent('Custom Action');
 });

@@ -17,10 +17,7 @@
 package cache
 
 import (
-	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -42,26 +39,9 @@ func TestWebUIConfig(t *testing.T) {
 				},
 			}, nil
 		},
-		create: p.clusterConfigS.SetUIConfig,
-		list: func(ctx context.Context) ([]types.UIConfig, error) {
-			cfg, err := p.clusterConfigS.GetUIConfig(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return []types.UIConfig{cfg}, nil
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.UIConfig, error) {
-			cfg, err := p.cache.GetUIConfig(ctx)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, nil
-				}
-				return nil, trace.Wrap(err)
-			}
-
-			return []types.UIConfig{cfg}, nil
-		},
+		create:    p.clusterConfigS.SetUIConfig,
+		list:      singletonListAdapter(p.clusterConfigS.GetUIConfig),
+		cacheList: singletonListAdapter(p.cache.GetUIConfig),
 		deleteAll: p.clusterConfigS.DeleteUIConfig,
 	}, withSkipPaginationTest()) // UIConfig is a singleton resource, so pagination is not applicable.
 }

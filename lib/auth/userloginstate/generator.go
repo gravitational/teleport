@@ -327,22 +327,12 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 		state.Spec.Traits[k] = utils.Deduplicate(v)
 	}
 
-	// If there are no roles, don't bother filtering out non-existent roles
-	if len(state.Spec.Roles) == 0 {
-		return nil
-	}
-
 	// Make sure all the roles exist. If they don't, error out.
-	var existingRoles []string
 	for _, role := range state.Spec.Roles {
-		_, err := g.access.GetRole(ctx, role)
-		if err == nil {
-			existingRoles = append(existingRoles, role)
-		} else {
+		if _, err := g.access.GetRole(ctx, role); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	state.Spec.Roles = existingRoles
 
 	return nil
 }
@@ -431,6 +421,15 @@ func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService ser
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Set the full state directly on the user object.
+	// We cannot rely Upsert/Get User login state because the next webhook that calls GetUserLogin
+	// might receive stale data.
+	// Instead of using Upsert/Get calls to pass the object through the login hooks chain,
+	// the login hook updates the user object directly.
+	// TODO(smallinsky): Consider removing the user login state approach entirely, as it currently only mirrors the user state.
+	user.SetRoles(uls.GetRoles())
+	user.SetTraits(uls.GetTraits())
 
 	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
 	return uls, trace.Wrap(err)

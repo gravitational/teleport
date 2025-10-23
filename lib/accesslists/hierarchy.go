@@ -262,8 +262,9 @@ func IsUserLocked(err error) bool {
 	return errors.As(err, &userLockedError{})
 }
 
-// IsAccessListOwner checks if the given user is the Access List owner. It returns an error matched
-// by [IsUserLocked] if the user is locked.
+// IsAccessListOwner checks if the given user is the Access List owner.
+// It returns an error matched by [IsUserLocked] if the user is locked.
+// If the user is not an owner, it returns a trace.AccessDenied error.
 func IsAccessListOwner(
 	ctx context.Context,
 	user types.User,
@@ -301,30 +302,34 @@ func IsAccessListOwner(
 		if owner.MembershipKind == accesslist.MembershipKindList {
 			ownerAccessList, err := g.GetAccessList(ctx, owner.Name)
 			if err != nil {
-				ownershipErr = trace.Wrap(err)
-				continue
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
-			if err != nil {
-				ownershipErr = trace.Wrap(err)
-				continue
-			}
-			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
-					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+			if _, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock); err != nil {
+				if trace.IsAccessDenied(err) {
+					ownershipErr = trace.Wrap(err)
 					continue
 				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
+			if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
+				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+				continue
+			}
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 		}
+	}
+
+	if ownershipErr == nil {
+		ownershipErr = trace.AccessDenied("no ownership path found")
 	}
 
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(ownershipErr)
 }
 
-// IsAccessListMember checks if the given user is the Access List member. It returns an error
-// matched by [IsUserLocked] if the user is locked.
+// IsAccessListMember checks if the given user is the Access List member.
+// It returns an error matched by [IsUserLocked] if the user is locked.
+// If the user is not a member, it returns a trace.AccessDenied error.
 func IsAccessListMember(
 	ctx context.Context,
 	user types.User,
@@ -347,7 +352,7 @@ func IsAccessListMember(
 
 	members, err := fetchMembers(ctx, accessList.GetName(), g)
 	if err != nil {
-		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "fetching access list %q members", accessList.GetName())
 	}
 
 	var membershipErr error
@@ -371,14 +376,19 @@ func IsAccessListMember(
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
 			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
 			if err != nil {
-				membershipErr = trace.Wrap(err)
-				continue
+				if trace.IsNotFound(err) {
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "getting access list %q", member.GetName())
 			}
 			// Since we already verified that the user is not locked, don't provide lockGetter here
 			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
 			if err != nil {
-				membershipErr = trace.Wrap(err)
-				continue
+				if trace.IsAccessDenied(err) {
+					membershipErr = err
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 			}
 			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
@@ -392,6 +402,10 @@ func IsAccessListMember(
 				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 			}
 		}
+	}
+
+	if membershipErr == nil {
+		membershipErr = trace.AccessDenied("no access path found")
 	}
 
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
@@ -543,7 +557,17 @@ func (s *Hierarchy) GetHierarchyForUser(ctx context.Context, accessList *accessl
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	owners, err := s.expandOwnerOf(ctx, ancestors, user)
+
+	// We need to consider 2 scenarios:
+	// - An access list can be configured as 1 level owner of another access list
+	//   like access list A.Owners = [B], {B.members = [alice], B.Status.OwnerOf = [A]
+	//   In that case we need to explore the OwnerOf edges directly from input accessList and check if the user meets
+	//   the ownership requirements of the parent access list.
+	//
+	// - An access list can be configured as 2+ level owner of another access list
+	//   like access list A.Owners = [B], {B.members = [C], B.Status.OwnerOf = [A]}, {C.members = [alice], C.Status.MemberOf = [B]
+	//   where the access list traversal start from Access List C and goes up via MemberOf to build ancestors and then to A via OwnerOf edges.
+	owners, err := s.expandOwnerOf(ctx, accessList, ancestors, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -565,17 +589,27 @@ func (s *Hierarchy) validMembership(ctx context.Context, list *accesslist.Access
 }
 
 // Expand ancestors via OwnerOf edges while checking user requirements
-func (s *Hierarchy) expandOwnerOf(ctx context.Context, ancestors []*accesslist.AccessList, user types.User) ([]*accesslist.AccessList, error) {
+func (s *Hierarchy) expandOwnerOf(ctx context.Context, accessList *accesslist.AccessList, ancestors []*accesslist.AccessList, user types.User) ([]*accesslist.AccessList, error) {
 	var out []*accesslist.AccessList
-	for _, v := range ancestors {
-		for _, name := range v.Status.OwnerOf {
-			lst, err := s.AccessListsService.GetAccessList(ctx, name)
+	processFn := func(al *accesslist.AccessList) error {
+		for _, name := range al.Status.OwnerOf {
+			ownerList, err := s.AccessListsService.GetAccessList(ctx, name)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
-			if UserMeetsRequirements(user, lst.GetOwnershipRequires()) {
-				out = append(out, lst)
+			if UserMeetsRequirements(user, ownerList.GetOwnershipRequires()) {
+				out = append(out, ownerList)
 			}
+		}
+		return nil
+	}
+
+	if err := processFn(accessList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, al := range ancestors {
+		if err := processFn(al); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 	return out, nil

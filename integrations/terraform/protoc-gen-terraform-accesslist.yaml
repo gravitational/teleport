@@ -70,7 +70,6 @@ required_fields:
     - "Metadata.name"
     - "AccessList.header.version"
     - "AccessList.spec.owners"
-    - "AccessList.spec.grants"
     - "Member.header.version"
     - "Member.spec.access_list"
     - "Member.spec.membership_kind"

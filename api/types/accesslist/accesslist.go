@@ -218,6 +218,10 @@ type Owner struct {
 	// Name is the username of the owner.
 	Name string `json:"name" yaml:"name"`
 
+	// Title is the title of an owner if it is of type MEMBERSHIP_KIND_LIST.
+	// This is only populated by the proxy when fetching an access list and its members for the web UI
+	Title string `json:"title" yaml:"title"`
+
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
 

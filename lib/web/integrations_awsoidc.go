@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -161,7 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
 		const group, updaterUUID = "", ""
-		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		autoUpdateVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.WarnContext(r.Context(),
 				"Cannot read autoupdate target version, falling back to our own version",
@@ -217,7 +218,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
 		const group, updaterUUID = "", ""
-		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		autoUpdateVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.WarnContext(r.Context(),
 				"Cannot read autoupdate target version, falling back to self version.",
@@ -758,6 +759,21 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
+}
+
+// TODO(hugoShaka): change the version getter signature to take group and id
+// so we can get rid of this wrapper.
+
+// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.GetVersion.
+type handlerVersionGetter struct {
+	*Handler
+}
+
+// GetVersion implements version.Getter.
+func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+	const group, updaterUUID = "", ""
+	agentVersion, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
+	return agentVersion, trace.Wrap(err)
 }
 
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.

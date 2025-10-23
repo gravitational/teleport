@@ -47,6 +47,7 @@ import (
 func (process *TeleportProcess) initWindowsDesktopService() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id))
 	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+	process.ExpectService(teleport.ComponentWindowsDesktop)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
 		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, logger)
 		if conn == nil {

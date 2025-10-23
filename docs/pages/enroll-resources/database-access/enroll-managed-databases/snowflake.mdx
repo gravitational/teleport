@@ -5,6 +5,7 @@ description: How to configure Teleport database access with Snowflake.
 tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Snowflake" dbConfigure="with key pair authentication"!)
@@ -109,6 +110,7 @@ for more details.
 Log in to your Teleport cluster and see the available databases:
 
 <Tabs>
+
   <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
     ```code
     $ tsh login --proxy=teleport.example.com --user=alice
@@ -146,6 +148,46 @@ $ tsh db logout example-snowflake
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## Access Snowsight via Teleport
+
+The Teleport Database Service provides CLI and programmatic access to Snowflake
+databases, but it does not provide direct access to the Snowsight web interface.
+To enable Snowsight access, you can configure it as a SAML application in
+Teleport, allowing Teleport to act as the Identity Provider (IdP) for Snowsight.
+
+<Admonition type="note">
+When Teleport is configured as the IdP for Snowsight, it only handles SAML
+authentication. Snowsight activity is not audited or recorded through Teleport.
+</Admonition>
+
+Follow [Using Teleport as a SAML identity
+provider](../../../identity-governance/idps/saml-guide.mdx) and [Configuring
+Snowflake to use federated
+authentication](https://docs.snowflake.com/en/user-guide/admin-security-fed-auth-security-integration)
+to setup Teleport as an IDP.
+
+Here is an example of the security integration to be created in your Snowflake database:
+```sql
+CREATE SECURITY INTEGRATION teleport_idp
+  TYPE = saml2
+  ENABLED = true
+  SAML2_ISSUER = 'https://teleport.example.com/enterprise/saml-idp/metadata'
+  SAML2_SSO_URL = 'https://teleport.example.com/enterprise/saml-idp/sso'
+  SAML2_PROVIDER = 'custom'
+  SAML2_X509_CERT = 'MII...'
+  SAML2_ENABLE_SP_INITIATED = true
+  SAML2_SP_INITIATED_LOGIN_PAGE_LABEL = 'Teleport Login'
+```
+
+Replace the URLs and X.509 certificate with the values generated during the
+enrollment flow in the Teleport Web UI. After creating the integration, describe
+the integration to obtain the Snowflake URLs that must be configured in
+Teleport.
+
+By default, Teleport passes your Teleport username as the Snowsight account
+name. For custom mappings, see [SAML Idp Attribute
+Mapping](../../../identity-governance/idps/saml-attribute-mapping.mdx).
 
 ## Next steps
 

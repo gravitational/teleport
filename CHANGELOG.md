@@ -1,5 +1,14 @@
 # Changelog
 
+## 19.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### macOS 12
+
+The minimum version of macOS required to run Teleport or associated client tools
+is now macOS 12 (Monterey).
+
 ## 18.0.0 (xx/xx/xx)
 
 ### Breaking changes
@@ -166,7 +175,7 @@ During the migration from v15 to v16, the options mentioned above should be remo
 #### DynamoDB permission requirements have changed
 
 Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
-permission. For a full list of all required permissions see the Teleport [Backend Reference](docs/pages/reference/backends.mdx#dynamodb).
+permission. For a full list of all required permissions see the Teleport [Backend Reference](docs/pages/reference/deployment/backends.mdx#dynamodb).
 
 #### Disabling multi-factor authentication_type
 
@@ -176,7 +185,7 @@ Support for disabling multi-factor authentication has been removed
 
 Users with custom `ssh_config` should modify their ProxyCommand to use the new,
 more performant, `tbot ssh-proxy-command`. See the
-[v16 upgrade guide](docs/pages/reference/machine-id/v16-upgrade-guide.mdx) for
+[v16 upgrade guide](docs/pages/reference/machine-workload-identity/machine-id/v16-upgrade-guide.mdx) for
 more details.
 
 #### Default keyboard shortcuts in Teleport Connect have been changed
@@ -500,7 +509,7 @@ that supports efficient searching, sorting, and filtering operations. Teleport
 Enterprise (Cloud) customers will have their audit log automatically migrated to
 this new backend.
 
-See the documentation [here](docs/pages/reference/backends.mdx#athena).
+See the documentation [here](docs/pages/reference/deployment/backends.mdx#athena).
 
 #### Access lists
 
@@ -593,7 +602,7 @@ In Teleport 14, `tbot` can now be configured to write artifacts such as
 credentials and configuration files directly to a Kubernetes secret rather than
 a directory on the local file system.
 
-For more information, see [docs](docs/pages/reference/machine-id/configuration.mdx).
+For more information, see [docs](docs/pages/reference/machine-workload-identity/machine-id/configuration.mdx).
 
 ### Breaking changes and deprecations
 
@@ -2057,7 +2066,7 @@ connections if the HTTP proxy is set in their environment and does not allow
 connections to the Teleport Proxy Service.
 
 Refer to the
-[documentation](docs/pages/reference/networking.mdx#http-connect-proxies)
+[documentation](docs/pages/reference/deployment/networking.mdx#http-connect-proxies)
 for more details.
 
 #### New APT repos
@@ -2105,7 +2114,7 @@ s3://bucket/path?region=us-east-1&use_fips_endpoint=false
 ```
 
 See the [S3/DynamoDB backend
-documentation](docs/pages/reference/backends.mdx) for more information.
+documentation](docs/pages/reference/deployment/backends.mdx) for more information.
 
 ## 9.3.9
 
@@ -2344,7 +2353,7 @@ Teleport build infrastructure was updated to use Go v1.17.9 to fix CVE-2022-2467
 
 Teleport users can now use PostgreSQL or CockroachDB for storing Auth Service data.
 
-See the [documentation](docs/pages/reference/backends.mdx) for more information.
+See the [documentation](docs/pages/reference/deployment/backends.mdx) for more information.
 
 ### Server-side filtering and pagination
 
@@ -2495,7 +2504,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-[Machine ID getting started guide](docs/pages/machine-workload-identity/machine-id/getting-started.mdx)
+[Machine ID getting started guide](docs/pages/machine-workload-identity/getting-started.mdx)
 
 ### Database access
 
@@ -3624,7 +3633,7 @@ permissions](./docs/pages/enroll-resources/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 
-The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
+The [etcd backend](docs/pages/reference/deployment/backends.mdx#etcd) now correctly uses
 the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).

@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -206,7 +205,6 @@ func TestPollAWSS3(t *testing.T) {
 						return a.Key < b.Key
 					},
 				),
-				protocmp.IgnoreFields(&accessgraphv1alpha.AWSS3BucketV1{}, "last_sync_time"),
 			),
 			)
 
@@ -233,7 +231,6 @@ func createAWSS3Bucket(name, accountID string, policyDocument []byte, isPublic b
 		AccountId:      accountID,
 		PolicyDocument: policyDocument,
 		IsPublic:       isPublic,
-		LastSyncTime:   timestamppb.New(lastSync),
 	}
 }
 

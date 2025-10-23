@@ -39,7 +39,7 @@ curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
 
 chmod +x "$TEMP_INSTALLER_SCRIPT"
 
-sudo "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
 rm "$TEMP_INSTALLER_SCRIPT"`
 )
 
@@ -64,7 +64,10 @@ var (
 echo "Configuring the Teleport agent"
 
 set +x
-sudo /usr/local/bin/teleport ` + strings.Join(argsList, " ") + " $@"
+TELEPORT_BINARY=/usr/local/bin/teleport
+[ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
+
+sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
 
 	argsList = []string{
 		"install", "autodiscover-node",

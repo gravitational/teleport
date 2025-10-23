@@ -121,6 +121,24 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AuthAttempt{}
 	case SCPEvent:
 		e = &events.SCP{}
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		}
+		// Some SFTP events may have been incorrectly marshaled as SCP events;
+		// check for them and fix.
+		// https://github.com/gravitational/teleport/issues/59469
+		if code := getFieldEmpty(EventCode); code == SCPDisallowedCode {
+			sftpEvent := &events.SFTP{}
+			if err := utils.FastUnmarshal(data, sftpEvent); err != nil {
+				// If that didn't work, leave type/code as-is and return UnknownEvent
+				// down below.
+				e = nil
+				break
+			}
+			sftpEvent.Type = SFTPEvent
+			sftpEvent.Code = SFTPDisallowedCode
+			return sftpEvent, nil
+		}
 	case ResizeEvent:
 		e = &events.Resize{}
 	case SessionCommandEvent:
@@ -532,6 +550,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MCPSessionRequest{}
 	case MCPSessionNotificationEvent:
 		e = &events.MCPSessionNotification{}
+	case MCPSessionListenSSEStream:
+		e = &events.MCPSessionListenSSEStream{}
+	case MCPSessionInvalidHTTPRequest:
+		e = &events.MCPSessionInvalidHTTPRequest{}
 
 	case BoundKeypairRecovery:
 		e = &events.BoundKeypairRecovery{}
@@ -540,26 +562,34 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case BoundKeypairJoinStateVerificationFailed:
 		e = &events.BoundKeypairJoinStateVerificationFailed{}
 
+	case SCIMListingEvent:
+		e = &events.SCIMListingEvent{}
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+		e = &events.SCIMResourceEvent{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
-		unknown := &events.Unknown{}
-		if err := utils.FastUnmarshal(data, unknown); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		unknown.Type = UnknownEvent
-		unknown.Code = UnknownCode
-		unknown.UnknownType = eventType
-		unknown.UnknownCode = getFieldEmpty(EventCode)
-		unknown.Data = string(data)
-		return unknown, nil
 	}
 
-	if err := utils.FastUnmarshal(data, e); err != nil {
+	if e != nil {
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		} else {
+			slog.ErrorContext(context.Background(), "failed to unmarshal event", "event_type", eventType, "error", err)
+		}
+	}
+
+	unknown := &events.Unknown{}
+	if err := utils.FastUnmarshal(data, unknown); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return e, nil
+	unknown.Type = UnknownEvent
+	unknown.Code = UnknownCode
+	unknown.UnknownType = eventType
+	unknown.UnknownCode = getFieldEmpty(EventCode)
+	unknown.Data = string(data)
+	return unknown, nil
 }
 
 // GetSessionID pulls the session ID from the events that have a

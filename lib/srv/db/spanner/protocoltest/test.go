@@ -254,6 +254,15 @@ func (s *TestServer) Close() error {
 	return nil
 }
 
+func (s *TestServer) CreateSession(ctx context.Context, req *spannerpb.CreateSessionRequest) (*spannerpb.Session, error) {
+	return &spannerpb.Session{
+		Name:        req.GetDatabase() + "/sessions/" + uuid.NewString(),
+		Labels:      req.GetSession().Labels,
+		CreatorRole: req.GetSession().CreatorRole,
+		Multiplexed: req.GetSession().Multiplexed,
+	}, nil
+}
+
 func (s *TestServer) BatchCreateSessions(ctx context.Context, req *spannerpb.BatchCreateSessionsRequest) (*spannerpb.BatchCreateSessionsResponse, error) {
 	tpl := req.SessionTemplate
 	if tpl == nil {

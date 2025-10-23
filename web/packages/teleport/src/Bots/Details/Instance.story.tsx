@@ -57,11 +57,14 @@ export default meta;
 export const Item: Story = {
   args: {
     id: '686750f5-0f21-4a6f-b151-fa11a603701d',
+    botName: '',
     activeAt: new Date('2025-07-18T14:54:32Z').getTime(),
     hostname: 'my-svc.my-namespace.svc.cluster-domain.example',
     method: 'kubernetes',
     version: '4.4.0',
     os: 'linux',
+    isSelectable: true,
+    isSelected: false,
   },
 };
 
@@ -82,26 +85,43 @@ export const ItemWithLongValues: Story = {
   },
 };
 
+export const ItemWithLongValuesAndBotName: Story = {
+  args: {
+    id: 'fa11a603701dfa11a603701dfa11a603701dfa11a603701dfa11a603701dfa113701d',
+    botName: 'ansible-worker-ansible-worker-ansible-worker-ansible-worker',
+    activeAt: new Date('2025-07-18T14:54:32Z').getTime(),
+    hostname: 'hostnamehostnamehostnamehostnamehostnamehostnamehostnamehostnam',
+    method: 'kubernetes',
+    version: '4.4.0-fa11a60',
+    os: 'linux',
+  },
+};
+
 type Props = {
-  id: Parameters<typeof Instance>[0]['id'];
-  version?: Parameters<typeof Instance>[0]['version'];
-  hostname?: Parameters<typeof Instance>[0]['hostname'];
+  id: Parameters<typeof Instance>[0]['data']['id'];
+  botName?: Parameters<typeof Instance>[0]['data']['botName'];
+  version?: Parameters<typeof Instance>[0]['data']['version'];
+  hostname?: Parameters<typeof Instance>[0]['data']['hostname'];
   activeAt?: number;
-  method?: Parameters<typeof Instance>[0]['method'];
-  os?: Parameters<typeof Instance>[0]['os'];
+  method?: Parameters<typeof Instance>[0]['data']['method'];
+  os?: Parameters<typeof Instance>[0]['data']['os'];
+  isSelectable?: Parameters<typeof Instance>[0]['isSelectable'];
+  isSelected?: Parameters<typeof Instance>[0]['isSelected'];
 };
 function Wrapper(props: Props) {
+  const { isSelectable, isSelected, activeAt, ...data } = props;
   return (
     <TeleportProviderBasic>
       <Container>
         <Container400>
           <Instance
-            {...props}
-            activeAt={
-              props.activeAt
-                ? new Date(props.activeAt).toISOString()
-                : undefined
-            }
+            isSelectable={isSelectable}
+            isSelected={isSelected}
+            onSelected={undefined}
+            data={{
+              ...data,
+              activeAt: activeAt ? new Date(activeAt).toISOString() : undefined,
+            }}
           />
         </Container400>
       </Container>

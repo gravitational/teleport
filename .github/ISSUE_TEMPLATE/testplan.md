@@ -2206,6 +2206,16 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Verify that manually deleting a nested Access List used as a member or owner does not break UserLoginState generation or listing Access Lists.
     - [ ] Verify that an Access List can be added as a member or owner of another Access List using `tctl`.
     - [ ] Verify that Access Lists added as members or owners of other Access Lists using `tctl` are validated (no circular references, no nesting > 10 levels).
+  - [ ] For Access Lists of "static" type:
+    - [ ] Verify that static Access List and its members (including nested list members) can be [created/modified/deleted with Terraform](../../docs/pages/identity-governance/access-lists/terraform.mdx) ([teleport_access_list_member ref](../../docs/pages/reference/terraform-provider/resources/access_list_member.mdx))
+    - [ ] Verify non-static Access List members cannot be imported to Terraform (Create an Access List in the web UI and add a member and try to import the member to Terraform)
+    - [ ] In Terraform: check if member's MEMBERSHIP_KIND_USER (1) is changed to MEMBERSHIP_KIND_LIST (2) forces re-creation
+    - [ ] Verify setting audit to past date/zero date doesn't create a review badge on the list in the UI
+    - [ ] Verify changing spec.type is forbidden
+    - [ ] Verify other lists cannot be converted to "static"
+    - [ ] Verify expiration and eligibility of members
+    - [ ] In the web UI: check if modifications/deletion of static lists are blocked
+    - [ ] In the web UI: check if the review is blocked (add `#review` at the end of the Access List URL)
 
 - [ ] Verify Okta Sync Service
   - [ ] Verify Okta Plugin configuration.

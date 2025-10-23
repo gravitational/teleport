@@ -5,6 +5,8 @@ description: How to configure Teleport database access with AlloyDB.
 labels:
  - how-to
  - zero-trust
+ - infrastructure-identity
+ - google-cloud
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="AlloyDB" dbConfigure="with a service account"!)
@@ -25,7 +27,7 @@ labels:
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5: Configure GCP IAM 
-### IAM setup: roles for the database user and database service
+### IAM setup: roles for the database user and Teleport Database Service
 
 To grant Teleport access to your AlloyDB instances, you need to create two service accounts:
 - `teleport-db-service`: for the Teleport Database Service to access AlloyDB metadata.

@@ -96,6 +96,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	var err error
 
 	var postgresListener, mysqlListener, mongoListener, cassandaListener net.Listener
+	var dbProcessUUID string
 
 	postgresListener, pack.postgresAddr = mustListen(t)
 	pack.PostgresService = servicecfg.Database{
@@ -143,7 +144,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	}
 	conf.Clock = clock
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	pack.dbProcess, pack.dbAuthClient, err = pack.Cluster.StartDatabase(conf)
+	pack.dbProcess, pack.dbAuthClient, dbProcessUUID, err = pack.Cluster.StartDatabase(conf)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, pack.dbProcess.Close()) })
@@ -187,6 +188,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	go pack.cassandra.Serve()
 	t.Cleanup(func() { pack.cassandra.Close() })
 
+	helpers.WaitForDatabaseService(t, pack.Cluster.Process.GetAuthServer(), dbProcessUUID)
 	helpers.WaitForDatabaseServers(t, pack.Cluster.Process.GetAuthServer(), conf.Databases.Databases)
 }
 
@@ -442,12 +444,13 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.ResourceMatchers = params.resourceMatchers
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-	server, authClient, err := p.Root.Cluster.StartDatabase(conf)
+	server, authClient, hostUUID, err := p.Root.Cluster.StartDatabase(conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		server.Close()
 	})
 
+	helpers.WaitForDatabaseService(t, p.Root.Cluster.Process.GetAuthServer(), hostUUID)
 	helpers.WaitForDatabaseServers(t, p.Root.Cluster.Process.GetAuthServer(), conf.Databases.Databases)
 	return server, authClient
 }

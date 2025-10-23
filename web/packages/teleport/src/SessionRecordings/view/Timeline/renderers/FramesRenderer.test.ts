@@ -140,26 +140,26 @@ test('should calculate frame positions correctly', async () => {
   expect(drawImageCalls[0].props.dx).toBe(24); // left padding
   expect(drawImageCalls[1].props.dx).toBe(224); // 24 + 200
   expect(drawImageCalls[2].props.dx).toBe(424); // 224 + 200
-  expect(drawImageCalls[3].props.dx).toBe(800); // last frame at end of timeline, 1000 - 200
+  expect(drawImageCalls[3].props.dx).toBe(624); // last frame positioned next to previous
 });
 
 test('should skip frames that would overlap at current zoom', async () => {
   const closeFrames: SessionRecordingThumbnail[] = [
     createThumbnail('<svg>1</svg>', 80, 24, 0),
-    createThumbnail('<svg>2</svg>', 80, 24, 10),
-    createThumbnail('<svg>3</svg>', 80, 24, 20),
-    createThumbnail('<svg>4</svg>', 80, 24, 500),
-    createThumbnail('<svg>5</svg>', 80, 24, 990),
+    createThumbnail('<svg>2</svg>', 80, 24, 500),
+    createThumbnail('<svg>3</svg>', 80, 24, 1000),
+    createThumbnail('<svg>4</svg>', 80, 24, 1500),
+    createThumbnail('<svg>5</svg>', 80, 24, 2000),
   ];
 
-  const { ctx } = await createRenderer(closeFrames, 550);
+  const { ctx } = await createRenderer(closeFrames, 1000);
 
   const drawImageCalls = getDrawImageCalls(ctx);
 
-  expect(drawImageCalls).toHaveLength(2);
+  expect(drawImageCalls).toHaveLength(3);
 
   expect(drawImageCalls[0].props.dx).toBe(24); // first frame, should be drawn at left padding
-  expect(drawImageCalls[1].props.dx).toBe(350); // fourth frame
+  expect(drawImageCalls[1].props.dx).toBe(224); // fourth frame
 });
 
 test('should only render visible frames', async () => {

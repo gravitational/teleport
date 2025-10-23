@@ -148,15 +148,11 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 			Host:   botListener.Addr().String(),
 		}
 		resp, err := http.Get(proxyUrl.String())
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, wantStatus, resp.StatusCode)
+		require.Equal(t, wantStatus, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Equal(t, wantBody, body)
+		require.NoError(t, err)
+		require.Equal(t, wantBody, body)
 	}, 10*time.Second, 100*time.Millisecond)
 }

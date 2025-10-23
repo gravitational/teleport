@@ -48,7 +48,7 @@ func TestRecordingEncryption(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*recordingencryptionv1.RecordingEncryption]{
+	testResources153(t, p, testFuncs[*recordingencryptionv1.RecordingEncryption]{
 		newResource: func(name string) (*recordingencryptionv1.RecordingEncryption, error) {
 			return newRecordingEncryption(), nil
 		},
@@ -60,22 +60,8 @@ func TestRecordingEncryption(t *testing.T) {
 			_, err := p.recordingEncryption.UpdateRecordingEncryption(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*recordingencryptionv1.RecordingEncryption, error) {
-			item, err := p.recordingEncryption.GetRecordingEncryption(ctx)
-			if trace.IsNotFound(err) {
-				return []*recordingencryptionv1.RecordingEncryption{}, nil
-			}
-			return []*recordingencryptionv1.RecordingEncryption{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*recordingencryptionv1.RecordingEncryption, error) {
-			item, err := p.cache.GetRecordingEncryption(ctx)
-			if trace.IsNotFound(err) {
-				return []*recordingencryptionv1.RecordingEncryption{}, nil
-			}
-			return []*recordingencryptionv1.RecordingEncryption{item}, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.recordingEncryption.DeleteRecordingEncryption(ctx))
-		},
-	})
+		list:      singletonListAdapter(p.recordingEncryption.GetRecordingEncryption),
+		cacheList: singletonListAdapter(p.cache.GetRecordingEncryption),
+		deleteAll: p.recordingEncryption.DeleteRecordingEncryption,
+	}, withSkipPaginationTest())
 }

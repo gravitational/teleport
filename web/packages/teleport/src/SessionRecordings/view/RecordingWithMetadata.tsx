@@ -17,19 +17,24 @@
  */
 
 import { format } from 'date-fns';
-import { useCallback, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import { ChevronLeft, Terminal } from 'design/Icon';
+import { ChevronLeft } from 'design/Icon';
 import { H3 } from 'design/Text';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
+import { useFullscreen } from 'teleport/components/hooks/useFullscreen';
 import cfg from 'teleport/config';
+import { type RecordingType } from 'teleport/services/recordings';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
-import { formatSessionRecordingDuration } from 'teleport/SessionRecordings/list/RecordingItem';
+import {
+  formatSessionRecordingDuration,
+  getRecordingTypeInfo,
+} from 'teleport/SessionRecordings/list/RecordingItem';
 import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer';
 import type { PlayerHandle } from 'teleport/SessionRecordings/view/SshPlayer';
 import {
@@ -37,7 +42,7 @@ import {
   type RecordingTimelineHandle,
 } from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
 
-export type SummarySlot = (sessionId: string) => ReactNode;
+export type SummarySlot = (sessionId: string, type: RecordingType) => ReactNode;
 
 interface RecordingWithMetadataProps {
   clusterId: string;
@@ -55,8 +60,12 @@ export function RecordingWithMetadata({
     sessionId,
   });
 
+  const currentTimeRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<PlayerHandle>(null);
   const timelineRef = useRef<RecordingTimelineHandle>(null);
+
+  const fullscreen = useFullscreen(containerRef);
 
   const [timelineHidden, setTimelineHidden] = useLocalStorage(
     KeysEnum.SESSION_RECORDING_TIMELINE_HIDDEN,
@@ -73,6 +82,7 @@ export function RecordingWithMetadata({
       return;
     }
 
+    currentTimeRef.current = time;
     timelineRef.current.moveToTime(time);
   }, []);
 
@@ -82,6 +92,7 @@ export function RecordingWithMetadata({
       return;
     }
 
+    currentTimeRef.current = time;
     playerRef.current.moveToTime(time);
     timelineRef.current.moveToTime(time);
   }, []);
@@ -95,25 +106,48 @@ export function RecordingWithMetadata({
     setTimelineHidden(!timelineHidden);
   }, [timelineHidden, setTimelineHidden]);
 
+  const handleToggleFullscreen = useCallback(() => {
+    if (fullscreen.active) {
+      void fullscreen.exit();
+    } else {
+      void fullscreen.enter();
+    }
+  }, [fullscreen]);
+
   const summary = useMemo(
-    () => summarySlot?.(sessionId),
-    [summarySlot, sessionId]
+    () => summarySlot?.(sessionId, data.metadata.type),
+    [summarySlot, sessionId, data.metadata.type]
   );
 
   const startTime = new Date(data.metadata.startTime * 1000);
   const endTime = new Date(data.metadata.endTime * 1000);
 
+  const { icon: Icon, label } = getRecordingTypeInfo(data.metadata.type);
+
+  useEffect(() => {
+    if (!timelineRef.current || timelineHidden) {
+      return;
+    }
+
+    timelineRef.current.moveToTime(currentTimeRef.current);
+  }, [timelineHidden]);
+
   return (
-    <Grid sidebarHidden={sidebarHidden}>
+    <Grid sidebarHidden={sidebarHidden} ref={containerRef}>
       <Player>
         <RecordingPlayer
           clusterId={clusterId}
           sessionId={sessionId}
           durationMs={data.metadata.duration}
           recordingType={data.metadata.type}
+          onToggleFullscreen={handleToggleFullscreen}
+          fullscreen={fullscreen.active}
           onToggleSidebar={toggleSidebar}
           onToggleTimeline={toggleTimeline}
           onTimeChange={handleTimeChange}
+          initialCols={data.metadata.startCols}
+          initialRows={data.metadata.startRows}
+          events={data.metadata.events}
           ref={playerRef}
         />
       </Player>
@@ -135,9 +169,9 @@ export function RecordingWithMetadata({
             </Flex>
 
             <Flex alignItems="center" gap={3} px={3}>
-              <Terminal />
+              <Icon size="small" />
 
-              <H3>SSH Session</H3>
+              <H3>{label}</H3>
             </Flex>
 
             <InfoGrid>
@@ -189,6 +223,7 @@ export function RecordingWithMetadata({
 }
 
 const Grid = styled.div<{ sidebarHidden: boolean }>`
+  background: ${p => p.theme.colors.levels.sunken};
   display: grid;
   grid-template-areas: ${p =>
     p.sidebarHidden

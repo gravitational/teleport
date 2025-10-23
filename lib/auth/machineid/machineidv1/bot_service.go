@@ -60,6 +60,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
 	types.JoinMethodBitbucket,
+	types.JoinMethodOracle,
 	types.JoinMethodBoundKeypair,
 }
 
@@ -526,6 +527,10 @@ func (bs *BotService) UpdateBot(
 			opts := role.GetOptions()
 			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
 			role.SetOptions(opts)
+		case "metadata.description":
+			meta := user.GetMetadata()
+			meta.Description = req.Bot.Metadata.Description
+			user.SetMetadata(meta)
 		default:
 			return nil, trace.BadParameter("update_mask: unsupported path %q", path)
 		}
@@ -726,8 +731,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		Kind:    types.KindBot,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:    botName,
-			Expires: expiry,
+			Name:        botName,
+			Expires:     expiry,
+			Description: user.GetMetadata().Description,
 		},
 		Status: &pb.BotStatus{
 			UserName: user.GetName(),
@@ -820,6 +826,9 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)
+	// We track the Bot description within the User description field because
+	// the Role description already has a message.
+	userMeta.Description = bot.Metadata.Description
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}

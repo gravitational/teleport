@@ -536,7 +536,9 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		case evt, ok := <-eventsChan:
 			if !ok {
 				flushBatch()
-				if req.requestCurrentScreen && !screenSent && inTimeRange {
+				// Send screen if requested and not already sent
+				// This handles the case where the stream ends, but we haven't sent the screen yet
+				if req.requestCurrentScreen && !screenSent {
 					s.sendCurrentScreen(req.requestID, req.startOffset)
 				}
 				sendStop()
@@ -546,6 +548,11 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 
 			if !processEvent(evt) {
 				flushBatch()
+				// Send screen if requested and not already sent when we reach the end of the time range
+				// (i.e. there was no event in the time range)
+				if req.requestCurrentScreen && !screenSent {
+					s.sendCurrentScreen(req.requestID, req.startOffset)
+				}
 				sendStop()
 
 				return

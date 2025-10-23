@@ -1,6 +1,285 @@
 ---
 title: Teleport Zero Trust Access
 description: Provides guides for the Teleport Zero Trust Access product.
+template: "landing-page"
 ---
 
-<DocCardList />
+import LandingHero, { LandingHeroProps } from '@site/src/components/Pages/Landing/LandingHero';
+import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
+import UseCasesList, { UseCasesListProps } from "@site/src/components/Pages/Landing/UseCasesList";
+
+import zeroTrustAccessImg from '@version/docs/img/zero-trust-access/zta-hero.png';
+import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
+import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
+import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
+import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import autoDiscoverySvg from "@site/src/components/Icon/teleport-svg/auto-discovery.svg";
+import cloudProvidersSvg from "@site/src/components/Icon/teleport-svg/cloud-providers.svg";
+import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
+
+<LandingHero
+  title="Teleport Zero Trust Access"
+  image={zeroTrustAccessImg}
+>
+  Easy access to all your infrastructure, on a foundation of cryptographic identity and zero trust.
+
+  [Authentication and session joining](./authentication/authentication.mdx)
+
+  [Get started with role-based access control (RBAC)](./rbac-get-started/rbac-get-started.mdx)
+
+  [Export audit events to a SIEM tool](./export-audit-events/export-audit-events.mdx)
+
+</LandingHero>
+
+<UseCasesList
+  title="Popular topics"
+  desktopColumnsCount={2}
+  useCases={[
+    {
+      title: "Sign in with your identity provider",
+      description: "Log into infrastructure via your Single Sign-On (SSO) provider",
+      href: "./sso/",
+      tags: [
+        {
+          name: "Okta",
+          href: "./sso/okta/",
+          icon: "okta",
+        },
+        {
+          name: "GitHub",
+          href: "./sso/github-sso/",
+          icon: "github",
+        },
+        {
+          name: "Entra ID",
+          href: "./sso/entra-id-oidc/",
+          icon: "entraId",
+        },
+       {
+          name: "More IdPs",
+          href: "./sso/",
+          arrow: true,
+        },
+      ]
+    },
+     {
+      title: "VNet: Build without VPNs",
+      description: "Connect to internal, non-browser TCP and SSH resources without VPNs. Use familiar tools and workflows while eliminating exposure to public internet.",
+      href: "../enroll-resources/application-access/guides/vnet/",
+      tags: [
+        {
+          name: "Teleport VNet demo",
+          href: "https://youtu.be/OQ98VErAorM",
+          icon: "youtube",
+        },
+        {
+          name: "VNet guide",
+          href: "../connect-your-client/vnet/",
+        },
+      ]
+    },
+    {
+      title: "Manage and track Teleport audit events",
+      description: "Log granular audit events when users and services interact with your cluster. View audit events in Teleport or export them to a third-party tool.",
+      href: "./export-audit-events/",
+      tags: [
+        {
+          name: "Elastic Stack",
+          href: "./export-audit-events/elastic-stack/",
+          icon: "elasticStack",
+        },
+        {
+          name: "Panther",
+          href: "./export-audit-events/panther/",
+          icon: "panther",
+        },
+        {
+          name: "Datadog",
+          href: "./export-audit-events/datadog/",
+          icon: "datadog",
+        },
+        {
+          name: "Splunk",
+          href: "./export-audit-events/splunk/",
+        },
+      ]
+    },
+    {
+      title: "Self-host Teleport",
+      description: "Run Teleport Enterprise in your own infrastructure, with guides covering high availability and multi-region clusters, securing key material with KMS or HSMs, and more.",
+      href: "./deploy-a-cluster/",
+      tags: [
+        {
+          name: "AWS KMS",
+          href: "./deploy-a-cluster/aws-kms/",
+          icon: "aws",
+        },
+        {
+          name: "Google Cloud KMS",
+          href: "./deploy-a-cluster/gcp-kms/",
+          icon: "googleCloud",
+        },
+        {
+          name: "Helm chart",
+          href: "./deploy-a-cluster/helm-deployments/",
+        },
+      ]
+    },  
+    {
+      title: "Infrastructure as Code",
+      description: "Manage Teleport's Dynamic Resources using infrastructure as code tools, including Terraform, Helm and the Teleport tctl client tool.",
+      href: "./infrastructure-as-code/",
+      tags: [
+        {
+          name: "Terraform",
+          href: "./infrastructure-as-code/terraform-provider/",
+        },
+        {
+          name: "Kubernetes operator",
+          href: "./infrastructure-as-code/teleport-operator/",
+        },
+      ]
+    },
+    {
+      title: "Security best practices",
+      description: "Run Teleport Enterprise in your own infrastructure, with guides covering high availability and multi-region clusters, secure CA keys with KMS or HSM, and more.",
+      href: "./management/security/",
+      tags: [
+        {
+          name: "Reducing the blast radius of attacks",
+          href: "./management/security/reduce-blast-radius/",
+        },
+        {
+          name: "Restricting access",
+          href: "./management/security/restrict-privileges/",
+        },
+        {
+          name: "Revoking access",
+          href: "./management/security/revoking-access/",
+        },
+      ]
+    }
+  ]}
+/>
+
+<UseCasesList
+  title="Use cases"
+  useCases={[
+    {
+      title: "Enroll and protect your infrastructure",
+      description: "Apps, servers, databases, Kubernetes, desktops, and more",
+      href: "../enroll-resources/",
+    },  
+    {
+      title: "VNet: Build without VPNs",
+      description: "Secure app and SSH access with no VPNs or proxies",
+      href: "../enroll-resources/application-access/guides/vnet/",
+    },
+    {
+      title: "Secure MCP",
+      description: "Secure MCP integration with a granular audit trail",
+      href: "../connect-your-client/model-context-protocol/",
+    },  
+    {
+      title: "Role-Based Access Control (RBAC)",
+      description: "Govern infrastructure access with granular permissions",
+      href: "./rbac-get-started/",
+    },
+    {
+      title: "Passwordless authentication",
+      description: "Log in securely using biometrics",
+      href: "./authentication/passwordless/",
+    },
+    {
+      title: "Integrate with SSO providers",
+      description: "Connect Okta, Entra ID, Google, and more",
+      href: "./sso/",
+    },  
+    {
+      title: "Structured audit export",
+      description: "Forward audit logs to SIEMs like Splunk and Datadog",
+      href: "./export-audit-events/",
+    },
+    {
+      title: "Identity-based audit events",
+      description: "Detailed audit logs for every user action",
+      href: "../reference/deployment/monitoring/audit/",
+    },  
+    {
+      title: "Session recording and playback",
+      description: "Record a detailed review of what took place",
+      href: "../reference/agent-services/desktop-access-reference/sessions/",
+    },
+    {
+      title: "Session sharing and moderation",
+      description: "Require a moderator for privileged sessions",
+      href: "./authentication/joining-sessions/",
+    },
+    {
+      title: "Dual authorization capabilities",
+      description: "Require approvals to perform critical actions",
+      href: "../identity-governance/access-requests/",
+    },
+    {
+      title: "Manage clusters with IaC",
+      description: "Create, update, and manage Teleport in declarative code.",
+      href: "./infrastructure-as-code/",
+    },
+  ]}
+/>
+
+{/* vale messaging.protocol-products = NO */}
+<Resources
+  resources={[
+    {
+      title: 'Applications',
+      description: 'Protect web apps, TCP apps, and Cloud APIs',
+      iconComponent: applicationSvg,
+      href: '../enroll-resources/application-access/'
+    },
+    {
+      title: 'Linux servers',
+      description: 'Secure Linux servers and OpenSSH servers',
+      iconComponent: linuxServersSvg,
+      href: '../enroll-resources/server-access/'
+    },
+    {
+      title: 'Database access',
+      description: 'PostgreSQL, MongoDB, SQL Server, and more',
+      iconComponent: databaseSvg,
+      href: '../enroll-resources/database-access/'
+    },
+    {
+      title: 'Kubernetes clusters',
+      description: 'Kubernetes clusters and the apps running in them',
+      iconComponent: kubernetesClustersSvg,
+      href: '../enroll-resources/kubernetes-access/'
+    },
+    {
+      title: 'Windows desktops',
+      description: 'With or without Active Directory',
+      iconComponent: windowsDesktopsSvg,
+      href: '../enroll-resources/desktop-access/'
+    },
+    {
+      title: 'Auto-discovery of resources',
+      description: 'SSH servers, databases, Kubernetes clusters and apps',
+      iconComponent: autoDiscoverySvg,
+      href: '../enroll-resources/auto-discovery/'
+    },
+    {
+      title: 'Cloud providers',
+      description: 'AWS, Azure, and Google Cloud consoles and CLI',
+      iconComponent: cloudProvidersSvg,
+      href: '../enroll-resources/application-access/cloud-apis/'
+    },
+    {
+      title: 'MCP and AI agents',
+      description: 'Secure agentic AI connections to databases and MCP servers',
+      iconComponent: mcpAndAiSvg,
+      href: '../enroll-resources/mcp-access/'
+    }
+  ]}
+/>
+{/* vale messaging.protocol-products = YES */}

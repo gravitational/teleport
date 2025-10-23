@@ -743,14 +743,31 @@ const (
 	MCPSessionStartCode = "TMCP001I"
 	// MCPSessionEndCode is the event code for mcp.session.end.
 	MCPSessionEndCode = "TMCP002I"
+	// MCPSessionEndFailureCode is the event code for mcp.session.end when the
+	// end request is denied by the MCP server.
+	MCPSessionEndFailureCode = "TMCP002E"
 	// MCPSessionRequestCode is the event code for mcp.session.request.
 	MCPSessionRequestCode = "TMCP003I"
 	// MCPSessionRequestFailureCode is the event code for mcp.session.request
-	// when the request is denied by Teleport.
+	// when the request is denied by Teleport or the MCP server.
 	MCPSessionRequestFailureCode = "TMCP003E"
 	// MCPSessionNotificationCode is the event code for
 	// mcp.session.notification.
 	MCPSessionNotificationCode = "TMCP004I"
+	// MCPSessionNotificationFailureCode is the event code for
+	// mcp.session.notification when the notification is denied by the MCP
+	// server.
+	MCPSessionNotificationFailureCode = "TMCP004E"
+	// MCPSessionListenSSEStreamCode is the event code for
+	// mcp.session.listen_sse_stream.
+	MCPSessionListenSSEStreamCode = "TMCP005I"
+	// MCPSessionListenSSEStreamFailureCode is the event code for
+	// mcp.session.listen_sse_stream when the request is denied by the MCP
+	// server.
+	MCPSessionListenSSEStreamFailureCode = "TMCP005E"
+	// MCPSessionInvalidHTTPRequestCode is the event code for
+	// mcp.session.invalid_http_request.
+	MCPSessionInvalidHTTPRequestCode = "TMCP006E"
 
 	// BoundKeypairRecoveryCode is the event code for
 	// join_token.bound_keypair.recovery.
@@ -761,6 +778,37 @@ const (
 	// BoundKeypairJoinStateVerificationFailedCode is the event code for
 	// join_token.bound_keypair.join_state_verification_failed.
 	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
+
+	// SCIMResourceCreateSuccessCode indicates a resource was successfully
+	// provisioned via SCIM
+	SCIMResourceCreateSuccessCode = "TSCIM001I"
+	// SCIMResourceCreateFailureCode indicates a failed attempt to provision
+	// a resource via SCIM
+	SCIMResourceCreateFailureCode = "TSCIM001E"
+	// SCIMResourceUpdateSuccessCode indicates a resource was successfully
+	// updated via SCIM
+	SCIMResourceUpdateSuccessCode = "TSCIM002I"
+	// SCIMResourceUpdateFailureCode indicates a failed attempt to update
+	// a resource via SCIM
+	SCIMResourceUpdateFailureCode = "TSCIM002E"
+	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
+	// deleted via SCIM
+	SCIMResourceDeleteSuccessCode = "TSCIM003I"
+	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
+	// update a resource via SCIM
+	SCIMResourceDeleteFailureCode = "TSCIM003E"
+	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
+	// fron Teleport via SCIM
+	SCIMGetResourceSuccessCode = "TSCIM004I"
+	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
+	// resource via SCIM
+	SCIMGetResourceFailureCode = "TSCIM004E"
+	// SCIMListResourcesSuccessCode indicates a resource listing was successfully fetched
+	// from Teleport via SCIM
+	SCIMListResourcesSuccessCode = "TSCIM005I"
+	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
+	// via SCIM
+	SCIMListResourcesFailureCode = "TSCIM005E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
