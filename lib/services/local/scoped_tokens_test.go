@@ -23,14 +23,13 @@ import (
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/gravitational/trace"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -88,7 +87,7 @@ func TestScopedTokenService(t *testing.T) {
 		Name: fetched.Token.Metadata.Name,
 	})
 	require.NoError(t, err)
-	fetched, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+	_, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: fetched.Token.Metadata.Name,
 	})
 	require.True(t, trace.IsNotFound(err))

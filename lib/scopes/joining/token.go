@@ -134,13 +134,13 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err)
 	}
 
-	ttl := token.GetMetadata().GetExpires().AsTime()
-	if ttl.IsZero() {
+	ttl := token.GetMetadata().GetExpires()
+	if ttl == nil || ttl.AsTime().IsZero() {
 		return nil
 	}
 
 	now := time.Now().UTC()
-	if ttl.Before(now) {
+	if ttl.AsTime().Before(now) {
 		return trace.LimitExceeded("scoped token is expired")
 	}
 
