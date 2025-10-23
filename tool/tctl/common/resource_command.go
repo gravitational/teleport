@@ -1989,8 +1989,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
-	case types.KindNamespace:
-		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
