@@ -170,8 +170,8 @@ func (s *deviceTrustServer) CreateDeviceEnrollToken(ctx context.Context, req *co
 }
 
 func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.EnrollDeviceRequest, devicepb.EnrollDeviceResponse]) error {
-	s.logger.InfoContext(ctx, "EnrollDevice has started")
-	defer s.logger.InfoContext(ctx, "EnrollDevice has ended")
+	s.logger.DebugContext(ctx, "EnrollDevice has started")
+	defer s.logger.DebugContext(ctx, "EnrollDevice has ended")
 	serverStream, err := s.devicesClient.EnrollDevice(ctx)
 	if err != nil {
 		return trace.Wrap(err, "starting server stream")
@@ -181,8 +181,8 @@ func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *conn
 }
 
 func (s *deviceTrustServer) AuthenticateDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.AuthenticateDeviceRequest, devicepb.AuthenticateDeviceResponse]) error {
-	s.logger.InfoContext(ctx, "AuthenticateDevice has started")
-	defer s.logger.InfoContext(ctx, "AuthenticateDevice has ended")
+	s.logger.DebugContext(ctx, "AuthenticateDevice has started")
+	defer s.logger.DebugContext(ctx, "AuthenticateDevice has ended")
 	serverStream, err := s.devicesClient.AuthenticateDevice(ctx)
 	if err != nil {
 		return trace.Wrap(err, "starting server stream")
@@ -196,16 +196,16 @@ func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger,
 
 	// Forward messages from client to server.
 	go func() {
-		defer logger.InfoContext(ctx, "Finished forwarding from client to server")
+		defer logger.DebugContext(ctx, "Finished forwarding from client to server")
 		defer func() {
 			// CloseSend always returns nil error.
 			_ = serverStream.CloseSend()
 		}()
 
 		for {
-			logger.InfoContext(ctx, "Waiting for client message")
+			logger.DebugContext(ctx, "Waiting for client message")
 			clientMsg, err := clientStream.Receive()
-			logger.InfoContext(ctx, "Got client message", "message", clientMsg, "error", err)
+			logger.DebugContext(ctx, "Got client message", "message", clientMsg, "error", err)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// Client is done sending messages.
@@ -225,11 +225,11 @@ func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger,
 
 	// Forward messages from server to client.
 	go func() {
-		defer logger.InfoContext(ctx, "Finished forwarding from server to client")
+		defer logger.DebugContext(ctx, "Finished forwarding from server to client")
 		for {
-			logger.InfoContext(ctx, "Waiting for server message")
+			logger.DebugContext(ctx, "Waiting for server message")
 			serverMsg, err := serverStream.Recv()
-			logger.InfoContext(ctx, "Got server message", "message", serverMsg, "error", err)
+			logger.DebugContext(ctx, "Got server message", "message", serverMsg, "error", err)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// Server stream has terminated with an OK status.
