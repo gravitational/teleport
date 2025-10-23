@@ -204,7 +204,7 @@ func IsFatalErr(err error) bool {
 // the [potentially modified] message in order to pass it on to the
 // other end of the connection, or nil to prevent the message from
 // being forwarded.
-type Interceptor func(message Message) (Message, error)
+type Interceptor func(message Message) ([]Message, error)
 
 // ReadWriteInterceptor wraps an existing 'MessageReadWriteCloser' and runs the
 // provided interceptor functions in the read and/or write paths. Allows callers
@@ -212,18 +212,62 @@ type Interceptor func(message Message) (Message, error)
 type ReadWriteInterceptor struct {
 	// The underlying read/writer to intercept messages on
 	src MessageReadWriteCloser
-	// The interceptor to run in the readInterceptor path (allowed to be nil)
-	readInterceptor Interceptor
-	// The interceptor to run in the read path (allowed to be nil)
+	// The interceptor to run in the write path
 	writeInterceptor Interceptor
+	// A closure over the interceptor to run in the read path
+	readAdapter func() (Message, error)
+}
+
+// 'readInterceptorAdapter' closes over an internal struct that keeps track of
+// the slice of messages returned by the read interceptor callback (if present).
+func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, error) {
+	// Message cache
+	h := struct {
+		// "cached" messages returned by the interceptor callback
+		msgs []Message
+		// index of next message to be returned
+		next int
+	}{}
+	return func() (Message, error) {
+		// Either:
+		// 0 == 0 - initial case
+		// next < len(msgs) - Return a cached message
+		// next == len(msgs) - Cache is empty and we need a fresh read
+		for h.next == len(h.msgs) {
+			// Try reading a message
+			m, err := src.ReadMessage()
+			if err != nil {
+				return nil, err
+			}
+
+			if i != nil {
+				// The interceptor may return an empty slice and nil error
+				// In that case, we'll try again via the loop.
+				h.msgs, err = i(m)
+				if err != nil {
+					return nil, err
+				}
+				h.next = 0
+			} else {
+				// No interceptor to run
+				return m, err
+			}
+		}
+
+		// Return the next cached message
+		nextMsg := h.msgs[h.next : h.next+1]
+		h.next++
+		return nextMsg[0], nil
+	}
 }
 
 // NewReadWriteInterceptor creates a new 'ReadWriteInterceptor' that intercepts messages on 'src'.
+// The provided interceptor callbacks may be nil.
 func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeInterceptor Interceptor) *ReadWriteInterceptor {
 	return &ReadWriteInterceptor{
 		src:              src,
-		readInterceptor:  readInterceptor,
 		writeInterceptor: writeInterceptor,
+		readAdapter:      readInterceptorAdapter(src, readInterceptor),
 	}
 }
 
@@ -232,32 +276,29 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeI
 // writer.
 func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 	var err error
+	var out []Message
 	if i.writeInterceptor != nil {
-		m, err = i.writeInterceptor(m)
-		if err != nil {
-			return err
+		out, err = i.writeInterceptor(m)
+		if err == nil {
+			// The interceptor is allowed to return an empty slice.
+			for _, msg := range out {
+				err = i.src.WriteMessage(msg)
+				if err != nil {
+					break
+				}
+			}
 		}
+		return err
 	}
-	// The interceptor is allowed to return a nil message.
-	if m != nil {
-		return i.src.WriteMessage(m)
-	}
-	return nil
+	// No interceptor found
+	return i.src.WriteMessage(m)
 }
 
 // ReadMessage reads from the underlying reader and passes them to the
 // read interceptor (if provided) for omition or modification before
 // returning the next message.
 func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
-	var m Message
-	var err error
-	for m == nil && err == nil {
-		m, err = i.src.ReadMessage()
-		if err == nil && i.readInterceptor != nil {
-			m, err = i.readInterceptor(m)
-		}
-	}
-	return m, err
+	return i.readAdapter()
 }
 
 // Close calls close on the underlying 'MessageReadWriteCloser'
