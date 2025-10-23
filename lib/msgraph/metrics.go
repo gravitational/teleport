@@ -19,9 +19,10 @@
 package msgraph
 
 import (
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport"
 )
 
 type clientMetrics struct {
