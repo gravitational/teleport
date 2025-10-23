@@ -24,26 +24,28 @@ import (
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config contains the parameters for [New].
 type Config struct {
-	Authorizer authz.Authorizer
-	Logger     *slog.Logger
-	Backend    services.ScopedTokenService
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Logger           *slog.Logger
+	Backend          services.ScopedTokenService
 }
 
 // Server is the [scopedjoiningv1.ScopedJoiningServiceServer] returned by [New].
 type Server struct {
 	scopedjoiningv1.UnsafeScopedJoiningServiceServer
 
-	authorizer authz.Authorizer
+	authorizer authz.ScopedAuthorizer
 	logger     *slog.Logger
 	backend    services.ScopedTokenService
 }
@@ -51,7 +53,7 @@ type Server struct {
 // New returns the auth server implementation for the scoped provisioning
 // service, including the gRPC interface, authz enforcement, and business logic.
 func New(c Config) (*Server, error) {
-	if c.Authorizer == nil {
+	if c.ScopedAuthorizer == nil {
 		return nil, trace.BadParameter("missing Authorizer")
 	}
 
@@ -64,7 +66,7 @@ func New(c Config) (*Server, error) {
 	}
 
 	return &Server{
-		authorizer: c.Authorizer,
+		authorizer: c.ScopedAuthorizer,
 		logger:     c.Logger,
 		backend:    c.Backend,
 	}, nil
@@ -72,14 +74,17 @@ func New(c Config) (*Server, error) {
 
 // CreateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.CreateScopedTokenRequest) (*scopedjoiningv1.CreateScopedTokenResponse, error) {
-	authzContext, err := s.authorizer.Authorize(ctx)
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authzContext, string(types.RoleAdmin)) {
-		s.logger.WarnContext(ctx, "user does not have permission to create scoped tokens", "user", authzContext.User.GetName())
-		return nil, trace.AccessDenied("user %q does not have permission to create scoped tokens", authzContext.User.GetName())
+	ruleCtx := authzContext.RuleContext()
+	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbCreate)
+	}); err != nil {
+		s.logger.WarnContext(ctx, "user does not have permission to create scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
+		return nil, trace.Wrap(err)
 	}
 
 	token := req.GetToken()
@@ -104,14 +109,34 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 
 // DeleteScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.DeleteScopedTokenRequest) (*scopedjoiningv1.DeleteScopedTokenResponse, error) {
-	authzContext, err := s.authorizer.Authorize(ctx)
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authzContext, string(types.RoleAdmin)) {
-		s.logger.WarnContext(ctx, "user does not have permission to delete scoped tokens", "user", authzContext.User.GetName())
-		return nil, trace.AccessDenied("user %q does not have permission to delete scoped tokens", authzContext.User.GetName())
+	ruleCtx := authzContext.RuleContext()
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// if we're using unscoped credentials, just delete the scope token instead of trying to fetch its scope
+	if authzContext.CheckerContext.Scoped() == nil {
+		res, err := s.backend.DeleteScopedToken(ctx, req)
+		return res, trace.Wrap(err)
+	}
+
+	getRes, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+		Name: req.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzContext.CheckerContext.Decision(ctx, getRes.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
+	}); err != nil {
+		s.logger.WarnContext(ctx, "user does not have permission to delete scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", getRes.GetToken().GetScope())
+		return nil, trace.Wrap(err)
 	}
 
 	res, err := s.backend.DeleteScopedToken(ctx, req)
@@ -120,33 +145,61 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 
 // GetScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) GetScopedToken(ctx context.Context, req *scopedjoiningv1.GetScopedTokenRequest) (*scopedjoiningv1.GetScopedTokenResponse, error) {
-	authzContext, err := s.authorizer.Authorize(ctx)
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authzContext, string(types.RoleAdmin)) {
-		s.logger.WarnContext(ctx, "user does not have permission to get scoped tokens", "user", authzContext.User.GetName())
-		return nil, trace.AccessDenied("user %q does not have permission to get scoped tokens", authzContext.User.GetName())
+	ruleCtx := authzContext.RuleContext()
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.GetScopedToken(ctx, req)
+	res, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+		Name: req.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzContext.CheckerContext.Decision(ctx, res.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
+	}); err != nil {
+		s.logger.WarnContext(ctx, "user does not have permission to read scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", res.GetToken().GetScope())
+		return nil, trace.Wrap(err)
+	}
+
 	return res, trace.Wrap(err)
 }
 
 // ListScopedTokens implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.ListScopedTokensRequest) (*scopedjoiningv1.ListScopedTokensResponse, error) {
-	authzContext, err := s.authorizer.Authorize(ctx)
+	authzContext, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authzContext, string(types.RoleAdmin)) {
-		s.logger.WarnContext(ctx, "user does not have permission to list scoped tokens", "user", authzContext.User.GetName())
-		return nil, trace.AccessDenied("user %q does not have permission to list scoped tokens", authzContext.User.GetName())
+	ruleCtx := authzContext.RuleContext()
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	res, err := s.backend.ListScopedTokens(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var authorizedTokens []*joiningv1.ScopedToken
+	for _, token := range res.GetTokens() {
+		if err := authzContext.CheckerContext.Decision(ctx, token.GetScope(), func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbList)
+		}); err != nil {
+			s.logger.DebugContext(ctx, "user not authorized to access scoped token", "user", authzContext.User.GetName(), "scope", token.GetScope())
+			continue
+		}
+		authorizedTokens = append(authorizedTokens, token)
+	}
+	res.Tokens = authorizedTokens
 	return res, trace.Wrap(err)
 }
 

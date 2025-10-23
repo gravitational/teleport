@@ -82,6 +82,7 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 
 		client, err := authclient.Connect(ctx, clientConfig)
 		if err != nil {
+			slog.WarnContext(ctx, "failed to connect to auth server", "error", err)
 			if utils.IsUntrustedCertErr(err) {
 				err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 			}

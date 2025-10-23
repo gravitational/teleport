@@ -40,6 +40,9 @@ const (
 	// KindScopedRoleAssignment is the kind of a scoped role assignment resource.
 	KindScopedRoleAssignment = "scoped_role_assignment"
 
+	// KindScopedToken is the kind of a scoped token resource.
+	KindScopedToken = "scoped_token"
+
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
@@ -129,6 +132,20 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 		if !scopes.Glob(scopeGlob).IsSubjectToPolicyResourceScope(role.GetScope()) {
 			return trace.BadParameter("scoped role %q has assignable scope %q that is not a sub-scope of the role's scope %q", role.GetMetadata().GetName(), scopeGlob, role.GetScope())
+		}
+	}
+
+	// verify that all rules are allowed for scoped roles
+	for _, rule := range role.GetSpec().GetAllow().GetRules() {
+		for _, resource := range rule.GetResources() {
+			for _, verb := range rule.GetVerbs() {
+				if !isAllowedScopedRule(resource, verb) {
+					if verb == types.VerbRead && isAllowedScopedRule(resource, types.VerbReadNoSecrets) {
+						return trace.BadParameter("scoped role %q has rule with verb %q that is too permissive for resource %q, use %q instead", role.GetMetadata().GetName(), verb, resource, types.VerbReadNoSecrets)
+					}
+					return trace.BadParameter("scoped role %q has rule with unsupported resource/verb combination: %q/%q", role.GetMetadata().GetName(), resource, verb)
+				}
+			}
 		}
 	}
 

@@ -923,6 +923,8 @@ message ServerV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The scope of the ServerV2 instance
+  string scope = 6;
 }
 
 // ServerSpecV2 is a specification for V2 Server
