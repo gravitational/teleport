@@ -366,6 +366,8 @@ type testCase struct {
 	form         url.Values
 	statusCode   int
 	respContains string
+	setupFunc    func()
+	cleanupFunc  func()
 }
 
 func samlTestCases(t *testing.T) []testCase {

@@ -15,6 +15,7 @@ import (
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -23,12 +24,18 @@ var errNoTAGCache = errors.New("TAG cache was not submitted")
 
 // entraIDPluginDescriptor is an empty type used to implement an Entra ID specific
 // version of the pluginDescriptor interface
-type entraIDPluginDescriptor struct{}
+type entraIDPluginDescriptor struct {
+	// The Entra ID plugin installation step fetches live
+	// Microsoft Entra ID SAML entity descriptor. Providing an entity descriptor
+	// beforehand causes the SAML connector validator to skip the fetcher,
+	// which is useful for tests.
+	testEntityDescriptor string
+}
 
 // HandleInstallRequest implements pluginDescriptor.
-func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	inputs := entraIDPluginInputsFromForm(r.Form)
-	if err := inputs.validate(); err != nil {
+func (e entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	inputs, err := parseEntraIDPluginInputs(r.Form, true /*read all inputs*/)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -55,6 +62,13 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 		}
 	}
 
+	edURL := entraapiutils.FederationMetadataURL(inputs.tenantID, inputs.clientID)
+	ed := ""
+	if e.testEntityDescriptor != "" {
+		// skip live entity descriptor validator in tests.
+		edURL = ""
+		ed = e.testEntityDescriptor
+	}
 	saml, err := types.NewSAMLConnector(inputs.authConnectorName, types.SAMLConnectorSpecV2{
 		AssertionConsumerService: proxyPublicAddr + "/v1/webapi/saml/acs/" + inputs.authConnectorName,
 		AllowIDPInitiated:        true,
@@ -68,7 +82,8 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 			},
 		},
 		Display:             "Entra ID",
-		EntityDescriptorURL: entraapiutils.FederationMetadataURL(inputs.tenantID, inputs.clientID),
+		EntityDescriptorURL: edURL,
+		EntityDescriptor:    ed,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,6 +91,11 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 
 	if _, err = client.CreateSAMLConnector(ctx, saml); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	filters, err := filter.NewFromInputs(inputs.groupFilters)
+	if err != nil {
+		return nil, trace.Wrap(err, "invalid group filter")
 	}
 
 	integrationSpec, err := types.NewIntegrationAzureOIDC(
@@ -114,6 +134,7 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 							TenantId:          inputs.tenantID,
 							CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
 							EntraAppId:        inputs.clientID,
+							GroupFilters:      filters,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
@@ -141,8 +162,8 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 
 // HandleValidateConfigRequest implements pluginDescriptor.
 func (e entraIDPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
-	inputs := entraIDPluginInputsFromForm(form)
-	if err := inputs.validateEarly(); err != nil {
+	inputs, err := parseEntraIDPluginInputs(form, false /*skip Entra ID specific config which is not available at this stage*/)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -177,6 +198,10 @@ func (e entraIDPluginDescriptor) HandleValidateConfigRequest(ctx context.Context
 		return trace.Wrap(err)
 	}
 
+	if _, err = filter.NewFromInputs(inputs.groupFilters); err != nil {
+		return trace.Wrap(err, "invalid group filter")
+	}
+
 	return nil
 }
 
@@ -198,16 +223,50 @@ type entraIDPluginInputs struct {
 	defaultOwners     string
 	tenantID          string
 	clientID          string
+	groupFilters      filter.Inputs
 }
 
-func entraIDPluginInputsFromForm(form url.Values) entraIDPluginInputs {
-	return entraIDPluginInputs{
-		name:              form.Get("name"),
-		authConnectorName: form.Get("authConnectorName"),
-		defaultOwners:     form.Get("defaultOwners"),
-		tenantID:          form.Get("tenantId"),
-		clientID:          form.Get("clientId"),
+// parseEntraIDPluginInputs parses Entra ID plugin inputs.
+func parseEntraIDPluginInputs(form url.Values, includeEntraConfig bool) (entraIDPluginInputs, error) {
+	var inputs entraIDPluginInputs
+
+	inputs.name = form.Get("name")
+	if inputs.name == "" {
+		return inputs, trace.BadParameter("plugin name must be specified")
 	}
+
+	inputs.authConnectorName = form.Get("authConnectorName")
+	if inputs.authConnectorName == "" {
+		return inputs, trace.BadParameter("auth connector name must be specified")
+	}
+
+	inputs.defaultOwners = form.Get("defaultOwners")
+	_, err := inputs.getDefaultOwners()
+	if err != nil {
+		return inputs, trace.Wrap(err, "parsing default owners")
+	}
+
+	groupFilters := form.Get("groupFilters")
+	if groupFilters != "" {
+		err = json.Unmarshal([]byte(groupFilters), &inputs.groupFilters)
+		if err != nil {
+			return inputs, trace.Wrap(err, "parsing group filters")
+		}
+	}
+
+	if includeEntraConfig {
+		inputs.tenantID = form.Get("tenantId")
+		if inputs.tenantID == "" {
+			return inputs, trace.BadParameter("tenant ID must be specified")
+		}
+		inputs.clientID = form.Get("clientId")
+
+		if inputs.clientID == "" {
+			return inputs, trace.BadParameter("client ID must be specified")
+		}
+	}
+
+	return inputs, nil
 }
 
 // getDefaultOwners returns a list of user names of users that will be made owners
@@ -227,39 +286,6 @@ func (e *entraIDPluginInputs) getDefaultOwners() ([]string, error) {
 	}
 
 	return defaultOwners, nil
-}
-
-// validateEarly validates inputs that the user enters before running the onboarding script.
-func (e *entraIDPluginInputs) validateEarly() error {
-	if e.name == "" {
-		return trace.BadParameter("integration name must be specified")
-	}
-
-	if e.authConnectorName == "" {
-		return trace.BadParameter("auth connector name must be specified")
-	}
-
-	_, err := e.getDefaultOwners()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (e *entraIDPluginInputs) validate() error {
-	if err := e.validateEarly(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if e.tenantID == "" {
-		return trace.BadParameter("tenant ID must be specified")
-	}
-	if e.clientID == "" {
-		return trace.BadParameter("client ID must be specified")
-	}
-
-	return nil
 }
 
 func readTAGCache(r *http.Request) (*azureoidc.TAGInfoCache, error) {

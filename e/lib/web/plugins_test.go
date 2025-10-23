@@ -2,7 +2,6 @@ package web
 
 import (
 	"encoding/json"
-	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,7 +17,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -564,122 +562,6 @@ func TestPluginCleanup(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.Code())
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &needsCleanup))
 	require.False(t, needsCleanup.NeedsCleanup)
-}
-
-func TestValidatePluginEntraID(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
-	s := newWebSuite(t)
-	webPack := s.newAuthWebPack(t, "foo")
-	authServer := s.testAuthServer.AuthServer.AuthServer
-
-	// Create existing objects
-	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewPresetRequesterRole())
-	require.NoError(t, err)
-
-	const existingIntegrationName = "existingintegration"
-	integration, err := types.NewIntegrationAzureOIDC(types.Metadata{Name: existingIntegrationName}, &types.AzureOIDCIntegrationSpecV1{
-		TenantID: "foo",
-		ClientID: "bar",
-	})
-	require.NoError(t, err)
-	_, err = authServer.CreateIntegration(s.ctx, integration)
-	require.NoError(t, err)
-
-	const existingAuthConnectorName = "existingconnector"
-	connector, err := types.NewSAMLConnector(existingAuthConnectorName, types.SAMLConnectorSpecV2{
-		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs/existingconnector",
-		SSO:                      "https://example.org",
-		EntityDescriptor:         testenv.NewTestEntityDescriptor("foo", "https://entraid.com/acs"),
-		AttributesToRoles: []types.AttributeMapping{
-			{
-				Name:  "foo",
-				Value: "bar",
-				Roles: []string{"requester"},
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = authServer.CreateSAMLConnector(s.ctx, connector)
-	require.NoError(t, err)
-
-	valid := url.Values{
-		"type":              {"entra-id"},
-		"name":              {"myintegration"},
-		"authConnectorName": {"myconnector"},
-		"defaultOwners":     {`["alice", "bob"]`},
-	}
-	endpoint := webPack.clt.Endpoint("enterprise", "plugins", "validate")
-	resp, err := webPack.clt.PostForm(s.ctx, endpoint, valid)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code(), string(resp.Bytes()))
-
-	testCases := []struct {
-		form      func() url.Values
-		expectErr string
-	}{
-		{
-			form: func() url.Values {
-				return valid
-			},
-		},
-		{
-			form: func() url.Values {
-				f := maps.Clone(valid)
-				delete(f, "name")
-				return f
-			},
-			expectErr: "integration name must be specified",
-		},
-		{
-			form: func() url.Values {
-				f := maps.Clone(valid)
-				delete(f, "authConnectorName")
-				return f
-			},
-			expectErr: "auth connector name must be specified",
-		},
-		{
-			form: func() url.Values {
-				f := maps.Clone(valid)
-				delete(f, "defaultOwners")
-				return f
-			},
-			expectErr: "default owners must be specified",
-		},
-		{
-			form: func() url.Values {
-				f := maps.Clone(valid)
-				f["name"] = []string{existingIntegrationName}
-				return f
-			},
-			expectErr: `integration named \"existingintegration\" already exists`,
-		},
-		{
-			form: func() url.Values {
-				f := maps.Clone(valid)
-				f["authConnectorName"] = []string{existingAuthConnectorName}
-				return f
-			},
-			expectErr: `auth connector named \"existingconnector\" already exists`,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.expectErr, func(t *testing.T) {
-			endpoint := webPack.clt.Endpoint("enterprise", "plugins", "validate")
-			resp, err := webPack.clt.PostForm(s.ctx, endpoint, tc.form())
-			require.NoError(t, err)
-			payload := string(resp.Bytes())
-			if tc.expectErr == "" {
-				require.Equal(t, http.StatusOK, resp.Code(), payload)
-			} else {
-				require.Contains(t, payload, tc.expectErr)
-			}
-		})
-	}
 }
 
 func cookieExist(cookies []*http.Cookie, name string) bool {
