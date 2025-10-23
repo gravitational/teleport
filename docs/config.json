@@ -51,8 +51,7 @@
     },
     "kubernetes": {
       "major_version": "1",
-      "minor_version": "17",
-      "health_check_min_version": "18.3.0"
+      "minor_version": "17"
     },
     "mongodb": {
       "min_version": "3.6"
@@ -213,6 +212,11 @@
     {
       "source": "/kubernetes-ssh/",
       "destination": "/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/kubernetes-access/health-checks/",
+      "destination": "/enroll-resources/kubernetes-access/",
       "permanent": true
     },
     {
