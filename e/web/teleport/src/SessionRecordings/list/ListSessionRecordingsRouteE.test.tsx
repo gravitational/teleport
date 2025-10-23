@@ -102,7 +102,7 @@ test('should show a view summary button when the feature is enabled', async () =
     name: 'View session summary',
   });
 
-  expect(buttons).toHaveLength(4);
+  expect(buttons).toHaveLength(3);
 });
 
 test('should show the CTA when identity security is disabled', async () => {

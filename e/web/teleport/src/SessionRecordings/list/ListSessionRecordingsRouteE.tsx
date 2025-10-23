@@ -15,8 +15,7 @@ export function ListSessionRecordingsRouteE() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
 
-  const hasIdentitySecurity =
-    storageService.getAccessGraphEnabled() && flags.accessGraph;
+  const identitySecurityEnabled = storageService.getAccessGraphEnabled();
 
   const actionSlot = useMemo(() => {
     if (!cfg.oss.sessionSummarizerEnabled) {
@@ -30,12 +29,16 @@ export function ListSessionRecordingsRouteE() {
   }, []);
 
   const headerSlot = useMemo(() => {
-    if (hasIdentitySecurity) {
+    if (identitySecurityEnabled && !flags.accessGraph) {
+      return null; // the user does not have access to Identity Security
+    }
+
+    if (identitySecurityEnabled) {
       return <SessionSummariesStatus />;
     }
 
     return <SessionSummariesCta />;
-  }, [hasIdentitySecurity]);
+  }, [identitySecurityEnabled, flags.accessGraph]);
 
   return (
     <ListSessionRecordings actionSlot={actionSlot} headerSlot={headerSlot} />
