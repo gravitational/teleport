@@ -391,21 +391,6 @@ func (c *authPrefCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type uiConfigCollection struct {
-	uiconfig types.UIConfig
-}
-
-func (c *uiConfigCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.uiconfig}
-}
-
-func (c *uiConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Scrollback Lines", "Show Resources"})
-	t.AddRow([]string{strconv.FormatInt(int64(c.uiconfig.GetScrollbackLines()), 10), string(c.uiconfig.GetShowResources())})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type netConfigCollection struct {
 	netConfig types.ClusterNetworkingConfig
 }
