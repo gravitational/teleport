@@ -405,7 +405,7 @@ func TestAccessListClone(t *testing.T) {
 	require.NotSame(t, item, cpy)
 }
 
-func TestEqualForReconciliationMutating(t *testing.T) {
+func TestEqualForReconciliation(t *testing.T) {
 	t.Parallel()
 
 	baseTime := time.Now()
@@ -474,8 +474,40 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al1 := createAccessList("test1")
 		al2 := createAccessList("test1")
 
-		result := EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone())
+		result := EqualAccessListForReconciliation(al1, al2)
 		require.True(t, result)
+	})
+
+	t.Run("default behavior does not mutate originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		originalRevision := al1.Metadata.Revision
+		originalStatus := al1.Status
+		originalIneligibleStatus := al1.Spec.Owners[0].IneligibleStatus
+
+		EqualAccessListForReconciliation(al1, al2)
+
+		// Verify original values are preserved
+		require.Equal(t, originalRevision, al1.Metadata.Revision)
+		require.Equal(t, originalStatus, al1.Status)
+		require.Equal(t, originalIneligibleStatus, al1.Spec.Owners[0].IneligibleStatus)
+	})
+
+	t.Run("WithSkipClone mutates originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		originalRevision := al1.Metadata.Revision
+		originalIneligibleStatus := al1.Spec.Owners[0].IneligibleStatus
+
+		EqualAccessListForReconciliation(al1, al2, WithSkipClone())
+
+		// Verify values were mutated
+		require.Empty(t, al1.Metadata.Revision)
+		require.NotEqual(t, originalRevision, al1.Metadata.Revision)
+		require.Empty(t, al1.Spec.Owners[0].IneligibleStatus)
+		require.NotEqual(t, originalIneligibleStatus, al1.Spec.Owners[0].IneligibleStatus)
 	})
 
 	t.Run("different revisions are ignored", func(t *testing.T) {
@@ -483,7 +515,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Metadata.Revision = "different-revision"
 
-		result := EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone())
+		result := EqualAccessListForReconciliation(al1, al2)
 		require.True(t, result)
 	})
 
@@ -493,7 +525,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2.Status.OwnerOf = []string{"different", "lists"}
 		al2.Status.MemberOf = []string{"other", "lists"}
 
-		result := EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone())
+		result := EqualAccessListForReconciliation(al1, al2)
 		require.True(t, result)
 	})
 
@@ -503,7 +535,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2.Spec.Owners[0].IneligibleStatus = "completely-different-reason"
 		al2.Spec.Owners[1].IneligibleStatus = ""
 
-		result := EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone())
+		result := EqualAccessListForReconciliation(al1, al2)
 		require.True(t, result)
 	})
 
@@ -517,7 +549,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2.Spec.Owners[0].IneligibleStatus = "new-reason-1"
 		al2.Spec.Owners[1].IneligibleStatus = "new-reason-2"
 
-		result := EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone())
+		result := EqualAccessListForReconciliation(al1, al2)
 		require.True(t, result)
 	})
 
@@ -525,7 +557,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al1 := createAccessList("test1")
 		al2 := createAccessList("test2")
 
-		result := EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone())
+		result := EqualAccessListForReconciliation(al1, al2)
 		require.False(t, result)
 	})
 
@@ -534,7 +566,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.Title = "Different Title"
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("different description causes inequality", func(t *testing.T) {
@@ -542,7 +574,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.Description = "Different description"
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("different owner name causes inequality", func(t *testing.T) {
@@ -550,7 +582,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.Owners[0].Name = "different-owner"
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("different owner description causes inequality", func(t *testing.T) {
@@ -558,7 +590,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.Owners[0].Description = "Different owner description"
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("different audit settings cause inequality", func(t *testing.T) {
@@ -566,7 +598,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.Audit.Recurrence.Frequency = OneMonth
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("different grants cause inequality", func(t *testing.T) {
@@ -574,7 +606,7 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.Grants.Roles = []string{"different-role"}
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("different membership requires cause inequality", func(t *testing.T) {
@@ -582,14 +614,14 @@ func TestEqualForReconciliationMutating(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Spec.MembershipRequires.Roles = []string{"different-role"}
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
 	})
 
 	t.Run("one nil access list", func(t *testing.T) {
 		al1 := createAccessList("test1")
 		var al2 *AccessList
 
-		require.False(t, EqualAccessListForReconciliationMutating(al1.Clone(), al2))
-		require.False(t, EqualAccessListForReconciliationMutating(al2, al1.Clone()))
+		require.False(t, EqualAccessListForReconciliation(al1, al2))
+		require.False(t, EqualAccessListForReconciliation(al2, al1))
 	})
 }

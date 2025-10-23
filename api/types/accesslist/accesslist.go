@@ -600,7 +600,25 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	return trace.Wrap(err)
 }
 
-// EqualAccessListForReconciliationMutating compares two access lists for semantic equality,
+// EqualAccessListForReconciliationOption is a functional option for configuring
+// the behavior of EqualAccessListForReconciliation.
+type EqualAccessListForReconciliationOption func(*equalAccessListForReconciliationConfig)
+
+type equalAccessListForReconciliationConfig struct {
+	skipClone bool
+}
+
+// WithSkipClone configures EqualAccessListForReconciliation to skip cloning
+// and directly mutate the input access lists. Use this option only when you're
+// certain the input access lists can be safely modified (e.g., they're already
+// clones or will be discarded after comparison).
+func WithSkipClone() EqualAccessListForReconciliationOption {
+	return func(c *equalAccessListForReconciliationConfig) {
+		c.skipClone = true
+	}
+}
+
+// EqualAccessListForReconciliation compares two access lists for semantic equality,
 // ignoring ephemeral fields that are managed by reconcilers or the backend.
 // This function mimics the behavior of services.CompareResources for AccessList types.
 //
@@ -609,10 +627,20 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 //   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
 //   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
 //
-// This function modifies the input AccessLists by clearing the ignored fields.
-//
-// WARNING: If you need to preserve the original values, clone the AccessLists before calling.
-func EqualAccessListForReconciliationMutating(a, b *AccessList) bool {
+// By default, this function clones the input access lists before comparison to avoid
+// modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be
+// safely modified.
+func EqualAccessListForReconciliation(a, b *AccessList, opts ...EqualAccessListForReconciliationOption) bool {
+	cfg := equalAccessListForReconciliationConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if !cfg.skipClone {
+		a = a.Clone()
+		b = b.Clone()
+	}
+
 	resetFieldsForReconciliationAccessList(a)
 	resetFieldsForReconciliationAccessList(b)
 	return deriveTeleportEqualAccessList(a, b)
