@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -489,6 +490,22 @@ func TestKeyAppendKey(t *testing.T) {
 			assert.Equal(t, test.expected, appended)
 		})
 	}
+}
+
+func TestKeyAppendKeyNoOverwrite(t *testing.T) {
+	var components []string
+	for range 3 {
+		components = append(components, "a")
+	}
+	k := backend.NewKey(components...)
+
+	k1 := k.AppendKey(backend.NewKey("b"))
+	require.Equal(t, "/a/a/a/b", k1.String())
+
+	_ = k.AppendKey(backend.NewKey("c"))
+
+	k2 := k1.AppendKey(backend.NewKey("b"))
+	require.Equal(t, "/a/a/a/b/b", k2.String())
 }
 
 func TestKeyCompare(t *testing.T) {
