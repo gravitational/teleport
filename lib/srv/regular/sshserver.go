@@ -1748,10 +1748,15 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest, tracessh.EnvsRequest:
-		case constants.FileTransferDecision:
-			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
+		case constants.InitiateFileTransfer:
+			if mode := serverContext.GetSessionParams().JoinMode; mode != types.SessionPeerMode {
+				return trace.AccessDenied("attempted file transfer in %s mode", mode)
+			}
+			return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
+		case constants.FileTransferDecision:
+			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
