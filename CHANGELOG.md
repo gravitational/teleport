@@ -1,5 +1,13 @@
 # Changelog
 
+## 18.2.9 (10/23/25)
+
+This is a follow up to the private security release. Changelog will be publicly announced on 10/24/25.
+
+In addition to the previous release it includes the following bug fixes:
+
+* Fixed crash of EC2 auto discovery when AWS credentials provided in to the Discovery Service are not valid. [#60046](https://github.com/gravitational/teleport/pull/60046)
+
 ## 18.2.8 (10/20/25)
 
 This is a follow up to the private security release. Changelog will be publicly announced on 10/24/25.
