@@ -17,6 +17,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"strconv"
@@ -502,7 +503,10 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 		}
 
 		if authentication != nil {
-			uiInstance.JoinMethodLatest = authentication.GetJoinMethod()
+			uiInstance.JoinMethodLatest = cmp.Or(
+				authentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
+				authentication.GetJoinMethod(),
+			)
 		}
 
 		if heartbeat != nil {
