@@ -199,10 +199,10 @@ Server ID                            Hostname              Services        Agent
 
 Teleport Enterprise Cloud allocates a different set of ports to each tenant. To see which
 ports are available for your Teleport Enterprise Cloud tenant, run a command similar to the
-following, replacing `example.teleport.sh` with your tenant domain:
+following, replacing <Var name="example.teleport.sh" /> with your tenant domain:
 
 ```code
-$ curl https://example.teleport.sh/webapi/ping | jq '.proxy'
+$ curl https://<Var name="example.teleport.sh" />/webapi/ping | jq '.proxy'
 ```
 
 The output should resemble the following, including the unique ports assigned to
