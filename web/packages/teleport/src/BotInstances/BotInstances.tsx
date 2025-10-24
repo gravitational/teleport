@@ -69,11 +69,12 @@ export function BotInstances() {
       pageToken,
       sortField,
       sortDir,
+      query,
     ],
     queryFn: ({ signal }) =>
       listBotInstances(
         {
-          pageSize: 20,
+          pageSize: 30,
           pageToken,
           searchTerm,
           query,
@@ -134,9 +135,25 @@ export function BotInstances() {
     (term: string) => {
       const search = new URLSearchParams(location.search);
       search.set('search', term);
-      search.set('page', '');
+      search.delete('query');
+      search.delete('page');
 
-      history.replace({
+      history.push({
+        pathname: `${location.pathname}`,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const handleQueryChange = useCallback(
+    (exp: string) => {
+      const search = new URLSearchParams(location.search);
+      search.set('query', exp);
+      search.delete('search');
+      search.delete('page');
+
+      history.push({
         pathname: `${location.pathname}`,
         search: search.toString(),
       });
@@ -166,7 +183,7 @@ export function BotInstances() {
       const search = new URLSearchParams(location.search);
       search.set('sort_field', sortType.fieldName);
       search.set('sort_dir', sortType.dir);
-      search.set('page', '');
+      search.delete('page');
 
       history.replace({
         pathname: location.pathname,
@@ -228,7 +245,9 @@ export function BotInstances() {
           onFetchNext={hasNextPage ? handleFetchNext : undefined}
           onFetchPrev={hasPrevPage ? handleFetchPrev : undefined}
           onSearchChange={handleSearchChange}
+          onQueryChange={handleQueryChange}
           searchTerm={searchTerm}
+          query={query}
           onItemSelected={onItemSelected}
           sortType={sortType}
           onSortChanged={handleSortChanged}
