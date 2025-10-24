@@ -471,7 +471,9 @@ type ListBotInstancesV2Request_Filters struct {
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// A search term used to filter the results. If non-empty, it's used to
 	// match against supported fields.
-	SearchTerm    string `protobuf:"bytes,2,opt,name=search_term,json=searchTerm,proto3" json:"search_term,omitempty"`
+	SearchTerm string `protobuf:"bytes,2,opt,name=search_term,json=searchTerm,proto3" json:"search_term,omitempty"`
+	// A Teleport predicate language query used to filter the results.
+	Query         string `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -520,6 +522,13 @@ func (x *ListBotInstancesV2Request_Filters) GetSearchTerm() string {
 	return ""
 }
 
+func (x *ListBotInstancesV2Request_Filters) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
 var File_teleport_machineid_v1_bot_instance_service_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
@@ -535,7 +544,7 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xac\x02\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xc2\x02\n" +
 	"\x19ListBotInstancesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -543,11 +552,12 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
 	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12P\n" +
-	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1aE\n" +
+	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1a[\n" +
 	"\aFilters\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vsearch_term\x18\x02 \x01(\tR\n" +
-	"searchTerm\"\x8b\x01\n" +
+	"searchTerm\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +

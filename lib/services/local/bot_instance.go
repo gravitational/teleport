@@ -26,9 +26,11 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -110,13 +112,25 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 		service = b.service.WithPrefix(options.GetFilterBotName())
 	}
 
-	if options.GetFilterSearchTerm() == "" {
+	var exp typical.Expression[*expression.Environment, bool]
+	if options.GetFilterQuery() != "" {
+		parser, err := expression.NewBotInstanceExpressionParser()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		exp, err = parser.Parse(options.GetFilterQuery())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	if options.GetFilterSearchTerm() == "" && exp == nil {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		return services.MatchBotInstance(item, "", options.GetFilterSearchTerm())
+		return services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp)
 	})
 
 	return r, nextToken, trace.Wrap(err)

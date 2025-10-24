@@ -236,7 +236,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -259,7 +259,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 func TestBotInstanceInvalidGetters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -283,7 +283,7 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 func TestBotInstanceCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -341,7 +341,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -392,7 +392,7 @@ func TestBotInstanceList(t *testing.T) {
 	}
 }
 
-// TestBotInstanceListWithSearchFilter verifies list and filtering wit39db3c10-870c-4544-aeec-9fc2e961eca3h search
+// TestBotInstanceListWithSearchFilter verifies list and filtering with search
 // term functionality for bot instances.
 func TestBotInstanceListWithSearchFilter(t *testing.T) {
 	t.Parallel()
@@ -438,7 +438,7 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -464,13 +464,42 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 	}
 }
 
+// TestBotInstanceListWithQuery verifies list and filtering with query
+// functionality for bot instances.
+func TestBotInstanceListWithQuery(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	instance := newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a"))
+	_, err = service.CreateBotInstance(ctx, instance)
+	require.NoError(t, err)
+	_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
+	require.NoError(t, err)
+
+	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterQuery: `status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`,
+	})
+
+	require.Len(t, instances, 1)
+	require.Equal(t, instance.Spec.InstanceId, instances[0].Spec.InstanceId)
+}
+
 // TestBotInstanceListWithSort verifies sorting returns a not-implemented error.
 func TestBotInstanceListWithSort(t *testing.T) {
 	t.Parallel()
 
 	clock := clockwork.NewFakeClock()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
