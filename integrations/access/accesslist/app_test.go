@@ -429,6 +429,55 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 	}
 }
 
+// TestAccessListReminders_NotImplemented does not return error (crash) if ListAccessLists is not supported.
+func TestAccessListReminders_NotImplemented(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	server := newTestAuth(t)
+	as := server.Auth()
+	t.Cleanup(func() {
+		require.NoError(t, as.Close())
+	})
+
+	// Use this mock client so that we can force ListAccessLists to return an error.
+	// The error we force is NotImplemented, which should not cause the app to crash.
+	client := &mockClient{
+		Client: as,
+	}
+	client.On("ListAccessLists", mock.Anything, mock.Anything, mock.Anything).Return(([]*accesslist.AccessList)(nil), "", trace.NotImplemented("error"))
+
+	bot := &mockMessagingBot{
+		recipients: map[string]*common.Recipient{
+			"owner1": {Name: "owner1"},
+			"owner2": {Name: "owner2"},
+		},
+	}
+	app := common.NewApp(&mockPluginConfig{client: client, bot: bot}, "test-plugin")
+	app.Clock = clock
+	ctx := context.Background()
+
+	go func() {
+		app.Run(ctx)
+	}()
+
+	ready, err := app.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	err = clock.BlockUntilContext(ctx, 1)
+	require.NoError(t, err)
+	clock.Advance(3 * time.Hour)
+
+	// ensure ListAccessLists was called only once, and app returns no error on termination
+	app.Terminate()
+	<-app.Done()
+	require.NoError(t, app.Err())
+
+	client.AssertNumberOfCalls(t, "ListAccessLists", 1)
+}
+
 func advanceAndLookForRecipients(t *testing.T,
 	bot *mockMessagingBot,
 	alSvc services.AccessLists,
