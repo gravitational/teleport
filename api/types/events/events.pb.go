@@ -17912,6 +17912,7 @@ func (m *SCIMResourceEvent) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SCIMResourceEvent proto.InternalMessageInfo
 
+// ClientIPRestrictionsUpdate records a Client IP Restrictions update
 type ClientIPRestrictionsUpdate struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
