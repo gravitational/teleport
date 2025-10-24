@@ -20,7 +20,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -29,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -256,13 +254,10 @@ func matchersToEC2InstanceFetchers(matcherParams MatcherToEC2FetcherParams, getE
 				Matcher:               matcher,
 				Region:                region,
 				Document:              matcher.SSM.DocumentName,
-				InstallSuffix:         matcher.Params.Suffix,
-				UpdateGroup:           matcher.Params.UpdateGroup,
 				EC2ClientGetter:       getEC2Client.withMatcher(&matcher),
 				Labels:                matcher.Tags,
 				Integration:           matcher.Integration,
 				DiscoveryConfigName:   matcherParams.DiscoveryConfigName,
-				EnrollMode:            matcher.Params.EnrollMode,
 			})
 			ret = append(ret, fetcher)
 		}
@@ -274,14 +269,11 @@ type ec2FetcherConfig struct {
 	Matcher             types.AWSMatcher
 	Region              string
 	Document            string
-	InstallSuffix       string
-	UpdateGroup         string
 	EC2ClientGetter     EC2ClientGetter
 	Labels              types.Labels
 	Integration         string
 	DiscoveryConfigName string
-	EnrollMode          types.InstallParamEnrollMode
-	// PublicProxyAddrGetter returns the public proxy address to use for installation scripts.
+	// ProxyPublicAddrGetter returns the public proxy address to use for installation scripts.
 	// This is only used if the matcher does not specify a ProxyAddress.
 	// Example: proxy.example.com:3080 or proxy.example.com
 	ProxyPublicAddrGetter func(ctx context.Context) (string, error)
@@ -381,7 +373,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	}
 }
 
-func ssmRunCommandParametersForCustomDocuments(cfg ec2FetcherConfig, envVars []string) map[string]string {
+func ssmRunCommandParametersForCustomDocuments(cfg ec2FetcherConfig) map[string]string {
 	if cfg.Matcher.Params == nil {
 		cfg.Matcher.Params = &types.InstallerParams{}
 	}
@@ -391,6 +383,7 @@ func ssmRunCommandParametersForCustomDocuments(cfg ec2FetcherConfig, envVars []s
 		ParamScriptName: cfg.Matcher.Params.ScriptName,
 	}
 
+	envVars := envVarsFromInstallerParams(cfg.Matcher.Params)
 	if len(envVars) > 0 {
 		parameters[ParamEnvVars] = strings.Join(envVars, " ")
 	}
@@ -403,58 +396,26 @@ func ssmRunCommandParametersForCustomDocuments(cfg ec2FetcherConfig, envVars []s
 }
 
 func ssmRunCommandParameters(ctx context.Context, cfg ec2FetcherConfig) (map[string]string, error) {
-	var envVars []string
-
-	// InstallSuffix and UpdateGroup only contains alphanumeric characters and hyphens.
-	// Escape them anyway as another layer of safety.
-	if cfg.InstallSuffix != "" {
-		safeInstallSuffix := shsprintf.EscapeDefaultContext(cfg.InstallSuffix)
-		envVars = append(envVars, "TELEPORT_INSTALL_SUFFIX="+safeInstallSuffix)
-	}
-	if cfg.UpdateGroup != "" {
-		safeUpdateGroup := shsprintf.EscapeDefaultContext(cfg.UpdateGroup)
-		envVars = append(envVars, "TELEPORT_UPDATE_GROUP="+safeUpdateGroup)
-	}
-
-	// For custom SSM Documents, the following parameters are used: env, scriptName and token.
-	//
-	// However, when using the pre-defined SSM Document AWS-RunShellScript, we need to construct
-	// the "commands" parameter.
-	if cfg.Document != types.AWSSSMDocumentRunShellScript {
-		return ssmRunCommandParametersForCustomDocuments(cfg, envVars), nil
-	}
-
-	publicProxyAddr := cfg.Matcher.Params.PublicProxyAddr
-	if publicProxyAddr == "" {
-		proxyAddr, err := cfg.ProxyPublicAddrGetter(ctx)
+	if cfg.Document == types.AWSSSMDocumentRunShellScript {
+		// When using the pre-defined SSM Document AWS-RunShellScript, only the commands parameter is required.
+		// It contains the full installation script that will be executed on the instance.
+		script, err := installerScript(ctx, cfg.Matcher.Params, withProxyAddrGetter(cfg.ProxyPublicAddrGetter))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		publicProxyAddr = proxyAddr
+
+		return map[string]string{
+			ParamCommands: script,
+		}, nil
 	}
 
-	safeProxyAddr := shsprintf.EscapeDefaultContext(publicProxyAddr)
-	safeScriptName := shsprintf.EscapeDefaultContext(cfg.Matcher.Params.ScriptName)
-	safeJoinToken := shsprintf.EscapeDefaultContext(cfg.Matcher.Params.JoinToken)
-
-	command := fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%s | bash -s %s",
-		safeProxyAddr,
-		safeScriptName,
-		safeJoinToken,
-	)
-
-	if len(envVars) > 0 {
-		command = fmt.Sprintf("export %s; %s", strings.Join(envVars, " "), command)
-	}
-
-	return map[string]string{
-		ParamCommands: command,
-	}, nil
+	// For custom SSM Documents, scriptName, token and env are required.
+	return ssmRunCommandParametersForCustomDocuments(cfg), nil
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
-func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error) {
-	ssmRunParams, err := ssmRunCommandParameters(context.Background(), f.ec2FetcherConfig)
+func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]Instances, error) {
+	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -526,7 +487,7 @@ func chunkInstances(insts EC2Instances) []Instances {
 
 // GetInstances fetches all EC2 instances matching configured filters.
 func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
-	ssmRunParams, err := ssmRunCommandParameters(context.Background(), f.ec2FetcherConfig)
+	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -563,7 +524,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					AssumeRoleARN:       f.Matcher.AssumeRole.RoleARN,
 					ExternalID:          f.Matcher.AssumeRole.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
-					EnrollMode:          f.EnrollMode,
+					EnrollMode:          f.Matcher.Params.EnrollMode,
 				}
 				for _, ec2inst := range res.Instances[i:end] {
 					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
