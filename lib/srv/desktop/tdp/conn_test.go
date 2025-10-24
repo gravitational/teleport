@@ -286,13 +286,18 @@ func newBufferedConn() (net.Conn, net.Conn, error) {
 	l := bufconn.Listen(1024)
 	defer l.Close()
 
-	var acceptErr, dialError error
-	var a, b net.Conn
+	type result struct {
+		c   net.Conn
+		err error
+	}
+	acceptResult := make(chan result)
 	go func() {
-		a, acceptErr = l.Accept()
+		conn, err := l.Accept()
+		acceptResult <- result{conn, err}
 	}()
-	b, dialError = l.Dial()
-	return a, b, errors.Join(acceptErr, dialError)
+	b, dialError := l.Dial()
+	res := <-acceptResult
+	return res.c, b, errors.Join(res.err, dialError)
 }
 
 func TestInterceptor(t *testing.T) {
