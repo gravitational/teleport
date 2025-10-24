@@ -296,7 +296,7 @@ func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 	formatted := table.AsBuffer().String()
 
 	test := writeTextTest{
-		collection:          &databaseObjectImportRuleCollection{rules},
+		collection:          resources.NewDatabaseObjectImportRuleCollection(rules),
 		wantVerboseTable:    func() string { return formatted },
 		wantNonVerboseTable: func() string { return formatted },
 	}

@@ -45,6 +45,7 @@ func Handlers() map[string]Handler {
 		types.KindBot:                                botHandler(),
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindDatabase:                           databaseHandler(),
+		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindLock:                               lockHandler(),
