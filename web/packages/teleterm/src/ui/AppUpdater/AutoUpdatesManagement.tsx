@@ -164,13 +164,13 @@ function makeOptions({
     value: '',
   };
 
-  const getClusterName = (uri: RootClusterUri) => routing.parseClusterName(uri);
+  const getProfileName = (uri: RootClusterUri) => routing.parseClusterName(uri);
 
   const candidateClusters = status.options.clusters
     .filter(c => c.toolsAutoUpdate)
     .map(c => {
       const otherCompatibleClusters = c.otherCompatibleClusters.map(c =>
-        getClusterName(c)
+        getProfileName(c)
       );
       const compatibility = otherCompatibleClusters.length
         ? `Also compatible with ${pluralize(otherCompatibleClusters.length, 'cluster')} ${listFormatter.format(otherCompatibleClusters.toSorted())}.`
@@ -178,7 +178,7 @@ function makeOptions({
 
       return {
         disabled,
-        label: getClusterName(c.clusterUri),
+        label: getProfileName(c.clusterUri),
         helperText: [`Teleport Connect ${c.toolsVersion}`, compatibility]
           .filter(Boolean)
           .join(' · '),
@@ -191,7 +191,7 @@ function makeOptions({
     .map(c => {
       return {
         disabled,
-        label: getClusterName(c.clusterUri),
+        label: getProfileName(c.clusterUri),
         helperText: (
           <>
             Teleport Connect {c.toolsVersion}
@@ -206,7 +206,7 @@ function makeOptions({
   const unreachableClusters = status.options.unreachableClusters.map(
     cluster => ({
       disabled,
-      label: getClusterName(cluster.clusterUri),
+      label: getProfileName(cluster.clusterUri),
       helperText: (
         <UnreachableClusterHelper
           onRetry={onRetry}

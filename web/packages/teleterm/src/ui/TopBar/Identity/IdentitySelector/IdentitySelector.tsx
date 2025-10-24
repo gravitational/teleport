@@ -28,7 +28,7 @@ import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { routing } from 'teleterm/ui/uri';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
-import { getClusterLetter } from '../IdentityList/IdentityListItem';
+import { getProfileNameLetter } from '../IdentityList/IdentityListItem';
 import { UserIcon } from './UserIcon';
 
 export const IdentitySelector = forwardRef<
@@ -64,7 +64,7 @@ export const IdentitySelector = forwardRef<
         <Box>
           <UserIcon
             color={props.activeColor}
-            letter={getClusterLetter(props.activeCluster)}
+            letter={getProfileNameLetter(props.activeCluster)}
           />
           {props.deviceTrustStatus === 'requires-enrollment' && (
             <ConnectionStatusIndicator

@@ -50,7 +50,7 @@ export function IdentityListItem(props: {
     )
   );
 
-  const clusterName = routing.parseClusterName(props.cluster.uri);
+  const profileName = routing.parseClusterName(props.cluster.uri);
 
   return (
     <StyledListItem
@@ -59,13 +59,13 @@ export function IdentityListItem(props: {
         (e.key === 'Enter' || e.key === 'Space') && props.onSelect()
       }
       isActive={isActive}
-      title={`Switch to ${clusterName}`}
+      title={`Switch to ${profileName}`}
     >
       <Flex width="100%" justifyContent="space-between">
         <WithIconItem
-          letter={getClusterLetter(props.cluster)}
+          letter={getProfileNameLetter(props.cluster)}
           color={workspaceColor}
-          title={clusterName}
+          title={profileName}
           subtitle={props.cluster.loggedInUser?.name}
         />
         {props.onLogout && (
@@ -79,7 +79,7 @@ export function IdentityListItem(props: {
             `}
             p={1}
             ml={4}
-            title={`Log out from ${clusterName}`}
+            title={`Log out from ${profileName}`}
             onClick={e => {
               e.stopPropagation();
               props.onLogout();
@@ -169,6 +169,6 @@ export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
   );
 }
 
-export function getClusterLetter(cluster: Cluster): string {
+export function getProfileNameLetter(cluster: Cluster): string {
   return routing.parseClusterName(cluster.uri).at(0);
 }

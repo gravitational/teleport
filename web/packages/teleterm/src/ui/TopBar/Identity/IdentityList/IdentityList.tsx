@@ -32,7 +32,7 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { ColorPicker } from './ColorPicker';
 import {
   AddClusterItem,
-  getClusterLetter,
+  getProfileNameLetter,
   IdentityListItem,
   TitleAndSubtitle,
 } from './IdentityListItem';
@@ -52,7 +52,7 @@ export function ActiveCluster(props: {
         <Flex gap={4} justifyContent="space-between">
           <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
             <ColorPicker
-              letter={getClusterLetter(props.activeCluster)}
+              letter={getProfileNameLetter(props.activeCluster)}
               color={props.activeColor}
               setColor={props.onChangeColor}
             />
