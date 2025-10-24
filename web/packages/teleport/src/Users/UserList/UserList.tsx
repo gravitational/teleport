@@ -27,6 +27,7 @@ export default function UserList({
   onEdit,
   onDelete,
   onReset,
+  onUserClick,
   onSearchChange,
   search,
   serversidePagination,
@@ -56,6 +57,7 @@ export default function UserList({
           />
         ),
       }}
+      row={{ onClick: onUserClick }}
       columns={[
         {
           key: 'name',
@@ -162,6 +164,7 @@ type Props = {
   onEdit(user: User): void;
   onDelete(user: User): void;
   onReset(user: User): void;
+  onUserClick(user: User): void;
   onSearchChange(search: string): void;
   search: string;
   serversidePagination: SeversidePagination<User>;

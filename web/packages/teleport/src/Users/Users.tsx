@@ -27,6 +27,7 @@ import {
   InfoParagraph,
   InfoUl,
   ReferenceLinks,
+  useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
@@ -40,6 +41,7 @@ import { User } from 'teleport/services/user';
 
 import { UserAddEdit } from './UserAddEdit';
 import { UserDelete } from './UserDelete';
+import { UserDetailsTitle } from './UserDetails';
 import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
@@ -66,12 +68,15 @@ export function Users(props: State) {
     inviteCollaboratorsOpen,
     InviteCollaborators,
     EmailPasswordReset,
+    UserDetails,
     onEmailPasswordResetClose,
     fetch,
   } = props;
 
   const [search, setSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { setInfoGuideConfig, infoGuideConfig } = useInfoGuide();
 
   const serverSidePagination = useServerSidePagination<User>({
     pageSize: 20,
@@ -87,19 +92,37 @@ export function Users(props: State) {
   });
 
   useEffect(() => {
-    // Cancel previous request and create new controller
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
 
     serverSidePagination.fetch();
   }, [search]);
 
-  // Cleanup controller on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedUser && UserDetails) {
+      setInfoGuideConfig({
+        guide: <UserDetails user={selectedUser} />,
+        title: <UserDetailsTitle user={selectedUser} />,
+        panelWidth: 480,
+      });
+    }
+  }, [selectedUser, setInfoGuideConfig]);
+
+  useEffect(() => {
+    if (!infoGuideConfig && selectedUser) {
+      setSelectedUser(null);
+    }
+  }, [infoGuideConfig, selectedUser]);
+
+  const onUserClick = (user: User) => {
+    setSelectedUser(user);
+  };
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {
@@ -226,6 +249,7 @@ export function Users(props: State) {
         onEdit={onStartEdit}
         onDelete={onStartDelete}
         onReset={onStartReset}
+        onUserClick={onUserClick}
         usersAcl={usersAcl}
       />
       {(operation.type === 'create' || operation.type === 'edit') && (
