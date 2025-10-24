@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -52,11 +53,21 @@ func NewServerWithVersion(version string) *mcpserver.MCPServer {
 	return server
 }
 
+// MustStartSSETestServer starts an SSE server returns the SSE endpoint.
+func MustStartSSETestServer(t *testing.T) string {
+	t.Helper()
+	sseServer := mcpserver.NewSSEServer(NewServer())
+	httpServer := httptest.NewServer(sseServer)
+	t.Cleanup(httpServer.Close)
+	return httpServer.URL + "/sse"
+}
+
 // NewStdioClient creates a new stdio client and ensures the client is closed
 // when testing is done.
 func NewStdioClient(t *testing.T, input io.Reader, output io.WriteCloser) *mcpclient.Client {
 	t.Helper()
 	stdioClientTransport := mcpclienttransport.NewIO(input, output, io.NopCloser(bytes.NewReader(nil)))
+	require.NoError(t, stdioClientTransport.Start(t.Context()))
 	stdioClient := mcpclient.NewClient(stdioClientTransport)
 	t.Cleanup(func() {
 		stdioClient.Close()
@@ -83,15 +94,28 @@ func InitializeClient(ctx context.Context, client *mcpclient.Client) (*mcp.Initi
 	return resp, trace.Wrap(err)
 }
 
-// MustCallServerTool calls the "hello-server" tool and verifies the result.
-func MustCallServerTool(t *testing.T, ctx context.Context, client *mcpclient.Client) {
+func MustInitializeClient(t *testing.T, client *mcpclient.Client) *mcp.InitializeResult {
 	t.Helper()
-	callToolRequest := mcp.CallToolRequest{}
-	callToolRequest.Params.Name = "hello-server"
-	callToolResult, err := client.CallTool(ctx, callToolRequest)
+	result, err := InitializeClient(t.Context(), client)
+	require.NoError(t, err)
+	return result
+}
+
+// MustCallServerTool calls the "hello-server" tool and verifies the result.
+func MustCallServerTool(t *testing.T, client *mcpclient.Client) {
+	t.Helper()
+	callToolResult, err := CallServerTool(t.Context(), client)
 	require.NoError(t, err)
 	require.NotNil(t, callToolResult)
 	require.Equal(t, []mcp.Content{
 		mcp.NewTextContent("hello client"),
 	}, callToolResult.Content)
+}
+
+// CallServerTool calls the "hello-server" tool
+func CallServerTool(ctx context.Context, client *mcpclient.Client) (*mcp.CallToolResult, error) {
+	callToolRequest := mcp.CallToolRequest{}
+	callToolRequest.Params.Name = "hello-server"
+	callToolResult, err := client.CallTool(ctx, callToolRequest)
+	return callToolResult, trace.Wrap(err)
 }

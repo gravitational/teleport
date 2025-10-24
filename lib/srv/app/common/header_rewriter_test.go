@@ -19,15 +19,20 @@
 package common
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
@@ -145,6 +150,42 @@ func TestHeaderRewriter(t *testing.T) {
 			for header, value := range test.expectedHeaders {
 				assert.Equal(t, outReq.Header.Get(header), value[0])
 			}
+		})
+	}
+}
+
+func TestAppRewriteHeaders(t *testing.T) {
+	tests := []struct {
+		name        string
+		rewrite     *types.Rewrite
+		wantHeaders []*types.Header
+	}{
+		{
+			name:        "no rewrite",
+			rewrite:     nil,
+			wantHeaders: nil,
+		},
+		{
+			name: "reserved header is filtered",
+			rewrite: &types.Rewrite{
+				Headers: []*types.Header{
+					{Name: "test-key-1", Value: "test-value-1"},
+					{Name: "teleport-jwt-assertion", Value: "teleport-jwt-assertion-value"},
+					{Name: "test-key-2", Value: "test-value-2"},
+					{Name: "X-Real-Ip", Value: "1.2.3.4"},
+				},
+			},
+			wantHeaders: []*types.Header{
+				{Name: "test-key-1", Value: "test-value-1"},
+				{Name: "test-key-2", Value: "test-value-2"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualHeaders := AppRewriteHeaders(context.Background(), test.rewrite, slog.Default())
+			require.Equal(t, test.wantHeaders, slices.Collect(actualHeaders))
 		})
 	}
 }

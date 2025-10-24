@@ -107,6 +107,10 @@ export interface DocumentGateway extends DocumentBase {
    */
   port?: string;
   origin: DocumentOrigin;
+  /**
+   * targetProtocol is the protocol of the resource proxied by the gateway.
+   */
+  targetProtocol?: string;
 }
 
 /**
@@ -326,6 +330,7 @@ export type CreateGatewayDocumentOpts = {
   title?: string;
   port?: string;
   origin: DocumentOrigin;
+  targetProtocol?: string;
 };
 
 export type CreateAccessRequestDocumentOpts = {

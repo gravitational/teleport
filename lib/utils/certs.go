@@ -142,6 +142,15 @@ func VerifyCertificateExpiry(c *x509.Certificate, clock clockwork.Clock) error {
 	return nil
 }
 
+// VerifyTLSCertLeafExpiry checks a TLS certificate's expiration status.
+func VerifyTLSCertLeafExpiry(cert tls.Certificate, clock clockwork.Clock) error {
+	leaf, err := TLSCertLeaf(cert)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(VerifyCertificateExpiry(leaf, clock))
+}
+
 // VerifyCertificateChain reads in chain of certificates and makes sure the
 // chain from leaf to root is valid. This ensures that clients (web browsers
 // and CLI) won't have problem validating the chain.

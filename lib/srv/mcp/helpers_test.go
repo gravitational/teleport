@@ -51,8 +51,9 @@ func TestMain(m *testing.M) {
 }
 
 type setupTestContextOptions struct {
-	roleSet services.RoleSet
-	app     types.Application
+	roleSet    services.RoleSet
+	app        types.Application
+	clientConn net.Conn
 }
 
 type setupTestContextOptionFunc func(*setupTestContextOptions)
@@ -66,6 +67,12 @@ func withApp(app types.Application) setupTestContextOptionFunc {
 func withRole(role types.Role) setupTestContextOptionFunc {
 	return func(opts *setupTestContextOptions) {
 		opts.roleSet = append(opts.roleSet, role)
+	}
+}
+
+func withClientConn(conn net.Conn) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.clientConn = conn
 	}
 }
 
@@ -139,8 +146,13 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 		applyOpt(&opts)
 	}
 
-	// Fake connection.
-	clientSourceConn, clientDestConn := makeDualPipeNetConn(t)
+	// Fake connection if not passed in.
+	var clientSourceConn, clientDestConn net.Conn
+	if opts.clientConn != nil {
+		clientDestConn = opts.clientConn
+	} else {
+		clientSourceConn, clientDestConn = makeDualPipeNetConn(t)
+	}
 
 	// App.
 	if opts.app == nil {
@@ -164,7 +176,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	sessionCtx := &SessionCtx{
 		ClientConn: clientDestConn,
 		App:        opts.app,
-		AuthCtx:    makeTestAuthContext(t, opts.roleSet),
+		AuthCtx:    makeTestAuthContext(t, opts.roleSet, opts.app),
 	}
 	require.NoError(t, sessionCtx.checkAndSetDefaults())
 
@@ -174,7 +186,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	}
 }
 
-func makeTestAuthContext(t *testing.T, roleSet services.RoleSet) *authz.Context {
+func makeTestAuthContext(t *testing.T, roleSet services.RoleSet, app types.Application) *authz.Context {
 	t.Helper()
 
 	user, err := types.NewUser("ai")
@@ -189,6 +201,11 @@ func makeTestAuthContext(t *testing.T, roleSet services.RoleSet) *authz.Context 
 			Principals: user.GetLogins(),
 		},
 	}
+	if app != nil {
+		identity.Identity.RouteToApp.Name = app.GetName()
+		identity.Identity.RouteToApp.SessionID = "session-id-for+" + app.GetName()
+	}
+
 	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity.Identity)
 	require.NoError(t, err)
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, "my-cluster", roleSet)
@@ -326,4 +343,11 @@ func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerNa
 			t.Log("Failed to remove container", err)
 		}
 	}
+}
+
+type mockAuthClient struct {
+}
+
+func (m mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	return "app-token-for-" + req.Username, nil
 }

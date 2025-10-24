@@ -62,3 +62,8 @@ export enum AppSubKind {
   AwsIcAccount = 'aws_ic_account',
   MCP = 'mcp',
 }
+
+/**
+ * AppProtocol defines the protocol of an App resource.
+ */
+export type AppProtocol = 'TCP' | 'HTTP' | 'MCP';

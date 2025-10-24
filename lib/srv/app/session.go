@@ -30,10 +30,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -146,39 +144,10 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 // withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
 // a generated JWT token to all requests.
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	rewrite := app.GetRewrite()
-	traits := identity.Traits
-	roles := identity.Groups
-	if rewrite != nil {
-		switch rewrite.JWTClaims {
-		case types.JWTClaimsRewriteNone:
-			traits = nil
-			roles = nil
-		case types.JWTClaimsRewriteRoles:
-			traits = nil
-		case types.JWTClaimsRewriteTraits:
-			roles = nil
-		case "", types.JWTClaimsRewriteRolesAndTraits:
-		}
-	}
-
-	// Request a JWT token that will be attached to all requests.
-	jwt, err := c.cfg.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
-		Username: identity.Username,
-		Roles:    roles,
-		Traits:   traits,
-		URI:      app.GetURI(),
-		Expires:  identity.Expires,
-	})
+	jwt, traits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Add JWT token to the traits so it can be used in headers templating.
-	if traits == nil {
-		traits = make(wrappers.Traits)
-	}
-	traits[constants.TraitJWT] = []string{jwt}
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,

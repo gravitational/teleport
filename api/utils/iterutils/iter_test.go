@@ -37,3 +37,21 @@ func ExampleMap() {
 	// HELLO WORLD
 	// FOO
 }
+
+func ExampleFilter() {
+	inputs := []string{
+		"a",
+		"bb",
+		"ccc",
+		"dddd",
+	}
+	isOddLen := func(s string) bool {
+		return len(s)%2 == 1
+	}
+	for filtered := range Filter(isOddLen, slices.Values(inputs)) {
+		fmt.Println(filtered)
+	}
+	// Output:
+	// a
+	// ccc
+}

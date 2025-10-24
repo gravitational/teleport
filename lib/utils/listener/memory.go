@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"sync"
 )
 
@@ -84,6 +85,15 @@ func (m *InMemoryListener) DialContext(ctx context.Context, _ string, _ string) 
 		return nil, ctx.Err()
 	}
 	return clientConn, nil
+}
+
+// MakeHTTPClient is a helper to generate an HTTP client that dials this listener.
+func (m *InMemoryListener) MakeHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: m.DialContext,
+		},
+	}
 }
 
 // ErrListenerClosed is the error returned by dial when the listener is closed.
