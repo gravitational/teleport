@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -33,6 +34,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -177,7 +179,7 @@ func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *conn
 		return trace.Wrap(err, "starting server stream")
 	}
 
-	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream))
+	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream, nil))
 }
 
 func (s *deviceTrustServer) AuthenticateDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.AuthenticateDeviceRequest, devicepb.AuthenticateDeviceResponse]) error {
@@ -188,10 +190,25 @@ func (s *deviceTrustServer) AuthenticateDevice(ctx context.Context, clientStream
 		return trace.Wrap(err, "starting server stream")
 	}
 
-	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream))
+	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream, func(clientMsg *devicepb.AuthenticateDeviceRequest) error {
+		switch clientMsg.Payload.(type) {
+		case *devicepb.AuthenticateDeviceRequest_Init:
+			clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
+			if err != nil {
+				return trace.Wrap(err, "reading client source address from context")
+			}
+			clientIP, _, err := net.SplitHostPort(clientAddr.String())
+			if err != nil {
+				return trace.Wrap(err, "extracting IP from client address")
+			}
+			clientMsg.GetInit().ClientIp = clientIP
+		}
+		return nil
+	}))
 }
 
-func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger, clientStream *connect.BidiStream[Req, Res], serverStream grpc.BidiStreamingClient[Req, Res]) error {
+// TODO: Transform modifyReqFn into an opt.
+func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger, clientStream *connect.BidiStream[Req, Res], serverStream grpc.BidiStreamingClient[Req, Res], modifyReqFn func(*Req) error) error {
 	errChan := make(chan error, 2)
 
 	// Forward messages from client to server.
@@ -214,6 +231,13 @@ func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger,
 				}
 				errChan <- trace.Wrap(err, "receiving message from client")
 				return
+			}
+
+			if modifyReqFn != nil {
+				if err := modifyReqFn(clientMsg); err != nil {
+					errChan <- trace.Wrap(err, "modifying client message")
+					return
+				}
 			}
 
 			if err := serverStream.Send(clientMsg); err != nil {

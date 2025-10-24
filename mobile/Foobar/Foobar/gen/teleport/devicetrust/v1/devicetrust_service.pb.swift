@@ -995,6 +995,11 @@ public struct Teleport_Devicetrust_V1_AuthenticateDeviceInit: Sendable {
   /// Clears the value of `deviceWebToken`. Subsequent reads from it will return its default value.
   public mutating func clearDeviceWebToken() {self._deviceWebToken = nil}
 
+  /// IP of the client submitting the init request. It is used during the mobile device auth where
+  /// the proxy service forwards the requests to the auth server and uses its own auth service
+  /// client, so we cannot read the client address from the context as usual.
+  public var clientIp: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -2606,7 +2611,7 @@ extension Teleport_Devicetrust_V1_AuthenticateDeviceResponse: SwiftProtobuf.Mess
 
 extension Teleport_Devicetrust_V1_AuthenticateDeviceInit: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".AuthenticateDeviceInit"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}user_certificates\0\u{3}credential_id\0\u{3}device_data\0\u{3}device_web_token\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}user_certificates\0\u{3}credential_id\0\u{3}device_data\0\u{3}device_web_token\0\u{3}client_ip\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2618,6 +2623,7 @@ extension Teleport_Devicetrust_V1_AuthenticateDeviceInit: SwiftProtobuf.Message,
       case 2: try { try decoder.decodeSingularStringField(value: &self.credentialID) }()
       case 3: try { try decoder.decodeSingularMessageField(value: &self._deviceData) }()
       case 4: try { try decoder.decodeSingularMessageField(value: &self._deviceWebToken) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.clientIp) }()
       default: break
       }
     }
@@ -2640,6 +2646,9 @@ extension Teleport_Devicetrust_V1_AuthenticateDeviceInit: SwiftProtobuf.Message,
     try { if let v = self._deviceWebToken {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
     } }()
+    if !self.clientIp.isEmpty {
+      try visitor.visitSingularStringField(value: self.clientIp, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2648,6 +2657,7 @@ extension Teleport_Devicetrust_V1_AuthenticateDeviceInit: SwiftProtobuf.Message,
     if lhs.credentialID != rhs.credentialID {return false}
     if lhs._deviceData != rhs._deviceData {return false}
     if lhs._deviceWebToken != rhs._deviceWebToken {return false}
+    if lhs.clientIp != rhs.clientIp {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
