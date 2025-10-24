@@ -50,8 +50,8 @@ export interface Cluster {
      */
     uri: string;
     /**
-     * name is a site name of Teleport cluster.
-     * Only present in root clusters if the user has logged in (the name comes from the key).
+     * name is the site name of Teleport cluster.
+     * Only present in root clusters if the user has logged in (the name comes from the cluster).
      * Always available for leaf clusters.
      *
      * @generated from protobuf field: string name = 2;
