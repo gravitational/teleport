@@ -119,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/ec2join"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -1288,6 +1289,10 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// ec2ClientForEC2JoinMethod overrides the default client used for making
+	// requests to the AWS ec2 service during EC2 join attempt verification.
+	ec2ClientForEC2JoinMethod ec2join.EC2Client
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
