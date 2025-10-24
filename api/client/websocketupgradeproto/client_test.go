@@ -36,13 +36,13 @@ func TestClient(t *testing.T) {
 	type testCase struct {
 		name       string
 		protocols  []string
-		serverTest func(*testing.T) http.HandlerFunc
+		serverTest func(*testing.T, chan struct{}) http.HandlerFunc
 	}
 	testCases := []testCase{
 		{
 			name:      "WebSocket with close",
 			protocols: []string{constants.WebAPIConnUpgradeProtocolWebSocketClose},
-			serverTest: func(t *testing.T) http.HandlerFunc {
+			serverTest: func(t *testing.T, doneReading chan struct{}) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					conn, _, hs, err := wsProtocolUpgrader.Upgrade(r, w)
 					assert.NoError(t, err, "Failed to upgrade WebSocket connection")
@@ -55,8 +55,10 @@ func TestClient(t *testing.T) {
 					assert.Equal(t, payload, string(frame.Payload), "Payload should match expected value")
 
 					// Write a response frame to the client.
-					err = ws.WriteFrame(conn, ws.NewFrame(ws.OpBinary, false, []byte(payload)))
+					err = ws.WriteFrame(conn, ws.NewFrame(ws.OpBinary, true, []byte(payload)))
 					assert.NoError(t, err, "Failed to write WebSocket frame")
+
+					<-doneReading
 
 					// Write a close frame to the client.
 					err = ws.WriteFrame(conn, ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "")))
@@ -75,7 +77,7 @@ func TestClient(t *testing.T) {
 		{
 			name:      "WebSocket with close terminated by Close call",
 			protocols: []string{constants.WebAPIConnUpgradeProtocolWebSocketClose},
-			serverTest: func(t *testing.T) http.HandlerFunc {
+			serverTest: func(t *testing.T, doneReading chan struct{}) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					conn, _, hs, err := wsProtocolUpgrader.Upgrade(r, w)
 					assert.NoError(t, err, "Failed to upgrade WebSocket connection")
@@ -88,9 +90,10 @@ func TestClient(t *testing.T) {
 					assert.Equal(t, payload, string(frame.Payload), "Payload should match expected value")
 
 					// Write a response frame to the client.
-					err = ws.WriteFrame(conn, ws.NewFrame(ws.OpBinary, false, []byte(payload)))
+					err = ws.WriteFrame(conn, ws.NewFrame(ws.OpBinary, true, []byte(payload)))
 					assert.NoError(t, err, "Failed to write WebSocket frame")
 
+					<-doneReading
 					// Write a close frame to the client.
 					err = ws.WriteFrame(conn, ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "")))
 					assert.NoError(t, err, "Failed to write WebSocket close frame")
@@ -102,7 +105,7 @@ func TestClient(t *testing.T) {
 		{
 			name:      "WebSocket without close",
 			protocols: []string{constants.WebAPIConnUpgradeTypeALPN},
-			serverTest: func(t *testing.T) http.HandlerFunc {
+			serverTest: func(t *testing.T, doneReading chan struct{}) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					conn, _, hs, err := wsProtocolUpgrader.Upgrade(r, w)
 					assert.NoError(t, err, "Failed to upgrade WebSocket connection")
@@ -117,8 +120,10 @@ func TestClient(t *testing.T) {
 					// Simulate a close without sending a close frame.
 					// This should still read the close frame sent by the server
 					// and the server should close the connection after not receiving a close frame.
-					err = ws.WriteFrame(conn, ws.NewFrame(ws.OpBinary, false, []byte(payload)))
+					err = ws.WriteFrame(conn, ws.NewFrame(ws.OpBinary, true, []byte(payload)))
 					assert.NoError(t, err, "Failed to write WebSocket frame")
+
+					<-doneReading
 				}
 			},
 		},
@@ -126,8 +131,8 @@ func TestClient(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			server := createHTTPServer(t, tc.serverTest(t))
+			doneReading := make(chan struct{})
+			server := createHTTPServer(t, tc.serverTest(t, doneReading))
 			t.Cleanup(server.Close)
 
 			ctx := context.Background()
@@ -156,6 +161,7 @@ func TestClient(t *testing.T) {
 			assert.NoError(t, err, "Failed to read from WebSocket connection")
 			assert.Equal(t, payload, string(data[:n]), "Response payload should match expected value")
 
+			close(doneReading)
 			// Verify the connection is closed gracefully.
 			_, err = conn.Read(data[:])
 			assert.True(t, errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF), "Expected connection to be closed")

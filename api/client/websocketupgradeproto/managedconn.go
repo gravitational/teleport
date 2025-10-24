@@ -27,17 +27,6 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// TODO(espadolini): these sizes have been chosen after a little manual testing
-// to reach full throughput in the data transfer over a single SSH channel. They
-// should be checked again with some more real-world benchmarks before any
-// serious use; if necessary, they could be made configurable on a
-// per-connection basis.
-const (
-	receiveBufferSize = 128 * 1024
-	sendBufferSize    = 2 * 1024 * 1024
-	initialBufferSize = 4096
-)
-
 // errBrokenPipe is a "broken pipe" error, to be returned by write operations if
 // we know that the remote side is closed (reads return io.EOF instead). TCP
 // connections actually return ECONNRESET on the first syscall experiencing the
@@ -85,7 +74,10 @@ var _ net.Conn = (*managedConn)(nil)
 func (c *managedConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.closeLocked()
+}
 
+func (c *managedConn) closeLocked() error {
 	if c.localClosed {
 		return net.ErrClosed
 	}
@@ -179,27 +171,42 @@ func (c *managedConn) Read(b []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	for {
+	c.receiveBuffer.operate = true
+	c.receiveBuffer.data = b
+	c.cond.Broadcast()
+
+	for c.receiveBuffer.operate {
 		if c.readDeadline.timeout {
+			c.receiveBuffer.operate = false
 			return 0, os.ErrDeadlineExceeded
 		}
 
-		n := c.receiveBuffer.read(b)
-		if n > 0 {
-			c.cond.Broadcast()
-			return n, nil
-		}
-
 		if c.remoteClosed {
+			c.receiveBuffer.operate = false
 			return 0, io.EOF
 		}
 
-		c.cond.Wait()
-
 		if c.localClosed {
+			c.receiveBuffer.operate = false
 			return 0, net.ErrClosed
 		}
+
+		c.cond.Wait()
 	}
+
+	if c.readDeadline.timeout {
+		return 0, os.ErrDeadlineExceeded
+	}
+
+	if c.remoteClosed {
+		return 0, io.EOF
+	}
+
+	if c.localClosed {
+		return 0, net.ErrClosed
+	}
+
+	return c.receiveBuffer.length, nil
 }
 
 // Write implements [net.Conn].
@@ -226,20 +233,34 @@ func (c *managedConn) Write(b []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	for {
-		s := c.sendBuffer.write(b, sendBufferSize)
-		if s > 0 {
-			c.cond.Broadcast()
-			b = b[s:]
-			n += int(s)
+	c.sendBuffer.operate = true
+	c.sendBuffer.completed = false
+	c.sendBuffer.data = b
+	c.cond.Broadcast()
 
-			if len(b) == 0 {
-				return n, nil
-			}
+	// Wait for writeLoop to take ownership (operate becomes false)
+	// OR for an error condition
+	for c.sendBuffer.operate {
+		if c.localClosed {
+			c.sendBuffer.operate = false
+			return n, net.ErrClosed
+		}
+
+		if c.writeDeadline.timeout {
+			c.sendBuffer.operate = false
+			return n, os.ErrDeadlineExceeded
+		}
+
+		if c.remoteClosed {
+			c.sendBuffer.operate = false
+			return n, errBrokenPipe
 		}
 
 		c.cond.Wait()
+	}
 
+	// Now wait for completion (writeLoop has finished the actual write)
+	for !c.sendBuffer.completed {
 		if c.localClosed {
 			return n, net.ErrClosed
 		}
@@ -251,131 +272,31 @@ func (c *managedConn) Write(b []byte) (n int, err error) {
 		if c.remoteClosed {
 			return n, errBrokenPipe
 		}
+
+		c.cond.Wait()
 	}
+
+	if c.localClosed {
+		return n, net.ErrClosed
+	}
+
+	if c.writeDeadline.timeout {
+		return n, os.ErrDeadlineExceeded
+	}
+
+	if c.remoteClosed {
+		return n, errBrokenPipe
+	}
+
+	return c.sendBuffer.length, nil
 }
 
-// buffer represents a view of contiguous data in a bytestream, between the
-// absolute positions start and end (with 0 being the beginning of the
-// bytestream). The byte at absolute position i is data[i % len(data)],
-// len(data) is always a power of two (therefore it's always non-empty), and
-// len(data) == cap(data).
+// buffer represents a buffer for read/write operations.
 type buffer struct {
-	data  []byte
-	start uint64
-	end   uint64
-}
-
-// bounds returns the indexes of start and end in the current data slice. It's
-// possible for left to be greater than right, which happens when the data is
-// stored across the end of the slice.
-func (w *buffer) bounds() (left, right uint64) {
-	return w.start % len64(w.data), w.end % len64(w.data)
-}
-
-func (w *buffer) len() uint64 {
-	return w.end - w.start
-}
-
-// buffered returns the currently used areas of the internal buffer, in order.
-// If only one slice is nonempty, it shall be the first of the two returned
-// slices.
-func (w *buffer) buffered() ([]byte, []byte) {
-	if w.len() == 0 {
-		return nil, nil
-	}
-
-	left, right := w.bounds()
-
-	if left >= right {
-		return w.data[left:], w.data[:right]
-	}
-	return w.data[left:right], nil
-}
-
-// free returns the currently unused areas of the internal buffer, in order.
-// It's not possible for the second slice to be nonempty if the first slice is
-// empty. The total length of the slices is equal to len(w.data)-w.len().
-func (w *buffer) free() ([]byte, []byte) {
-	if w.len() == 0 {
-		left, _ := w.bounds()
-		return w.data[left:], w.data[:left]
-	}
-
-	left, right := w.bounds()
-
-	if left >= right {
-		return w.data[right:left], nil
-	}
-	return w.data[right:], w.data[:left]
-}
-
-// reserve ensures that the buffer has a given amount of free space,
-// reallocating its internal buffer as needed. After reserve(n), the two slices
-// returned by free have total length at least n.
-func (w *buffer) reserve(n uint64) {
-	n += w.len()
-	if n <= len64(w.data) {
-		return
-	}
-
-	newCapacity := max(len64(w.data)*2, initialBufferSize)
-	for n > newCapacity {
-		newCapacity *= 2
-	}
-
-	d1, d2 := w.buffered()
-	w.data = make([]byte, newCapacity)
-	w.end = w.start
-
-	// this is less efficient than copying the data manually, but almost all
-	// uses of buffer will eventually hit a maximum buffer size anyway
-	w.append(d1)
-	w.append(d2)
-}
-
-// append copies the slice to the tail of the buffer, resizing it if necessary.
-// Writing to the slices returned by free() and appending them in order will not
-// result in any memory copy (if the buffer hasn't been reallocated).
-func (w *buffer) append(b []byte) {
-	w.reserve(len64(b))
-	f1, f2 := w.free()
-	// after reserve(n), len(f1)+len(f2) >= n, so this is guaranteed to work
-	copy(f2, b[copy(f1, b):])
-	w.end += len64(b)
-}
-
-// write copies the slice to the tail of the buffer like in append, but only up
-// to the total buffer size specified by max. Returns the count of bytes copied
-// in, which is always not greater than len(b) and (max-w.len()).
-func (w *buffer) write(b []byte, max uint64) uint64 {
-	if w.len() >= max {
-		return 0
-	}
-
-	s := min(max-w.len(), len64(b))
-	w.append(b[:s])
-	return s
-}
-
-// advance will discard bytes from the head of the buffer, advancing its start
-// position. Advancing past the end causes the end to be pushed forwards as
-// well, such that an empty buffer advanced by n ends up with start = end = n.
-func (w *buffer) advance(n uint64) {
-	w.start += n
-	if w.start > w.end {
-		w.end = w.start
-	}
-}
-
-// read will attempt to fill the slice with as much data from the buffer,
-// advancing the start position of the buffer to match. Returns the amount of
-// bytes copied in the slice.
-func (w *buffer) read(b []byte) int {
-	d1, d2 := w.buffered()
-	n := copy(b, d1)
-	n += copy(b[n:], d2)
-	w.advance(uint64(n))
-	return n
+	data      []byte
+	operate   bool // true when a Write/Read is waiting
+	completed bool // true when writeLoop/readLoop has finished processing
+	length    int
 }
 
 // deadline holds the state necessary to handle [net.Conn]-like deadlines.
@@ -443,8 +364,4 @@ func (d *deadline) setDeadlineLocked(t time.Time, cond *sync.Cond, clock clockwo
 		d.timer.Reset(dt)
 		d.stopped = false
 	}
-}
-
-func len64(s []byte) uint64 {
-	return uint64(len(s))
 }
