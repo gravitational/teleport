@@ -90,6 +90,10 @@ service AccessListService {
   // UpsertAccessListWithMembers creates or updates an access list with members.
   rpc UpsertAccessListWithMembers(UpsertAccessListWithMembersRequest) returns (UpsertAccessListWithMembersResponse);
 
+  // CreateAccessListWithPreset creates an access list (with members) where Teleport performs automatic
+  // actions depending on the preset requested. E.g. creating role resources and then assigning them as grants.
+  rpc CreateAccessListWithPreset(CreateAccessListWithPresetRequest) returns (CreateAccessListWithPresetResponse);
+
   // ListAccessListReviews will list access list reviews for a particular access
   // list.
   rpc ListAccessListReviews(ListAccessListReviewsRequest) returns (ListAccessListReviewsResponse);
@@ -293,6 +297,69 @@ message UpsertAccessListWithMembersResponse {
   AccessList access_list = 1;
   // members is the list of access list members that were upserted.
   repeated Member members = 2;
+}
+
+// CreateAccessListWithPresetRequest is the request for creating
+// an access list with a preset.
+message CreateAccessListWithPresetRequest {
+  // access_list is the access list to create.
+  AccessList access_list = 1;
+  // members is the list of access list members to create.
+  repeated Member members = 2;
+  // preset_spec describes what type of preset was requested.
+  PresetSpec preset_spec = 3;
+}
+
+// CreateAccessListWithMembersAndPresetResponse is the response for creating
+// an access list with members and roles.
+message CreateAccessListWithPresetResponse {
+  // access_list is the access list that was created.
+  AccessList access_list = 1;
+  // members is the list of access list members that were created.
+  repeated Member members = 2;
+}
+
+// PresetType describes what type of preset was requested.
+enum PresetType {
+  // PRESET_TYPE_UNSPECIFIED is the zero value.
+  PRESET_TYPE_UNSPECIFIED = 0;
+  // PRESET_TYPE_LONG_TERM describes a preset where members are granted
+  // roles that grants long term access.
+  PRESET_TYPE_LONG_TERM = 1;
+  // GRANT_TYPE_SHORT_TERM describes a preset where members are granted
+  // roles that require them to request for access and upon approval gain short
+  // term access. And owners are granted roles that allows them to review those
+  // access requests.
+  PRESET_TYPE_SHORT_TERM = 2;
+}
+
+// PresetSpec defines the fields necessary for Teleport to perform actions
+// based on preset.
+message PresetSpec {
+  PresetType type = 1;
+  // access_roles is a list of role specs that defines access to resources.
+  // Teleport will create a role per spec. Multi specs can be provided to
+  // provide flexibility in defining access.
+  // For example, with application access:
+  //  - One role specifies access to applications with general labels (a label
+  //    that could target access to different types of applications).
+  //  - Another role specifies access to AWS IC application specifically.
+  //    AWS IC applications have a very specific label that is set by Teleport.
+  // Since multi labels is an AND operation, if we didn't allow multi roles to
+  // be created then that one role is limited to a very specific type of app.
+  repeated Role access_roles = 2;
+}
+
+// Role describes a role to be created by Teleport for an access list.
+message Role {
+  // name of role, Teleport will add a identifiable suffix to this role name
+  // that will:
+  //  - ensure uniqueness by including the access list UID which also
+  //    ties this role to that access list making it easier to query.
+  //  - add a infix like "acl-preset" that easily identifies that this role
+  //    belongs to an access list and was created using a preset.
+  string name = 1;
+  types.RoleSpecV6 spec = 2;
 }
 
 // GetAccessListMemberRequest is the request for retrieving an access_list_member.
