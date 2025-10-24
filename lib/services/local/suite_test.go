@@ -1293,6 +1293,10 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	t.Cleanup(func() {
+		s.WebS.DeleteGithubConnector(ctx, connector.GetName())
+	})
+
 	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.GithubConnector{connector}, connectors, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1347,6 +1351,170 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEmpty(t, upserted.GetRevision())
 	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
+}
+
+func (s *ServicesTestSuite) GithubPagination(t *testing.T) {
+	ctx := t.Context()
+
+	newResource := func(name string) *types.GithubConnectorV3 {
+		return &types.GithubConnectorV3{
+			Kind:    types.KindGithubConnector,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.GithubConnectorSpecV3{
+				ClientID:     "aaa",
+				ClientSecret: "bbb",
+				RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+				Display:      "GitHub",
+				TeamsToRoles: []types.TeamRolesMapping{
+					{
+						Organization: "gravitational",
+						Team:         "admins",
+						Roles:        []string{"admin"},
+					},
+				},
+			},
+		}
+	}
+
+	pageSize := 2
+	totalItems := pageSize*2 + (pageSize / 2)
+	var expected []types.GithubConnector
+	var expectedWithoutSecrets []types.GithubConnector
+	for i := range totalItems {
+		connector := newResource(fmt.Sprintf("connector-%d", i))
+		_, err := s.WebS.UpsertGithubConnector(ctx, connector)
+		require.NoError(t, err)
+		expected = append(expected, connector)
+
+		connectorNoSecrets := *connector
+		connectorNoSecrets.Spec.ClientSecret = ""
+		expectedWithoutSecrets = append(expectedWithoutSecrets, &connectorNoSecrets)
+	}
+
+	t.Cleanup(func() {
+		for _, conn := range expected {
+			s.WebS.DeleteGithubConnector(ctx, conn.GetName())
+		}
+	})
+
+	t.Run("GetGithubConnectors", func(t *testing.T) {
+		// Verify legacy getters still work as expected.
+		conns, err := s.WebS.GetGithubConnectors(ctx, false)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expectedWithoutSecrets, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("GetGithubConnectors with secrets", func(t *testing.T) {
+		// Verify legacy getters still work as expected.
+		conns, err := s.WebS.GetGithubConnectors(ctx, true)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expected, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("ListGithubConnectors", func(t *testing.T) {
+		withSecrets := false
+		want := expectedWithoutSecrets
+
+		// no limits
+		conns, next, err := s.WebS.ListGithubConnectors(ctx, 0, "", withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// page limit
+		page1, page2Start, err := s.WebS.ListGithubConnectors(ctx, pageSize, "", withSecrets)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Empty(t, cmp.Diff(want[:pageSize], page1, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// rest with start
+		page2, next, err := s.WebS.ListGithubConnectors(ctx, 0, page2Start, withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want[pageSize:], page2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("ListGithubConnectors with secrets", func(t *testing.T) {
+		withSecrets := true
+		want := expected
+
+		// no limits
+		conns, next, err := s.WebS.ListGithubConnectors(ctx, 0, "", withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// page limit
+		page1, page2Start, err := s.WebS.ListGithubConnectors(ctx, pageSize, "", withSecrets)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Empty(t, cmp.Diff(want[:pageSize], page1, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// rest with start
+		page2, next, err := s.WebS.ListGithubConnectors(ctx, 0, page2Start, withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cmp.Diff(want[pageSize:], page2, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("RangeGithubConnectors", func(t *testing.T) {
+		withSecrets := false
+		want := expectedWithoutSecrets
+
+		// full range
+		conns, err := stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", "", withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// with start
+		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), "", withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// with end
+		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", want[pageSize*2].GetName(), withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// with start and end
+		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
+	t.Run("RangeGithubConnectors with secrets", func(t *testing.T) {
+		withSecrets := true
+		want := expected
+
+		// full range
+		conns, err := stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", "", withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// with start
+		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), "", withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// with end
+		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", want[pageSize*2].GetName(), withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// with start and end
+		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	})
+
 }
 
 // AuthPreference tests authentication preference service

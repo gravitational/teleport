@@ -2534,6 +2534,24 @@ message ListSAMLConnectorsResponse {
   string next_page_token = 2;
 }
 
+message ListGithubConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListGithubConnectorsResponse {
+  // Connectors is a list of Github connectors.
+  repeated types.GithubConnectorV3 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // CreateGithubConnectorRequest is a request for CreateGithubConnector.
 message CreateGithubConnectorRequest {
   // Connector to be created.
@@ -3341,7 +3359,13 @@ service AuthService {
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
-  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
+  //
+  // Deprecated: Use ListGithubConnectors instead.
+  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List) {
+    option deprecated = true;
+  }
+  // ListGithubConnectors returns a page of current Github connector resources.
+  rpc ListGithubConnectors(ListGithubConnectorsRequest) returns (ListGithubConnectorsResponse);
   // CreateGithubConnector creates a new Github connector in the backend.
   rpc CreateGithubConnector(CreateGithubConnectorRequest) returns (types.GithubConnectorV3);
   // UpdateGithubConnector updates an existing Github connector in the backend.
