@@ -4369,7 +4369,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name              string
-		installParams     *InstallParams
 		fc                *FileConfig
 		expectedProxyAddr string
 	}{
@@ -4377,18 +4376,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 			name:              "empty",
 			fc:                &FileConfig{},
 			expectedProxyAddr: "",
-		},
-		{
-			name: "explicit proxy addr",
-			installParams: &InstallParams{
-				PublicProxyAddr: "explicit.example.com",
-			},
-			fc: &FileConfig{
-				Global: Global{
-					ProxyServer: "proxy.example.com",
-				},
-			},
-			expectedProxyAddr: "explicit.example.com",
 		},
 		{
 			name: "proxy server",
@@ -4436,7 +4423,7 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.fc))
 		})
 	}
 }

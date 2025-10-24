@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -1853,7 +1854,7 @@ const (
 
 var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
-func (ip *InstallParams) parse() (*types.InstallerParams, error) {
+func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
@@ -1863,6 +1864,7 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
 		Suffix:          ip.Suffix,
 		UpdateGroup:     ip.UpdateGroup,
+		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
 	}
 
 	switch ip.EnrollMode {
@@ -1874,6 +1876,12 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
 	default:
 		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
+	}
+
+	if ip.Azure != nil {
+		install.Azure = &types.AzureInstallerParams{
+			ClientID: ip.Azure.ClientID,
+		}
 	}
 
 	if ip.InstallTeleport == "" {
