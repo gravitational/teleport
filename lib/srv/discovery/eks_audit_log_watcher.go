@@ -23,19 +23,11 @@ import (
 	"errors"
 	"iter"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
 
@@ -62,164 +54,6 @@ type eksAuditLogCluster struct {
 	cluster *accessgraphv1alpha.AWSEKSClusterV1
 }
 
-// initEKSAuditLogWatcher starts the EKS audit log watcher if there are any
-// static or dynamic configurations specifying to collect EKS audit logs.
-// If there are none, it waits for discovery config changes to the dynamic
-// DiscoveryConfig resources, and if any configurations for EKS audit logs
-// appear, it then starts the EKS audit log watcher. If the EKS audit log
-// watcher completes, we start it again if there is an active configuration.
-func (s *Server) initEKSAuditLogWatcher(ctx context.Context, eksAuditLogClustersCh chan []eksAuditLogCluster) {
-	reloadCh := s.newDiscoveryConfigChangedSub()
-
-	for {
-		if !s.hasAWSSyncEKSAuditLogFetcher() {
-			s.Log.DebugContext(ctx, "No AWS sync fetchers with EKS Audit Logs configured. Access Graph EKS Audit Log sync will not be enabled.")
-			select {
-			case <-ctx.Done():
-				return
-			case <-reloadCh:
-				// If the config changes, we need to re-evaluate the fetchers.
-			}
-			continue
-		}
-
-		s.Log.DebugContext(ctx, "EKS Audit Log Watcher started")
-		err := s.startEKSAuditLogWatcher(ctx, eksAuditLogClustersCh)
-		if errors.Is(err, errTAGFeatureNotEnabled) {
-			break
-		} else if err != nil {
-			s.Log.WarnContext(ctx, "Error initializing EKS Audit Log Watcher", "error", err)
-		}
-		s.Log.DebugContext(ctx, "EKS Audit Log Watcher stopped")
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Minute):
-		case <-reloadCh:
-		}
-	}
-}
-
-// hasAWSSyncEKSAuditLogFetcher returns true if there are any active
-// configurations for EKS audit log syncing, either static or dynamic
-// configurations.
-func (s *Server) hasAWSSyncEKSAuditLogFetcher() bool {
-	for _, fetcher := range s.staticTAGAWSFetchers {
-		if fetcher.EKSAuditLogs != nil {
-			return true
-		}
-	}
-
-	s.muDynamicTAGAWSFetchers.RLock()
-	defer s.muDynamicTAGAWSFetchers.RUnlock()
-	for _, fetcherSet := range s.dynamicTAGAWSFetchers {
-		for _, fetcher := range fetcherSet {
-			if fetcher.EKSAuditLogs != nil {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// startEKSAuditLogWatcher starts the watcher for EKS audit logs. It ensures
-// that it can obtain a semaphore so multiple auth servers do not try to
-// collect logs concurrently.
-func (s *Server) startEKSAuditLogWatcher(ctx context.Context, eksAuditLogClustersCh <-chan []eksAuditLogCluster) error {
-	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
-		return trace.Wrap(errTAGFeatureNotEnabled)
-	}
-
-	// aws discovery semaphore lock.
-	const (
-		semaphoreName       = "access_graph_aws_eks_audit_log_sync"
-		semaphoreExpiration = time.Minute
-	)
-	// AcquireSemaphoreLock will retry until the semaphore is acquired.
-	// This prevents multiple discovery services from collecting EKS
-	// logs concurrently, duplicating the logs.
-	// The lease must be released to cleanup the resource in auth server.
-	lease, err := services.AcquireSemaphoreLockWithRetry(
-		ctx,
-		services.SemaphoreLockConfigWithRetry{
-			SemaphoreLockConfig: services.SemaphoreLockConfig{
-				Service: s.AccessPoint,
-				Params: types.AcquireSemaphoreRequest{
-					SemaphoreKind: types.KindAccessGraph,
-					SemaphoreName: semaphoreName,
-					MaxLeases:     1,
-					Holder:        s.Config.ServerID,
-				},
-				Expiry: semaphoreExpiration,
-				Clock:  s.clock,
-			},
-			Retry: retryutils.LinearConfig{
-				Clock:  s.clock,
-				First:  time.Second,
-				Step:   semaphoreExpiration / 2,
-				Max:    semaphoreExpiration,
-				Jitter: retryutils.DefaultJitter,
-			},
-		},
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// once the lease parent context is canceled, the lease will be released.
-	// this will stop the access graph sync.
-	ctx, cancel := context.WithCancel(lease)
-	defer cancel()
-
-	defer func() {
-		lease.Stop()
-		if err := lease.Wait(); err != nil {
-			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
-		}
-	}()
-
-	accessGraphConn, err := newAccessGraphClient(
-		ctx,
-		s.GetClientCert,
-		s.Config.AccessGraphConfig,
-		grpc.WithDefaultServiceConfig(serviceConfig),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer accessGraphConn.Close()
-
-	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
-
-	// Start a goroutine to watch the access graph service connection state.
-	// If the connection is closed, cancel the context to stop the event watcher
-	// before it tries to send any events to the access graph service.
-	// First wait for the connection to leave the Connecting state.
-
-	if !accessGraphConn.WaitForStateChange(ctx, connectivity.Connecting) {
-		return trace.Wrap(ctx.Err())
-	}
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer cancel()
-		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
-			s.Log.InfoContext(ctx, "Access graph service connection was closed")
-		}
-	}()
-
-	watcher := newEksAuditLogWatcher(client, s.Log, eksAuditLogClustersCh)
-	err = watcher.Run(ctx)
-	return trace.Wrap(err)
-}
-
 // eksAuditLogWatcher is a watcher that waits for notifications on a channel
 // indicating what EKS clusters should have audit logs fetched, and reconciles
 // that against what is currently being fetched. Fetchers are started and
@@ -227,21 +61,20 @@ func (s *Server) startEKSAuditLogWatcher(ctx context.Context, eksAuditLogCluster
 type eksAuditLogWatcher struct {
 	client             accessgraphv1alpha.AccessGraphServiceClient
 	log                *slog.Logger
-	auditLogClustersCh <-chan []eksAuditLogCluster
+	auditLogClustersCh chan []eksAuditLogCluster
 
 	fetchers    map[string]*eksAuditLogFetcher
 	completedCh chan fetcherCompleted
 }
 
-func newEksAuditLogWatcher(
+func newEKSAuditLogWatcher(
 	client accessgraphv1alpha.AccessGraphServiceClient,
 	logger *slog.Logger,
-	auditLogClustersCh <-chan []eksAuditLogCluster,
 ) *eksAuditLogWatcher {
 	return &eksAuditLogWatcher{
 		client:             client,
 		log:                logger,
-		auditLogClustersCh: auditLogClustersCh,
+		auditLogClustersCh: make(chan []eksAuditLogCluster),
 		fetchers:           make(map[string]*eksAuditLogFetcher),
 		completedCh:        make(chan fetcherCompleted),
 	}
@@ -263,6 +96,9 @@ type fetcherCompleted struct {
 // If any errors occur initializing the grpc stream, it is returned and the
 // main loop is not run.
 func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
+	w.log.InfoContext(ctx, "EKS Audit Log Watcher started")
+	defer w.log.InfoContext(ctx, "EKS Audit Log Watcher completed")
+
 	stream, err := w.client.KubeAuditLogStream(ctx)
 	if err != nil {
 		w.log.ErrorContext(ctx, "Failed to get access graph service KubeAuditLogStream", "error", err)
@@ -298,6 +134,23 @@ func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 	}
 }
 
+// Reconcile triggers a reconcilliation of currently running fetchers against
+// the given slice of clusters. The reconcilliation will stop any fetchers for
+// clusters not in the slice and start any fetchers for clusters in the slice
+// that are not running.
+//
+// If the given context is done before the clusters can be sent to the
+// reconcilliation goroutine, the context's error will be returned.
+func (w *eksAuditLogWatcher) Reconcile(ctx context.Context, clusters []eksAuditLogCluster) error {
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case w.auditLogClustersCh <- clusters:
+	}
+
+	return nil
+}
+
 // reconcile compares the given slice of clusters against the currently running
 // log fetchers and stops any running fetchers not in the cluster slice and
 // starts a log fetcher for any cluster in the slice that does not have a
@@ -306,6 +159,8 @@ func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 // Log fetchers that are started are initialized with the given grpc stream
 // over which they should send their audit logs.
 func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditLogCluster, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient) {
+	w.log.DebugContext(ctx, "Reconciling EKS audit log clusters", "new_count", len(clusters))
+
 	// Make a map of the discovered clusters, keyed by ARN so we can compare against
 	// the existing clusters we are fetching audit logs for.
 	discoveredClusters := make(map[string]eksAuditLogCluster)
