@@ -34,11 +34,12 @@ import (
 	"github.com/gravitational/teleport"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	utils "github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
 	metricsSubsystem            = "agent_autoupdates"
+	clientMetricsSubsystem      = "client_autoupdates"
 	metricVersionLabelRetention = 24 * time.Hour
 )
 
@@ -63,6 +64,8 @@ type metrics struct {
 	versionStart   *prometheus.GaugeVec
 	versionTarget  *prometheus.GaugeVec
 	versionMode    prometheus.Gauge
+
+	clientVersionTargetMajor prometheus.Gauge
 
 	configPresent prometheus.Gauge
 	configMode    prometheus.Gauge
@@ -145,6 +148,13 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Subsystem: metricsSubsystem,
 			Name:      "version_mode",
 			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_version resource. %s", valuesHelpString(codeToAgentMode)),
+		}),
+
+		clientVersionTargetMajor: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: clientMetricsSubsystem,
+			Name:      "version_target_major",
+			Help:      "Metric describing the client tools target major version from the autoupdate_version resource.",
 		}),
 
 		configPresent: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -232,6 +242,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 		reg.Register(m.versionTarget),
 		reg.Register(m.versionStart),
 		reg.Register(m.versionMode),
+		reg.Register(m.clientVersionTargetMajor),
 		reg.Register(m.configPresent),
 		reg.Register(m.configMode),
 		reg.Register(m.rolloutPresent),
@@ -310,12 +321,18 @@ func (m *metrics) observeVersion(version *autoupdatepb.AutoUpdateVersion, now ti
 	if version.GetSpec().GetAgents() == nil {
 		m.versionPresent.Set(0)
 		m.versionMode.Set(float64(agentModeCode[defaultConfigMode]))
-		return
+	} else {
+		m.versionPresent.Set(1)
+		m.versionMode.Set(float64(agentModeCode[version.GetSpec().GetAgents().GetMode()]))
+		m.setVersionMetric(version.GetSpec().GetAgents().GetStartVersion(), m.versionStart, now)
+		m.setVersionMetric(version.GetSpec().GetAgents().GetTargetVersion(), m.versionTarget, now)
 	}
-	m.versionPresent.Set(1)
-	m.versionMode.Set(float64(agentModeCode[version.GetSpec().GetAgents().GetMode()]))
-	m.setVersionMetric(version.GetSpec().GetAgents().GetStartVersion(), m.versionStart, now)
-	m.setVersionMetric(version.GetSpec().GetAgents().GetTargetVersion(), m.versionTarget, now)
+
+	if tools := version.GetSpec().GetTools(); tools != nil {
+		if target, err := utils.EnsureSemver(tools.GetTargetVersion()); err == nil {
+			m.clientVersionTargetMajor.Set(float64(target.Major))
+		}
+	}
 }
 
 func (m *metrics) setGroupStates(groups []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup) {
@@ -352,7 +369,7 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 		m.setVersionMetric(rollout.GetSpec().GetStartVersion(), m.rolloutStart, now)
 		m.setVersionMetric(rollout.GetSpec().GetTargetVersion(), m.rolloutTarget, now)
 
-		if target, err := version.EnsureSemver(rollout.GetSpec().GetTargetVersion()); err == nil {
+		if target, err := utils.EnsureSemver(rollout.GetSpec().GetTargetVersion()); err == nil {
 			m.rolloutTargetMajor.Set(float64(target.Major))
 		}
 	}
