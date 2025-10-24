@@ -112,6 +112,7 @@ import (
 	_ "github.com/openai/openai-go"
 	_ "github.com/openai/openai-go/option"
 	_ "github.com/patrickmn/go-cache"
+	_ "github.com/pkoukk/tiktoken-go"
 	_ "github.com/pquerna/otp/totp"
 	_ "github.com/prometheus/client_golang/prometheus"
 	_ "github.com/russellhaering/gosaml2"
