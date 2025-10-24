@@ -79,16 +79,33 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
-		PageSize:  limit,
-		PageToken: values.Get("startKey"),
-		Filter: &types.UserFilter{
-			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
-			SkipSystemUsers: true,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var resp *userspb.ListUsersResponse
+	for {
+		resp, err = clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
+			PageSize:  limit,
+			PageToken: values.Get("startKey"),
+			Filter: &types.UserFilter{
+				SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+				SkipSystemUsers: true,
+			},
+		})
+
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut limit in half if gRPC max message size is exceeded.
+				limit /= 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if limit == 0 {
+					return nil, trace.Wrap(err, "resource is too large to retrieve")
+				}
+
+				continue // retry
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		break
 	}
 
 	var uiUsers []ui.UserListEntry
