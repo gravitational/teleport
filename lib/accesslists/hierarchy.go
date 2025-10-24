@@ -582,6 +582,11 @@ func (s *Hierarchy) validMembership(ctx context.Context, list *accesslist.Access
 		}
 		return false, trace.Wrap(err)
 	}
+	// Only user membership are valid. It can happen that username overlaps with the access list name.
+	// So we need to ensure the membership kind always is verified.
+	if !m.IsUser() {
+		return false, nil
+	}
 	if m.IsExpired(s.Clock.Now()) || !UserMeetsRequirements(user, list.GetMembershipRequires()) {
 		return false, nil
 	}
@@ -620,6 +625,11 @@ func (s *Hierarchy) validDirectOwner(user types.User, acl *accesslist.AccessList
 		return false
 	}
 	for _, v := range acl.Spec.Owners {
+		// Only user membership are valid. It can happen that username overlaps with the access list name.
+		// So we need to ensure the  membership kind is verified as user.
+		if !v.IsMembershipKindUser() {
+			continue
+		}
 		if v.Name == user.GetName() {
 			return true
 		}
