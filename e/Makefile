@@ -376,6 +376,16 @@ endif
 deploy-cloud-login:
 	./scripts/deploy-cloud-login.sh
 
+# make delete-cloud - Removes a cloud tenant from the staging cluster.
+.PHONY: delete-cloud
+delete-cloud:
+	./scripts/delete-cloud.sh
+
+# make create-cloud - Provisions a new cloud tenant in the staging cluster.
+.PHONY create-cloud:
+create-cloud:
+	./scripts/create-cloud.sh
+
 #
 # make release - Produces a binary release tarball.
 #

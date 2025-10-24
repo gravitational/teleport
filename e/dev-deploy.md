@@ -1,6 +1,6 @@
 # Deploying Local Builds to Teleport Cloud
 
-Make targets in this repo are available to build teleport binaries locally and deploy them to an existing tenant on the Teleport Cloud staging cluster.
+Make targets in this repo are available to build teleport binaries locally and deploy them to new or existing tenants on the Teleport Cloud staging cluster.
 
 The initial implementation is derived from [cloud/RFD-0026](https://github.com/gravitational/cloud/blob/master/rfd/0026-Teleport-Release-Validation.md).
 
@@ -113,6 +113,48 @@ A tool from the [cloud repo](https://github.com/gravitational/cloud) is needed t
 export TC_PATH=/src/cloud/tc/cmd/tc
 make deploy-cloud-login
 make TENANT=yourtenant deploy-cloud
+```
+
+### `create-cloud`
+
+
+Minimally, provide a tenant name in the flag `TENANT`. The tenant name is the subdomain of your teleport cluster (e.g. for `mytenant.cloud.gravitational.io` provide `TENANT=mytenant`)
+
+```
+make TENANT=yourtenant create-cloud
+```
+
+Specify a region to have the auth pods created outside of the default (us-west-2).
+
+```
+make TENANT=yourtenant REGION=us-east-1 create-cloud
+```
+
+This make target will build the `teleport` binary and copy it into an base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+
+```
+make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 create-cloud
+```
+
+Creates new tenant with the provided release. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+
+```
+make TENANT=yourtenant RELEASE=14.0.0 create-cloud
+```
+
+Uses the staging repo for non-prod releases by overriding `BASE_IMAGE_REPO`.
+
+```
+make BASE_IMAGE_REPO=public.ecr.aws/gravitational-staging/teleport-ent-distroless RELEASE=18.0.0-alpha.1 TENANT=yourtenant create-cloud
+```
+
+### `delete-cloud`
+
+
+Minimally, provide a tenant name in the flag `TENANT`. The tenant name is the subdomain of your teleport cluster (e.g. for `mytenant.cloud.gravitational.io` provide `TENANT=mytenant`)
+
+```
+make TENANT=yourtenant delete-cloud
 ```
 
 ### `deploy-cloud`
