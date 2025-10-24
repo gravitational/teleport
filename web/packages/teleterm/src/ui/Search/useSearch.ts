@@ -169,25 +169,25 @@ export function useFilterSearch() {
   return useCallback(
     (search: string, filters: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
-        const clusters = clustersService.getClusters();
+        let clusters = clustersService.getClusters();
         // Cluster filter should not be visible if there is only one cluster
         if (clusters.length === 1) {
           return [];
         }
-        let clustersWithName = clusters.map(c => ({
+        clusters = clusters.map(c => ({
           ...c,
           // Name is empty if the user hasn't logged into that cluster yet.
-          nameOrProfile: c.name || routing.parseClusterName(c.uri),
+          name: c.name || routing.parseClusterName(c.uri),
         }));
         if (search) {
-          clustersWithName = clustersWithName.filter(cluster =>
-            cluster.nameOrProfile
+          clusters = clusters.filter(cluster =>
+            cluster.name
               .toLocaleLowerCase()
               .includes(search.toLocaleLowerCase())
           );
         }
-        return clustersWithName.map(cluster => {
-          let score = getLengthScore(search, cluster.nameOrProfile);
+        return clusters.map(cluster => {
+          let score = getLengthScore(search, cluster.name);
           if (
             cluster.uri ===
             workspacesService.getActiveWorkspace()?.localClusterUri

@@ -51,7 +51,6 @@ import {
 } from 'teleterm/ui/Search/searchResult';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import * as uri from 'teleterm/ui/uri';
-import { routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { useVnetContext } from 'teleterm/ui/Vnet';
@@ -541,10 +540,7 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
         Search only in{' '}
         <strong>
           <Highlight
-            text={
-              props.searchResult.resource.name ||
-              routing.parseClusterName(props.searchResult.resource.uri)
-            }
+            text={props.searchResult.resource.name}
             keywords={[props.searchResult.nameMatch]}
           />
         </strong>
