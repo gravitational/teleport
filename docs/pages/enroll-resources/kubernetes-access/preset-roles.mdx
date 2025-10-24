@@ -1,0 +1,299 @@
+---
+title: Kubernetes Preset Roles
+description: Using Teleport's preset roles for simplified Kubernetes RBAC management
+labels:
+ - how-to
+ - kubernetes
+ - rbac
+---
+
+Teleport provides preset roles that simplify Kubernetes RBAC management by automatically configuring the appropriate `kubernetes_groups` for users. These groups are then mapped to standard Kubernetes ClusterRoles through ClusterRoleBindings. This guide explains how to use these preset roles and the `kubernetes_groups` pattern for managing Kubernetes access.
+
+<Admonition type="tip" title="New to Kubernetes RBAC in Teleport?">
+Read our [Understanding Kubernetes RBAC in Teleport](./rbac-overview.mdx) guide to learn why `kubernetes_groups` is essential and how Teleport and Kubernetes RBAC work together.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Kubernetes cluster enrolled with Teleport (v19.0+ for automatic ClusterRoleBinding creation)
+- (!docs/pages/includes/tctl.mdx!)
+
+## Kubernetes preset roles
+
+Teleport includes three preset roles for Kubernetes access:
+
+| Teleport Role | Kubernetes Group | Kubernetes ClusterRole | Access Level |
+|--------------|------------------|------------------------|--------------|
+| `kube-access` | `teleport:kube-access` | `edit` | Read/write access to most resources within namespaces |
+| `kube-editor` | `teleport:kube-editor` | `cluster-admin` | Full administrative access to the cluster |
+| `kube-auditor` | `teleport:kube-auditor` | `view` | Read-only access to most resources |
+
+These preset roles automatically configure the appropriate `kubernetes_groups` values, establishing a best practice pattern for Kubernetes RBAC. This approach is preferred over using `kubernetes_users` as it leverages Kubernetes' native group-based authorization model.
+
+## Why kubernetes_groups is Required
+
+Here's the thing: when you connect to Kubernetes through Teleport, Kubernetes has no idea who you are. It doesn't know about your Teleport username or your Teleport roles. All it sees is whatever identity Teleport tells it to use.
+
+That's what `kubernetes_groups` does - it tells Teleport "when this user connects to Kubernetes, make them a member of these groups." Without it, you're nobody as far as Kubernetes is concerned, and nobody gets access denied.
+
+## How it works
+
+Let's say you assign someone the `kube-access` role. Here's what happens behind the scenes:
+
+1. The `kube-access` role automatically adds `teleport:kube-access` to their `kubernetes_groups`
+2. When they run `kubectl get pods`, Teleport tells Kubernetes "this person is from the teleport:kube-access group"
+3. Kubernetes checks its ClusterRoleBindings and finds that `teleport:kube-access` is bound to the `edit` ClusterRole
+4. The `edit` ClusterRole allows reading and writing most resources, so the request succeeds
+
+It's that simple. The preset roles just automate what you'd otherwise have to configure manually.
+
+## Using preset roles
+
+### Step 1/3. Assign preset roles to users
+
+Create a user and assign them one of the Kubernetes preset roles:
+
+```code
+$ tctl users add alice --roles=kube-access
+```
+
+Or add the role to an existing user:
+
+```code
+$ tctl users update alice --set-roles=kube-access
+```
+
+### Step 2/3. Verify ClusterRoleBindings
+
+For clusters provisioned with Teleport Discovery or the Helm chart (v19.0+), the required ClusterRoleBindings are created automatically.
+
+Verify they exist:
+
+```code
+$ kubectl get clusterrolebindings | grep teleport-preset
+teleport-preset-kube-access    ClusterRole/edit           
+teleport-preset-kube-editor    ClusterRole/cluster-admin  
+teleport-preset-kube-auditor   ClusterRole/view           
+```
+
+If the ClusterRoleBindings don't exist, you can create them manually:
+
+```yaml
+# kube-access-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: Group
+  name: teleport:kube-access
+  apiGroup: rbac.authorization.k8s.io
+---
+# kube-editor-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-editor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: Group
+  name: teleport:kube-editor
+  apiGroup: rbac.authorization.k8s.io
+---
+# kube-auditor-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-auditor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: Group
+  name: teleport:kube-auditor
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Apply them to your cluster:
+
+```code
+$ kubectl apply -f kube-access-binding.yaml
+$ kubectl apply -f kube-editor-binding.yaml
+$ kubectl apply -f kube-auditor-binding.yaml
+```
+
+### Step 3/3. Access the cluster
+
+Users can now access the cluster with their assigned permissions:
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh kube login mycluster
+$ kubectl get pods --all-namespaces
+```
+
+## Helm chart configuration
+
+When deploying the Teleport Kubernetes agent with Helm, you can enable automatic creation of preset ClusterRoleBindings:
+
+```yaml
+# values.yaml
+presetRoles:
+  enabled: true
+```
+
+Deploy with:
+
+```code
+$ helm upgrade --install teleport-agent teleport/teleport-kube-agent \
+  --values values.yaml \
+  --create-namespace \
+  --namespace teleport-agent
+```
+
+## The kubernetes_groups Pattern
+
+The preset roles demonstrate the recommended pattern for Kubernetes RBAC in Teleport:
+
+1. **Use kubernetes_groups, not kubernetes_users**: Groups are the standard way to manage permissions in Kubernetes
+2. **Create ClusterRoleBindings for groups**: Map groups to ClusterRoles in Kubernetes
+3. **Let Teleport manage group membership**: Users get their groups from their Teleport roles
+
+This pattern has several advantages:
+- **Scalability**: One ClusterRoleBinding can grant access to many users
+- **Auditability**: Group membership is centrally managed in Teleport
+- **Flexibility**: Users can have multiple groups for different permission levels
+- **Kubernetes-native**: Aligns with how Kubernetes RBAC is designed to work
+
+## Combining with custom roles
+
+You can follow the same pattern with custom Teleport roles. Always use `kubernetes_groups` for authorization:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: kube-dev-access
+spec:
+  allow:
+    # Inherit from kube-access preset
+    kubernetes_groups:
+    - teleport:kube-access
+    # Restrict to specific clusters
+    kubernetes_labels:
+      environment: ["development", "staging"]
+```
+
+## Migration Guide
+
+### From kubernetes_users to kubernetes_groups
+
+If you're currently using `kubernetes_users`, migrate to the `kubernetes_groups` pattern:
+
+#### Before (not recommended):
+```yaml
+kind: role
+version: v8
+metadata:
+  name: k8s-developer
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_users:
+    - alice
+    - bob
+    - charlie
+```
+
+#### After (recommended pattern):
+```yaml
+kind: role
+version: v8
+metadata:
+  name: k8s-developer
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_groups:
+    - developers  # Single group for all developers
+```
+
+Then create a ClusterRoleBinding in Kubernetes:
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: developers-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit  # or your custom ClusterRole
+subjects:
+- kind: Group
+  name: developers
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### Using Preset Roles
+
+For standard access patterns, simply use the preset roles:
+
+```code
+$ tctl users update developer --set-roles=kube-access
+```
+
+This automatically sets `kubernetes_groups: ["teleport:kube-access"]` and the corresponding ClusterRoleBinding is already created by Teleport.
+
+## Best practices
+
+1. **Always use kubernetes_groups**: This is the Kubernetes-native way to manage permissions
+2. **Avoid kubernetes_users**: Individual user impersonation doesn't scale and is harder to audit
+3. **Start with preset roles**: Use preset roles as a foundation for standard access patterns
+4. **Create groups for custom needs**: Follow the pattern: Teleport role → kubernetes_groups → ClusterRoleBinding
+5. **Principle of least privilege**: Assign `kube-auditor` by default and grant higher privileges only when necessary
+6. **Combine with label selectors**: Use `kubernetes_labels` to restrict access to specific clusters
+7. **Regular audits**: Review role assignments regularly using `tctl get users` and `tctl get roles`
+
+## Troubleshooting
+
+### User cannot access cluster
+
+Verify the user has the correct role:
+```code
+$ tctl get users/alice --format=json | jq '.spec.roles'
+```
+
+Check if ClusterRoleBindings exist:
+```code
+$ kubectl get clusterrolebinding teleport-preset-kube-access -o yaml
+```
+
+### Permissions not working as expected
+
+Verify the Kubernetes group is correctly set:
+```code
+$ kubectl auth whoami
+```
+
+Check the effective permissions:
+```code
+$ kubectl auth can-i --list
+```
+
+## Next steps
+
+- Learn more about [Kubernetes access controls](./controls.mdx)
+- Configure [role templates](../../zero-trust-access/access-controls/guides/role-templates.mdx) for dynamic access
+- Set up [access requests](../../zero-trust-access/access-controls/access-requests.mdx) for temporary elevated privileges

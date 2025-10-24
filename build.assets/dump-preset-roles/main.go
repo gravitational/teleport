@@ -36,11 +36,17 @@ func main() {
 	access := services.NewPresetAccessRole()
 	editor := services.NewPresetEditorRole()
 	auditor := services.NewPresetAuditorRole()
+	kubeAccess := services.NewPresetKubeAccessRole()
+	kubeEditor := services.NewPresetKubeEditorRole()
+	kubeAuditor := services.NewPresetKubeAuditorRole()
 
 	rolesByName := map[string]types.Role{
-		access.GetName():  access,
-		editor.GetName():  editor,
-		auditor.GetName(): auditor,
+		access.GetName():      access,
+		editor.GetName():      editor,
+		auditor.GetName():     auditor,
+		kubeAccess.GetName():  kubeAccess,
+		kubeEditor.GetName():  kubeEditor,
+		kubeAuditor.GetName(): kubeAuditor,
 	}
 
 	for _, r := range rolesByName {

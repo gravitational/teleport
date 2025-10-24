@@ -1,0 +1,64 @@
+{{- if .Values.presetRoles.enabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "teleport-kube-agent.fullname" . }}-kube-access
+  labels:
+    app.kubernetes.io/name: {{ include "teleport-kube-agent.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "teleport-kube-agent.chart" . }}
+{{- if .Values.extraLabels.clusterRoleBinding }}
+  {{- toYaml .Values.extraLabels.clusterRoleBinding | nindent 4 }}
+{{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: "teleport:kube-access"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "teleport-kube-agent.fullname" . }}-kube-editor
+  labels:
+    app.kubernetes.io/name: {{ include "teleport-kube-agent.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "teleport-kube-agent.chart" . }}
+{{- if .Values.extraLabels.clusterRoleBinding }}
+  {{- toYaml .Values.extraLabels.clusterRoleBinding | nindent 4 }}
+{{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: "teleport:kube-editor"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "teleport-kube-agent.fullname" . }}-kube-auditor
+  labels:
+    app.kubernetes.io/name: {{ include "teleport-kube-agent.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "teleport-kube-agent.chart" . }}
+{{- if .Values.extraLabels.clusterRoleBinding }}
+  {{- toYaml .Values.extraLabels.clusterRoleBinding | nindent 4 }}
+{{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: "teleport:kube-auditor"
+{{- end }}
