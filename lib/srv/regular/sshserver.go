@@ -766,6 +766,7 @@ func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 func SetScope(scope string) ServerOption {
 	return func(s *Server) error {
 		if scope == "" {
+			s.scope = ""
 			return nil
 		}
 
@@ -774,6 +775,7 @@ func SetScope(scope string) ServerOption {
 		}
 		s.scope = scope
 		return nil
+
 	}
 }
 
