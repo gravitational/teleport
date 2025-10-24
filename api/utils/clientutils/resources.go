@@ -73,24 +73,11 @@ type rangeParams[T any] struct {
 func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		pageToken := params.start
-		pageSize := params.pageSize
 		isLookingForEnd := params.end != "" && params.keyFunc != nil
 
 		for {
-			page, nextToken, err := params.pageFunc(ctx, pageSize, pageToken)
+			page, nextToken, err := PageWithAutoSize(ctx, params.pageSize, pageToken, params.pageFunc)
 			if err != nil {
-				if trace.IsLimitExceeded(err) {
-					// Cut chunkSize in half if gRPC max message size is exceeded.
-					pageSize /= 2
-					// This is an extremely unlikely scenario, but better to cover it anyways.
-					if pageSize == 0 {
-						yield(*new(T), trace.Wrap(err, "resource is too large to retrieve"))
-						return
-					}
-
-					continue
-				}
-
 				yield(*new(T), trace.Wrap(err))
 				return
 			}
@@ -179,4 +166,33 @@ func CollectWithFallback[T any](ctx context.Context,
 	}
 
 	return out, nil
+}
+
+// PageWithAutoSize wraps around a page function and provides a retry mechanism if the call exceeds grpc limits.
+func PageWithAutoSize[T any](ctx context.Context, pageSize int, pageToken string,
+	pageFunc func(context.Context, int, string) ([]T, string, error)) ([]T, string, error) {
+
+	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
+		pageSize = defaults.DefaultChunkSize
+	}
+
+	for {
+		page, nextToken, err := pageFunc(ctx, pageSize, pageToken)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				pageSize /= 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if pageSize == 0 {
+					return nil, "", trace.Wrap(err, "resource is too large to retrieve")
+				}
+
+				continue // retry
+			}
+
+			return nil, "", trace.Wrap(err)
+		}
+
+		return page, nextToken, nil
+	}
 }

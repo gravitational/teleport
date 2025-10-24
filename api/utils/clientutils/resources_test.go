@@ -21,9 +21,11 @@ package clientutils
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -304,5 +306,94 @@ func TestCollectWithFallback(t *testing.T) {
 			}
 			require.ErrorIs(t, err, tc.err)
 		})
+	}
+}
+
+func TestPageWithAutoSize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		pageSize  int
+		pageToken string
+		pageFunc  func(context.Context, int, string) ([]string, string, error)
+		wantPage  []string
+		wantToken string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "happy path",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return []string{"hello", "world"}, "foo", nil
+			},
+			assertErr: require.NoError,
+			wantPage:  []string{"hello", "world"},
+			wantToken: "foo",
+		},
+		{
+			name: "error propagated",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return nil, "", trace.BadParameter("foobar")
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "foobar")
+			},
+		},
+		{
+			name: "all retries fail",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return nil, "", trace.LimitExceeded("grpc limit exceeded")
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "grpc limit exceeded")
+			},
+		},
+		{
+			name: "all retry recovers",
+			pageFunc: func(_ context.Context, limit int, _ string) ([]string, string, error) {
+				if limit > 1 {
+					return nil, "", trace.LimitExceeded("grpc limit exceeded")
+				}
+
+				return []string{"hello", "world"}, "foo", nil
+
+			},
+			assertErr: require.NoError,
+			wantPage:  []string{"hello", "world"},
+			wantToken: "foo",
+		},
+		{
+			name: "pageSize is capped",
+			pageFunc: func(_ context.Context, limit int, _ string) ([]string, string, error) {
+				require.Equal(t, defaults.DefaultChunkSize, limit)
+				return []string{"hello", "world"}, "foo", nil
+			},
+			assertErr: require.NoError,
+			pageSize:  math.MaxInt32,
+			wantPage:  []string{"hello", "world"},
+			wantToken: "foo",
+		},
+		{
+			name: "negative limit is not allowed",
+			pageFunc: func(_ context.Context, limit int, _ string) ([]string, string, error) {
+				require.Equal(t, defaults.DefaultChunkSize, limit)
+				return []string{"hello", "world"}, "foo", nil
+			},
+			assertErr: require.NoError,
+			pageSize:  math.MinInt32,
+			wantPage:  []string{"hello", "world"},
+			wantToken: "foo",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPage, gotToken, gotErr := PageWithAutoSize(context.Background(), tt.pageSize, tt.pageToken, tt.pageFunc)
+			require.Empty(t, cmp.Diff(tt.wantPage, gotPage))
+			require.Equal(t, tt.wantToken, gotToken)
+			tt.assertErr(t, gotErr)
+		},
+		)
 	}
 }
