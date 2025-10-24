@@ -19,7 +19,6 @@
 package server
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -211,10 +210,10 @@ type MatcherToEC2FetcherParams struct {
 	// DiscoveryConfigName is the name of the DiscoveryConfig that contains the matchers.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfigName string
-	// PublicProxyAddr is the public proxy address to use for installation scripts.
+	// PublicProxyAddrGetter returns the public proxy address to use for installation scripts.
 	// This is only used if the matcher does not specify a ProxyAddress.
 	// Example: proxy.example.com:3080 or proxy.example.com
-	PublicProxyAddr string
+	PublicProxyAddrGetter func(context.Context) (string, error)
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
@@ -253,17 +252,17 @@ func matchersToEC2InstanceFetchers(matcherParams MatcherToEC2FetcherParams, getE
 	for _, matcher := range matcherParams.Matchers {
 		for _, region := range matcher.Regions {
 			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
-				ProxyPublicAddr:     matcherParams.PublicProxyAddr,
-				Matcher:             matcher,
-				Region:              region,
-				Document:            matcher.SSM.DocumentName,
-				InstallSuffix:       matcher.Params.Suffix,
-				UpdateGroup:         matcher.Params.UpdateGroup,
-				EC2ClientGetter:     getEC2Client.withMatcher(&matcher),
-				Labels:              matcher.Tags,
-				Integration:         matcher.Integration,
-				DiscoveryConfigName: matcherParams.DiscoveryConfigName,
-				EnrollMode:          matcher.Params.EnrollMode,
+				ProxyPublicAddrGetter: matcherParams.PublicProxyAddrGetter,
+				Matcher:               matcher,
+				Region:                region,
+				Document:              matcher.SSM.DocumentName,
+				InstallSuffix:         matcher.Params.Suffix,
+				UpdateGroup:           matcher.Params.UpdateGroup,
+				EC2ClientGetter:       getEC2Client.withMatcher(&matcher),
+				Labels:                matcher.Tags,
+				Integration:           matcher.Integration,
+				DiscoveryConfigName:   matcherParams.DiscoveryConfigName,
+				EnrollMode:            matcher.Params.EnrollMode,
 			})
 			ret = append(ret, fetcher)
 		}
@@ -282,9 +281,10 @@ type ec2FetcherConfig struct {
 	Integration         string
 	DiscoveryConfigName string
 	EnrollMode          types.InstallParamEnrollMode
-	// ProxyPublicAddr is the public proxy address to use for installation scripts.
-	// Format: "proxy.example.com:443" or "proxy.example.com"
-	ProxyPublicAddr string
+	// PublicProxyAddrGetter returns the public proxy address to use for installation scripts.
+	// This is only used if the matcher does not specify a ProxyAddress.
+	// Example: proxy.example.com:3080 or proxy.example.com
+	ProxyPublicAddrGetter func(ctx context.Context) (string, error)
 }
 
 type ec2InstanceFetcher struct {
@@ -402,7 +402,7 @@ func ssmRunCommandParametersForCustomDocuments(cfg ec2FetcherConfig, envVars []s
 	return parameters
 }
 
-func ssmRunCommandParameters(cfg ec2FetcherConfig) map[string]string {
+func ssmRunCommandParameters(ctx context.Context, cfg ec2FetcherConfig) (map[string]string, error) {
 	var envVars []string
 
 	// InstallSuffix and UpdateGroup only contains alphanumeric characters and hyphens.
@@ -421,10 +421,17 @@ func ssmRunCommandParameters(cfg ec2FetcherConfig) map[string]string {
 	// However, when using the pre-defined SSM Document AWS-RunShellScript, we need to construct
 	// the "commands" parameter.
 	if cfg.Document != types.AWSSSMDocumentRunShellScript {
-		return ssmRunCommandParametersForCustomDocuments(cfg, envVars)
+		return ssmRunCommandParametersForCustomDocuments(cfg, envVars), nil
 	}
 
-	publicProxyAddr := cmp.Or(cfg.Matcher.Params.PublicProxyAddr, cfg.ProxyPublicAddr)
+	publicProxyAddr := cfg.Matcher.Params.PublicProxyAddr
+	if publicProxyAddr == "" {
+		proxyAddr, err := cfg.ProxyPublicAddrGetter(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		publicProxyAddr = proxyAddr
+	}
 
 	safeProxyAddr := shsprintf.EscapeDefaultContext(publicProxyAddr)
 	safeScriptName := shsprintf.EscapeDefaultContext(cfg.Matcher.Params.ScriptName)
@@ -442,15 +449,20 @@ func ssmRunCommandParameters(cfg ec2FetcherConfig) map[string]string {
 
 	return map[string]string{
 		ParamCommands: command,
-	}
+	}, nil
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
 func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error) {
+	ssmRunParams, err := ssmRunCommandParameters(context.Background(), f.ec2FetcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	insts := EC2Instances{
 		Region:              f.Region,
 		DocumentName:        f.Document,
-		Parameters:          ssmRunCommandParameters(f.ec2FetcherConfig),
+		Parameters:          ssmRunParams,
 		Rotation:            rotation,
 		Integration:         f.Integration,
 		DiscoveryConfigName: f.DiscoveryConfigName,
@@ -514,6 +526,11 @@ func chunkInstances(insts EC2Instances) []Instances {
 
 // GetInstances fetches all EC2 instances matching configured filters.
 func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
+	ssmRunParams, err := ssmRunCommandParameters(context.Background(), f.ec2FetcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ec2Client, err := f.EC2ClientGetter(ctx, f.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -540,7 +557,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					Region:              f.Region,
 					DocumentName:        f.Document,
 					Instances:           ToEC2Instances(res.Instances[i:end]),
-					Parameters:          ssmRunCommandParameters(f.ec2FetcherConfig),
+					Parameters:          ssmRunParams,
 					Rotation:            rotation,
 					Integration:         f.Integration,
 					AssumeRoleARN:       f.Matcher.AssumeRole.RoleARN,

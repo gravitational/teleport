@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -4145,6 +4146,24 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	return a.authServer.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets, opts...)
 }
 
+// ListSAMLConnectorsWithOptions returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (a *ServerWithRoles) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	if err := a.authConnectorAction(types.KindSAML, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if err := a.authConnectorAction(types.KindSAML, types.VerbReadNoSecrets); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if withSecrets {
+		if err := a.authConnectorAction(types.KindSAML, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.ListSAMLConnectorsWithOptions(ctx, limit, start, withSecrets, opts...)
+}
+
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
@@ -4968,6 +4987,22 @@ func (a *ServerWithRoles) GetInstallers(ctx context.Context) ([]types.Installer,
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetInstallers(ctx)
+}
+
+// ListInstallers returns a page of installer script resources.
+func (a *ServerWithRoles) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	if err := a.authorizeAction(types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.authServer.ListInstallers(ctx, limit, start)
+}
+
+// RangeInstallers returns installer script resources within the range [start, end).
+func (a *ServerWithRoles) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	if err := a.authorizeAction(types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return iterstream.Fail[types.Installer](trace.Wrap(err))
+	}
+	return a.authServer.RangeInstallers(ctx, start, end)
 }
 
 // SetInstaller sets an Installer script resource

@@ -18,10 +18,12 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,8 +44,9 @@ func newInstallerCollection(upstream services.ClusterConfiguration, w types.Watc
 				installerNameIndex: types.Installer.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Installer, error) {
-			installers, err := upstream.GetInstallers(ctx)
-			return installers, trace.Wrap(err)
+			// TODO(lokraszewski): DELETE IN v21.0.0 replace by regular clientutils.Resources
+			out, err := clientutils.CollectWithFallback(ctx, upstream.ListInstallers, upstream.GetInstallers)
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Installer {
 			return &types.InstallerV1{
@@ -95,4 +98,48 @@ func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	}
 
 	return installers, nil
+}
+
+// ListInstallers returns a page of installer script resources.
+func (c *Cache) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListInstallers")
+	defer span.End()
+
+	lister := genericLister[types.Installer, installerIndex]{
+		cache:        c,
+		collection:   c.collections.installers,
+		index:        installerNameIndex,
+		upstreamList: c.Config.ClusterConfig.ListInstallers,
+		nextToken:    types.Installer.GetName,
+	}
+	out, next, err := lister.list(ctx, limit, start)
+	return out, next, trace.Wrap(err)
+}
+
+// RangeInstallers returns installer script resources within the range [start, end).
+func (c *Cache) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	lister := genericLister[types.Installer, installerIndex]{
+		cache:        c,
+		collection:   c.collections.installers,
+		index:        installerNameIndex,
+		upstreamList: c.Config.ClusterConfig.ListInstallers,
+		nextToken:    types.Installer.GetName,
+		// TODO(lokraszewski): DELETE IN v21.0.0
+		fallbackGetter: c.Config.ClusterConfig.GetInstallers,
+	}
+
+	return func(yield func(types.Installer, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeInstallers")
+		defer span.End()
+
+		for inst, err := range lister.RangeWithFallback(ctx, start, end) {
+			if !yield(inst, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }

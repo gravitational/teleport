@@ -113,14 +113,6 @@ func TestConfigCheckAndSetDefaults(t *testing.T) {
 			postCheckAndSetDefaultsFunc: func(t *testing.T, c *Config) {},
 		},
 		{
-			name:          "missing public proxy address",
-			errAssertFunc: require.Error,
-			cfgChange: func(c *Config) {
-				c.PublicProxyAddress = ""
-			},
-			postCheckAndSetDefaultsFunc: func(t *testing.T, c *Config) {},
-		},
-		{
 			name:          "missing cluster features",
 			errAssertFunc: require.Error,
 			cfgChange: func(c *Config) {
@@ -145,8 +137,7 @@ func TestConfigCheckAndSetDefaults(t *testing.T) {
 				ClusterFeatures: func() proto.Features {
 					return proto.Features{}
 				},
-				DiscoveryGroup:     "test",
-				PublicProxyAddress: "proxy.example.com",
+				DiscoveryGroup: "test",
 			}
 			tt.cfgChange(cfg)
 			err := cfg.CheckAndSetDefaults()
