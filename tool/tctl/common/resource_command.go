@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -72,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
-	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
@@ -159,7 +157,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
-		types.KindAccessGraphSettings:         rc.upsertAccessGraphSettings,
 		types.KindPlugin:                      rc.createPlugin,
 		types.KindStaticHostUser:              rc.createStaticHostUser,
 		types.KindUserTask:                    rc.createUserTask,
@@ -180,7 +177,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAccessMonitoringRule:        rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
-		types.KindAccessGraphSettings:         rc.updateAccessGraphSettings,
 		types.KindPlugin:                      rc.updatePlugin,
 		types.KindStaticHostUser:              rc.updateStaticHostUser,
 		types.KindUserTask:                    rc.updateUserTask,
@@ -2161,7 +2157,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindInstaller:
 		if rc.ref.Name == "" {
-			installers, err := client.GetInstallers(ctx)
+			// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+			installers, err := clientutils.CollectWithFallback(ctx, client.ListInstallers, client.GetInstallers)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2516,16 +2513,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			startKey = resp.NextKey
 		}
 		return &pluginCollection{plugins: plugins}, nil
-	case types.KindAccessGraphSettings:
-		settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		rec, err := clusterconfigrec.ProtoToResource(settings)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &accessGraphSettings{accessGraphSettings: rec}, nil
 	case types.KindStaticHostUser:
 		hostUserClient := client.StaticHostUserClient()
 		if rc.ref.Name != "" {
@@ -2896,32 +2883,5 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 		return trace.Wrap(err)
 	}
 	fmt.Printf("plugin %q has been updated\n", item.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err = client.ClusterConfigClient().UpsertAccessGraphSettings(ctx, &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("access_graph_settings has been upserted")
-	return nil
-}
-
-func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err = client.ClusterConfigClient().UpdateAccessGraphSettings(ctx, &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("access_graph_settings has been updated")
 	return nil
 }
