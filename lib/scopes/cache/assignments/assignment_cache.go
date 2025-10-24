@@ -75,6 +75,12 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
 func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
+	return c.ListScopedRoleAssignmentsWithFilter(ctx, req, func(*scopedaccessv1.ScopedRoleAssignment) bool { return true })
+}
+
+// ListScopedRoleAssignmentsWithFilter returns a paginated list of scoped role assignments filtered by the provided filter
+// function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc method.
+func (c *AssignmentCache) ListScopedRoleAssignmentsWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest, externalFilter func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
@@ -97,6 +103,12 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *sc
 				// if the assignment does not have the requested role, skip it
 				return false
 			}
+		}
+
+		// apply the external filter after the basic request filter as the externally provided filter
+		// is often more expensive to evaluate.
+		if !externalFilter(assignment) {
+			return false
 		}
 
 		return true
