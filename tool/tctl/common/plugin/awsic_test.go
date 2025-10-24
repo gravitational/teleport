@@ -277,36 +277,98 @@ func TestSCIMBaseURLValidation(t *testing.T) {
 	}
 }
 
-func TestUseSystemCredentialsInput(t *testing.T) {
+type mockIntegrationGetter struct {
+	mock.Mock
+}
+
+func maybeGet[T any](args mock.Arguments, index int) T {
+	value := args.Get(index)
+	if value == nil {
+		var zero T
+		return zero
+	}
+	return value.(T)
+}
+
+func (m *mockIntegrationGetter) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	result := m.Called(ctx, name)
+	return maybeGet[types.Integration](result, 0), result.Error(1)
+}
+
+func TestCredentialsInput(t *testing.T) {
 	testCases := []struct {
 		name                string
 		useSystemCredential bool
 		assumeRoleARN       string
+		integrationName     string
+		integrationExists   bool
+		forceUseIntegration bool
 		expectError         require.ErrorAssertionFunc
 	}{
 		{
-			name:                "valid system credential config",
+			name:                "use system credentials",
 			useSystemCredential: true,
 			assumeRoleARN:       "arn:aws:iam::026000000023:role/assume1",
 			expectError:         require.NoError,
 		},
 		{
-			name:                "no useSystemCredential",
+			name:                "use system credentials without assumeRoleARN is an error",
+			useSystemCredential: true,
+			assumeRoleARN:       "",
+			expectError:         require.Error,
+		},
+		{
+			name:                "use system credentials with a malformed assumeRoleARN is an error",
+			useSystemCredential: true,
+			assumeRoleARN:       "i am not an arn",
+			expectError:         require.Error,
+		},
+		{
+			name:                "use system credentials with integration is an error",
+			useSystemCredential: true,
+			assumeRoleARN:       "arn:aws:iam::026000000023:role/assume1",
+			integrationName:     "some-integration",
+			expectError:         require.Error,
+		},
+		{
+			name:                "use oidc credentials",
 			useSystemCredential: false,
 			assumeRoleARN:       "",
-			expectError:         require.Error,
+			integrationName:     "some-integration",
+			integrationExists:   true,
+			expectError:         require.NoError,
 		},
 		{
-			name:                "useSystemCredential without assumeRoleARN",
-			useSystemCredential: true,
+			name:                "use oidc credentials with no integration set",
+			useSystemCredential: false,
 			assumeRoleARN:       "",
+			integrationName:     "",
 			expectError:         require.Error,
 		},
 		{
-			name:                "useSystemCredential with invalid assumeRoleARN",
-			useSystemCredential: true,
-			assumeRoleARN:       "example-credential",
+			name:                "use oidc credentials with no such integration",
+			useSystemCredential: false,
+			assumeRoleARN:       "",
+			integrationName:     "no-such-integration",
+			integrationExists:   false,
 			expectError:         require.Error,
+		},
+		{
+			name:                "use oidc credentials and setting assumeRoleARN is an error",
+			useSystemCredential: false,
+			assumeRoleARN:       "arn:aws:iam::026000000023:role/assume1",
+			integrationName:     "some-integration",
+			integrationExists:   true,
+			expectError:         require.Error,
+		},
+		{
+			name:                "force use oidc credentials with no such integration",
+			useSystemCredential: false,
+			assumeRoleARN:       "",
+			integrationName:     "no-such-integration",
+			integrationExists:   false,
+			forceUseIntegration: true,
+			expectError:         require.NoError,
 		},
 	}
 
@@ -315,9 +377,25 @@ func TestUseSystemCredentialsInput(t *testing.T) {
 			cliArgs := awsICInstallArgs{
 				useSystemCredentials: tc.useSystemCredential,
 				assumeRoleARN:        tc.assumeRoleARN,
+				oidcIntegration:      tc.integrationName,
+				forceOIDCIntegration: tc.forceUseIntegration,
 			}
 
-			err := cliArgs.validateSystemCredentialInput()
+			logger := slog.Default().With("test", t.Name())
+
+			integrations := &mockIntegrationGetter{}
+			if !tc.useSystemCredential {
+				var integrationErr error
+				if !tc.integrationExists {
+					integrationErr = trace.NotFound("yes, we have no bananas")
+				}
+
+				integrations.
+					On("GetIntegration", anyContext, mock.AnythingOfType("string")).
+					Return(nil, integrationErr)
+			}
+
+			err := cliArgs.validateCredentialInput(context.Background(), integrations, logger)
 			tc.expectError(t, err)
 		})
 	}
@@ -330,11 +408,7 @@ type mockRoundTripper struct {
 // RoundTrip implements the [http.RoundTripper] interface for the mockRoundTripper
 func (m *mockRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	args := m.Called(request)
-	maybeResponse := args.Get(0)
-	if maybeResponse == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*http.Response), args.Error(1)
+	return maybeGet[*http.Response](args, 0), args.Error(1)
 }
 
 func TestRotateAWSICSCIMToken(t *testing.T) {
