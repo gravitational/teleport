@@ -171,7 +171,7 @@ require (
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/johannesboyne/gofakes3 v0.0.0-20240217095638-c55a48f17be6
+	github.com/johannesboyne/gofakes3 v0.0.0-20250916175020-ebf3e50324d3
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/json-iterator/go v1.1.12
@@ -558,7 +558,6 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.9.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/segmentio/ksuid v1.0.4 // indirect
-	github.com/shabbyrobe/gocovmerge v0.0.0-20230507112040-c3350d9342df // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
@@ -609,6 +608,7 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.38.0 // indirect
+	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
