@@ -5030,14 +5030,35 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
-			require.NoError(t, err)
-			outputInstallers := make(map[string]string, len(tc.expectedInstallers))
-			for _, installer := range outputInstallerList.Installers {
-				outputInstallers[installer.GetName()] = installer.GetScript()
-			}
+			t.Run("GetInstallers", func(t *testing.T) {
+				outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
+				require.NoError(t, err)
+				outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+				for _, installer := range outputInstallerList.Installers {
+					outputInstallers[installer.GetName()] = installer.GetScript()
+				}
 
-			require.Equal(t, tc.expectedInstallers, outputInstallers)
+				require.Equal(t, tc.expectedInstallers, outputInstallers)
+			})
+
+			t.Run("ListInstallers", func(t *testing.T) {
+				// no limits, returns all
+				outputInstallerList, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{})
+				require.NoError(t, err)
+				outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+				for _, installer := range outputInstallerList.Installers {
+					outputInstallers[installer.GetName()] = installer.GetScript()
+				}
+
+				require.Equal(t, tc.expectedInstallers, outputInstallers)
+
+				page1Resp, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{PageSize: 1})
+				require.NoError(t, err)
+				page2Resp, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{PageToken: page1Resp.GetNextPageToken()})
+				require.NoError(t, err)
+
+				require.Equal(t, outputInstallerList.Installers, append(page1Resp.Installers, page2Resp.Installers...))
+			})
 		})
 	}
 }

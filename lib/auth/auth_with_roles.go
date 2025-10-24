@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -5005,6 +5006,22 @@ func (a *ServerWithRoles) GetInstallers(ctx context.Context) ([]types.Installer,
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetInstallers(ctx)
+}
+
+// ListInstallers returns a page of installer script resources.
+func (a *ServerWithRoles) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	if err := a.authorizeAction(types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.authServer.ListInstallers(ctx, limit, start)
+}
+
+// RangeInstallers returns installer script resources within the range [start, end).
+func (a *ServerWithRoles) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	if err := a.authorizeAction(types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return iterstream.Fail[types.Installer](trace.Wrap(err))
+	}
+	return a.authServer.RangeInstallers(ctx, start, end)
 }
 
 // SetInstaller sets an Installer script resource

@@ -24,10 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net"
 	"os"
+	goslices "slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -129,6 +132,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
@@ -136,6 +140,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -5021,6 +5026,93 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	return &types.InstallerV1List{
 		Installers: installersV1,
 	}, nil
+}
+
+// rangeDefaultInstallers returns implicit default installer scripts within the range [start, end).
+//
+// TODO(okraport): This should really belong in [services.ClusterConfigurationService], however moving
+// this to the service layer affects the event stream which may lead to inconsistencies when operating on implicit default keys.
+// Investigate the feasiablity of adding implicit builtin default keys to the service layer and refactor.
+func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	isInRange := func(value, start, end string) bool {
+		if start == "" && end == "" {
+			return true
+		}
+		if start == "" {
+			return value < end
+		}
+		if end == "" {
+			return value >= start
+		}
+		return value >= start && value < end
+	}
+
+	return func(yield func(types.Installer, error) bool) {
+		var defaultInstallers []types.Installer
+
+		if isInRange(installers.InstallerScriptNameAgentless, start, end) {
+			defaultInstallers = append(defaultInstallers, installers.DefaultAgentlessInstaller)
+		}
+
+		if isInRange(types.DefaultInstallerScriptName, start, end) {
+			defaultInstaller, err := g.defaultInstaller(ctx)
+			if err != nil {
+				if !yield(*new(types.Installer), err) {
+					return
+				}
+			}
+			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		// Sort in case the names change in the future as the streams must be sorted.
+		goslices.SortFunc(defaultInstallers, func(a, b types.Installer) int {
+			return strings.Compare(a.GetName(), b.GetName())
+		})
+
+		for _, installer := range defaultInstallers {
+			if !yield(installer, nil) {
+				return
+			}
+		}
+
+	}
+}
+
+// ListInstallers returns a page of installer script resources.
+func (g *GRPCServer) ListInstallers(ctx context.Context, req *authpb.ListInstallersRequest) (*authpb.ListInstallersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, next, err := generic.CollectPageAndCursor(
+		iterstream.MergeStreamsWithPriority(
+			auth.RangeInstallers(ctx, req.PageToken, ""),
+			g.rangeDefaultInstallers(ctx, req.PageToken, ""),
+			func(a, b types.Installer) int { return strings.Compare(a.GetName(), b.GetName()) },
+		),
+		int(req.PageSize),
+		types.Installer.GetName,
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListInstallersResponse{
+		Installers:    make([]*types.InstallerV1, 0, len(page)),
+		NextPageToken: next,
+	}
+
+	for _, inst := range page {
+		installersV1, ok := inst.(*types.InstallerV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported installer type %T", inst)
+		}
+		resp.Installers = append(resp.Installers, installersV1)
+	}
+
+	return resp, nil
 }
 
 // DeleteInstaller sets the installer script resource to its default

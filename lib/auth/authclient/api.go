@@ -1215,6 +1215,10 @@ type Cache interface {
 
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error)
+	// RangeInstallers returns installer script resources within the range [start, end).
+	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
