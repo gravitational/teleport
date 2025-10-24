@@ -365,6 +365,28 @@ func TestGetHierarchyForUser(t *testing.T) {
 			kind:  accesslists.RelationshipKindOwner,
 			want:  []string{"level2", "root"},
 		},
+		{
+			name: "user is excluded from owners when user is not an owner and username overlaps with owning Access List name",
+			state: state{
+				mustMakeAccessList("root", withOwnerList("level1")): {},
+				mustMakeAccessList("level1"):                        {},
+			},
+			user:  makeUser("level1"),
+			start: "root",
+			kind:  accesslists.RelationshipKindOwner,
+			want:  nil,
+		},
+		{
+			name: "member/access list name and username overlaps",
+			state: state{
+				mustMakeAccessList("root"):   {mustCreateMember("level1", withACLMemKind())},
+				mustMakeAccessList("level1"): {},
+			},
+			user:  makeUser("level1"),
+			start: "root",
+			kind:  accesslists.RelationshipKindMember,
+			want:  nil,
+		},
 	}
 
 	for _, tt := range tests {
