@@ -4,9 +4,16 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 )
 
@@ -31,6 +38,11 @@ type ClusterNetworkingConfigGetter interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 }
 
+type MFADeviceGetter interface {
+	// GetMFADevices returns the MFA devices for a user.
+	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
+}
+
 // AccessPoint represents the upstream data source required by the mfa service.
 type AccessPoint interface {
 	services.ClusterNameGetter
@@ -46,6 +58,14 @@ type AccessPoint interface {
 type Config struct {
 	// AccessPoint is the upstream data source required by the mfa service.
 	AccessPoint AccessPoint
+
+	// MFADeviceGetter is used to retrieve MFA devices.
+	MFADeviceGetter MFADeviceGetter
+
+	// Identity is used to manage WebAuthn session data.
+	Identity wanlib.LoginIdentity
+
+	Emitter apievents.Emitter
 }
 
 // Service is the core mfa service implementation.
@@ -82,7 +102,161 @@ func (s *Service) CreateChallengeForAction(
 
 	slog.Debug("Creating MFA challenge for action", slog.String("action_id", req.GetActionId()))
 
-	return nil, trace.NotImplemented("not implemented")
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenges, err := s.mfaAuthChallenge(ctx, username, req.GetSsoClientRedirectUrl(), req.GetProxyAddress(), req.GetActionId())
+	if err != nil {
+		return nil, trace.AccessDenied("unable to create MFA challenges")
+	}
+
+	mfaChal := &mfav1.MFAAuthenticateChallenge{}
+	mfaChal.WebauthnChallenge = challenges.GetWebauthnChallenge()
+	mfaChal.SsoChallenge = (*mfav1.SSOChallenge)(challenges.GetSSOChallenge())
+
+	if mfaChal.WebauthnChallenge == nil && mfaChal.SsoChallenge == nil {
+		return nil, trace.BadParameter("no MFA challenges could be created for user %q", req.GetUser())
+	}
+
+	slog.Debug("Created MFA challenge for action", slog.String("action_id", req.GetActionId()))
+
+	// Convert to the response type.
+	return &mfav1.CreateChallengeForActionResponse{
+		ActionId:     req.GetActionId(),
+		MfaChallenge: mfaChal,
+	}, nil
+}
+
+// mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices registered by the user.
+// TODO(cthach): This function needs to be updated to persist the action ID with each challenge created.
+func (a *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, actionID string) (*proto.MFAAuthenticateChallenge, error) {
+	// Check what kind of MFA is enabled.
+	apref, err := a.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
+	// enableSSO := apref.IsSecondFactorSSOAllowed()
+
+	// Fetch configurations. The IsSecondFactor*Allowed calls above already
+	// include the necessary checks of config empty, disabled, etc.
+	var u2fPref *types.U2F
+	switch val, err := apref.GetU2F(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
+		u2fPref = val
+	}
+	var webConfig *types.Webauthn
+	switch val, err := apref.GetWebauthn(); {
+	case trace.IsNotFound(err): // OK, may happen.
+	case err != nil: // NOK, unexpected.
+		return nil, trace.Wrap(err)
+	default:
+		webConfig = val
+	}
+
+	// User required for non-passwordless.
+	if user == "" {
+		return nil, trace.BadParameter("user required")
+	}
+
+	devs, err := a.cfg.MFADeviceGetter.GetMFADevices(ctx, user, true /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	groupedDevs := groupByDeviceType(devs)
+	challenge := &proto.MFAAuthenticateChallenge{}
+
+	slog.Debug("User has MFA devices",
+		slog.String("user", user),
+		slog.Bool("totp", groupedDevs.TOTP),
+		slog.Int("webauthn_count", len(groupedDevs.Webauthn)),
+		slog.Bool("sso", groupedDevs.SSO != nil),
+		slog.Bool("webauthn_enabled", enableWebauthn),
+	)
+
+	// WebAuthn challenge.
+	if enableWebauthn && len(groupedDevs.Webauthn) > 0 {
+		slog.Debug("Creating WebAuthn MFA challenge for action", slog.String("action_id", actionID))
+
+		webLogin := &wanlib.LoginFlow{
+			U2F:      u2fPref,
+			Webauthn: webConfig,
+			Identity: wanlib.WithDevices(a.cfg.Identity, groupedDevs.Webauthn),
+		}
+		assertion, err := webLogin.Begin(
+			ctx,
+			user,
+			&mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			},
+			&actionID,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		slog.Debug("Created WebAuthn MFA challenge for action", slog.String("action_id", actionID))
+
+		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
+	}
+
+	// TODO(cthach): Implement SSO MFA challenge.
+	// // If the user has an SSO device and the client provided a redirect URL to handle
+	// // the MFA SSO flow, create an SSO challenge.
+	// if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+	// 	if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
+	// 		return nil, trace.Wrap(err)
+	// 	}
+	// }
+
+	clusterName, err := a.cfg.AccessPoint.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(cthach): Use dedicated event for action MFA challenge creation.
+	if err := a.cfg.Emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
+		Metadata: apievents.Metadata{
+			Type:        events.CreateMFAAuthChallengeEvent,
+			Code:        events.CreateMFAAuthChallengeCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
+	}); err != nil {
+		slog.WarnContext(ctx, "Failed to emit event", "error", err)
+	}
+
+	return challenge, nil
+}
+
+type devicesByType struct {
+	TOTP     bool
+	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
+}
+
+func groupByDeviceType(devs []*types.MFADevice) devicesByType {
+	res := devicesByType{}
+	for _, dev := range devs {
+		switch dev.Device.(type) {
+		case *types.MFADevice_Totp:
+			res.TOTP = true
+		case *types.MFADevice_U2F:
+			res.Webauthn = append(res.Webauthn, dev)
+		case *types.MFADevice_Webauthn:
+			res.Webauthn = append(res.Webauthn, dev)
+		case *types.MFADevice_Sso:
+			res.SSO = dev
+		default:
+			slog.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
+		}
+	}
+	return res
 }
 
 // ValidateChallengeForAction validates the MFA challenge response provided by the user for a specific user action.

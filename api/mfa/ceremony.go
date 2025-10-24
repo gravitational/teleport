@@ -177,15 +177,19 @@ func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeF
 
 	mfaResp := &mfav1.MFAAuthenticateResponse{}
 
-	switch protoResp := resp.Response.(type) {
+	if resp.Response == nil {
+		return nil, trace.BadParameter("received nil MFA response")
+	}
+
+	switch resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		mfaResp.Response = &mfav1.MFAAuthenticateResponse_Webauthn{
-			Webauthn: protoResp.Webauthn,
+			Webauthn: resp.GetWebauthn(),
 		}
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaResp.Response = &mfav1.MFAAuthenticateResponse_Sso{
-			Sso: (*mfav1.SSOChallengeResponse)(protoResp.SSO),
+			Sso: (*mfav1.SSOChallengeResponse)(resp.GetSSO()),
 		}
 
 	default:

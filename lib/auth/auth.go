@@ -816,7 +816,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	as.mfa, err = mfaSvc.NewService(mfaSvc.Config{
-		AccessPoint: as,
+		AccessPoint:     as,
+		MFADeviceGetter: as.Identity,
+		Identity:        as.Identity,
+		Emitter:         as.emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7840,7 +7843,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user, challengeExtensions)
+		assertion, err := webLogin.Begin(ctx, user, challengeExtensions, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
