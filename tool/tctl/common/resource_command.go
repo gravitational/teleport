@@ -137,7 +137,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindClusterMaintenanceConfig:    rc.createClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig:      rc.createSessionRecordingConfig,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
-		types.KindUIConfig:                    rc.createUIConfig,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
 		types.KindToken:                       rc.createToken,
@@ -1015,19 +1014,6 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclie
 	return nil
 }
 
-func (rc *ResourceCommand) createUIConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	uic, err := services.UnmarshalUIConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = client.SetUIConfig(ctx, uic)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("ui_config %q has been set\n", uic.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1609,12 +1595,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			}
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindUIConfig:
-		err := client.DeleteUIConfig(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s has been deleted\n", types.KindUIConfig)
 	case types.KindInstaller:
 		err := client.DeleteInstaller(ctx, rc.ref.Name)
 		if err != nil {
@@ -2192,15 +2172,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
-	case types.KindUIConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindUIConfig)
-		}
-		uiconfig, err := client.GetUIConfig(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &uiConfigCollection{uiconfig}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{
