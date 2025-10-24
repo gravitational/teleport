@@ -48,6 +48,13 @@ export const Empty: Story = {
   },
 };
 
+export const EmptyWithFilter: Story = {
+  args: {
+    data: [],
+    isFiltering: true,
+  },
+};
+
 export const ErrorLoadingList: Story = {
   args: {
     error: new Error('something went wrong'),
@@ -91,7 +98,12 @@ function Wrapper(
   props?: Partial<
     Pick<
       ComponentProps<typeof BotInstancesList>,
-      'error' | 'isLoading' | 'hasNextPage' | 'isFetchingNextPage' | 'data'
+      | 'error'
+      | 'isLoading'
+      | 'hasNextPage'
+      | 'isFetchingNextPage'
+      | 'data'
+      | 'isFiltering'
     >
   >
 ) {
@@ -129,6 +141,7 @@ function Wrapper(
     hasNextPage = true,
     isFetchingNextPage = false,
     isLoading = false,
+    isFiltering = false,
   } = props ?? {};
 
   const [allData, setAllData] = useState(data);
@@ -178,6 +191,7 @@ function Wrapper(
           onItemSelected={function (item: BotInstanceSummary | null): void {
             setSelected(item ? `${item.bot_name}/${item.instance_id}` : null);
           }}
+          isFiltering={isFiltering}
         />
       </CardTile>
     </TeleportProviderBasic>

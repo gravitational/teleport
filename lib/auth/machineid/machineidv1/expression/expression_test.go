@@ -108,8 +108,8 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 		},
 		{
 			name:     "exact version",
-			expTrue:  `exact_version(status.latest_heartbeat.version, "19.0.1")`,
-			expFalse: `exact_version(status.latest_heartbeat.version, "19.0.2-rc.1+56001")`,
+			expTrue:  `status.latest_heartbeat.version == "19.0.1"`,
+			expFalse: `status.latest_heartbeat.version == "19.0.2-rc.1+56001"`,
 		},
 		{
 			name:     "between versions - lower",
