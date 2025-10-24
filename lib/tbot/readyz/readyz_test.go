@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -32,10 +34,13 @@ import (
 func TestReadyz(t *testing.T) {
 	t.Parallel()
 
-	reg := readyz.NewRegistry()
+	now := time.Now().UTC().Truncate(time.Second)
+	clock := clockwork.NewFakeClockAt(now)
 
-	a := reg.AddService("a")
-	b := reg.AddService("b")
+	reg := readyz.NewRegistry(readyz.WithClock(clock))
+
+	a := reg.AddService("svc", "a")
+	b := reg.AddService("svc", "b")
 
 	srv := httptest.NewServer(readyz.HTTPHandler(reg))
 	srv.URL = srv.URL + "/readyz"
@@ -79,8 +84,9 @@ func TestReadyz(t *testing.T) {
 
 		require.Equal(t,
 			readyz.ServiceStatus{
-				Status: readyz.Unhealthy,
-				Reason: "database is down",
+				Status:    readyz.Unhealthy,
+				Reason:    "database is down",
+				UpdatedAt: &now,
 			},
 			response,
 		)
@@ -104,8 +110,8 @@ func TestReadyz(t *testing.T) {
 			readyz.OverallStatus{
 				Status: readyz.Unhealthy,
 				Services: map[string]*readyz.ServiceStatus{
-					"a": {Status: readyz.Healthy},
-					"b": {Status: readyz.Unhealthy, Reason: "database is down"},
+					"a": {Status: readyz.Healthy, UpdatedAt: &now},
+					"b": {Status: readyz.Unhealthy, Reason: "database is down", UpdatedAt: &now},
 				},
 			},
 			response,
@@ -130,8 +136,8 @@ func TestReadyz(t *testing.T) {
 			readyz.OverallStatus{
 				Status: readyz.Healthy,
 				Services: map[string]*readyz.ServiceStatus{
-					"a": {Status: readyz.Healthy},
-					"b": {Status: readyz.Healthy},
+					"a": {Status: readyz.Healthy, UpdatedAt: &now},
+					"b": {Status: readyz.Healthy, UpdatedAt: &now},
 				},
 			},
 			response,
@@ -145,4 +151,33 @@ func TestReadyz(t *testing.T) {
 
 		require.Equal(t, http.StatusNotFound, rsp.StatusCode)
 	})
+}
+
+func TestAllServicesReported(t *testing.T) {
+	reg := readyz.NewRegistry()
+
+	a := reg.AddService("svc", "a")
+	b := reg.AddService("svc", "b")
+
+	select {
+	case <-reg.AllServicesReported():
+		t.Fatal("AllServicesReported should be blocked")
+	default:
+	}
+
+	a.Report(readyz.Healthy)
+
+	select {
+	case <-reg.AllServicesReported():
+		t.Fatal("AllServicesReported should be blocked")
+	default:
+	}
+
+	b.Report(readyz.Unhealthy)
+
+	select {
+	case <-reg.AllServicesReported():
+	default:
+		t.Fatal("AllServicesReported should not be blocked")
+	}
 }

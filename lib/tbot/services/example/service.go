@@ -31,12 +31,13 @@ import (
 
 // ServiceBuilder returns an example service builder.
 func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
-	return func(bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &Service{cfg: cfg}, nil
 	}
+	return bot.NewServiceBuilder(ServiceType, cfg.Name, buildFn)
 }
 
 // Service is a temporary example service for testing purposes. It is not
