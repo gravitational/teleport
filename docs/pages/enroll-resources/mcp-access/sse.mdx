@@ -1,6 +1,7 @@
 ---
 title: MCP Access with SSE MCP Server
-sidebar_position: 4
+sidebar_position: 5
+sidebar_label: Enroll an SSE MCP Server
 description: How to access MCP server with SSE transport.
 tags:
 - how-to
@@ -23,7 +24,7 @@ Users can configure their MCP clients such as Claude Desktop to start an MCP
 server using `tsh`. Once successfully authorized, `tsh` establishes a session
 with the Application Service.
 
-The Application Service first starts a SSE connection to the remote MCP server
+The Teleport Application Service first starts an SSE connection to the remote MCP server
 defined in the application definition. Teleport then proxies the MCP protocol
 between the client and the remote MCP server, applying additional role-based
 access controls such as filtering which tools are available to the user. While
@@ -39,7 +40,7 @@ streamable-HTTP transport instead.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)"!)
-- A host, e.g., an EC2 instance, where you will run the Teleport Applications
+- A host, e.g., an EC2 instance, where you will run the Teleport Application
   Service.
 - The endpoint of the SSE MCP server <Var name="MCP endpoint" initial="http://my-sse-server/sse" />.
 
