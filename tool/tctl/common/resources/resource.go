@@ -34,6 +34,7 @@ import (
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
 	return map[string]Handler{
+		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuthServer:                         authHandler(),
