@@ -54,6 +54,7 @@ export function BotInstances() {
   const sortField = queryParams.get('sort_field') || 'active_at_latest';
   const sortDir = queryParams.get('sort_dir') || 'DESC';
   const selectedItemId = queryParams.get('selected');
+  const activeTab = queryParams.get('tab');
 
   const listRef = useRef<BotInstancesListControls | null>(null);
 
@@ -144,7 +145,22 @@ export function BotInstances() {
         search.set('selected', `${item.bot_name}/${item.instance_id}`);
       } else {
         search.delete('selected');
+        search.delete('tab');
       }
+
+      history.push({
+        pathname: location.pathname,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const handleDetailsTabSelected = useCallback(
+    (tab: string) => {
+      const search = new URLSearchParams(location.search);
+
+      search.set('tab', tab);
 
       history.push({
         pathname: location.pathname,
@@ -221,6 +237,8 @@ export function BotInstances() {
                 botName={selectedBotName}
                 instanceId={selectedInstanceId}
                 onClose={() => handleItemSelected(null)}
+                activeTab={activeTab}
+                onTabSelected={tab => handleDetailsTabSelected(tab)}
               />
             ) : undefined}
           </ListAndDetailsContainer>
