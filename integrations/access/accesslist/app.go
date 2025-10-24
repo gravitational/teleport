@@ -134,6 +134,7 @@ func (a *App) run(ctx context.Context) error {
 				// if the call returns NotImplemented, gracefully end the access list app,
 				// as we may be communicating with an OSS server, which does not support access lists.
 				if trace.IsNotImplemented(err) {
+					log.WarnContext(ctx, "Slack plugin is connected to an auth server that does not support access lists. Access list reminders will be disabled")
 					return nil
 				}
 				return trace.Wrap(err)
