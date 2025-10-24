@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -49,6 +50,10 @@ func (a *Server) RegisterUsingTPMMethod(
 			)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	// First, check the specified token exists, and is a TPM-type join token.
 	if err := initReq.JoinRequest.CheckAndSetDefaults(); err != nil {

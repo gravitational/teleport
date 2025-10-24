@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 )
 
 // RegisterUsingOracleMethod registers the caller using the Oracle join method and
@@ -64,6 +65,10 @@ func (a *Server) registerUsingOracleMethod(
 			)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	challenge, err := generateOracleChallenge()
 	if err != nil {
