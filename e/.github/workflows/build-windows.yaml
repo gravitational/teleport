@@ -157,7 +157,7 @@ jobs:
           aws-region: us-west-2
           role-to-assume: ${{ env.WINDOWS_SIGNING_ROLE_ARN }}
           role-session-name: "build-windows-${{ github.run_number }}"
-          role-duration-seconds: 1800 # 30 minutes
+          role-duration-seconds: 2400 # 40 minutes
       - name: Download and test the signing tools
         shell: wsl-ubuntu {0}
         env:
