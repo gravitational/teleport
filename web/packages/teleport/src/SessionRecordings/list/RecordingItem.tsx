@@ -176,7 +176,7 @@ export function RecordingItem({
             <Box flex="1">
               <CopyButton value={recording.sid} ml={2} />
             </Box>
-            {actions}
+            {recording.playable && actions}
           </Flex>
         </RecordingDetails>
       </Flex>
