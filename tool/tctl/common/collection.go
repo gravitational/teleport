@@ -34,7 +34,6 @@ import (
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -56,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
-	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -953,32 +951,6 @@ func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) 
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type databaseObjectImportRuleCollection struct {
-	rules []*dbobjectimportrulev1.DatabaseObjectImportRule
-}
-
-func (c *databaseObjectImportRuleCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.rules))
-	for i, b := range c.rules {
-		resources[i] = databaseobjectimportrule.ProtoToResource(b)
-	}
-	return resources
-}
-
-func (c *databaseObjectImportRuleCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Priority", "Mapping Count", "DB Label Count"})
-	for _, b := range c.rules {
-		t.AddRow([]string{
-			b.GetMetadata().GetName(),
-			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
-			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
-			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
-		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

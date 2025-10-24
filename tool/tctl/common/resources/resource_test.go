@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"testing"
 
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	"github.com/gravitational/teleport/api/types/label"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -48,7 +51,12 @@ func TestHandlers(t *testing.T) {
 
 	updateResourceWithLabels := func(t *testing.T, r types.Resource) types.Resource {
 		t.Helper()
-		rWithLabels, ok := r.(types.ResourceWithLabels)
+
+		type setStaticLabels interface {
+			SetStaticLabels(labels map[string]string)
+		}
+
+		rWithLabels, ok := r.(setStaticLabels)
 		require.True(t, ok)
 		rWithLabels.SetStaticLabels(map[string]string{"updated": "true"})
 		return r
@@ -78,6 +86,33 @@ func TestHandlers(t *testing.T) {
 			},
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindDatabaseObjectImportRule,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				resource, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+					Priority: 123,
+					DatabaseLabels: label.FromMap(map[string][]string{
+						"foo":   {"bar"},
+						"beast": {"dragon", "phoenix"},
+					}),
+					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
+						{
+							Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+								TableNames: []string{"dummy"},
+							},
+							AddLabels: map[string]string{
+								"dummy_table": "true",
+								"another":     "label"},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return types.ProtoResource153ToLegacy(resource)
+			},
+			checkMFARequired: require.False,
+			updateResource:   updateResourceWithLabels,
 		},
 		{
 			kind: types.KindApp,
@@ -138,6 +173,11 @@ func TestHandlers(t *testing.T) {
 			handler := Handlers()[tt.kind]
 			require.NotNil(t, handler)
 
+			// certain resources will be automatically created by default.
+			// capture baseline for comparison.
+			resourcesPrepopulated, err := handler.Get(t.Context(), clt, services.Ref{}, GetOpts{})
+			require.NoError(t, err)
+
 			// TODO(greedy52): update logic for singleton
 			resources := []types.Resource{
 				tt.makeResource(t, fmt.Sprintf("%s-1", tt.kind)),
@@ -161,8 +201,13 @@ func TestHandlers(t *testing.T) {
 			t.Run("Get", func(t *testing.T) {
 				collection, err := handler.Get(t.Context(), clt, services.Ref{}, GetOpts{})
 				require.NoError(t, err)
+
+				var expected []types.Resource
+				expected = append(expected, resourcesPrepopulated.Resources()...)
+				expected = append(expected, resources...)
+
 				require.ElementsMatch(t,
-					sliceutils.Map(resources, types.GetName),
+					sliceutils.Map(expected, types.GetName),
 					sliceutils.Map(collection.Resources(), types.GetName),
 				)
 			})
