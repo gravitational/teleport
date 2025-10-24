@@ -52,7 +52,7 @@ import (
 const defaultKubeconfigPath = "kubeconfig.yaml"
 
 func OutputV1ServiceBuilder(cfg *OutputV1Config, opts ...OutputV1Option) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -66,14 +66,15 @@ func OutputV1ServiceBuilder(cfg *OutputV1Config, opts ...OutputV1Option) bot.Ser
 			executablePath:            autoupdate.StableExecutable,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		for _, opt := range opts {
 			opt.applyToV1Output(svc)
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(OutputV1ServiceType, cfg.Name, buildFn)
 }
 
 // OutputV1Option is an option that can be provided to customize the service.

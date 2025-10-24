@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -83,29 +82,29 @@ type CRLCacheFacade struct {
 	crlCache *CRLCache
 }
 
-// BuildService implements bot.ServiceBuilder to build the CRLCache once when the
-// bot starts up.
-func (f *CRLCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+// Builder returns a bot.ServiceBuilder to build the CRLCache once when the bot
+// starts up.
+func (f *CRLCacheFacade) Builder() bot.ServiceBuilder {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
 
-	if f.crlCache == nil {
-		var err error
-		f.crlCache, err = NewCRLCache(CRLCacheConfig{
-			RevocationsClient: deps.Client.WorkloadIdentityRevocationServiceClient(),
-			Logger: deps.Logger.With(
-				teleport.ComponentKey,
-				teleport.Component(teleport.ComponentTBot, "crl-cache"),
-			),
-			StatusReporter: deps.StatusRegistry.AddService("crl-cache"),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if f.crlCache == nil {
+			var err error
+			f.crlCache, err = NewCRLCache(CRLCacheConfig{
+				RevocationsClient: deps.Client.WorkloadIdentityRevocationServiceClient(),
+				Logger:            deps.Logger,
+				StatusReporter:    deps.GetStatusReporter(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			close(f.ready)
 		}
-		close(f.ready)
-	}
 
-	return f.crlCache, nil
+		return f.crlCache, nil
+	}
+	return bot.NewServiceBuilder("internal/crl-cache", "crl-cache", buildFn)
 }
 
 func (m *CRLCacheFacade) GetCRLSet(ctx context.Context) (*CRLSet, error) {

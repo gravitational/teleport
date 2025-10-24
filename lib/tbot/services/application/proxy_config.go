@@ -56,6 +56,11 @@ func (c *ProxyServiceConfig) GetName() string {
 	return c.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *ProxyServiceConfig) SetName(name string) {
+	o.Name = name
+}
+
 // Type returns the type of the service.
 func (c *ProxyServiceConfig) Type() string {
 	return ProxyServiceType

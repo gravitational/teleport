@@ -50,7 +50,7 @@ func OutputServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 	insecure, fips bool,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -67,11 +67,12 @@ func OutputServiceBuilder(
 			proxyPinger:               deps.ProxyPinger,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(OutputServiceType, cfg.Name, buildFn)
 }
 
 // OutputService produces credentials which can be used to connect to

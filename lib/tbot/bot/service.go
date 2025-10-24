@@ -20,17 +20,18 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Service is a long-running sub-component of tbot.
@@ -65,8 +66,8 @@ type ServiceDependencies struct {
 	// Resolver that can be used to look up proxy addresses.
 	Resolver reversetunnelclient.Resolver
 
-	// Logger to which errors and messages can be written. It's the service's
-	// responsibility to tag the logger with a component.
+	// Logger to which errors and messages can be written, with its component
+	// set to the name of the service.
 	Logger *slog.Logger
 
 	// ProxyPinger can be used to ping the proxy or auth server to discover
@@ -92,21 +93,62 @@ type ServiceDependencies struct {
 	// it's time to reload their certificates (e.g. following a CA rotation).
 	ReloadCh <-chan struct{}
 
-	// StatusRegistry is the registry the service can register itself with to
-	// report service health.
-	StatusRegistry *readyz.Registry
+	// GetStatusReporter returns the reporter to which the service should report
+	// its health.
+	//
+	// If a ServiceBuilder calls GetStatusReporter the service's Run method *MUST*
+	// call Report or ReportReason (or if using internal.RunOnInterval pass it the
+	// reporter) otherwise it will delay the initial heartbeat and the `/readyz`
+	// endpoint will return 503.
+	//
+	// You do not have to do this in your service's OneShot method as the bot
+	// will automatically report oneshot service status based on its return value.
+	GetStatusReporter func() readyz.Reporter
+
+	// StatusRegistry can be used to read the health of the bot's services.
+	StatusRegistry readyz.ReadOnlyRegistry
 }
 
-// LoggerForService returns a logger with the service's name as its component.
-func (deps ServiceDependencies) LoggerForService(svc Service) *slog.Logger {
-	return deps.Logger.With(
-		teleport.ComponentKey,
-		teleport.Component(teleport.ComponentTBot, "svc", svc.String()),
-	)
+// ServiceBuilder will be used by the bot to create a service.
+type ServiceBuilder interface {
+	// GetTypeAndName returns the service type and name.
+	GetTypeAndName() (string, string)
+
+	// Build the service using the given dependencies.
+	Build(ServiceDependencies) (Service, error)
 }
 
-// ServiceBuilder will be called by the bot to create a service.
-type ServiceBuilder func(ServiceDependencies) (Service, error)
+// NewServiceBuilder creates a ServiceBuilder with the given service type, name
+// and build function.
+func NewServiceBuilder(
+	serviceType, name string,
+	buildFn func(ServiceDependencies) (Service, error),
+) ServiceBuilder {
+	if name == "" {
+		// The tbot binary will set default service names, so name could only
+		// realistically be empty if the bot were embedded somewhere else (e.g.
+		// the Terraform provider) in which case a randomly generated name is
+		// better than nothing.
+		//
+		// We do not handle the error from CryptoRandHex because the underlying
+		// call to rand.Read will never fail.
+		suffix, _ := utils.CryptoRandomHex(4)
+		name = fmt.Sprintf("%s-%s", serviceType, suffix)
+	}
+	return &serviceBuilder{
+		serviceType: serviceType,
+		name:        name,
+		buildFn:     buildFn,
+	}
+}
+
+type serviceBuilder struct {
+	serviceType, name string
+	buildFn           func(ServiceDependencies) (Service, error)
+}
+
+func (b *serviceBuilder) GetTypeAndName() (string, string)                { return b.serviceType, b.name }
+func (b *serviceBuilder) Build(deps ServiceDependencies) (Service, error) { return b.buildFn(deps) }
 
 // ServicePair combines two related Services.
 type ServicePair struct{ primary, secondary Service }
@@ -164,13 +206,6 @@ func (s *OneShotServicePair) OneShot(ctx context.Context) error {
 		return s.secondary.OneShot(groupCtx)
 	})
 	return group.Wait()
-}
-
-// LiteralService create a ServiceBuilder that returns the service as-is.
-func LiteralService(service Service) ServiceBuilder {
-	return func(ServiceDependencies) (Service, error) {
-		return service, nil
-	}
 }
 
 // NewNopService returns a service with the given name that does nothing at all.

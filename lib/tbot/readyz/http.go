@@ -26,9 +26,16 @@ import (
 	"net/http"
 )
 
+// ReadOnlyRegistry is a version of the Registry which can only be read from,
+// not reported to.
+type ReadOnlyRegistry interface {
+	ServiceStatus(name string) (*ServiceStatus, bool)
+	OverallStatus() *OverallStatus
+}
+
 // HTTPHandler returns an HTTP handler that implements tbot's
 // /readyz(/{service}) endpoints.
-func HTTPHandler(reg *Registry) http.Handler {
+func HTTPHandler(reg ReadOnlyRegistry) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("/readyz/{service}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
