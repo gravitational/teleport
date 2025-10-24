@@ -2038,8 +2038,12 @@ type AuthenticateDeviceInit struct {
 	//
 	// See ConfirmDeviceWebAuthentication.
 	DeviceWebToken *DeviceWebToken `protobuf:"bytes,4,opt,name=device_web_token,json=deviceWebToken,proto3" json:"device_web_token,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// IP of the client submitting the init request. It is used during the mobile device auth where
+	// the proxy service forwards the requests to the auth server and uses its own auth service
+	// client, so we cannot read the client address from the context as usual.
+	ClientIp      string `protobuf:"bytes,5,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthenticateDeviceInit) Reset() {
@@ -2098,6 +2102,13 @@ func (x *AuthenticateDeviceInit) GetDeviceWebToken() *DeviceWebToken {
 		return x.DeviceWebToken
 	}
 	return nil
+}
+
+func (x *AuthenticateDeviceInit) GetClientIp() string {
+	if x != nil {
+		return x.ClientIp
+	}
+	return ""
 }
 
 // Request for ConfirmDeviceWebAuthentication.
@@ -2933,13 +2944,14 @@ const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\x11user_certificates\x18\x02 \x01(\v2).teleport.devicetrust.v1.UserCertificatesH\x00R\x10userCertificates\x12^\n" +
 	"\rtpm_challenge\x18\x03 \x01(\v27.teleport.devicetrust.v1.TPMAuthenticateDeviceChallengeH\x00R\ftpmChallenge\x12a\n" +
 	"\x12confirmation_token\x18\x04 \x01(\v20.teleport.devicetrust.v1.DeviceConfirmationTokenH\x00R\x11confirmationTokenB\t\n" +
-	"\apayload\"\xb7\x02\n" +
+	"\apayload\"\xd4\x02\n" +
 	"\x16AuthenticateDeviceInit\x12V\n" +
 	"\x11user_certificates\x18\x01 \x01(\v2).teleport.devicetrust.v1.UserCertificatesR\x10userCertificates\x12#\n" +
 	"\rcredential_id\x18\x02 \x01(\tR\fcredentialId\x12M\n" +
 	"\vdevice_data\x18\x03 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
 	"deviceData\x12Q\n" +
-	"\x10device_web_token\x18\x04 \x01(\v2'.teleport.devicetrust.v1.DeviceWebTokenR\x0edeviceWebToken\"\xbd\x01\n" +
+	"\x10device_web_token\x18\x04 \x01(\v2'.teleport.devicetrust.v1.DeviceWebTokenR\x0edeviceWebToken\x12\x1b\n" +
+	"\tclient_ip\x18\x05 \x01(\tR\bclientIp\"\xbd\x01\n" +
 	"%ConfirmDeviceWebAuthenticationRequest\x12_\n" +
 	"\x12confirmation_token\x18\x01 \x01(\v20.teleport.devicetrust.v1.DeviceConfirmationTokenR\x11confirmationToken\x123\n" +
 	"\x16current_web_session_id\x18\x02 \x01(\tR\x13currentWebSessionId\"(\n" +
