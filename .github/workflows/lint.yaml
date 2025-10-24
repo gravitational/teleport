@@ -267,6 +267,10 @@ jobs:
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
         run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
 
+      - name: Check if event schema is up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make eventschema-up-to-date
+
   lint-rfd:
     name: Lint (RFD)
     needs: changes
