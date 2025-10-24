@@ -100,18 +100,17 @@ test('logs out of cluster', async () => {
   mockClient.listLeafClusters = () =>
     new MockedUnaryCall({ clusters: [leafCluster] });
   const logoutMock = jest.spyOn(mockClient, 'logout');
-  const removeClusterMock = jest.spyOn(mockClient, 'removeCluster');
   const clusterStore = new ClusterStore(
     () => Promise.resolve(mockClient),
     mockWindowsManager
   );
   await clusterStore.sync(cluster.uri);
 
-  await clusterStore.logout(cluster.uri);
+  await clusterStore.logoutAndRemove(cluster.uri);
 
-  expect(logoutMock).toHaveBeenCalledWith({ clusterUri: cluster.uri });
-  expect(removeClusterMock).toHaveBeenCalledWith({
+  expect(logoutMock).toHaveBeenCalledWith({
     clusterUri: cluster.uri,
+    removeProfile: true,
   });
   const state = clusterStore.getState();
   expect(state.get(clusterWithDetails.uri)).toBeUndefined();

@@ -73,12 +73,9 @@ export class ClusterStore {
   }
 
   /** Logs out of the cluster and removes its profile.*/
-  async logout(uri: RootClusterUri): Promise<void> {
+  async logoutAndRemove(uri: RootClusterUri): Promise<void> {
     const client = await this.getTshdClient();
-    // TODO(gzdunek): logout and removeCluster should be combined into
-    //  a single acton in tshd.
-    await client.logout({ clusterUri: uri });
-    await client.removeCluster({ clusterUri: uri });
+    await client.logout({ clusterUri: uri, removeProfile: true });
     await this.update(draft => {
       for (let d of draft.values()) {
         if (routing.belongsToProfile(uri, d.uri)) {

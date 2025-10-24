@@ -71,7 +71,6 @@ function getClientMocks(): Partial<TshdClient> {
     login: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
     logout: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
     addCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
-    removeCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
     getCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
     listLeafClusters: jest
       .fn()

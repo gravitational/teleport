@@ -267,26 +267,6 @@ func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*
 	return session, cleanup, nil
 }
 
-// RemoveCluster removes cluster
-func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
-	cluster, _, err := s.ResolveCluster(uri)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if cluster.Connected() {
-		if err := cluster.Logout(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
 // s.cfg.CreateClientCacheFunc.
 func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
@@ -349,22 +329,30 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 	return withDetails, clusterClient, nil
 }
 
-// ClusterLogout logs a user out from the cluster
-func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
-	cluster, _, err := s.ResolveCluster(uri)
-	if err != nil {
+// ClusterLogout logs the user out of the cluster and cleans up associated resources.
+// Optionally removes the profile.
+// This operation is idempotent and can be safely invoked multiple times.
+func (s *Service) ClusterLogout(ctx context.Context, uri uri.ResourceURI, removeProfile bool) error {
+	cluster, _, err := s.ResolveClusterURI(uri)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err == nil {
+		if err = cluster.Logout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		if removeProfile {
+			if err = s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	if err = s.StopHeadlessWatcher(uri.String()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	if err := cluster.Logout(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
+	return trace.Wrap(s.ClearCachedClientsForRoot(uri))
 }
 
 // CreateGateway creates a gateway to given targetURI

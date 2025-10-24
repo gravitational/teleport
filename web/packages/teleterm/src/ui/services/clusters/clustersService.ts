@@ -76,11 +76,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return this.mainProcessClient.addCluster(proxyAddress);
   }
 
-  /** Logs out of the cluster. */
-  async logout(clusterUri: uri.RootClusterUri) {
-    await this.mainProcessClient.logoutCluster(clusterUri);
-  }
-
   async authenticateWebDevice(
     rootClusterUri: uri.RootClusterUri,
     {

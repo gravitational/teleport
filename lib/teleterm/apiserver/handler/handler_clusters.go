@@ -70,15 +70,6 @@ func (s *Handler) AddCluster(ctx context.Context, req *api.AddClusterRequest) (*
 	return newAPIRootCluster(cluster), nil
 }
 
-// RemoveCluster removes a cluster from local system
-func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.RemoveCluster(ctx, req.ClusterUri); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.EmptyResponse{}, nil
-}
-
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
 	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)

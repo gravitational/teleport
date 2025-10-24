@@ -143,10 +143,6 @@ export type MainProcessClient = {
   }>;
   configService: ConfigService;
   fileStorage: FileStorage;
-  removeKubeConfig(options: {
-    relativePath: string;
-    isDirectory?: boolean;
-  }): Promise<void>;
   /**
    * Tells the OS to focus the window. If wait is true, polls periodically for window status and
    * resolves when it's focused or after a short timeout.
@@ -213,9 +209,6 @@ export type MainProcessClient = {
   changeAppUpdatesManagingCluster(
     clusterUri: RootClusterUri | undefined
   ): Promise<void>;
-  maybeRemoveAppUpdatesManagingCluster(
-    clusterUri: RootClusterUri
-  ): Promise<void>;
   supportsAppUpdates(): boolean;
   checkForAppUpdates(): Promise<void>;
   downloadAppUpdate(): Promise<void>;
@@ -237,7 +230,7 @@ export type MainProcessClient = {
   syncRootClusters(options: {
     abortSignal: CloneableAbortSignal;
   }): Promise<Cluster[]>;
-  logoutCluster(clusterUri: RootClusterUri): Promise<void>;
+  logout(clusterUri: RootClusterUri): Promise<void>;
   subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
     cleanup: () => void;
   };
@@ -364,7 +357,6 @@ export enum MainProcessIpc {
   CancelAppUpdateDownload = 'main-process-cancel-app-update-download',
   QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
   ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
-  MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
   SupportsAppUpdates = 'main-process-supports-app-updates',
   InitClusterStoreSubscription = 'main-process-init-cluster-store-subscription',
   SyncCluster = 'main-process-sync-cluster',
