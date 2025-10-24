@@ -13,6 +13,7 @@ import * as service from 'teleport/services/userPreferences';
 import TeleportContext from 'teleport/teleportContext';
 
 import { notificationContentFactoryE } from './Notifications';
+import { clientIpRestrictionsService } from './services/clientiprestrictions';
 import { contactsService } from './services/contacts';
 import { downloadsService } from './services/downloads';
 import { externalAuditStorageService } from './services/externalauditstorage';
@@ -36,6 +37,7 @@ class TeleportEContext extends TeleportContext {
   idpService = new IdpService();
   externalAuditStorageService = externalAuditStorageService;
   contactService = contactsService;
+  clientIpRestrictionsService = clientIpRestrictionsService;
 
   notificationContentFactory = notificationContentFactoryE;
 

@@ -14,6 +14,7 @@ import {
   SupportSectionCard,
 } from 'teleport/Support/Support';
 
+import { ClientIpRestrictions } from './ClientIpRestrictions';
 import { Contacts } from './Contacts';
 import { makeLabel, ScheduleUpgrades } from './ScheduleUpgrades';
 import { useUpgradeWindowStart } from './useUpgradeWindowStart';
@@ -64,6 +65,11 @@ export const SupportE = () => {
       )}
       {(cfg.isCloud || cfg.isDashboard) && (
         <Contacts clusterId={ctx.storeUser.state.cluster.clusterId} />
+      )}
+      {cfg.isCloud && cfg.entitlements.ClientIPRestrictions.enabled && (
+        <ClientIpRestrictions
+          clusterId={ctx.storeUser.state.cluster.clusterId}
+        />
       )}
       <ExternalAuditStorageCta />
       {scheduleUpgradesVisible && (

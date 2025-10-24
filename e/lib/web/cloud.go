@@ -73,6 +73,10 @@ func (p *Plugin) registerCloudHandlers() {
 	p.h.GET("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.withCloudClusterCache(p.getClusterContactHandle)))
 	p.h.POST("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.createClusterContactHandle))
 	p.h.DELETE("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.deleteClusterContactHandle))
+
+	// client IP restrictions
+	p.h.GET("/enterprise/sites/:site/clientiprestrictions", p.withCloudClusterAuth(p.withCloudClusterCache(p.getClientIPRestrictions)))
+	p.h.PUT("/enterprise/sites/:site/clientiprestrictions", p.withCloudClusterAuth(p.putClientIPRestrictions))
 }
 
 // TODO(michellescripts) safe to remove in v19
@@ -215,6 +219,27 @@ func (p *Plugin) surveyCompanyResponsesHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	return res, nil
+}
+
+func (p *Plugin) getClientIPRestrictions(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {
+	res, err := cloudClient.GetClientIPRestrictions(r.Context(), &cloudapi.GetClientIPRestrictionsRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res.ClientIpRestrictions, nil
+}
+
+func (p *Plugin) putClientIPRestrictions(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {
+	var req cloudapi.PutClientIPRestrictionsRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res, err := cloudClient.PutClientIPRestrictions(r.Context(), &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return res.ClientIpRestrictions, nil
 }
 
 func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {

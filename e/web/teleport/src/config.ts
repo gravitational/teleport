@@ -197,6 +197,8 @@ const cfg = {
     },
 
     contacts: '/v1/enterprise/sites/:clusterId/contact',
+    clientIpRestrictions:
+      '/v1/enterprise/sites/:clusterId/clientiprestrictions',
 
     sessionRecordingSummary:
       '/v1/webapi/sites/:clusterId/session-summaries/:sessionId',
@@ -492,6 +494,10 @@ const cfg = {
     return generatePath(cfg.api.contacts, {
       clusterId,
     });
+  },
+
+  getClientIpRestrictionsUrl(clusterId: string) {
+    return generatePath(cfg.api.clientIpRestrictions, { clusterId });
   },
 
   getSessionRecordingSummaryUrl(clusterId: string, sessionId: string) {
