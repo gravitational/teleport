@@ -255,14 +255,13 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		p.authServer.AuthServer.SetReleaseService(*releaseClient)
 	}
 
+	p.plugins = local.NewPluginsService(p.authServer.GetBackend())
 	p.pluginCreds, err = local.NewPluginStaticCredentialsService(p.authServer.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Create plugins service
-	var pluginService *pluginsv1.Service
-	p.plugins, pluginService, err = p.registerPluginsService(p.authServer, p.pluginCreds)
+	pluginService, err := p.registerPluginsService()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -688,37 +687,36 @@ func (p *Plugin) registerExternalAuditStorageService(ctx context.Context) error 
 	return nil
 }
 
-func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCredentialsService services.PluginStaticCredentials) (services.Plugins, *pluginsv1.Service, error) {
+func (p *Plugin) registerPluginsService() (*pluginsv1.Service, error) {
 	cfg := p.Config.HostedPlugins
 	if !cfg.Enabled {
-		return nil, nil, nil
+		return nil, nil
 	}
 
-	grpcServer, err := server.GetServer()
+	grpcServer, err := p.authServer.GetServer()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
-	p.plugins = local.NewPluginsService(server.GetBackend())
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
 		AuthServer:                     p.authServer.AuthServer,
 		DisabledPlugins:                getDisabledPlugins(),
 		PluginService:                  p.plugins,
-		PluginStaticCredentialsService: pluginStaticCredentialsService,
+		PluginStaticCredentialsService: p.pluginCreds,
 		PluginAuthorizers:              authorizers,
 		Logger:                         p.logger,
 		KeyStoreManager:                p.authServer.AuthServer.GetKeyStore(),
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	pluginspb.RegisterPluginServiceServer(grpcServer, service)
 	modules.GetModules().EnablePlugins()
 
-	return p.plugins, service, nil
+	return service, nil
 }
 
 func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer, cfg resourceusagev1.ServiceConfig) error {
