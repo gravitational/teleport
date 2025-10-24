@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -91,10 +92,9 @@ type Config struct {
 	// it.
 	OverwriteCredentialFile bool `yaml:"overwrite_credential_file,omitempty"`
 
-	// EndpointOverride is the endpoint to use for the AWS Roles Anywhere service.
-	// This is designed to be leveraged by tests and unset in production
-	// circumstances.
-	EndpointOverride string `yaml:"-"`
+	// ClientOverride is designed to be leveraged by tests and unset in
+	// production circumstances.
+	ClientOverride utils.HTTPDoClient `yaml:"-"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.

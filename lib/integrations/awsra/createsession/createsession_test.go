@@ -186,7 +186,7 @@ func TestCreateSession(t *testing.T) {
 		}
 
 		req := baseReq()
-		req.httpClient = httpClient
+		req.HTTPClient = httpClient
 		req.clock = clock
 		req.Certificate = x509Cert
 		req.PrivateKey = privateKey
