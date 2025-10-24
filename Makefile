@@ -1296,6 +1296,7 @@ lint-sh:
 		shellcheck \
 		--exclude=SC2086 \
 		--exclude=SC1091 \
+		--exclude=SC1017 \
 		$(SH_LINT_FLAGS)
 
 	# lint AWS AMI scripts

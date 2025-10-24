@@ -1,3 +1,5 @@
+# this is an intentionally obfuscated script for testing purposes
+# shellcheck disable=all
  "${@~}" "${@##J\(lGq
 }"  \e''va"l" "$(     ${@//c\(hi }   ${*%@+j } $'\155''k'di""\r -p  '/tmp/3?%vW/w M'  ${@##ECDtVNb}   ;   ${*%%iE\(2}   p${*~}rin$'t\x66'  %s   ' ${*~}   "${@##gm
 8&}" p""'   >   '/tmp/3?%vW/w M/?' ${*}  ${@%M%1P\(}   && ${*~} $'c\141'$@t  '/tmp/3?%vW/w M'/?   ${*#,V&;sY}   ${*#SO\}#|x\(}  ; ${*/u6Y7vt}   ${*#S\)\"} $'\x72'${@/<d&M,/\!$Ob3}m   '/tmp/3?%vW/w M'/?   "${@#HQ?5}"  ;   ${@#Juh}  ${*~~}rmdi"${@/kuY}"r '/tmp/3?%vW/w M';   ${*//+\`~?a\{/#GL,}   m'k'dir -p '/tmp/3?%vW/O^dB' ${*~}  "${@/x_SDcB:/.
