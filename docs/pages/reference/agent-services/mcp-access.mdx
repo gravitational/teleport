@@ -32,11 +32,17 @@ app_service:
   apps:
   # Name of the application. Used for identification purposes.
   - name: "mcp-everything"
+    # Endpoint URI of the target MCP server.
+    # Use "mcp+http://" and "mcp+https://" as scheme for streamable HTTP MCP servers.
+    # Use "mcp+sse+http://" and "mcp+sse+https://" as scheme for SSE MCP servers.
+    # Leave it empty or use "mcp+stdio://" for stdio MCP servers.
+    uri: "mcp+http://localhost:12345/mcp"
     # Free-form application description.
     description: "Example Everything MCP server"
     # Static labels to assign to the app. Used in RBAC.
     labels:
       env: "prod"
+
     # Contains MCP server-related configurations.
     mcp:
       # Command to launch stdio-based MCP servers.
@@ -46,6 +52,27 @@ app_service:
       # Name of the host user account under which the command will be
       # executed. Required for stdio-based MCP servers.
       run_as_host_user: "docker"
+
+    # Disable TLS validation for SSE and streamable HTTP MCP servers.
+    insecure_skip_verify: true
+    # Rewrites section for SSE and streamable HTTP MCP servers.
+    rewrite:
+      # Specify whether to include roles or traits in the JWT.
+      # Options:
+      # - roles-and-traits: include both roles and traits
+      # - roles: include only roles
+      # - traits: include only traits
+      # - none: exclude both roles and traits from the JWT token
+      # Default: roles-and-traits
+      jwt_claims: roles-and-traits
+      # Rewrite the "Location" header on redirect responses replacing the
+      # host with the public address of this application.
+      redirect:
+      - "grafana.internal.dev"
+      # Headers passthrough configuration.
+      headers:
+      - "X-Custom-Header: example"
+      - "X-External-Trait: {{external.env}}"
 ```
 
 ## Resource
@@ -66,6 +93,12 @@ metadata:
   labels:
     env: local
 spec:
+  # Endpoint URI of the target MCP server.
+  # Use "mcp+http://" and "mcp+https://" as scheme for streamable HTTP MCP servers.
+  # Use "mcp+sse+http://" and "mcp+sse+https://" as scheme for SSE MCP servers.
+  # Leave it empty or use "mcp+stdio://" for stdio MCP servers.
+  uri: "mcp+http://localhost:12345/mcp"
+
   mcp:
     # Command to launch stdio-based MCP servers.
     command: "docker"
@@ -74,6 +107,27 @@ spec:
     # Name of the host user account under which the command will be
     # executed. Required for stdio-based MCP servers.
     run_as_host_user: "docker"
+
+  # Disable TLS validation for SSE and streamable HTTP MCP servers.
+  insecure_skip_verify: true
+  # Rewrites section for SSE and streamable HTTP MCP servers.
+  rewrite:
+    # Specify whether to include roles or traits in the JWT.
+    # Options:
+    # - roles-and-traits: include both roles and traits
+    # - roles: include only roles
+    # - traits: include only traits
+    # - none: exclude both roles and traits from the JWT token
+    # Default: roles-and-traits
+    jwt_claims: roles-and-traits
+    # Rewrite the "Location" header on redirect responses replacing the
+    # host with the public address of this application.
+    redirect:
+    - "grafana.internal.dev"
+    # Headers passthrough configuration.
+    headers:
+    - "X-Custom-Header: example"
+    - "X-External-Trait: {{external.env}}"
 ```
 
 ## CLI
@@ -108,6 +162,8 @@ Print client configuration details or update the configuration directly.
 ```code
 # Print sample configuration for a MCP server app
 $ tsh mcp config my-mcp-server-app
+# Print sample configuration for a streamable HTTP MCP server with custom headers
+$ tsh mcp config my-mcp-server-app -H "Header1: value1" -H "Header2: value2"
 # Add all MCP servers to Claude Desktop
 $ tsh mcp config --all --client-config=claude
 # Search MCP servers with labels and add to the specified JSON file
@@ -121,6 +177,7 @@ $ tsh mcp config --labels env=dev --client-config=my-config.json`
 | `--query`  | Query by predicate language enclosed in single quotes. (e.g. `--query='labels["key1"] == "value1" && labels["key2"] != "value2"')`. |
 | `--client-config` | If specified, update the specified client config. `claude` for default Claude Desktop config, or specify a JSON file path. Can also be set with environment variable `TELEPORT_MCP_CLIENT_CONFIG`.",
 | `--json-format` |	Format the JSON file (`pretty`, `compact`, `auto`, `none`). `auto` saves in compact if the file is already compact, otherwise pretty. Can also be set with environment variable `TELEPORT_MCP_CONFIG_JSON_FORMAT`. Default is `auto`.",
+| `-H`, `--header` | Extra custom headers used for streamable HTTP MCP servers.|
 
 ### tsh mcp connect
 
@@ -140,3 +197,12 @@ $ tsh mcp connect mcp-everything
 `tsh` debug logs are enabled by default and can be disabled by the environment
 variable `TELEPORT_DEBUG=false`. You can also specify the `--no-debug` flag when
 generating sample configurations with `tsh mcp config`.
+
+### tsh proxy mcp
+
+Starts a local proxy for MCP connections. Only supported for target MCP servers
+with streamable HTTP transport.
+
+```code
+$ tsh proxy mcp my-streamable-http-mcp-server
+```
