@@ -243,6 +243,18 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 		}},
 	}
+	staticMatcherUsingManagedSSMDoc := Matchers{
+		AWS: []types.AWSMatcher{{
+			Types:   []string{"ec2"},
+			Regions: []string{"eu-central-1"},
+			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &types.AWSSSM{DocumentName: "AWS-RunShellScript"},
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+				EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+			},
+		}},
+	}
 
 	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: uuid.NewString()},
@@ -317,7 +329,8 @@ func TestDiscoveryServer(t *testing.T) {
 	require.NoError(t, err)
 
 	tcs := []struct {
-		name string
+		name          string
+		requiresProxy bool
 		// presentInstances is a list of servers already present in teleport.
 		presentInstances          []types.Server
 		foundEC2Instances         []ec2types.Instance
@@ -375,6 +388,88 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "no nodes present, 1 found, using the pre-defined SSM-RunShellScript",
+			requiresProxy:    true,
+			presentInstances: []types.Server{},
+			foundEC2Instances: []ec2types.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
+					}, ae)
+				},
+			},
+			staticMatchers:         staticMatcherUsingManagedSSMDoc,
+			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "fails if proxy address is not available when using AWS-RunShellScript",
+			requiresProxy:    false,
+			presentInstances: []types.Server{},
+			foundEC2Instances: []ec2types.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+				},
+			},
+			staticMatchers:         staticMatcherUsingManagedSSMDoc,
+			wantInstalledInstances: []string{},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -703,6 +798,19 @@ func TestDiscoveryServer(t *testing.T) {
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			if tc.requiresProxy {
+				err = testAuthServer.AuthServer.UpsertProxy(ctx, &types.ServerV2{
+					Kind: types.KindProxy,
+					Metadata: types.Metadata{
+						Name: "proxy",
+					},
+					Spec: types.ServerSpecV2{
+						PublicAddrs: []string{"proxy.example.com:443"},
+					},
+				})
+				require.NoError(t, err)
+			}
 
 			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
 				Name: "my-integration",
