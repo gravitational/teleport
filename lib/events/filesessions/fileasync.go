@@ -397,8 +397,11 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 		targetUploadSize := events.MinUploadPartSizeBytes
 		maxUploadSize := min(grpc.MaxClientRecvMsgSize(), events.MinUploadPartSizeBytes)
 
+		// buf holds multiple upload parts, aggregated into a single upload part.
 		var buf bytes.Buffer
-		yieldNext := func() bool {
+
+		// yield the current upload aggregated upload part and reset the buffer.
+		yieldCurrent := func() bool {
 			// Copy the buffer to a new []byte so that the next
 			// iteration doesn't wipe the previous yielded bytes.
 			bytes := make([]byte, buf.Len())
@@ -412,7 +415,7 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// No parts remaining, yield the current part and return.
-					yieldNext()
+					yieldCurrent()
 					return
 				}
 
@@ -425,19 +428,25 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 				return
 			}
 
+			// Check if there is room to aggregate this upload part. If not, yield
+			// the current aggregate before continuing.
 			totalPartSize := int64(len(header.Bytes())) + int64(header.PartSize)
 			if buf.Len()+int(totalPartSize) > maxUploadSize {
-				if !yieldNext() {
+				if !yieldCurrent() {
 					return
 				}
 			}
+
+			// We are going to discard any padding as it isn't necessary within the individual parts.
+			originalPaddingSize := header.PaddingSize
+			header.PaddingSize = 0
 
 			if _, err := buf.Write(header.Bytes()); err != nil {
 				yield(nil, trace.Wrap(err))
 				return
 			}
 
-			// Copy the part into the current buffer.
+			// Copy the part into the buffer..
 			reader := io.LimitReader(in, int64(header.PartSize))
 			copied, err := io.Copy(&buf, reader)
 			if err != nil && !errors.Is(err, io.EOF) {
@@ -450,21 +459,22 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 				return
 			}
 
-			// Discard the padding since we are reconstructing the part to reach the minimum size anyways.
-			discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(header.PaddingSize)))
+			// Discard the padding.
+			discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(originalPaddingSize)))
 			if err != nil && !errors.Is(err, io.EOF) {
 				yield(nil, trace.Wrap(err))
 				return
 			}
 
-			if discarded != int64(header.PaddingSize) {
-				yield(nil, trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(header.PaddingSize)))
+			if discarded != int64(originalPaddingSize) {
+				yield(nil, trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(originalPaddingSize)))
 				return
 			}
 
-			// If we've reached the target upload size, yield the current buffer before continuing.
+			// If we've reached the target upload size, yield the current
+			// aggregated upload part before continuing.
 			if buf.Len() > targetUploadSize {
-				if !yieldNext() {
+				if !yieldCurrent() {
 					return
 				}
 			}

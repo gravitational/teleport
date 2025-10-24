@@ -659,17 +659,14 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 	}
 
 	var streamParts []StreamPart
-
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
 	// configured for the auth service
 	var partNumber int64 = 1
-
 	for {
 		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
 			return trace.Wrap(err, "reserving upload part")
 		}
 
-		// Before uploading the current part, try getting the next part to determine if padding is needed.
 		nextPart, err, hasNext := next()
 		if err != nil {
 			return trace.Wrap(err)
