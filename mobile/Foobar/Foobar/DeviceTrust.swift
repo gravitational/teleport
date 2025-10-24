@@ -22,6 +22,7 @@ protocol DeviceTrustP {
   func enrollDevice(hostname: String, port: Int?, user: String, userToken: String) async throws
   func authenticateWebDevice(hostname: String, port: Int?, user _: String,
                              deviceWebToken: Teleport_Devicetrust_V1_DeviceWebToken) async throws
+    -> Teleport_Devicetrust_V1_DeviceConfirmationToken
 }
 
 final class DeviceTrust: DeviceTrustP {
@@ -107,6 +108,7 @@ final class DeviceTrust: DeviceTrustP {
 
   func authenticateWebDevice(hostname: String, port: Int?, user _: String,
                              deviceWebToken: Teleport_Devicetrust_V1_DeviceWebToken) async throws
+    -> Teleport_Devicetrust_V1_DeviceConfirmationToken
   {
     let hostnameWithScheme = "https://\(hostname)"
     let hostnameWithPort = "\(hostnameWithScheme)\(port.map { ":\($0)" } ?? "")"
@@ -143,7 +145,22 @@ final class DeviceTrust: DeviceTrustP {
     guard case let .challenge(challenge) = response1.payload else {
       throw UnexpectedPayload(expected: "challenge", actual: response1.payload)
     }
-    logger.debug("Got challenge")
+
+    let signature = try DeviceKey.sign(challenge.challenge)
+
+    try stream
+      .send(Teleport_Devicetrust_V1_AuthenticateDeviceRequest
+        .with {
+          $0.challengeResponse = Teleport_Devicetrust_V1_AuthenticateDeviceChallengeResponse
+            .with { $0.signature = signature }
+        })
+
+    let response2 = try await (getSingleMessage(stream)).get()
+    guard case let .confirmationToken(confirmToken) = response2.payload else {
+      throw UnexpectedPayload(expected: "confirmationToken", actual: response2.payload)
+    }
+
+    return confirmToken
   }
 }
 
@@ -375,7 +392,7 @@ class DeviceKey {
     guard let access = SecAccessControlCreateWithFlags(
       kCFAllocatorDefault,
       kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-      // TODO: Figure out why there's no prompt for Face ID when retrieving the key.
+      // TODO: Figure out why it always prompts for password when signing with the key.
       [.privateKeyUsage, .userPresence],
       &error
     ) else {
@@ -444,9 +461,14 @@ class FakeDeviceTrust: DeviceTrustP {
     port _: Int?,
     user _: String,
     deviceWebToken _: Teleport_Devicetrust_V1_DeviceWebToken
-  ) async throws {
+  ) async throws -> Teleport_Devicetrust_V1_DeviceConfirmationToken {
     if let authenticateWebDeviceError {
       throw authenticateWebDeviceError
+    }
+
+    return Teleport_Devicetrust_V1_DeviceConfirmationToken.with {
+      $0.token = "token"
+      $0.id = "1234"
     }
   }
 }
