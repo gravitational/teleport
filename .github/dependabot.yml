@@ -7,8 +7,6 @@ updates:
       day: 'sunday'
       time: '09:00' # 9am UTC
     ignore:
-      # Must be kept in-sync with libbpf
-      - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
       - dependency-name: github.com/go-mysql-org/go-mysql

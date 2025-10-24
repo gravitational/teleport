@@ -36,7 +36,7 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 	openPerfBufferPageCount := defaults.OpenPerfBufferPageCount
 	zeroPageCount := 0
 
-	var tests = []struct {
+	tests := []struct {
 		name string
 		got  *servicecfg.BPFConfig
 		want *servicecfg.BPFConfig
@@ -60,8 +60,8 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 				CgroupPath:        "/my/cgroup/",
 			},
 			want: &servicecfg.BPFConfig{
-				CommandBufferSize: &zeroPageCount,
-				DiskBufferSize:    &zeroPageCount,
+				CommandBufferSize: &perfBufferPageCount,
+				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
 				CgroupPath:        "/my/cgroup/",
 			},
