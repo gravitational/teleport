@@ -911,6 +911,10 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		return trace.AccessDenied("incorrect ssh server ID (expected %q, got %q)", handle.Hello().ServerID, sshServer.GetName())
 	}
 
+	if sshServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect ssh server scope (expected %q, got %q)", handle.Hello().GetScope(), sshServer.Scope)
+	}
+
 	// if a peer address is available in the context, use it to override zero-value addresses from
 	// the server heartbeat.
 	if handle.PeerAddr() != "" {
