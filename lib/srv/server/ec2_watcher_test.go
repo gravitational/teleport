@@ -588,13 +588,13 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						InstallTeleport: true,
 						JoinToken:       "my-token",
 						ScriptName:      "default-installer",
+						Suffix:          "cluster-green",
 					},
 				},
 				Document: "AWS-RunShellScript",
 				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
 					return "proxy.example.com", nil
 				},
-				InstallSuffix: "cluster-green",
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
@@ -609,13 +609,13 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						InstallTeleport: true,
 						JoinToken:       "my-token",
 						ScriptName:      "default-installer",
+						Suffix:          "cluster-green",
 					},
 				},
 				Document: "AWS-RunShellScript",
 				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
 					return "", trace.NotFound("proxy is not yet available")
 				},
-				InstallSuffix: "cluster-green",
 			},
 			errCheck: require.Error,
 		},
