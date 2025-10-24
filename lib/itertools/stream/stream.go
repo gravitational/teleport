@@ -405,6 +405,82 @@ func MergeStreams[T any](
 	}
 }
 
+// MergeStreamsWithPriority merges two sorted streams prioritizing streamA when compare indicates items are equal.
+func MergeStreamsWithPriority[T any](
+	streamA Stream[T],
+	streamB Stream[T],
+	compare func(a, b T) int,
+) Stream[T] {
+	return func(yield func(T, error) bool) {
+		var itemA, itemB T
+
+		nextA, stopA := iter.Pull2(streamA)
+		defer stopA()
+		nextB, stopB := iter.Pull2(streamB)
+		defer stopB()
+
+		itemA, errA, okA := nextA()
+		itemB, errB, okB := nextB()
+
+		// Both streams have items, merge with priority for A
+		for okA && okB {
+			if errA != nil {
+				yield(*new(T), errA)
+				return
+			}
+			if errB != nil {
+				yield(*new(T), errB)
+				return
+			}
+
+			switch cmp := compare(itemA, itemB); {
+			case cmp < 0:
+				if !yield(itemA, nil) {
+					return
+				}
+				itemA, errA, okA = nextA()
+
+			case cmp > 0:
+				if !yield(itemB, nil) {
+					return
+				}
+				itemB, errB, okB = nextB()
+
+			default: // cmp == 0
+				// Yield A and skip B.
+				if !yield(itemA, nil) {
+					return
+				}
+				itemA, errA, okA = nextA()
+				itemB, errB, okB = nextB()
+			}
+		}
+
+		// Drain
+		for okA {
+			if errA != nil {
+				yield(*new(T), errA)
+				return
+			}
+			if !yield(itemA, nil) {
+				return
+			}
+			itemA, errA, okA = nextA()
+		}
+
+		for okB {
+			if errB != nil {
+				yield(*new(T), errB)
+				return
+			}
+			if !yield(itemB, nil) {
+				return
+			}
+			itemB, errB, okB = nextB()
+		}
+	}
+}
+
 // TakeWhile iterates the stream taking items while predicate returns true
 func TakeWhile[T any](stream Stream[T], predicate func(T) bool) Stream[T] {
 	return func(yield func(T, error) bool) {
