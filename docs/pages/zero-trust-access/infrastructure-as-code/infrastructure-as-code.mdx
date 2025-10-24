@@ -1,7 +1,7 @@
 ---
 title: Infrastructure as Code
 h1: Manage Teleport Resources with Infrastructure as Code
-description: An introduction to Teleport's dynamic resources, which make it possible to apply settings to remote clusters using infrastructure as code.
+description: An introduction to managing Teleport with Infrastructure as Code tools, including Terraform and Kubernetes resources.
 tocDepth: 3
 tags:
  - infrastructure-as-code
@@ -9,13 +9,20 @@ tags:
  - zero-trust
 ---
 
-This section explains how to manage Teleport's **dynamic resources**, which make
-it possible to adjust the behavior of your Teleport cluster as your
-infrastructure changes. The design of dynamic resources enables you to manage
-them using infrastructure as code tools, including Terraform, Helm, and the
-Teleport `tctl` client tool.
+This section explains how to manage Teleport using infrastructure as code (IaC)
+tools.
 
-## What is a dynamic resource?
+Teleport provides three methods for managing Teleport with infrastructure as
+code tools: 
+- [Teleport Terraform provider](terraform-provider/terraform-provider.mdx)
+- [Teleport Kubernetes operator](teleport-operator/teleport-operator.mdx)
+- [`tctl` client tool](../../reference/cli/tctl.mdx)
+
+For instructions on managing users, roles, trusted clusters, and other resources
+with IaC tools, see [Managing Resources with Infrastructure as
+Code](managing-resources/managing-resources.mdx).
+
+## How IaC works with Teleport
 
 There are two ways to configure a Teleport cluster:
 
@@ -23,137 +30,29 @@ There are two ways to configure a Teleport cluster:
   configuration file from the local filesystem (the default path is
   `/etc/teleport.yaml`). Static configuration settings control aspects of a
   cluster that are not expected to change frequently, like the ports that
-  services listen on.
+  services listen on. (See the [Configuration
+  Reference](../../reference/deployment/config.mdx) for all static configuration
+  options.)
 - **Dynamic resources:** Dynamic resources control aspects of your cluster that
-  are likely to change over time, such as roles, local users, and registered
-  infrastructure resources.
-
-This approach makes it possible to incrementally adjust your Teleport
-configuration without restarting Teleport instances.
+  are likely to change over time, such as roles, local users, and
+  Teleport-protected infrastructure resources.
 
 ![Architecture of dynamic resources](../../../img/dynamic-resources.png)
 
-A cluster is composed of different objects (i.e., resources) and there are three
-common operations that can be performed on them: `get` , `create` , and `remove`
-.
+The Teleport Auth Service stores dynamic resources on its cluster state backend,
+and clients can authenticate to the Auth Service to read or write dynamic
+resources, depending on their permissions. Infrastructure as code tools can
+authenticate to a Teleport cluster to manage dynamic resources.
 
-Every resource in Teleport has three required fields:
-
-- `kind`: The type of resource
-- `name`: A required field in the `metadata` to uniquely identify the resource
-- `version`: The version of the resource format
-
-All other fields are specific to a resource.
-
-While Teleport Enterprise Cloud does not expose the static configuration file to
-operators, they do use a static configuration file for certain settings. Read
-how Teleport [reconciles static and dynamic
-resources](#reconciling-the-configuration-file-with-dynamic-resources) to
-understand how to see the values of static configuration settings that also
-appear in dynamic resources.
-
-When examining a dynamic resource, note that some of the fields you will see are
-used only internally and are not meant to be changed. Others are reserved for
-future use.
-
-## Managing dynamic resources
-
-Teleport provides three methods for applying dynamic resources: the `tctl`
-client tool, Teleport Terraform provider, and Kubernetes Operator.
-
-All three methods connect to the Teleport Auth Service's gRPC endpoint in order
-to manipulate cluster resources stored on the Auth Service backend. The design
-of Teleport's configuration interface makes it well suited for
-infrastructure-as-code and GitOps approaches.
-
-You can get started with `tctl`, the Terraform Provider, and the Kubernetes
-Operator by following: 
-- the ["Managing Users and Roles with IaC" guide](managing-resources/user-and-role.mdx)
-- the ["Creating Access Lists with IaC" guide](managing-resources/access-list.mdx)
-- the ["Registering Agentless OpenSSH Servers with IaC" guide](managing-resources/agentless-ssh-servers.mdx)
-
-For more information on Teleport roles, including the `internal.logins`
-trait we use in these example roles, see the [Access
-Controls Reference](../../reference/access-controls/roles.mdx).
-
-### YAML documents with `tctl`
-
-You can define resources as YAML documents and apply them using the `tctl`
-client tool. Here is an example of a `role` resource that allows access to
-servers with the label `env:test`:
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: developer
-spec:
-  allow:
-    logins: ['ubuntu', 'debian', '{{internal.logins}}']
-    node_labels:
-      'env': 'test'
-```
-
-Since `tctl` works from the local filesystem, you can write commands that apply
-all configuration documents in a directory tree. See the [CLI
-reference](../../reference/cli/tctl.mdx) for more information on `tctl`.
-
-### Teleport Terraform provider
-
-Teleport's Terraform provider lets you manage your Teleport resources within the
-same infrastructure-as-code source as the rest of your infrastructure. There is
-a Terraform resource for each Teleport configuration resource. For example:
-
-```hcl
-resource "teleport_role" "developer" {
-  version = "v7"
-  metadata = {
-    name = "developer"
-  }
-
-  spec = {
-    allow = {
-      logins = ["ubuntu", "debian", "{{internal.logins}}"]
-
-      node_labels = {
-        key   = ["env"]
-        value = ["test"]
-      }
-    }
-  }
-}
-```
-
-[Get started with the Terraform
-provider](terraform-provider/terraform-provider.mdx).
-
-### Teleport Kubernetes Operator
-
-The Teleport Kubernetes Operator lets you apply Teleport resources as Kubernetes
-resources so you can manage your Teleport settings alongside the rest of your
-Kubernetes infrastructure. Here is an example of a `TeleportRoleV7` resource,
-which is equivalent to the two roles shown above:
-
-```yaml
-apiVersion: resources.teleport.dev/v1
-kind: TeleportRoleV7
-metadata:
-  name: developer
-spec:
-  allow:
-    logins: ['ubuntu', 'debian', '{{internal.logins}}']
-    node_labels:
-      'env': 'test'
-```
-
-[Get started with the Kubernetes Operator](teleport-operator/teleport-operator.mdx).
-
-## Reconciling the configuration file with dynamic resources
+## Reconciling static and dynamic configurations
 
 Some dynamic resources assign the same settings as fields within
 Teleport's static configuration file. For these fields, the Teleport Auth
 Service reconciles static and dynamic configurations on startup and when you
 create or remove a Teleport resource.
+
+While Teleport Enterprise Cloud does not expose the static configuration file to
+operators, they do use a static configuration file for certain settings.
 
 ### Configuration resources that apply to static configuration fields
 
@@ -215,7 +114,7 @@ static configuration file:
 | `spec.scrollback_lines` | `proxy_service.ui.scrollback_lines` |
 | `spec.show_resources`   | `proxy_service.ui.show_resources`   |
 
-### Origin labels
+## Origin labels
 
 The Teleport Auth Service applies the `teleport.dev/origin` label to
 configuration resources to indicate whether they originated from the static
@@ -255,19 +154,33 @@ configuration resources with the `teleport.dev/origin=config-file` label.
 
 </Admonition>
 
-## Further reading
+## Dynamic resource references
 
-### Configuration references
+Read the following reference guides for comprehensive lists of supported fields
+in Teleport dynamic resources:
 
-- For a comprehensive reference of Teleport's static configuration options, read
-  the [Configuration Reference](../../reference/deployment/config.mdx).
-- To see the dynamic configuration resources available to apply, read the
-  [Configuration Resource Reference](../../reference/infrastructure-as-code/resources.mdx). There are also
-  dedicated configuration resource references for
-  [applications](../../reference/agent-services/application-access.mdx) and
-  [databases](../../reference/agent-services/database-access-reference/configuration.mdx).
+### tctl resources
 
-### Other ways to use the Teleport API
+For reference guides to dynamic configuration resources available to apply using
+`tctl`, read the [Configuration Resource
+Reference](../../reference/infrastructure-as-code/resources.mdx). There are also
+dedicated configuration resource references for
+[applications](../../reference/agent-services/application-access.mdx) and
+[databases](../../reference/agent-services/database-access-reference/configuration.mdx).
+
+### Terraform resources and data sources
+
+For comprehensive reference guides for resources and data sources you can manage
+with the Teleport Terraform provider, see [Teleport Terraform Provider
+References](../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
+
+### Kubernetes operator resources 
+
+For comprehensive reference guides for resources you can manage with the
+Teleport Terraform provider, see [Teleport Terraform Provider
+References](../../reference/infrastructure-as-code/operator-resources/operator-resources.mdx).
+
+## Other ways to use the dynamic resource API
 
 The Teleport Kubernetes Operator, Terraform provider, and `tctl` are all clients
 of the Teleport Auth Service's gRPC API. To build your own API client to extend
