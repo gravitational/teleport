@@ -20,6 +20,7 @@ package tdp
 
 import (
 	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 // TestTDPConnTracksLocalRemoteAddrs verifies that a TDP connection
@@ -252,71 +254,136 @@ func TestConnProxy(t *testing.T) {
 	})
 }
 
+type mockConn struct {
+	c   net.Conn
+	enc gob.Encoder
+	dec gob.Decoder
+}
+
+func newMockConn(c net.Conn) *mockConn {
+	gob.NewEncoder(c)
+	return &mockConn{
+		c:   c,
+		dec: *gob.NewDecoder(c),
+		enc: *gob.NewEncoder(c),
+	}
+}
+
+func (m *mockConn) ReadMessage() (Message, error) {
+	var msg mockMessage
+	return msg, m.dec.Decode(&msg)
+}
+
+func (m *mockConn) WriteMessage(msg Message) error {
+	return m.enc.Encode(msg)
+}
+
+func (m *mockConn) Close() error {
+	return m.c.Close()
+}
+
+func newBufferedConn() (net.Conn, net.Conn, error) {
+	l := bufconn.Listen(1024)
+	defer l.Close()
+
+	var acceptErr, dialError error
+	var a, b net.Conn
+	go func() {
+		a, acceptErr = l.Accept()
+	}()
+	b, dialError = l.Dial()
+	return a, b, errors.Join(acceptErr, dialError)
+}
+
 func TestInterceptor(t *testing.T) {
-	testConn := newMockRWC()
+	// Example interceptor
 	fooToBar := func(message Message) ([]Message, error) {
 		switch string(message.(mockMessage)) {
 		case "foo":
 			return []Message{mockMessage("bar")}, nil
 		case "many":
 			return []Message{mockMessage("first"), mockMessage("last")}, nil
+		case "resilience":
+			return []Message{nil}, nil
 		case "omit":
 			return nil, nil
 		}
 		return []Message{message}, nil
 	}
 
-	interceptedRWC := NewReadWriteInterceptor(&testConn, fooToBar, fooToBar)
+	readFooToBar := func(m *mockConn) *ReadWriteInterceptor {
+		return NewReadWriteInterceptor(m, fooToBar, nil)
+	}
 
-	// Test write interceptor
-	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("noreplace")))
-	msg := <-testConn.writeChan
-	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
-	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("foo")))
-	msg = <-testConn.writeChan
-	assert.Equal(t, "bar", string(msg.(mockMessage)))
+	writeFooToBar := func(m *mockConn) *ReadWriteInterceptor {
+		return NewReadWriteInterceptor(m, nil, fooToBar)
+	}
 
-	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("omit")))
-	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("noreplace")))
-	msg = <-testConn.writeChan
-	// "omit" message should be dropped, so the next message is "noreplace"
-	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+	// Test both read interceptor and write interceptor functionality
+	for _, wrapper := range []func(*mockConn) *ReadWriteInterceptor{
+		readFooToBar,
+		writeFooToBar,
+	} {
 
-	require.NoError(t, interceptedRWC.WriteMessage(mockMessage("many")))
-	msg = <-testConn.writeChan
-	assert.Equal(t, "first", string(msg.(mockMessage)))
-	msg = <-testConn.writeChan
-	assert.Equal(t, "last", string(msg.(mockMessage)))
+		aInternal, aExternal, err := newBufferedConn()
+		require.NoError(t, err)
+		bInternal, bExternal, err := newBufferedConn()
+		require.NoError(t, err)
 
-	// Test read interceptor
-	testConn.readChan <- mockMessage("noreplace")
-	msg, err := interceptedRWC.ReadMessage()
-	require.NoError(t, err)
-	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+		mockClientExternal := newMockConn(aExternal)
+		mockClient := wrapper(newMockConn(aInternal))
+		mockServer := wrapper(newMockConn(bInternal))
+		mockServerExternal := newMockConn(bExternal)
+		proxy := NewConnProxy(mockClient, mockServer)
 
-	testConn.readChan <- mockMessage("foo")
-	msg, err = interceptedRWC.ReadMessage()
-	require.NoError(t, err)
-	assert.Equal(t, "bar", string(msg.(mockMessage)))
+		var proxyError error
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			proxyError = proxy.Run()
+		}()
 
-	testConn.readChan <- mockMessage("omit")
-	testConn.readChan <- mockMessage("noreplace")
-	// "omit" message should be dropped, so the next message is "noreplace"
-	msg, err = interceptedRWC.ReadMessage()
-	require.NoError(t, err)
-	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+		// Exercise both sides of the connection
+		for _, scenario := range []struct {
+			a *mockConn
+			b *mockConn
+		}{
+			{mockClientExternal, mockServerExternal},
+			{mockServerExternal, mockClientExternal},
+		} {
+			// Unintercepted message
+			require.NoError(t, scenario.a.WriteMessage(mockMessage("noreplace")))
+			msg, err := scenario.b.ReadMessage()
+			require.NoError(t, err)
+			assert.Equal(t, "noreplace", string(msg.(mockMessage)))
 
-	testConn.readChan <- mockMessage("many")
-	msg, err = interceptedRWC.ReadMessage()
-	require.NoError(t, err)
-	assert.Equal(t, "first", string(msg.(mockMessage)))
-	msg, err = interceptedRWC.ReadMessage()
-	require.NoError(t, err)
-	assert.Equal(t, "last", string(msg.(mockMessage)))
+			// One message repalced with multiple
+			require.NoError(t, scenario.a.WriteMessage(mockMessage("many")))
+			first, err := scenario.b.ReadMessage()
+			require.NoError(t, err)
+			last, err := scenario.b.ReadMessage()
+			require.NoError(t, err)
+			assert.Equal(t, "first", string(first.(mockMessage)))
+			assert.Equal(t, "last", string(last.(mockMessage)))
 
-	require.NoError(t, interceptedRWC.Close())
-	_, err = interceptedRWC.ReadMessage()
-	require.Error(t, err)
+			// Misbehaving interceptor returns slice of nil messages
+			require.NoError(t, scenario.a.WriteMessage(mockMessage("resilience")))
+			require.NoError(t, scenario.a.WriteMessage(mockMessage("noreplace")))
+			msg, err = scenario.b.ReadMessage()
+			require.NoError(t, err)
+			assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+
+			// Message swallowed by interceptor
+			require.NoError(t, scenario.a.WriteMessage(mockMessage("omit")))
+			require.NoError(t, scenario.a.WriteMessage(mockMessage("noreplace")))
+			msg, err = scenario.b.ReadMessage()
+			require.NoError(t, err)
+			assert.Equal(t, "noreplace", string(msg.(mockMessage)))
+		}
+		mockClient.Close()
+		<-done
+		require.ErrorIs(t, proxyError, io.ErrClosedPipe)
+	}
 }
 
 func TestRemoveNilMessages(t *testing.T) {
