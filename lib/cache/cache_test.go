@@ -55,6 +55,7 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -1734,6 +1735,7 @@ func TestSetupConfigFns(t *testing.T) {
 
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
+		"ForRelay":          ForRelay,
 		"ForRemoteProxy":    ForRemoteProxy,
 		"ForNode":           ForNode,
 		"ForKubernetes":     ForKubernetes,
@@ -1843,6 +1845,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	cases := map[string]Config{
 		"ForAuth":        ForAuth(Config{}),
 		"ForProxy":       ForProxy(Config{}),
+		"ForRelay":       ForRelay(Config{}),
 		"ForRemoteProxy": ForRemoteProxy(Config{}),
 		"ForNode":        ForNode(Config{}),
 		"ForKubernetes":  ForKubernetes(Config{}),
@@ -1930,6 +1933,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
+		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 	}
 
 	for name, cfg := range cases {
@@ -1999,6 +2003,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

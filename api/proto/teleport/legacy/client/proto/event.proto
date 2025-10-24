@@ -30,6 +30,7 @@ import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
+import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
 import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
@@ -226,6 +227,7 @@ message Event {
     teleport.scopes.access.v1.ScopedRole ScopedRole = 80;
     // ScopedRoleAssignment is an assignment of one or more scoped roles to a user.
     teleport.scopes.access.v1.ScopedRoleAssignment ScopedRoleAssignment = 81;
+    teleport.presence.v1.RelayServer relay_server = 82;
     // RecordingEncryption is a resource for controlling session recording encryption.
     teleport.recordingencryption.v1.RecordingEncryption RecordingEncryption = 83;
     // PluginV1 is a resource for Teleport plugins.

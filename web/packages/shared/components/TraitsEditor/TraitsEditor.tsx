@@ -51,7 +51,27 @@ export const traitsPreset = [
   'logins',
   'windows_logins',
   'github_orgs',
+  'mcp_tools',
+  'default_relay_addr',
 ] as const;
+
+export const traitDescriptions = {
+  aws_role_arns: 'List of allowed AWS role ARNS',
+  azure_identities: 'List of Azure identities',
+  db_names: 'List of allowed database names',
+  db_roles: 'List of allowed database roles',
+  db_users: 'List of allowed database users',
+  gcp_service_accounts: 'List of GCP service accounts',
+  kubernetes_groups: 'List of allowed Kubernetes groups',
+  kubernetes_users: 'List of allowed Kubernetes users',
+  logins: 'List of allowed logins',
+  windows_logins: 'List of allowed Windows logins',
+  host_user_gid: 'The group ID to use for auto-host-users',
+  host_user_uid: 'The user ID to use for auto-host-users',
+  github_orgs: 'List of allowed GitHub organizations for git command proxy',
+  mcp_tools: 'List of allowed MCP tools',
+  default_relay_addr: 'The relay address that clients should use by default',
+} as const satisfies { [key in (typeof traitsPreset)[number]]: string };
 
 /**
  * TraitsEditor supports add, edit or remove traits functionality.

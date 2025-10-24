@@ -7270,6 +7270,11 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 		if role == types.RoleAuth || role == types.RoleMDM || role == types.RoleAccessGraphPlugin {
 			continue
 		}
+		// TODO(espadolini): figure out if the relay service needs to emit
+		// events or not (and if it needs blanket event write access or not).
+		if role == types.RoleRelay {
+			continue
+		}
 
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
