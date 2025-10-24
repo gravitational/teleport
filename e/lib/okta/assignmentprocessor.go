@@ -108,12 +108,12 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 }
 
 // start will start the processor loop, which is used for retrying assignment processing.
-func (a *assignmentProcessor) start(ctx context.Context, oktaClient oktaapi.Interface) {
-	go a.loop(ctx, oktaClient)
+func (a *assignmentProcessor) start(ctx context.Context) {
+	go a.loop(ctx)
 }
 
 // loop runs the main body of the processing loop.
-func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaapi.Interface) {
+func (a *assignmentProcessor) loop(ctx context.Context) {
 	timer := a.clock.NewTimer(TimeBetweenAssignmentProcessLoops)
 	defer timer.Stop()
 
@@ -133,7 +133,7 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaapi.Inter
 
 		// Refresh the assignment client every loop.
 		a.assignmentClientMu.Lock()
-		a.assignmentClient = newAssignmentClient(a.logger, oktaClient)
+		a.assignmentClient = newAssignmentClient(a.logger, a.oktaClient)
 		a.assignmentClientMu.Unlock()
 
 		if err := a.processAllAssignments(ctx); err != nil {

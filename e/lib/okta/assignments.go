@@ -11,7 +11,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,7 +41,6 @@ type assignmentReconciler struct {
 	clock               clockwork.Clock
 	clusterName         string
 	accessPoint         AssignmentReconcilerAccessPoint
-	oktaClient          oktaapi.Interface
 	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
 
@@ -69,7 +67,6 @@ func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconc
 		clock:          svc.clock,
 		clusterName:    clusterName,
 		accessPoint:    svc.accessPoint,
-		oktaClient:     svc.client,
 		reconcileCh:    make(chan struct{}),
 		stopCh:         make(chan struct{}, 1),
 		assignments:    make(map[string]types.OktaAssignment),
@@ -109,7 +106,7 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 	if !a.noAssignmentProcessorLoop {
 		// Start the assignment processor. This will run periodically to retry calls
 		// to Okta.
-		a.assignmentProcessor.start(ctx, a.oktaClient)
+		a.assignmentProcessor.start(ctx)
 	}
 
 	return nil
