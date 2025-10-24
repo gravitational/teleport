@@ -497,6 +497,17 @@ While Teleport will accept a role with a nonempty
 `deny.request.suggested_reviewers` field, it only considers the
 `allow.request.suggested_reviewers` field when evaluating Access Requests.
 
+### Access List owners as suggested reviewers
+
+For resource-based Access Requests, owners of the Access Lists that grant access
+to the requested resources are automatically added as suggested reviewers.
+
+Note that those owners still need to have an appropriate Teleport role that
+allows them to review such Access Requests.
+
+You can learn more about this use-case in the [Reviewing Access Requests](../access-lists/reviewing-access-requests.mdx)
+guide.
+
 ## Roles that a reviewer can grant access to
 
 Teleport users must be authorized to review Access Requests for a particular
