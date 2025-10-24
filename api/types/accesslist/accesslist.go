@@ -600,38 +600,51 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	return trace.Wrap(err)
 }
 
-// EqualAccessListForReconciliationOption is a functional option for configuring
-// the behavior of EqualAccessListForReconciliation.
-type EqualAccessListForReconciliationOption func(*equalAccessListForReconciliationConfig)
+// EqualAccessListsOption is a functional option for configuring
+// the behavior of EqualAccessLists.
+type EqualAccessListsOption func(*equalAccessListsConfig)
 
-type equalAccessListForReconciliationConfig struct {
-	skipClone bool
+type equalAccessListsConfig struct {
+	skipClone     bool
+	resetFieldsFn func(*AccessList)
 }
 
-// WithSkipClone configures EqualAccessListForReconciliation to skip cloning
+// WithSkipClone configures EqualAccessLists to skip cloning
 // and directly mutate the input access lists. Use this option only when you're
 // certain the input access lists can be safely modified (e.g., they're already
 // clones or will be discarded after comparison).
-func WithSkipClone() EqualAccessListForReconciliationOption {
-	return func(c *equalAccessListForReconciliationConfig) {
+func WithSkipClone() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
 		c.skipClone = true
 	}
 }
 
-// EqualAccessListForReconciliation compares two access lists for semantic equality,
-// ignoring ephemeral fields that are managed by reconcilers or the backend.
-// This function mimics the behavior of services.CompareResources for AccessList types.
+// WithResetFieldsForReconciliation configures EqualAccessLists to reset ephemeral
+// fields before comparison. This is useful for reconciliation scenarios where you want
+// to ignore fields managed by reconcilers or the backend.
 //
-// The following fields are ignored during comparison:
+// The following fields are reset:
 //   - Metadata.Revision: Managed by the backend
 //   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
 //   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
+func WithResetFieldsForReconciliation() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.resetFieldsFn = resetFieldsForReconciliationAccessList
+	}
+}
+
+// EqualAccessLists compares two access lists for semantic equality.
+//
+// By default, this function performs a standard equality check. Use WithResetFieldsForReconciliation()
+// to ignore ephemeral fields that are managed by reconcilers or the backend, which is useful
+// for reconciliation scenarios. This function mimics the behavior of services.CompareResources
+// for AccessList types when used with WithResetFieldsForReconciliation().
 //
 // By default, this function clones the input access lists before comparison to avoid
 // modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be
 // safely modified.
-func EqualAccessListForReconciliation(a, b *AccessList, opts ...EqualAccessListForReconciliationOption) bool {
-	cfg := equalAccessListForReconciliationConfig{}
+func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
+	cfg := equalAccessListsConfig{}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -641,8 +654,11 @@ func EqualAccessListForReconciliation(a, b *AccessList, opts ...EqualAccessListF
 		b = b.Clone()
 	}
 
-	resetFieldsForReconciliationAccessList(a)
-	resetFieldsForReconciliationAccessList(b)
+	if cfg.resetFieldsFn != nil {
+		resetFieldsForReconciliationAccessList(a)
+		resetFieldsForReconciliationAccessList(b)
+	}
+
 	return deriveTeleportEqualAccessList(a, b)
 }
 
