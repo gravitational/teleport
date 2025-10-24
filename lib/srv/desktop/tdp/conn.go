@@ -201,9 +201,9 @@ func IsFatalErr(err error) bool {
 }
 
 // Interceptor intercepts messages. It should return
-// the [potentially modified] message in order to pass it on to the
-// other end of the connection, or nil to prevent the message from
-// being forwarded.
+// the [potentially modified] message(s) in order to pass it on to the
+// other end of the connection, or it may swallow the message by returning
+// a nil or empty slice. Returned slices should not contain nil messages.
 type Interceptor func(message Message) ([]Message, error)
 
 // ReadWriteInterceptor wraps an existing 'MessageReadWriteCloser' and runs the
@@ -216,6 +216,29 @@ type ReadWriteInterceptor struct {
 	writeInterceptor Interceptor
 	// A closure over the interceptor to run in the read path
 	readAdapter func() (Message, error)
+}
+
+// Message slices returned by interceptor functions should not include
+// nil messages, but a little defensive programming can prevent a crash.
+// 'removeNilMessages' will return a subslice of the input slice with
+// nil messages removed.
+func removeNilMessages(msgs []Message) []Message {
+	nextIdx := 0
+	// Iterate over the slice swap non-nil messages
+	// to the front.
+	for current, msg := range msgs {
+		if msg != nil {
+			if current != nextIdx {
+				msgs[nextIdx] = msg
+				msgs[current] = nil
+			}
+			nextIdx++
+		}
+	}
+
+	// Return a subslice containing only the non-nil messages
+	// that have been moved to the front.
+	return msgs[:nextIdx]
 }
 
 // 'readInterceptorAdapter' closes over an internal struct that keeps track of
@@ -247,6 +270,7 @@ func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, e
 				if err != nil {
 					return nil, err
 				}
+				h.msgs = removeNilMessages(h.msgs)
 				h.next = 0
 			} else {
 				// No interceptor to run
@@ -280,8 +304,7 @@ func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 	if i.writeInterceptor != nil {
 		out, err = i.writeInterceptor(m)
 		if err == nil {
-			// The interceptor is allowed to return an empty slice.
-			for _, msg := range out {
+			for _, msg := range removeNilMessages(out) {
 				err = i.src.WriteMessage(msg)
 				if err != nil {
 					break

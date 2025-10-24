@@ -318,3 +318,28 @@ func TestInterceptor(t *testing.T) {
 	_, err = interceptedRWC.ReadMessage()
 	require.Error(t, err)
 }
+
+func TestRemoveNilMessages(t *testing.T) {
+	tests := []struct {
+		msgs        []Message
+		expectedLen int
+	}{
+		{msgs: []Message{nil}, expectedLen: 0},
+		{msgs: []Message{nil, nil}, expectedLen: 0},
+		{msgs: []Message{MFA{}, nil}, expectedLen: 1},
+		{msgs: []Message{nil, MFA{}}, expectedLen: 1},
+		{msgs: []Message{nil, MFA{}, nil}, expectedLen: 1},
+		{msgs: []Message{MFA{}, nil, MFA{}}, expectedLen: 2},
+		{msgs: []Message{MFA{}, nil, nil, MFA{}}, expectedLen: 2},
+		{msgs: []Message{MFA{}, nil, nil, MFA{}, nil, nil, MFA{}}, expectedLen: 3},
+		{msgs: []Message{MFA{}, MFA{}, MFA{}}, expectedLen: 3},
+	}
+
+	for _, test := range tests {
+		result := removeNilMessages(test.msgs)
+		require.Len(t, result, test.expectedLen)
+		for _, msg := range result {
+			assert.NotNil(t, msg)
+		}
+	}
+}
