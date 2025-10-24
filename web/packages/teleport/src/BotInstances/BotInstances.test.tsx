@@ -221,34 +221,49 @@ describe('BotInstances', () => {
     const [nextButton] = screen.getAllByTitle('Next page');
 
     expect(listBotInstances).toHaveBeenCalledTimes(1);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      searchTerm: '',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
     expect(listBotInstances).toHaveBeenCalledTimes(2);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '.next',
-      searchTerm: '',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '.next',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
     expect(listBotInstances).toHaveBeenCalledTimes(3);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '.next.next',
-      searchTerm: '',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '.next.next',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     const [prevButton] = screen.getAllByTitle('Previous page');
 
@@ -292,24 +307,34 @@ describe('BotInstances', () => {
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
     expect(listBotInstances).toHaveBeenCalledTimes(1);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      searchTerm: '',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     const [nextButton] = screen.getAllByTitle('Next page');
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
     expect(listBotInstances).toHaveBeenCalledTimes(2);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '.next',
-      searchTerm: '',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '.next',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     jest.useRealTimers(); // Required as userEvent.type() uses setTimeout internally
 
@@ -319,12 +344,17 @@ describe('BotInstances', () => {
     await userEvent.type(search, '{enter}');
 
     expect(listBotInstances).toHaveBeenCalledTimes(3);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '', // Search should reset to the first page
-      searchTerm: 'test-search-term',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '', // Search should reset to the first page
+        searchTerm: 'test-search-term',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
   });
 
   it('Allows sorting', async () => {
@@ -356,33 +386,48 @@ describe('BotInstances', () => {
     const lastHeartbeatHeader = screen.getByText('Last heartbeat');
 
     expect(listBotInstances).toHaveBeenCalledTimes(1);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      searchTerm: '',
-      sort: 'active_at_latest:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     fireEvent.click(lastHeartbeatHeader);
 
     expect(listBotInstances).toHaveBeenCalledTimes(2);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      searchTerm: '',
-      sort: 'active_at_latest:asc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        searchTerm: '',
+        query: '',
+        sortDir: 'ASC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
 
     const botHeader = screen.getByText('Bot');
     fireEvent.click(botHeader);
 
     expect(listBotInstances).toHaveBeenCalledTimes(3);
-    expect(listBotInstances).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      searchTerm: '',
-      sort: 'bot_name:desc',
-    });
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'bot_name',
+      },
+      expect.anything()
+    );
   });
 });
 

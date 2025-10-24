@@ -17,12 +17,11 @@
  */
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { formatSortType, parseSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Mark } from 'design/Mark/Mark';
@@ -52,7 +51,9 @@ export function BotInstances() {
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
-  const sort = queryParams.get('sort') || 'active_at_latest:desc';
+  const query = queryParams.get('query') ?? '';
+  const sortField = queryParams.get('sort_field') || 'active_at_latest';
+  const sortDir = queryParams.get('sort_dir') || 'DESC';
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -60,14 +61,27 @@ export function BotInstances() {
 
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
     enabled: canListInstances,
-    queryKey: ['bot_instances', 'list', searchTerm, pageToken, sort],
-    queryFn: () =>
-      listBotInstances({
-        pageSize: 20,
-        pageToken,
-        searchTerm,
-        sort,
-      }),
+    queryKey: [
+      'bot_instances',
+      'list',
+      searchTerm,
+      query,
+      pageToken,
+      sortField,
+      sortDir,
+    ],
+    queryFn: ({ signal }) =>
+      listBotInstances(
+        {
+          pageSize: 20,
+          pageToken,
+          searchTerm,
+          query,
+          sortField,
+          sortDir,
+        },
+        signal
+      ),
     placeholderData: keepPreviousData,
     staleTime: 30_000, // Cached pages are valid for 30 seconds
   });
@@ -142,14 +156,16 @@ export function BotInstances() {
     [history]
   );
 
-  const sortType = useMemo(() => parseSortType(sort), [sort]);
+  const sortType: SortType = {
+    fieldName: sortField,
+    dir: sortDir.toLowerCase() === 'desc' ? 'DESC' : 'ASC',
+  };
 
   const handleSortChanged = useCallback(
     (sortType: SortType) => {
-      const formattedSortType = formatSortType(sortType);
-
       const search = new URLSearchParams(location.search);
-      search.set('sort', formattedSortType);
+      search.set('sort_field', sortType.fieldName);
+      search.set('sort_dir', sortType.dir);
       search.set('page', '');
 
       history.replace({
@@ -276,6 +292,6 @@ const InfoGuideReferenceLinks = {
   },
 };
 
-const isUnsupportedSortError = (error: Error) => {
+const isUnsupportedSortError = (error: Error | null | undefined) => {
   return error?.message && error.message.includes('unsupported sort');
 };
