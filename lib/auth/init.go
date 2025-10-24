@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -683,11 +684,11 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 		span.AddEvent("completed creating database object import rules")
 
-		span.AddEvent("creating preset health check config")
-		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
+		span.AddEvent("creating preset health check configs")
+		if err := createPresetHealthCheckConfigs(ctx, asrv); err != nil {
 			return trace.Wrap(err)
 		}
-		span.AddEvent("completed creating preset health check config")
+		span.AddEvent("completed creating preset health check configs")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1489,23 +1490,24 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
-// createPresetHealthCheckConfig creates a default preset health check config
-// resource that enables health checks on all resources.
-func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
-	page, _, err := svc.ListHealthCheckConfigs(ctx, 0, "")
-	if err != nil {
-		return trace.Wrap(err, "failed listing available health check configs")
+// createPresetHealthCheckConfigs creates a preset health check config
+// for each resource using the healthcheck package.
+func createPresetHealthCheckConfigs(ctx context.Context, svc services.HealthCheckConfig) error {
+
+	// Attempt to create each preset instead of loading all cfgs and checking existence.
+	// For cases of large quantities of cfgs, it's more efficient to attempt an insert.
+	var newHealthPresets = []func() *healthcheckconfigv1.HealthCheckConfig{
+		services.NewPresetHealthCheckConfigDB,
+		services.NewPresetHealthCheckConfigKube,
 	}
-	if len(page) > 0 {
-		return nil
+	var errs []error
+	for _, newPreset := range newHealthPresets {
+		if _, err := svc.CreateHealthCheckConfig(ctx, newPreset()); err != nil && !trace.IsAlreadyExists(err) {
+			errs = append(errs, err)
+		}
 	}
-	preset := services.NewPresetHealthCheckConfig()
-	_, err = svc.CreateHealthCheckConfig(ctx, preset)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err,
-			"failed creating preset health_check_config %s",
-			preset.GetMetadata().GetName(),
-		)
+	if len(errs) > 0 {
+		return trace.NewAggregate(errs...)
 	}
 	return nil
 }
