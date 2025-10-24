@@ -2092,6 +2092,30 @@ func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, wit
 	return samlConnectors, nil
 }
 
+// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	resp, err := c.grpc.ListSAMLConnectors(ctx, &proto.ListSAMLConnectorsRequest{
+		PageSize:     int32(limit),
+		PageToken:    start,
+		WithSecrets:  withSecrets,
+		NoFollowUrls: options.NoFollowURLs,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	samlConnectors := make([]types.SAMLConnector, len(resp.Connectors))
+	for i, samlConnector := range resp.Connectors {
+		samlConnectors[i] = samlConnector
+	}
+	return samlConnectors, resp.NextPageToken, nil
+}
+
 // CreateSAMLConnector creates a SAML connector.
 func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
