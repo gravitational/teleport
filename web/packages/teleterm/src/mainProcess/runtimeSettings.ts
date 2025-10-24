@@ -223,9 +223,9 @@ async function requestGrpcServerAddresses(): Promise<GrpcServerAddresses> {
       // Limits: macOS - 104 characters, Linux - 108 characters.
       const tempDir = await getUnixUserTempDir();
       return {
-        tsh: getUnixSocketPath(tempDir, 'tsh.socket'),
-        shared: getUnixSocketPath(tempDir, 'shared.socket'),
-        tshdEvents: getUnixSocketPath(tempDir, 'tshd_events.socket'),
+        tsh: getUnixSocketPath(tempDir, 'tsh.sock'),
+        shared: getUnixSocketPath(tempDir, 'shared.sock'),
+        tshdEvents: getUnixSocketPath(tempDir, 'tshde.sock'),
       };
   }
 }
