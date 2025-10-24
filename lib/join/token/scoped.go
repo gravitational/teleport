@@ -31,7 +31,7 @@ import (
 // Scoped wraps a [joiningv1.ScopedToken] such that it can be used to provision
 // resources.
 type Scoped struct {
-	*joiningv1.ScopedToken
+	token      *joiningv1.ScopedToken
 	joinMethod types.JoinMethod
 	roles      types.SystemRoles
 }
@@ -52,34 +52,23 @@ func NewScoped(token *joiningv1.ScopedToken) (*Scoped, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Scoped{ScopedToken: token, joinMethod: joinMethod, roles: roles}, nil
+	return &Scoped{token: token, joinMethod: joinMethod, roles: roles}, nil
 }
 
 // GetName returns the name of a [joiningv1.ScopedToken].
 func (s *Scoped) GetName() string {
-	if s == nil {
-		return ""
-	}
-
-	return s.GetMetadata().GetName()
+	return s.token.GetMetadata().GetName()
 }
 
 // GetJoinMethod returns the cached [types.JoinMethod] generated when the
 // [joiningv1.ScopedToken] was wrapped.
 func (s *Scoped) GetJoinMethod() types.JoinMethod {
-	if s == nil {
-		return types.JoinMethodUnspecified
-	}
-
 	return s.joinMethod
 }
 
 // GetRoles returns the cached [types.SystemRoles] generated when the
 // [joiningv1.ScopedToken] was wrapped.
 func (s *Scoped) GetRoles() types.SystemRoles {
-	if s == nil {
-		return nil
-	}
 	return s.roles
 }
 
@@ -87,12 +76,21 @@ func (s *Scoped) GetRoles() types.SystemRoles {
 // for join methods where the name is secret. This should be used when logging
 // the token name.
 func (s *Scoped) GetSafeName() string {
-	if s == nil {
-		return ""
-	}
+	return GetSafeScopedTokenName(s.token)
+}
 
-	name := s.GetName()
-	if s.GetJoinMethod() != types.JoinMethodToken {
+// Expiry returns the [time.Time] representing when the wrapped
+// [joiningv1.ScopedToken] will expire.
+func (s *Scoped) Expiry() time.Time {
+	return s.token.GetMetadata().GetExpires().AsTime()
+}
+
+// GetSafeScopedTokenName returns the name of the scoped token, sanitized
+// appropriately for join methods where the name is secret. This should be used
+// when logging the token name.
+func GetSafeScopedTokenName(token *joiningv1.ScopedToken) string {
+	name := token.GetMetadata().GetName()
+	if types.JoinMethod(token.GetSpec().GetJoinMethod()) != types.JoinMethodToken {
 		return name
 	}
 
@@ -107,10 +105,4 @@ func (s *Scoped) GetSafeName() string {
 	name = name[hiddenBefore:]
 	name = strings.Repeat("*", hiddenBefore) + name
 	return name
-}
-
-// Expiry returns the [time.Time] representing when the wrapped
-// [joiningv1.ScopedToken] will expire.
-func (s *Scoped) Expiry() time.Time {
-	return s.GetMetadata().GetExpires().AsTime()
 }

@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -45,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join/token"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 )
@@ -221,54 +219,13 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return nil
 	}
 
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Get list of auth servers. Used to print friendly signup message.
-	authServers, err := client.GetAuthServers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(authServers) == 0 {
-		return trace.BadParameter("this cluster has no auth servers")
-	}
-
-	// Print signup message.
-	authServer := authServers[0].GetAddr()
-
-	pingResponse, err := client.Ping(ctx)
-	if err != nil {
-		slog.DebugContext(ctx, "unable to ping auth client", "error", err)
-	}
-
-	if err == nil && pingResponse.GetServerFeatures().Cloud {
-		proxies, err := client.GetProxies()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if len(proxies) != 0 {
-			authServer = proxies[0].GetPublicAddr()
-		}
-	}
-
-	return nodeMessageTemplate.Execute(c.Stdout, map[string]any{
-		"token":        tokenName,
-		"scope":        tok.GetScope(),
-		"assign_scope": tok.GetSpec().GetAssignedScope(),
-		"roles":        strings.ToLower(roles.String()),
-		"minutes":      int(c.ttl.Minutes()),
-		"ca_pins":      caPins,
-		"auth_server":  authServer,
-	})
+	return trace.Wrap(showJoinInstructions(ctx, joinInstructionsInput{
+		out:       c.Stdout,
+		ttl:       c.ttl,
+		roles:     roles,
+		tokenName: tokenName,
+		client:    client,
+	}))
 }
 
 // Del is called to execute "scoped tokens del ..." command.
@@ -314,12 +271,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 		if c.withSecrets {
 			return tok.GetMetadata().GetName()
 		}
-		scoped, err := token.NewScoped(tok)
-		if err != nil {
-			return tok.GetMetadata().GetName()
-		}
-
-		return scoped.GetSafeName()
+		return token.GetSafeScopedTokenName(tok)
 	}
 	switch c.format {
 	case teleport.JSON:

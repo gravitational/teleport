@@ -5716,22 +5716,15 @@ func (c *Client) ValidateTrustedCluster(
 // ListScopedTokens fetches pages of scoped tokens.
 func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	res, err := c.grpc.ListScopedTokens(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return res, nil
+	return res, trace.Wrap(err)
 }
 
 // DeleteScopedToken deletes an existing scoped token.
 func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
-	if _, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
 		Name: name,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	})
+	return trace.Wrap(err)
 }
 
 // CreateScopedToken creates a new scoped token.
@@ -5739,9 +5732,5 @@ func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 	res, err := c.grpc.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
 		Token: token,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return res.Token, nil
+	return res.GetToken(), trace.Wrap(err)
 }
