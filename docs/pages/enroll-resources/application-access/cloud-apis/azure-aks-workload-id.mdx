@@ -43,12 +43,17 @@ the client IDs of the managed identities for user access. This managed identity
 will be assigned as the default identity for the Kubernetes service account.
 
 Log in to your Azure admin account with `az login` command if you haven't
-already, and prepare some environment variables for later steps:
+already, and prepare some environment variables for later steps. Assign <Var
+name="eastus" /> to an Azure region name, <Var name="myResourceGroup" /> to the
+name of your Azure resource group, <Var name="myAKSCluster" /> to the name of
+your AKS cluster, and <Var name="teleport-azure-cli-aks-agent" /> to the Azure
+identity to assign to the Teleport Agent:
+
 ```code
 $ export SUBSCRIPTION="$(az account show --query id --output tsv)"
 $ export LOCATION="<Var name="eastus" />"
 $ export RESOURCE_GROUP="<Var name="myResourceGroup" />"
-$ export AKS_CLUSTER_NAME="<Var name="myASKCluster" />"
+$ export AKS_CLUSTER_NAME="<Var name="myAKSCluster" />"
 $ export USER_ASSIGNED_IDENTITY_NAME="<Var name="teleport-azure-cli-aks-agent" />"
 ```
 
