@@ -1078,6 +1078,10 @@ type IdentityService interface {
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
 	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
+
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest

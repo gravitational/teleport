@@ -101,6 +101,7 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestToken", tt.suite.TokenCRUD)
 	t.Run("TestRoles", tt.suite.RolesCRUD)
 	t.Run("TestSAMLCRUD", tt.suite.SAMLCRUD)
+	t.Run("TestSAMLPagination", tt.suite.SAMLPagination)
 	t.Run("TestTunnelConnectionsCRUD", tt.suite.TunnelConnectionsCRUD)
 	t.Run("TestGithubConnectorCRUD", tt.suite.GithubConnectorCRUD)
 	t.Run("TestEvents", tt.suite.Events)
