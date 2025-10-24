@@ -770,6 +770,12 @@ const (
 	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
 	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
 
+	// CreateMFAChallengeForActionEvent is emitted when an MFA challenge for action is created.
+	CreateMFAChallengeForActionEvent = "mfa_challenge_for_action.create"
+
+	// ValidateMFAChallengeForActionEvent is emitted when an MFA challenge for action is validated.
+	ValidateMFAChallengeForActionEvent = "mfa_challenge_for_action.validate"
+
 	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
 	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
 	// SPIFFEFederationCreateEvent is emitted when a SPIFFE federation is created.

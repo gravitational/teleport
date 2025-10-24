@@ -219,14 +219,15 @@ func (a *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectU
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(cthach): Use dedicated event for action MFA challenge creation.
-	if err := a.cfg.Emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
+	// TODO(cthach): Fix UI is showing "unknown" for this event.
+	if err := a.cfg.Emitter.EmitAuditEvent(ctx, &apievents.CreateMFAChallengeForAction{
 		Metadata: apievents.Metadata{
-			Type:        events.CreateMFAAuthChallengeEvent,
-			Code:        events.CreateMFAAuthChallengeCode,
+			Type:        events.CreateMFAChallengeForActionEvent,
+			Code:        events.CreateMFAChallengeForActionCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
 		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
+		ActionID:     actionID,
 	}); err != nil {
 		slog.WarnContext(ctx, "Failed to emit event", "error", err)
 	}

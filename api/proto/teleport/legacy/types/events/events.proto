@@ -1378,6 +1378,56 @@ message ValidateMFAAuthResponse {
   bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
 }
 
+// CreateMFAChallengeForAction records the creation of an MFA auth challenge.
+message CreateMFAChallengeForAction {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ActionID is the ID of the action requiring MFA.
+  string ActionID = 3 [(gogoproto.jsontag) = "action_id"];
+}
+
+// ValidateMFAChallengeForAction records the validation of an MFA auth challenge response.
+message ValidateMFAChallengeForAction {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // MFADevice is the MFA device used.
+  MFADeviceMetadata MFADevice = 4 [(gogoproto.jsontag) = "mfa_device,omitempty"];
+
+  // ActionID is the ID of the action requiring MFA.
+  string ActionID = 5 [(gogoproto.jsontag) = "action_id"];
+}
+
 // ResourceMetadata is a common resource metadata
 message ResourceMetadata {
   // ResourceName is a resource name
@@ -4890,6 +4940,8 @@ message OneOf {
     events.MCPSessionInvalidHTTPRequest MCPSessionInvalidHTTPRequest = 224;
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
+    events.CreateMFAChallengeForAction CreateMFAChallengeForAction = 227;
+    events.ValidateMFAChallengeForAction ValidateMFAChallengeForAction = 228;
   }
 }
 

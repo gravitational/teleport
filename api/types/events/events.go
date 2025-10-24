@@ -2057,6 +2057,14 @@ func (m *ValidateMFAAuthResponse) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *CreateMFAChallengeForAction) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
+func (m *ValidateMFAChallengeForAction) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *SPIFFESVIDIssued) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

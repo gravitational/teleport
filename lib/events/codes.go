@@ -87,6 +87,10 @@ const (
 	// ValidateMFAAuthResponseCode is an event code for when an MFA auth challenge
 	// response is successfully validated.
 	ValidateMFAAuthResponseCode = "T1016I"
+	// CreateMFAChallengeForActionCode is an event code for when an MFA challenge for action is created.
+	CreateMFAChallengeForActionCode = "T1017I"
+	// ValidateMFAChallengeForActionCode is an event code for when an MFA challenge for action is validated.
+	ValidateMFAChallengeForActionCode = "T1018I"
 	// VValidateMFAAuthResponseFailureCode is an event code for when an MFA auth challenge
 	// response fails validation.
 	ValidateMFAAuthResponseFailureCode = "T1016W"
