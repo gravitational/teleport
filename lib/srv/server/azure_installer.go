@@ -20,16 +20,12 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
-	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
@@ -45,22 +41,21 @@ type AzureInstaller struct {
 type AzureRunRequest struct {
 	Client          azure.RunCommandClient
 	Instances       []*armcompute.VirtualMachine
-	Params          []string
+	InstallerParams *types.InstallerParams
+	ProxyAddrGetter func(context.Context) (string, error)
 	Region          string
 	ResourceGroup   string
-	ScriptName      string
-	PublicProxyAddr string
-	ClientID        string
-	InstallSuffix   string
-	UpdateGroup     string
-
-	randReader func(b []byte) (n int, err error)
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
 // commands have completed.
 func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
-	script, err := getInstallerScript(req)
+	// Azure treats scripts with the same content as the same invocation and
+	// won't run them more than once. This is fine when the installer script
+	// succeeds, but it makes troubleshooting much harder when it fails. To
+	// work around this, we generate a random string and append it as a comment
+	// to the script, forcing Azure to see each invocation as unique.
+	script, err := installerScript(ctx, req.InstallerParams, withNonceComment(), withProxyAddrGetter(req.ProxyAddrGetter))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -75,54 +70,10 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 				Region:        req.Region,
 				ResourceGroup: req.ResourceGroup,
 				VMName:        azure.StringVal(inst.Name),
-				Parameters:    req.Params,
 				Script:        script,
 			}
 			return trace.Wrap(req.Client.Run(ctx, runRequest))
 		})
 	}
 	return trace.Wrap(g.Wait())
-}
-
-func getInstallerScript(req AzureRunRequest) (string, error) {
-	installerURL, err := url.Parse(fmt.Sprintf("https://%s/v1/webapi/scripts/installer/%v", req.PublicProxyAddr, req.ScriptName))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if req.ClientID != "" {
-		q := installerURL.Query()
-		q.Set("azure-client-id", req.ClientID)
-		installerURL.RawQuery = q.Encode()
-	}
-
-	// Azure treats scripts with the same content as the same invocation and
-	// won't run them more than once. This is fine when the installer script
-	// succeeds, but it makes troubleshooting much harder when it fails. To
-	// work around this, we generate a random string and append it as a comment
-	// to the script, forcing Azure to see each invocation as unique.
-	nonce := make([]byte, 8)
-	switch {
-	case req.randReader != nil:
-		_, _ = req.randReader(nonce)
-	default:
-		// No big deal if rand.Read fails, the script is still valid.
-		_, _ = rand.Read(nonce)
-	}
-	script := fmt.Sprintf("curl -s -L %s| bash -s $@ #%x", installerURL, nonce)
-
-	var envVars []string
-	if req.InstallSuffix != "" {
-		safeInstallSuffix := shsprintf.EscapeDefaultContext(req.InstallSuffix)
-		envVars = append(envVars, fmt.Sprintf("TELEPORT_INSTALL_SUFFIX=%q", safeInstallSuffix))
-	}
-	if req.UpdateGroup != "" {
-		safeUpdateGroup := shsprintf.EscapeDefaultContext(req.UpdateGroup)
-		envVars = append(envVars, fmt.Sprintf("TELEPORT_UPDATE_GROUP=%q", safeUpdateGroup))
-	}
-
-	if len(envVars) > 0 {
-		script = fmt.Sprintf("export %s; %s", strings.Join(envVars, " "), script)
-	}
-
-	return script, nil
 }

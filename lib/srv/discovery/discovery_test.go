@@ -2939,6 +2939,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				ResourceGroups: []string{"testrg"},
 				Regions:        []string{"westcentralus"},
 				ResourceTags:   types.Labels{"teleport": {"yes"}},
+				Params:         &types.InstallerParams{},
 			}},
 		}
 	}
