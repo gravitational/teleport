@@ -200,6 +200,27 @@ spec:
     decision: APPROVED
 ```
 
+### Example automatic review rule for resources
+
+If the following rule is configured, any Access Request for the `access` role
+with a request reason containing phrase "on-call" will be automatically approved.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: on-call-automatic-approval
+spec:
+  subjects:
+  - access_request
+  condition: |-
+    regexp.match(set(access_request.spec.request_reason), "*on-call*")
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+```
+
 ## Condition
 
 The `condition` field is a predicate expression that evaluates to a boolean value
@@ -235,13 +256,16 @@ condition: access_request.spec.roles.contains("example_role")
 condition: set("role_1", "role_2").contains_all(access_request.spec.roles)
 
 # Applies if the user has trait "team: dev" or "team: stage".
-condition: contains_any(user.traits["team"], set("dev". "stage"))
+condition: contains_any(user.traits["team"], set("dev", "stage"))
 
 # Applies if all requested resources have the `env: dev` label.
 condition: access_request.spec.resource_labels_intersection["env"].contains("dev")
 
 # Applies if any requested resources has the `env: prod` label.
 condition: access_request.spec.resource_labels_union["env"].contains("prod")
+
+# Applies if the request reason contains a phrase "on-call"
+condition: regexp.match(set(access_request.spec.request_reason), "*on-call*")
 ```
 
 See [Predicate Language](predicate-language.mdx) for more details.
