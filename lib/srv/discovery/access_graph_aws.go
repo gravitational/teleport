@@ -78,7 +78,7 @@ func (s *Server) reconcileAccessGraph(
 	currentTAGResources *aws_sync.Resources,
 	stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	features aws_sync.Features,
-	eksAuditLogClustersCh chan<- []eksAuditLogCluster,
+	eksAuditLogWatcher *eksAuditLogWatcher,
 ) error {
 	type fetcherResult struct {
 		fetcher *aws_sync.Fetcher
@@ -95,11 +95,8 @@ func (s *Server) reconcileAccessGraph(
 		if err := push(stream, upsert, toDel); err != nil {
 			s.Log.ErrorContext(ctx, "Error pushing empty resources to TAGs", "error", err)
 		}
-		select {
-		case eksAuditLogClustersCh <- nil:
-		default:
-			s.Log.ErrorContext(ctx, "EKS AuditLog Syncer could not receive nil cluster list")
-		}
+		// No clusters to fetch eks audit logs for.
+		eksAuditLogWatcher.Reconcile(ctx, nil)
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
@@ -156,11 +153,7 @@ func (s *Server) reconcileAccessGraph(
 
 	// Send the updated list of clusters requiring audit logs to the fetcher.
 	// The fetcher reconciles this list against the last set sent.
-	select {
-	case eksAuditLogClustersCh <- auditLogClusters:
-	default:
-		s.Log.ErrorContext(ctx, "EKS AuditLog Syncer not ready to receive cluster list")
-	}
+	eksAuditLogWatcher.Reconcile(ctx, auditLogClusters)
 
 	for _, fetcher := range allFetchers {
 		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
@@ -331,7 +324,7 @@ var errTAGFeatureNotEnabled = errors.New("TAG feature is not enabled")
 // initializeAndWatchAccessGraph creates a new access graph service client and
 // watches the connection state. If the connection is closed, it will
 // automatically try to reconnect.
-func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-chan struct{}, eksAuditLogClustersCh chan<- []eksAuditLogCluster) error {
+func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-chan struct{}) error {
 	const (
 		// aws discovery semaphore lock.
 		semaphoreName = "access_graph_aws_sync"
@@ -450,11 +443,16 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
 
+	// Start the EKS audit log watcher that keeps track of the EKS audit log
+	// fetchers and updates them when Reconcile is called.
+	eksAuditLogWatcher := newEKSAuditLogWatcher(client, s.Log)
+	go eksAuditLogWatcher.Run(ctx)
+
 	currentTAGResources := &aws_sync.Resources{}
 	timer := time.NewTimer(tickerInterval)
 	defer timer.Stop()
 	for {
-		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features, eksAuditLogClustersCh)
+		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features, eksAuditLogWatcher)
 		if errors.Is(err, errNoAccessGraphFetchers) {
 			// no fetchers, no need to continue.
 			// we will wait for the config to change and re-evaluate the fetchers
@@ -514,10 +512,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 	}
 	s.staticTAGAWSFetchers = fetchers
 
-	eksAuditLogClustersCh := make(chan []eksAuditLogCluster)
-
 	if cfg.AccessGraphConfig.Enabled {
-		go s.initEKSAuditLogWatcher(ctx, eksAuditLogClustersCh)
 		go func() {
 			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
@@ -536,7 +531,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					continue
 				}
 				// reset the currentTAGResources to force a full sync
-				err := s.initializeAndWatchAccessGraph(ctx, reloadCh, eksAuditLogClustersCh)
+				err := s.initializeAndWatchAccessGraph(ctx, reloadCh)
 				if errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
