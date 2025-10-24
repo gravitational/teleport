@@ -1,6 +1,7 @@
 ---
 title: MCP Access with Stdio MCP Server
-sidebar_position: 3
+sidebar_position: 4
+sidebar_label: Enroll an Stdio MCP Server
 description: How to access MCP server with stdio transport.
 tags:
 - how-to
@@ -23,7 +24,7 @@ Users can configure their MCP clients such as Claude Desktop to start an MCP
 server using `tsh`. Once successfully authorized, `tsh` establishes a session
 with the Application Service.
 
-The Application Service starts the MCP server using the command and arguments
+The Teleport Application Service starts the MCP server using the command and arguments
 defined by Teleport administrators in the app definition. Teleport then proxies
 the connection between the client and the remote MCP server, applying additional
 role-based access controls such as filtering which tools are available to the
@@ -33,7 +34,7 @@ providing visibility into user activity.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)"!)
-- A host, e.g., an EC2 instance, where you will run the Teleport Applications
+- A host, e.g., an EC2 instance, where you will run the Teleport Application
   Service.
 - Tools on the same host that can launch stdio-based MCP servers like `npx`
   or `docker`.
