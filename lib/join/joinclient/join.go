@@ -162,7 +162,8 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodToken,
 		types.JoinMethodBoundKeypair,
 		types.JoinMethodIAM,
-		types.JoinMethodEC2:
+		types.JoinMethodEC2,
+		types.JoinMethodOracle:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -249,6 +250,8 @@ func joinWithMethod(
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEC2:
 		return ec2Join(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodOracle:
+		return oracleJoin(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{

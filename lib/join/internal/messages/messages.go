@@ -342,6 +342,51 @@ type EC2Init struct {
 	Document []byte
 }
 
+// OracleInit is sent from the client in response to the ServerInit message for
+// the Oracle join method.
+//
+// The Oracle method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: OracleInit
+// 4. client<-server: OracleChallenge
+// 5. client->server: OracleChallengeSolution
+// 6. client<-server: Result
+type OracleInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// OracleChallenge is from the server in response to the OracleInit message from the client.
+// The client is expected to respond with a OracleChallengeSolution.
+type OracleChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be signed by the
+	// client and included in the OracleChallengeSolution message.
+	Challenge string
+}
+
+// OracleChallengeSolution must be sent from the client in response to the
+// OracleChallenge message.
+type OracleChallengeSolution struct {
+	embedRequest
+
+	// Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
+	Cert []byte
+	// Intermediate encodes the intermediate CAs that issued the instance
+	// identity certificate, in PEM format.
+	Intermediate []byte
+	// Signature is a signature over the challenge, signed by the private key
+	// matching the instance identity certificate.
+	Signature []byte
+	// SignedRootCaReq is a signed request to the Oracle API for retreiving the
+	// root CAs that issued the instance identity certificate.
+	SignedRootCAReq []byte
+}
+
 // Response is implemented by all join response messages.
 type Response interface {
 	isResponse()
