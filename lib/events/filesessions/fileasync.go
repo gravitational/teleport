@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -386,13 +387,36 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 	}
 
 	partIter := func(yield func([]byte, error) bool) {
+		// These upload parts are each ~128KiB. Usually these parts are consumed and reconstructed by Auth in 5MiB
+		// chunks to meet the minimum upload size of upload providers like S3. Since these uploads are proxied
+		// directly to the uploader from the agent here (see link below), this agent needs to reconstruct the upload
+		// parts instead, while staying below the GRPC_MSG_LMT (4MiB default). Note that Auth will add padding to
+		// reach the 5MiB limit as well, in cases where GRPC_MSG_LMT < 5MiB.
+		//
+		// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
+		targetUploadSize := events.MinUploadPartSizeBytes
+		maxUploadSize := min(grpc.MaxClientRecvMsgSize(), events.MinUploadPartSizeBytes)
+
+		// buf holds multiple upload parts, aggregated into a single upload part.
 		var buf bytes.Buffer
-		for {
+
+		// yield the current upload aggregated upload part and reset the buffer.
+		yieldCurrent := func() bool {
+			// Copy the buffer to a new []byte so that the next
+			// iteration doesn't wipe the previous yielded bytes.
+			bytes := make([]byte, buf.Len())
+			copy(bytes, buf.Bytes())
 			buf.Reset()
+			return yield(bytes, nil)
+		}
+
+		for {
 			header, err := events.ParsePartHeader(in)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					break
+					// No parts remaining, yield the current part and return.
+					yieldCurrent()
+					return
 				}
 
 				yield(nil, trace.Wrap(err))
@@ -404,26 +428,55 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 				return
 			}
 
+			// Check if there is room to aggregate this upload part. If not, yield
+			// the current aggregate before continuing.
+			totalPartSize := int64(len(header.Bytes())) + int64(header.PartSize)
+			if buf.Len()+int(totalPartSize) > maxUploadSize {
+				if !yieldCurrent() {
+					return
+				}
+			}
+
+			// We are going to discard any padding as it isn't necessary within the individual parts.
+			originalPaddingSize := header.PaddingSize
+			header.PaddingSize = 0
+
 			if _, err := buf.Write(header.Bytes()); err != nil {
 				yield(nil, trace.Wrap(err))
 				return
 			}
 
-			totalPartSize := int64(header.PartSize + header.PaddingSize)
-			reader := io.LimitReader(in, totalPartSize)
+			// Copy the part into the buffer..
+			reader := io.LimitReader(in, int64(header.PartSize))
 			copied, err := io.Copy(&buf, reader)
 			if err != nil && !errors.Is(err, io.EOF) {
 				yield(nil, trace.Wrap(err))
 				return
 			}
 
-			if copied != totalPartSize {
-				yield(nil, trace.Errorf("copied %d bytes of recording part instead of expected %d", copied, totalPartSize))
+			if copied != int64(header.PartSize) {
+				yield(nil, trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, int64(header.PartSize)))
 				return
 			}
 
-			if !yield(buf.Bytes(), nil) {
+			// Discard the padding.
+			discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(originalPaddingSize)))
+			if err != nil && !errors.Is(err, io.EOF) {
+				yield(nil, trace.Wrap(err))
 				return
+			}
+
+			if discarded != int64(originalPaddingSize) {
+				yield(nil, trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(originalPaddingSize)))
+				return
+			}
+
+			// If we've reached the target upload size, yield the current
+			// aggregated upload part before continuing.
+			if buf.Len() > targetUploadSize {
+				if !yieldCurrent() {
+					return
+				}
 			}
 		}
 	}
