@@ -121,6 +121,35 @@ func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName s
 	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix), nil
 }
 
+// audienceForIntegration returns the OIDC audience value for a given integration.
+// Defaults to [types.IntegrationAWSOIDCAudience] if no specific audience is
+// configured
+func audienceForIntegration(ctx context.Context, cacheClt Cache, integrationName string) (string, error) {
+	if integrationName == "" {
+		return types.IntegrationAWSOIDCAudience, nil
+	}
+
+	integration, err := cacheClt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+	}
+
+	spec := integration.GetAWSOIDCIntegrationSpec()
+	if spec == nil {
+		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+	}
+
+	if spec.Audience != "" {
+		return spec.Audience, nil
+	}
+
+	return types.IntegrationAWSOIDCAudience, nil
+}
+
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager KeyStoreManager, req GenerateAWSOIDCTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -128,6 +157,11 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 	}
 
 	issuer, err := issuerForIntegration(ctx, cacheClt, req.Integration)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	audience, err := audienceForIntegration(ctx, cacheClt, req.Integration)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -157,7 +191,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 
 	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
 		Username: req.Username,
-		Audience: types.IntegrationAWSOIDCAudience,
+		Audience: audience,
 		Subject:  req.Subject,
 		Issuer:   issuer,
 		// Token expiration is not controlled by the Expires property.
