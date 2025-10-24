@@ -121,6 +121,7 @@ import (
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
+	mfaSvc "github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -814,6 +815,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	as.mfa, err = mfaSvc.NewService(mfaSvc.Config{
+		AccessPoint: as,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	as.BotInstanceVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
 		Clock: cfg.Clock,
 		Logger: as.logger.With(
@@ -1201,7 +1209,11 @@ type Server struct {
 
 	inventory *inventory.Controller
 
+	// pdp is the policy decision point service.
 	pdp *decision.Service
+
+	// mfa is the MFA service.
+	mfa *mfaSvc.Service
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
@@ -7818,6 +7830,8 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	if enableTOTP && groupedDevs.TOTP {
 		challenge.TOTP = &proto.TOTPChallenge{}
 	}
+
+	// All of the challenges have some sort of begin logic. They each need to be updated to persist the action ID.
 
 	// WebAuthn challenge.
 	if enableWebauthn && len(groupedDevs.Webauthn) > 0 {

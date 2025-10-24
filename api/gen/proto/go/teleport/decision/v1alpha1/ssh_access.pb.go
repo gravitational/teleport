@@ -21,7 +21,6 @@
 package decisionpb
 
 import (
-	proto "github.com/gravitational/teleport/api/client/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -37,6 +36,55 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// PreconditionKind defines the types of preconditions that can be specified.
+type PreconditionKind int32
+
+const (
+	// PreconditionKindUnspecified is an unspecified precondition. This value has no effect.
+	PreconditionKind_PRECONDITION_KIND_UNSPECIFIED PreconditionKind = 0
+	// PreconditionKindPerSessionMFA requires per-session MFA to be completed.
+	PreconditionKind_PRECONDITION_KIND_PER_SESSION_MFA PreconditionKind = 1
+)
+
+// Enum value maps for PreconditionKind.
+var (
+	PreconditionKind_name = map[int32]string{
+		0: "PRECONDITION_KIND_UNSPECIFIED",
+		1: "PRECONDITION_KIND_PER_SESSION_MFA",
+	}
+	PreconditionKind_value = map[string]int32{
+		"PRECONDITION_KIND_UNSPECIFIED":     0,
+		"PRECONDITION_KIND_PER_SESSION_MFA": 1,
+	}
+)
+
+func (x PreconditionKind) Enum() *PreconditionKind {
+	p := new(PreconditionKind)
+	*p = x
+	return p
+}
+
+func (x PreconditionKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PreconditionKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[0].Descriptor()
+}
+
+func (PreconditionKind) Type() protoreflect.EnumType {
+	return &file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[0]
+}
+
+func (x PreconditionKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PreconditionKind.Descriptor instead.
+func (PreconditionKind) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{0}
+}
 
 // SSHPortForwardMode describes the mode of port forwarding permitted.
 type SSHPortForwardMode int32
@@ -78,11 +126,11 @@ func (x SSHPortForwardMode) String() string {
 }
 
 func (SSHPortForwardMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[0].Descriptor()
+	return file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[1].Descriptor()
 }
 
 func (SSHPortForwardMode) Type() protoreflect.EnumType {
-	return &file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[0]
+	return &file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[1]
 }
 
 func (x SSHPortForwardMode) Number() protoreflect.EnumNumber {
@@ -91,7 +139,7 @@ func (x SSHPortForwardMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SSHPortForwardMode.Descriptor instead.
 func (SSHPortForwardMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{0}
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{1}
 }
 
 // HostUserMode determines how host users should be created.
@@ -138,11 +186,11 @@ func (x HostUserMode) String() string {
 }
 
 func (HostUserMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[1].Descriptor()
+	return file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[2].Descriptor()
 }
 
 func (HostUserMode) Type() protoreflect.EnumType {
-	return &file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[1]
+	return &file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[2]
 }
 
 func (x HostUserMode) Number() protoreflect.EnumNumber {
@@ -151,7 +199,7 @@ func (x HostUserMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HostUserMode.Descriptor instead.
 func (HostUserMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{1}
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{2}
 }
 
 // EvaluateSSHAccessRequest describes a request to evaluate whether or not a
@@ -167,12 +215,7 @@ type EvaluateSSHAccessRequest struct {
 	// Node references the target node the user is attempting to access.
 	Node *Resource `protobuf:"bytes,4,opt,name=node,proto3" json:"node,omitempty"`
 	// OSUser is the user on the target node the user is attempting to access.
-	OsUser string `protobuf:"bytes,5,opt,name=os_user,json=osUser,proto3" json:"os_user,omitempty"`
-	// ActionID is an optional field that associates the SSH access attempt with a specific user action.
-	ActionId string `protobuf:"bytes,6,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
-	// MFAAuthenticateResponse is an optional field that contains the MFA challenge response provided by the user. If
-	// present, the service must validate the response before granting access.
-	MfaResponse   *proto.MFAAuthenticateResponse `protobuf:"bytes,7,opt,name=mfa_response,json=mfaResponse,proto3" json:"mfa_response,omitempty"`
+	OsUser        string `protobuf:"bytes,5,opt,name=os_user,json=osUser,proto3" json:"os_user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -240,20 +283,6 @@ func (x *EvaluateSSHAccessRequest) GetOsUser() string {
 		return x.OsUser
 	}
 	return ""
-}
-
-func (x *EvaluateSSHAccessRequest) GetActionId() string {
-	if x != nil {
-		return x.ActionId
-	}
-	return ""
-}
-
-func (x *EvaluateSSHAccessRequest) GetMfaResponse() *proto.MFAAuthenticateResponse {
-	if x != nil {
-		return x.MfaResponse
-	}
-	return nil
 }
 
 // EvaluateSSHAccessResponse describes the result of an SSH access evaluation.
@@ -384,6 +413,8 @@ type SSHAccessPermit struct {
 	// HostUserInfo encodes relevant information for host user creation. Omitted if
 	// host user creation  is not permitted.
 	HostUsersInfo *HostUsersInfo `protobuf:"bytes,24,opt,name=host_users_info,json=hostUsersInfo,proto3" json:"host_users_info,omitempty"`
+	// Preconditions is a list of conditions that must be satisfied before access is granted.
+	Preconditions []*Precondition `protobuf:"bytes,26,rep,name=preconditions,proto3" json:"preconditions,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -537,6 +568,59 @@ func (x *SSHAccessPermit) GetHostUsersInfo() *HostUsersInfo {
 	return nil
 }
 
+func (x *SSHAccessPermit) GetPreconditions() []*Precondition {
+	if x != nil {
+		return x.Preconditions
+	}
+	return nil
+}
+
+// Precondition represents a condition that must be satisfied before access is granted.
+type Precondition struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind specifies the type of precondition.
+	Kind          PreconditionKind `protobuf:"varint,1,opt,name=kind,proto3,enum=teleport.decision.v1alpha1.PreconditionKind" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Precondition) Reset() {
+	*x = Precondition{}
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Precondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Precondition) ProtoMessage() {}
+
+func (x *Precondition) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Precondition.ProtoReflect.Descriptor instead.
+func (*Precondition) Descriptor() ([]byte, []int) {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Precondition) GetKind() PreconditionKind {
+	if x != nil {
+		return x.Kind
+	}
+	return PreconditionKind_PRECONDITION_KIND_UNSPECIFIED
+}
+
 // SSHAccessDenial describes an SSH access denial.
 type SSHAccessDenial struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -547,7 +631,7 @@ type SSHAccessDenial struct {
 
 func (x *SSHAccessDenial) Reset() {
 	*x = SSHAccessDenial{}
-	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[3]
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -559,7 +643,7 @@ func (x *SSHAccessDenial) String() string {
 func (*SSHAccessDenial) ProtoMessage() {}
 
 func (x *SSHAccessDenial) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[3]
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -572,7 +656,7 @@ func (x *SSHAccessDenial) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHAccessDenial.ProtoReflect.Descriptor instead.
 func (*SSHAccessDenial) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{3}
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SSHAccessDenial) GetMetadata() *DenialMetadata {
@@ -616,7 +700,7 @@ type LockTarget struct {
 
 func (x *LockTarget) Reset() {
 	*x = LockTarget{}
-	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[4]
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +712,7 @@ func (x *LockTarget) String() string {
 func (*LockTarget) ProtoMessage() {}
 
 func (x *LockTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[4]
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +725,7 @@ func (x *LockTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LockTarget.ProtoReflect.Descriptor instead.
 func (*LockTarget) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{4}
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LockTarget) GetUser() string {
@@ -734,7 +818,7 @@ type HostUsersInfo struct {
 
 func (x *HostUsersInfo) Reset() {
 	*x = HostUsersInfo{}
-	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[5]
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +830,7 @@ func (x *HostUsersInfo) String() string {
 func (*HostUsersInfo) ProtoMessage() {}
 
 func (x *HostUsersInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[5]
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +843,7 @@ func (x *HostUsersInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostUsersInfo.ProtoReflect.Descriptor instead.
 func (*HostUsersInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{5}
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HostUsersInfo) GetGroups() []string {
@@ -801,20 +885,18 @@ var File_teleport_decision_v1alpha1_ssh_access_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/decision/v1alpha1/ssh_access.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a0teleport/decision/v1alpha1/denial_metadata.proto\x1a0teleport/decision/v1alpha1/permit_metadata.proto\x1a1teleport/decision/v1alpha1/request_metadata.proto\x1a)teleport/decision/v1alpha1/resource.proto\x1a-teleport/decision/v1alpha1/ssh_identity.proto\x1a.teleport/legacy/client/proto/authservice.proto\"\xb1\x03\n" +
+	"+teleport/decision/v1alpha1/ssh_access.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a0teleport/decision/v1alpha1/denial_metadata.proto\x1a0teleport/decision/v1alpha1/permit_metadata.proto\x1a1teleport/decision/v1alpha1/request_metadata.proto\x1a)teleport/decision/v1alpha1/resource.proto\x1a-teleport/decision/v1alpha1/ssh_identity.proto\"\xd1\x02\n" +
 	"\x18EvaluateSSHAccessRequest\x12G\n" +
 	"\bmetadata\x18\x01 \x01(\v2+.teleport.decision.v1alpha1.RequestMetadataR\bmetadata\x12M\n" +
 	"\rssh_authority\x18\x02 \x01(\v2(.teleport.decision.v1alpha1.SSHAuthorityR\fsshAuthority\x12J\n" +
 	"\fssh_identity\x18\x03 \x01(\v2'.teleport.decision.v1alpha1.SSHIdentityR\vsshIdentity\x128\n" +
 	"\x04node\x18\x04 \x01(\v2$.teleport.decision.v1alpha1.ResourceR\x04node\x12\x17\n" +
-	"\aos_user\x18\x05 \x01(\tR\x06osUser\x12\x1b\n" +
-	"\taction_id\x18\x06 \x01(\tR\bactionId\x12A\n" +
-	"\fmfa_response\x18\a \x01(\v2\x1e.proto.MFAAuthenticateResponseR\vmfaResponse\"\xb5\x01\n" +
+	"\aos_user\x18\x05 \x01(\tR\x06osUser\"\xb5\x01\n" +
 	"\x19EvaluateSSHAccessResponse\x12E\n" +
 	"\x06permit\x18\x01 \x01(\v2+.teleport.decision.v1alpha1.SSHAccessPermitH\x00R\x06permit\x12E\n" +
 	"\x06denial\x18\x02 \x01(\v2+.teleport.decision.v1alpha1.SSHAccessDenialH\x00R\x06denialB\n" +
 	"\n" +
-	"\bdecision\"\xca\a\n" +
+	"\bdecision\"\x9a\b\n" +
 	"\x0fSSHAccessPermit\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.PermitMetadataR\bmetadata\x12#\n" +
 	"\rforward_agent\x18\x03 \x01(\bR\fforwardAgent\x12Z\n" +
@@ -834,7 +916,10 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x12private_key_policy\x18\x15 \x01(\tR\x10privateKeyPolicy\x12I\n" +
 	"\flock_targets\x18\x16 \x03(\v2&.teleport.decision.v1alpha1.LockTargetR\vlockTargets\x12!\n" +
 	"\fmapped_roles\x18\x17 \x03(\tR\vmappedRoles\x12Q\n" +
-	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfoJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"Y\n" +
+	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfo\x12N\n" +
+	"\rpreconditions\x18\x1a \x03(\v2(.teleport.decision.v1alpha1.PreconditionR\rpreconditionsJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"P\n" +
+	"\fPrecondition\x12@\n" +
+	"\x04kind\x18\x01 \x01(\x0e2,.teleport.decision.v1alpha1.PreconditionKindR\x04kind\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xb5\x02\n" +
 	"\n" +
@@ -857,7 +942,10 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x04mode\x18\x02 \x01(\x0e2(.teleport.decision.v1alpha1.HostUserModeR\x04mode\x12\x10\n" +
 	"\x03uid\x18\x03 \x01(\tR\x03uid\x12\x10\n" +
 	"\x03gid\x18\x04 \x01(\tR\x03gid\x12\x14\n" +
-	"\x05shell\x18\x05 \x01(\tR\x05shell*\xbb\x01\n" +
+	"\x05shell\x18\x05 \x01(\tR\x05shell*\\\n" +
+	"\x10PreconditionKind\x12!\n" +
+	"\x1dPRECONDITION_KIND_UNSPECIFIED\x10\x00\x12%\n" +
+	"!PRECONDITION_KIND_PER_SESSION_MFA\x10\x01*\xbb\x01\n" +
 	"\x12SSHPortForwardMode\x12%\n" +
 	"!SSH_PORT_FORWARD_MODE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19SSH_PORT_FORWARD_MODE_OFF\x10\x01\x12\x1c\n" +
@@ -882,48 +970,50 @@ func file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP() []byte {
 	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescData
 }
 
-var file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_decision_v1alpha1_ssh_access_proto_goTypes = []any{
-	(SSHPortForwardMode)(0),               // 0: teleport.decision.v1alpha1.SSHPortForwardMode
-	(HostUserMode)(0),                     // 1: teleport.decision.v1alpha1.HostUserMode
-	(*EvaluateSSHAccessRequest)(nil),      // 2: teleport.decision.v1alpha1.EvaluateSSHAccessRequest
-	(*EvaluateSSHAccessResponse)(nil),     // 3: teleport.decision.v1alpha1.EvaluateSSHAccessResponse
-	(*SSHAccessPermit)(nil),               // 4: teleport.decision.v1alpha1.SSHAccessPermit
-	(*SSHAccessDenial)(nil),               // 5: teleport.decision.v1alpha1.SSHAccessDenial
-	(*LockTarget)(nil),                    // 6: teleport.decision.v1alpha1.LockTarget
-	(*HostUsersInfo)(nil),                 // 7: teleport.decision.v1alpha1.HostUsersInfo
-	(*RequestMetadata)(nil),               // 8: teleport.decision.v1alpha1.RequestMetadata
-	(*SSHAuthority)(nil),                  // 9: teleport.decision.v1alpha1.SSHAuthority
-	(*SSHIdentity)(nil),                   // 10: teleport.decision.v1alpha1.SSHIdentity
-	(*Resource)(nil),                      // 11: teleport.decision.v1alpha1.Resource
-	(*proto.MFAAuthenticateResponse)(nil), // 12: proto.MFAAuthenticateResponse
-	(*PermitMetadata)(nil),                // 13: teleport.decision.v1alpha1.PermitMetadata
-	(*durationpb.Duration)(nil),           // 14: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),         // 15: google.protobuf.Timestamp
-	(*DenialMetadata)(nil),                // 16: teleport.decision.v1alpha1.DenialMetadata
+	(PreconditionKind)(0),             // 0: teleport.decision.v1alpha1.PreconditionKind
+	(SSHPortForwardMode)(0),           // 1: teleport.decision.v1alpha1.SSHPortForwardMode
+	(HostUserMode)(0),                 // 2: teleport.decision.v1alpha1.HostUserMode
+	(*EvaluateSSHAccessRequest)(nil),  // 3: teleport.decision.v1alpha1.EvaluateSSHAccessRequest
+	(*EvaluateSSHAccessResponse)(nil), // 4: teleport.decision.v1alpha1.EvaluateSSHAccessResponse
+	(*SSHAccessPermit)(nil),           // 5: teleport.decision.v1alpha1.SSHAccessPermit
+	(*Precondition)(nil),              // 6: teleport.decision.v1alpha1.Precondition
+	(*SSHAccessDenial)(nil),           // 7: teleport.decision.v1alpha1.SSHAccessDenial
+	(*LockTarget)(nil),                // 8: teleport.decision.v1alpha1.LockTarget
+	(*HostUsersInfo)(nil),             // 9: teleport.decision.v1alpha1.HostUsersInfo
+	(*RequestMetadata)(nil),           // 10: teleport.decision.v1alpha1.RequestMetadata
+	(*SSHAuthority)(nil),              // 11: teleport.decision.v1alpha1.SSHAuthority
+	(*SSHIdentity)(nil),               // 12: teleport.decision.v1alpha1.SSHIdentity
+	(*Resource)(nil),                  // 13: teleport.decision.v1alpha1.Resource
+	(*PermitMetadata)(nil),            // 14: teleport.decision.v1alpha1.PermitMetadata
+	(*durationpb.Duration)(nil),       // 15: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),     // 16: google.protobuf.Timestamp
+	(*DenialMetadata)(nil),            // 17: teleport.decision.v1alpha1.DenialMetadata
 }
 var file_teleport_decision_v1alpha1_ssh_access_proto_depIdxs = []int32{
-	8,  // 0: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.metadata:type_name -> teleport.decision.v1alpha1.RequestMetadata
-	9,  // 1: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_authority:type_name -> teleport.decision.v1alpha1.SSHAuthority
-	10, // 2: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_identity:type_name -> teleport.decision.v1alpha1.SSHIdentity
-	11, // 3: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.node:type_name -> teleport.decision.v1alpha1.Resource
-	12, // 4: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.mfa_response:type_name -> proto.MFAAuthenticateResponse
-	4,  // 5: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.permit:type_name -> teleport.decision.v1alpha1.SSHAccessPermit
-	5,  // 6: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.denial:type_name -> teleport.decision.v1alpha1.SSHAccessDenial
-	13, // 7: teleport.decision.v1alpha1.SSHAccessPermit.metadata:type_name -> teleport.decision.v1alpha1.PermitMetadata
-	0,  // 8: teleport.decision.v1alpha1.SSHAccessPermit.port_forward_mode:type_name -> teleport.decision.v1alpha1.SSHPortForwardMode
-	14, // 9: teleport.decision.v1alpha1.SSHAccessPermit.client_idle_timeout:type_name -> google.protobuf.Duration
-	15, // 10: teleport.decision.v1alpha1.SSHAccessPermit.disconnect_expired_cert:type_name -> google.protobuf.Timestamp
-	6,  // 11: teleport.decision.v1alpha1.SSHAccessPermit.lock_targets:type_name -> teleport.decision.v1alpha1.LockTarget
-	7,  // 12: teleport.decision.v1alpha1.SSHAccessPermit.host_users_info:type_name -> teleport.decision.v1alpha1.HostUsersInfo
-	16, // 13: teleport.decision.v1alpha1.SSHAccessDenial.metadata:type_name -> teleport.decision.v1alpha1.DenialMetadata
-	1,  // 14: teleport.decision.v1alpha1.HostUsersInfo.mode:type_name -> teleport.decision.v1alpha1.HostUserMode
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	10, // 0: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.metadata:type_name -> teleport.decision.v1alpha1.RequestMetadata
+	11, // 1: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_authority:type_name -> teleport.decision.v1alpha1.SSHAuthority
+	12, // 2: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_identity:type_name -> teleport.decision.v1alpha1.SSHIdentity
+	13, // 3: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.node:type_name -> teleport.decision.v1alpha1.Resource
+	5,  // 4: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.permit:type_name -> teleport.decision.v1alpha1.SSHAccessPermit
+	7,  // 5: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.denial:type_name -> teleport.decision.v1alpha1.SSHAccessDenial
+	14, // 6: teleport.decision.v1alpha1.SSHAccessPermit.metadata:type_name -> teleport.decision.v1alpha1.PermitMetadata
+	1,  // 7: teleport.decision.v1alpha1.SSHAccessPermit.port_forward_mode:type_name -> teleport.decision.v1alpha1.SSHPortForwardMode
+	15, // 8: teleport.decision.v1alpha1.SSHAccessPermit.client_idle_timeout:type_name -> google.protobuf.Duration
+	16, // 9: teleport.decision.v1alpha1.SSHAccessPermit.disconnect_expired_cert:type_name -> google.protobuf.Timestamp
+	8,  // 10: teleport.decision.v1alpha1.SSHAccessPermit.lock_targets:type_name -> teleport.decision.v1alpha1.LockTarget
+	9,  // 11: teleport.decision.v1alpha1.SSHAccessPermit.host_users_info:type_name -> teleport.decision.v1alpha1.HostUsersInfo
+	6,  // 12: teleport.decision.v1alpha1.SSHAccessPermit.preconditions:type_name -> teleport.decision.v1alpha1.Precondition
+	0,  // 13: teleport.decision.v1alpha1.Precondition.kind:type_name -> teleport.decision.v1alpha1.PreconditionKind
+	17, // 14: teleport.decision.v1alpha1.SSHAccessDenial.metadata:type_name -> teleport.decision.v1alpha1.DenialMetadata
+	2,  // 15: teleport.decision.v1alpha1.HostUsersInfo.mode:type_name -> teleport.decision.v1alpha1.HostUserMode
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_ssh_access_proto_init() }
@@ -945,8 +1035,8 @@ func file_teleport_decision_v1alpha1_ssh_access_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc), len(file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   6,
+			NumEnums:      3,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

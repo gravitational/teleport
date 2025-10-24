@@ -65,6 +65,7 @@ import (
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
@@ -132,6 +133,7 @@ import (
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	mfav1Svc "github.com/gravitational/teleport/lib/mfa/mfav1"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -4520,6 +4522,36 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 	return res, nil
 }
 
+// CreateChallengeForAction is implemented by AuthService.CreateChallengeForAction.
+func (g *GRPCServer) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.CreateChallengeForAction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// ValidateChallegeForAction is implemented by AuthService.ValidateChallegeForAction.
+func (g *GRPCServer) ValidateChallegeForAction(ctx context.Context, req *mfav1.ValidateChallengeForActionRequest) (*mfav1.ValidateChallengeForActionResponse, error) {
+	actx, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := actx.ServerWithRoles.ValidateChallengeForAction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *authpb.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -6074,6 +6106,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	decisionpb.RegisterDecisionServiceServer(server, decisionService)
+
+	mfaService, err := mfav1Svc.NewService(mfav1Svc.ServiceConfig{
+		MFAService: cfg.AuthServer.mfa,
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mfav1pb.RegisterMFAServiceServer(server, mfaService)
 
 	healthCheckConfigSvc, err := healthcheckconfigv1.NewService(healthcheckconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,

@@ -31,6 +31,8 @@ import (
 type Ceremony struct {
 	// CreateAuthenticateChallenge creates an authentication challenge.
 	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
+	// CreateChallengeForAction creates an authentication challenge for a specific action.
+	CreateChallengeForAction CreateChallengeForActionFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
@@ -51,6 +53,9 @@ type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+
+// CreateChallengeForActionFunc is a function that creates an authentication challenge for a specific action.
+type CreateChallengeForActionFunc func(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error)
 
 // Run the MFA ceremony.
 //
@@ -114,6 +119,80 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
 	return resp, trace.Wrap(err)
+}
+
+// Run the MFA ceremony for a specific action.
+func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest, promptOpts ...PromptOpt) (*mfav1.MFAAuthenticateResponse, error) {
+	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
+	// request to request an SSO challenge in addition to other challenges.
+	// TODO(cthach): Update SSO MFA ceremony to support mfav1 requests natively.
+	if c.SSOMFACeremonyConstructor != nil {
+		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
+		if err != nil {
+			// We may fail to start the SSO MFA flow in cases where the Proxy is down or broken. Fall
+			// back to skipping SSO MFA, especially since SSO MFA may not even be allowed on the server.
+			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods", "error", err)
+		} else {
+			defer ssoMFACeremony.Close()
+
+			// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
+			// its own req or uses a different e.g. login. We should still provide the sso client
+			// redirect URL in case the custom CreateAuthenticateChallenge handles it.
+			if req == nil {
+				req = new(mfav1.CreateChallengeForActionRequest)
+			}
+
+			req.SsoClientRedirectUrl = ssoMFACeremony.GetClientCallbackURL()
+			req.ProxyAddress = ssoMFACeremony.GetProxyAddress()
+			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
+		}
+	}
+
+	chal, err := c.CreateChallengeForAction(ctx, req)
+	if err != nil {
+		// CreateAuthenticateChallenge returns a bad parameter error when the client
+		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
+		// not supported error so the client knows when it can be ignored.
+		if trace.IsBadParameter(err) {
+			return nil, &ErrMFANotSupported
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	if c.PromptConstructor == nil {
+		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
+	}
+
+	// Convert mfav1.MFAAuthenticateChallenge to proto.MFAAuthenticateChallenge
+	protoMFAChal := &proto.MFAAuthenticateChallenge{
+		WebauthnChallenge: chal.GetMfaChallenge().GetWebauthnChallenge(),
+		SSOChallenge:      (*proto.SSOChallenge)(chal.GetMfaChallenge().GetSsoChallenge()),
+	}
+
+	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, protoMFAChal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaResp := &mfav1.MFAAuthenticateResponse{}
+
+	switch protoResp := resp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		mfaResp.Response = &mfav1.MFAAuthenticateResponse_Webauthn{
+			Webauthn: protoResp.Webauthn,
+		}
+
+	case *proto.MFAAuthenticateResponse_SSO:
+		mfaResp.Response = &mfav1.MFAAuthenticateResponse_Sso{
+			Sso: (*mfav1.SSOChallengeResponse)(protoResp.SSO),
+		}
+
+	default:
+		return nil, trace.BadParameter("unknown MFA response type %T", resp.Response)
+	}
+
+	return mfaResp, nil
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.

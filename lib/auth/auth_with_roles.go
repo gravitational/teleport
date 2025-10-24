@@ -7116,6 +7116,34 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	return authnChal, nil
 }
 
+// CreateAuthenticateChallenge is implemented by AuthService.mfa.CreateChallengeForAction.
+func (a *ServerWithRoles) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+	if !authz.IsLocalOrRemoteUser(a.context) {
+		return nil, trace.BadParameter("only end users are allowed to issue authentication challenges")
+	}
+
+	authnChal, err := a.authServer.mfa.CreateChallengeForAction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authnChal, nil
+}
+
+// ValidateChallengeForAction is implemented by AuthService.mfa.ValidateChallengeForAction.
+func (a *ServerWithRoles) ValidateChallengeForAction(ctx context.Context, req *mfav1.ValidateChallengeForActionRequest) (*mfav1.ValidateChallengeForActionResponse, error) {
+	if authz.IsLocalOrRemoteUser(a.context) {
+		return nil, trace.BadParameter("only Teleport instances are allowed to validate authentication challenges")
+	}
+
+	resp, err := a.authServer.mfa.ValidateChallengeForAction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	// Device trust: authorize device before issuing a privileged token without an MFA response.

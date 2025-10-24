@@ -35,4 +35,6 @@ type SSOMFASessionData struct {
 	ConnectorType string `json:"connector_type,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions"`
+	// ActionID is the optional MFA action ID this SSO MFA session is associated with.
+	ActionID *string `json:"action_id,omitempty"`
 }

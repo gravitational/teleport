@@ -25,6 +25,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -2080,7 +2081,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	}
 
 	directResultC := make(chan clientRes, 1)
-	mfaResultC := make(chan clientRes, 1)
+	// mfaResultC := make(chan clientRes, 1)
 
 	// use a child context so the goroutines can terminate the other if they succeed
 	directCtx, directCancel := context.WithCancel(ctx)
@@ -2135,14 +2136,14 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			}
 
 			directErr = res.err
-		case res := <-mfaResultC:
-			if res.clt != nil {
-				directCancel()
-				// res.clt.AddCancel(mfaCancel)
-				return res.clt, nil
-			}
+			// case res := <-mfaResultC:
+			// 	if res.clt != nil {
+			// 		directCancel()
+			// 		// res.clt.AddCancel(mfaCancel)
+			// 		return res.clt, nil
+			// 	}
 
-			mfaErr = res.err
+			// 	mfaErr = res.err
 		}
 	}
 
@@ -3332,18 +3333,21 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 				return nil, trace.BadParameter("expected at least one challenge question")
 			}
 
-			// Print the server's instruction to the user.
+			var question struct {
+				ActionID string `json:"actionId"`
+				Message  string `json:"message"`
+			}
+			if err := json.Unmarshal([]byte(questions[0]), &question); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			fmt.Println(instruction)
 
-			// TODO(cthach): Use ChallengeScope_CHALLENGE_SCOPE_ACTION and provide the action ID. Doing the regular
-			// scope for now to save time.
-			mfaResponse, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-					ContextUser: &proto.ContextUser{},
-				},
-				ChallengeExtensions: &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				},
+			mfaResponse, err := tc.NewMFACeremony().RunForAction(ctx, &mfav1.CreateChallengeForActionRequest{
+				ActionId:             question.ActionID,
+				User:                 user,
+				SsoClientRedirectUrl: "", // Will be populated by the ceremony if SSO MFA is configured.
+				ProxyAddress:         proxyAddr,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)

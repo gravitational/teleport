@@ -86,6 +86,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -134,6 +135,7 @@ type AuthServiceClient struct {
 	userpreferencespb.UserPreferencesServiceClient
 	notificationsv1pb.NotificationServiceClient
 	recordingencryptionv1pb.RecordingEncryptionServiceClient
+	mfav1.MFAServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -547,6 +549,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		UserPreferencesServiceClient:     userpreferencespb.NewUserPreferencesServiceClient(c.conn),
 		NotificationServiceClient:        notificationsv1pb.NewNotificationServiceClient(c.conn),
 		RecordingEncryptionServiceClient: recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn),
+		MFAServiceClient:                 mfav1.NewMFAServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -4042,6 +4045,12 @@ func (c *Client) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAcco
 // CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	resp, err := c.grpc.CreateAuthenticateChallenge(ctx, in)
+	return resp, trace.Wrap(err)
+}
+
+// CreateChallengeForAction creates and returns an MFA challenge for a specific user action.
+func (c *Client) CreateChallengeForAction(ctx context.Context, in *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+	resp, err := c.grpc.CreateChallengeForAction(ctx, in)
 	return resp, trace.Wrap(err)
 }
 

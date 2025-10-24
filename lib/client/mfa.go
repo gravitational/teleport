@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -33,6 +34,7 @@ import (
 func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
+		CreateChallengeForAction:    tc.createChallengeForAction,
 		PromptConstructor:           tc.NewMFAPrompt,
 		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
@@ -49,6 +51,19 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 	return rootClient.CreateAuthenticateChallenge(ctx, req)
+}
+
+// createChallengeForAction creates and returns an MFA challenge for a specific action.
+func (tc *TeleportClient) createChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rootClient.MFAClient().CreateChallengeForAction(ctx, req)
 }
 
 // WebauthnLoginFunc is a function that performs WebAuthn login.

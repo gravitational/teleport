@@ -29,6 +29,7 @@ import (
 func (c *Client) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	mfaCeremony := &mfa.Ceremony{
 		CreateAuthenticateChallenge: c.CreateAuthenticateChallenge,
+		CreateChallengeForAction:    c.CreateChallengeForAction,
 		PromptConstructor:           c.c.MFAPromptConstructor,
 		SSOMFACeremonyConstructor:   c.c.SSOMFACeremonyConstructor,
 	}

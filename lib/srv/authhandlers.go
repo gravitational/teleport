@@ -579,25 +579,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	}
 
 	if err != nil {
-		// If MFA is required, perform MFA verification with the client.
-		if errors.Is(err, services.ErrSessionMFARequired) {
-			return nil, &ssh.PartialSuccessError{
-				Next: ssh.ServerAuthCallbacks{
-					PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-						// If the client does not support keyboard-interactive, it means it is a legacy client. Reject
-						// the connection because legacy clients must provide a valid session MFA certificate during
-						// initial authentication.
-						// TODO(cthach): Remove this restriction when legacy clients are no longer supported.
-						return nil, trace.AccessDenied("MFA required but not completed (legacy clients must provide a valid session MFA certificate)")
-					},
-					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
-						// Dealing with a client that supports keyboard-interactive, so we can proceed with MFA verification.
-						return h.mfaChallengeHandlerFunc(ctx, ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User(), outputPermissions, conn, challenge)
-					},
-				},
-			}
-		}
-
 		log.ErrorContext(ctx, "permission denied",
 			"error", err,
 			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
@@ -665,6 +646,30 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 			nil,
 		); err != nil {
 			return nil, trace.Wrap(err)
+		}
+	}
+
+	for _, precondition := range accessPermit.GetPreconditions() {
+		switch precondition.GetKind() {
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_PER_SESSION_MFA:
+			return nil, &ssh.PartialSuccessError{
+				Next: ssh.ServerAuthCallbacks{
+					PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+						// If the client does not support keyboard-interactive, it means it is a legacy client. Reject
+						// the connection because legacy clients must provide a valid session MFA certificate during
+						// initial authentication.
+						// TODO(cthach): Remove this restriction when legacy clients are no longer supported.
+						return nil, trace.AccessDenied("MFA required but not completed (legacy clients must provide a valid session MFA certificate)")
+					},
+					KeyboardInteractiveCallback: func(conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+						// Dealing with a client that supports keyboard-interactive, so we can proceed with MFA verification.
+						return h.mfaChallengeHandlerFunc(ctx, outputPermissions, conn, challenge)
+					},
+				},
+			}
+
+		default:
+			return nil, trace.BadParameter("unsupported precondition type %q (this is a bug)", precondition.GetKind())
 		}
 	}
 
@@ -938,19 +943,18 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		}
 	}
 
-	// XXX: mfaChallengeResp is being checked for nil as a PoC hack to bypass the access check if MFA response was
-	// provided. This is INSECURE and only done to save time in PoC. The proper approach is to pass the MFA response to
-	// the decision service and let it evaluate the response as part of the access evaluation.
-	// TODO(cthach): Fix this in production.
+	// XXX: mfaVerified is a PoC hack and the proper way is to update accessChecker.CheckAccess to return that MFA is
+	// required but in a non-error manner.
+	var mfaRequired bool
 	if !isModeratedSessionJoin && mfaChallengeResp == nil {
 		// perform the primary node access check in all cases except for moderated session join
-		if err := accessChecker.CheckAccess(
-			target,
-			state,
-			services.NewLoginMatcher(osUser),
-		); err != nil {
-			return nil, trace.WrapWithMessage(err, "user %s@%s is not authorized to login as %v@%s",
-				ident.Username, ca.GetClusterName(), osUser, clusterName)
+		if err := accessChecker.CheckAccess(target, state, services.NewLoginMatcher(osUser)); err != nil {
+			if errors.Is(err, services.ErrSessionMFARequired) {
+				mfaRequired = true
+			} else {
+				return nil, trace.WrapWithMessage(err, "user %s@%s is not authorized to login as %v@%s",
+					ident.Username, ca.GetClusterName(), osUser, clusterName)
+			}
 		}
 	}
 
@@ -994,6 +998,13 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		hostUsersInfo = nil
 	}
 
+	preconditions := []*decisionpb.Precondition{}
+	if mfaRequired {
+		preconditions = append(preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PER_SESSION_MFA,
+		})
+	}
+
 	return &decisionpb.SSHAccessPermit{
 		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
@@ -1011,6 +1022,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
+		Preconditions:         preconditions,
 	}, nil
 }
 
@@ -1105,15 +1117,12 @@ func timestampFromGoTime(t time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(t)
 }
 
-func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string, perms *ssh.Permissions, conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.Permissions, conn ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 	actionID := utils.NewRealUID().New()
 
 	log := h.log.With(
-		"local_addr", conn.LocalAddr(),
-		"remote_addr", conn.RemoteAddr(),
 		"user", conn.User(),
 		"permissions", perms,
-		"session_id", conn.SessionID(),
 		"action_id", actionID,
 	)
 
@@ -1121,8 +1130,10 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, ident *sshca
 
 	question := struct {
 		ActionID string `json:"actionId"`
+		Message  string `json:"message"`
 	}{
 		ActionID: actionID,
+		Message:  "MFA required. Complete the challenge using the provided action ID.",
 	}
 	questionBytes, err := json.Marshal(question)
 	if err != nil {
@@ -1134,36 +1145,30 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, ident *sshca
 		return nil, trace.Wrap(err)
 	}
 	if len(answers) != 1 {
-		return nil, trace.AccessDenied("got more than 1 MFA answer for %q and session ID %q", conn.User(), conn.SessionID())
+		return nil, trace.AccessDenied("expected 1 answer from challenge, got %d from user %q and action ID %q (this is a bug)", len(answers), conn.User(), actionID)
 	}
+	if answers[0] == "" {
+		return nil, trace.AccessDenied("no MFA answer provided by user %q and action ID %q", conn.User(), actionID)
+	}
+
+	log.DebugContext(ctx, "Received MFA challenge response from client")
 
 	decodedBytes, err := base64.StdEncoding.DecodeString(answers[0])
 	if err != nil {
-		return nil, trace.AccessDenied("MFA answer was not valid base64 for %q and session ID %q: %v", conn.User(), conn.SessionID(), err)
+		return nil, trace.AccessDenied("MFA answer was not valid base64 for %q and action ID %q: %v", conn.User(), actionID, err)
 	}
 
 	var resp proto.MFAAuthenticateResponse
 	if err := protobuf.Unmarshal(decodedBytes, &resp); err != nil {
-		return nil, trace.AccessDenied("MFA answer was not valid for %q and session ID %q: %v", conn.User(), conn.SessionID(), err)
+		return nil, trace.AccessDenied("MFA answer was not valid for %q and action ID %q: %v", conn.User(), actionID, err)
 	}
 
-	log.DebugContext(ctx, "Parsed MFA challenge response successfully")
+	log.DebugContext(ctx, "Decoded MFA challenge response from client")
 
-	permit, err := h.evaluateSSHAccess(ident, ca, clusterName, target, osUser, &resp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// TODO(cthach): Validate the MFA response by calling the MFAService.
 
-	log.DebugContext(ctx, "SSH access permit granted with MFA challenge response", "permit", permit)
+	log.DebugContext(ctx, "MFA challenge completed successfully for client")
 
-	encodedPermit, err := protojson.Marshal(permit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Add the SSH access permit to the permissions.
-	perms.Extensions[utils.ExtIntSSHAccessPermit] = string(encodedPermit)
-
-	// Return the original permissions on success.
+	// Return the original permissions on success granting access.
 	return perms, nil
 }

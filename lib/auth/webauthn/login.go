@@ -206,6 +206,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 		AllowReuse:                  challengeExtensions.AllowReuse,
 		UserVerificationRequirement: challengeExtensions.UserVerificationRequirement,
 	}
+	// TODO(cthach): Record ActionID in SessionData.ActionID.
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)
@@ -324,6 +325,8 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(cthach): Verify ActionID in SessionData.ActionID matches ActionID.
+
 	// Check if the given scope is satisfied by the challenge scope.
 	if requiredExtensions.Scope != sd.ChallengeExtensions.Scope && requiredExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
@@ -336,7 +339,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	if noReuseAllowed && challengeAllowReuse {
 		return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
 	}
-
+ 
 	// Verify (and possibly correct) the user verification requirement.
 	// A mismatch here could indicate a programming error or even foul play.
 	uvr := protocol.UserVerificationRequirement(requiredExtensions.UserVerificationRequirement)
