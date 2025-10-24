@@ -32,6 +32,8 @@ struct ContentView: View {
       deviceTrust: deviceTrust
     )
     .onOpenURL { url in
+      // TODO: This must reset the state of ScannedURLView. If there's an auth attempt in progress,
+      // opening a new URL through the app is not going to cancel the attempt in progress.
       openedURL = parseDeepLink(url)
       logger
         .debug(
@@ -206,6 +208,8 @@ struct ScannedURLView: View {
     if case .failure = openedURL { return true }
     return false
   }
+
+  @Environment(\.openURL) private var openURL
 
   var body: some View {
     VStack(spacing: 16) {
@@ -385,8 +389,9 @@ struct ScannedURLView: View {
               }
               authAttempt = .loading
               Task {
+                let confirmToken: Teleport_Devicetrust_V1_DeviceConfirmationToken
                 do {
-                  try await deviceTrust.authenticateWebDevice(
+                  confirmToken = try await deviceTrust.authenticateWebDevice(
                     hostname: deepURL.url.hostname,
                     port: deepURL.url.port,
                     user: deepURL.url.user,
@@ -399,8 +404,28 @@ struct ScannedURLView: View {
                   authAttempt = .failure(.unknownError(error))
                   return
                 }
-                // TODO: Open the redirect URI on success.
                 authAttempt = .success(nil)
+
+                var parts = URLComponents()
+                parts.scheme = "https"
+                parts.host = deepURL.url.hostname
+                parts.port = deepURL.url.port
+                parts.path = "/webapi/devices/webconfirm"
+                parts.queryItems = [
+                  URLQueryItem(name: "id", value: confirmToken.id),
+                  URLQueryItem(name: "token", value: confirmToken.token),
+                ]
+                if deepURL.redirectURI != "" {
+                  parts.queryItems?.append(URLQueryItem(
+                    name: "redirect_uri",
+                    value: deepURL.redirectURI
+                  ))
+                }
+                let url = parts.url!
+                // TODO: Add completion handler to openURL to detect if the URL was opened.
+                openURL(url)
+                openedURL = nil
+                authAttempt = .idle
               }
             }, label: {
               switch authAttempt {
