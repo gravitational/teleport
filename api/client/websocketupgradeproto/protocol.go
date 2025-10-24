@@ -17,9 +17,11 @@ package websocketupgradeproto
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"net"
-	"slices"
+	"os"
 	"sync"
 	"time"
 
@@ -153,7 +155,8 @@ func (c *Conn) readLoop() {
 		c.cond.Broadcast()
 	}()
 	for {
-		frame, err := ws.ReadFrame(c.underlyingConn)
+		// Read only the frame header first - never read the full body into memory
+		header, err := ws.ReadHeader(c.underlyingConn)
 		if err != nil {
 			c.mu.Lock()
 			if !c.localClosed {
@@ -164,13 +167,22 @@ func (c *Conn) readLoop() {
 			return
 		}
 
-		// All client frames should be masked, so unmask them if needed.
-		if frame.Header.Masked {
-			frame = ws.UnmaskFrame(frame)
-		}
-
-		switch frame.Header.OpCode {
+		switch header.OpCode {
 		case ws.OpClose:
+			// Read and discard the close frame payload (if any)
+			if header.Length > 0 {
+				_, err := io.CopyN(io.Discard, c.underlyingConn, header.Length)
+				if err != nil {
+					c.mu.Lock()
+					if !c.localClosed {
+						c.remoteClosed = true
+					}
+					c.cond.Broadcast()
+					c.mu.Unlock()
+					return
+				}
+			}
+
 			c.mu.Lock()
 			// If we already closed the connection locally, this message is
 			// the acknowledgment of our close frame, so we can just return.
@@ -189,19 +201,108 @@ func (c *Conn) readLoop() {
 			c.cond.Broadcast()
 			c.mu.Unlock()
 		case ws.OpBinary:
-			c.mu.Lock()
-			// Store the received binary frame payload in the receive buffer
-			// and signal any waiting readers.
-			c.receiveBuffer.append(frame.Payload)
-			c.cond.Broadcast()
-			c.mu.Unlock()
+			// Read the binary payload in chunks, copying directly to receive buffer
+			// Never read the full body into memory
+			remaining := header.Length
+			for remaining > 0 {
+				c.mu.Lock()
+				// Wait for a reader to be ready
+				for !c.receiveBuffer.operate && !c.localClosed && !c.remoteClosed {
+					c.cond.Wait()
+				}
+
+				if c.localClosed || c.remoteClosed {
+					c.mu.Unlock()
+					// Discard remaining bytes to keep protocol in sync
+					if remaining > 0 {
+						io.CopyN(io.Discard, c.underlyingConn, remaining)
+					}
+					return
+				}
+
+				// Read directly into the reader's buffer - no intermediate allocation
+				toRead := remaining
+				if toRead > int64(len(c.receiveBuffer.data)) {
+					toRead = int64(len(c.receiveBuffer.data))
+				}
+
+				n, err := io.ReadFull(c.underlyingConn, c.receiveBuffer.data[:toRead])
+				if err != nil {
+					if !c.localClosed {
+						c.remoteClosed = true
+					}
+					c.cond.Broadcast()
+					c.mu.Unlock()
+					return
+				}
+
+				// Unmask the data if needed
+				if header.Masked {
+					ws.Cipher(c.receiveBuffer.data[:n], header.Mask, int(header.Length-remaining))
+				}
+
+				remaining -= int64(n)
+				c.receiveBuffer.length = n
+				c.receiveBuffer.operate = false
+				c.cond.Broadcast()
+				c.mu.Unlock()
+			}
 		case ws.OpPong:
-			// Receives Pong as response to Ping. Nothing to do.
+			// Read and discard the pong payload
+			//  no action needed beyond consuming the frame to keep the protocol in sync.
+			if header.Length > 0 {
+				_, err := io.CopyN(io.Discard, c.underlyingConn, header.Length)
+				if err != nil {
+					c.mu.Lock()
+					if !c.localClosed {
+						c.remoteClosed = true
+					}
+					c.cond.Broadcast()
+					c.mu.Unlock()
+					return
+				}
+			}
 		case ws.OpPing:
+			// Read the ping payload to respond with a pong
+			var payload []byte
+			// Limit the maximum size of the ping payload to avoid excessive memory allocation
+			// Teleport only uses small ping payloads anyway.
+			const maxPingPayloadSize = 250
+			if header.Length > 0 {
+				payload = make([]byte, min(header.Length, maxPingPayloadSize))
+				_, err := io.ReadFull(c.underlyingConn, payload)
+				if err != nil {
+					c.mu.Lock()
+					if !c.localClosed {
+						c.remoteClosed = true
+					}
+					c.cond.Broadcast()
+					c.mu.Unlock()
+					return
+				}
+				// Unmask the payload if needed
+				if header.Masked {
+					ws.Cipher(payload, header.Mask, 0)
+				}
+				if header.Length > int64(maxPingPayloadSize) {
+					// Discard remaining bytes to keep protocol in sync
+					_, err := io.CopyN(io.Discard, c.underlyingConn, header.Length-int64(maxPingPayloadSize))
+					if err != nil {
+						c.mu.Lock()
+						if !c.localClosed {
+							c.remoteClosed = true
+						}
+						c.cond.Broadcast()
+						c.mu.Unlock()
+						return
+					}
+				}
+			}
+
 			c.mu.Lock()
 			// Respond to Ping frames with a Pong frame containing the same payload.
 			// Pong frames are queued to be sent after waking up the write loop.
-			pongFrame := ws.NewPongFrame(slices.Clone(frame.Payload))
+			pongFrame := ws.NewPongFrame(payload)
 			c.pingPongReplies = append(c.pingPongReplies, pongFrame)
 			c.cond.Broadcast()
 			c.mu.Unlock()
@@ -231,26 +332,35 @@ func (c *Conn) writeLoop() {
 		c.cond.Broadcast()
 	}
 
-	// maxFrameSize is the maximum amount of data that can be transmitted at once;
-	// picked for sanity's sake, and to allow acks to be sent relatively frequently.
-	const maxFrameSize = 128 * 1024
-	dataBuffer := make([]byte, maxFrameSize)
 	for {
-		n := c.sendBuffer.read(dataBuffer)
-		if n > 0 {
-			err := c.writeFrame(
-				ws.NewBinaryFrame(dataBuffer[:n]),
-			)
-			if err != nil {
+		// Check if there's data waiting to be sent
+		if c.sendBuffer.operate {
+
+			bytesToWrite := len(c.sendBuffer.data)
+			// Clear operate flag so Write() knows we've taken ownership
+			// But don't set completed yet - that happens after the actual write
+			c.sendBuffer.operate = false
+			c.cond.Broadcast()
+
+			err := c.writeFrame(ws.NewBinaryFrame(c.sendBuffer.data))
+
+			// Now mark as completed and set the length
+			c.sendBuffer.length = bytesToWrite
+			c.sendBuffer.completed = true
+			if errors.Is(err, os.ErrDeadlineExceeded) && c.localClosed {
+			} else if err != nil {
 				unblockReaderOnErr()
 				return
+			} else {
+
+				c.cond.Broadcast()
+				continue
 			}
-			c.cond.Broadcast()
-			continue
 		}
 
 		// Handle ping/pong replies
 		if len(c.pingPongReplies) > 0 {
+			c.underlyingConn.SetWriteDeadline(time.Time{})
 			frames := c.pingPongReplies
 			c.pingPongReplies = nil
 
@@ -268,6 +378,7 @@ func (c *Conn) writeLoop() {
 		}
 
 		if c.localClosed || c.remoteClosed {
+			c.underlyingConn.SetWriteDeadline(time.Now().Add(time.Second))
 			var closeFrame ws.Frame
 			if c.closeFrame != nil {
 				closeFrame = *c.closeFrame
@@ -309,23 +420,25 @@ func (c *Conn) writeLoop() {
 	}
 }
 
-// writeFrameLocked writes a WebSocket frame to the connection without acquiring
-// the write mutex. This is used when we already hold the write mutex.
+// writeFrame writes a WebSocket frame to the underlying connection.
+// The mutex must be held when calling this function. It temporarily unlocks
+// the mutex during the write operation to avoid blocking other goroutines,
+// then re-locks it before returning.
 func (c *Conn) writeFrame(frame ws.Frame) error {
-	// If the connection is a client connection, we should mask the frame
-	// as per the WebSocket protocol. In this case, we use a empty mask
-	// for simplicity so messages are not actually masked, but the masked bit is set.
+	// If the connection is a client connection, we must mask the frame
+	// as per the WebSocket protocol. We use an empty mask for simplicity
+	// so messages are not actually masked, but the masked bit is set.
 	frame.Header.Masked = c.connType == clientConnection
 
 	// Unlock the mutex while writing to avoid blocking other operations.
 	// The mutex is re-locked after the write is complete.
 	c.mu.Unlock()
 	defer c.mu.Lock()
-	// There is no need to mask from server to client.
 	return ws.WriteFrame(c.underlyingConn, frame)
 }
 
-// WritePing sends a Ping frame to the client.
+// WritePing queues a Ping frame to be sent to the remote peer.
+// Note: Client connections never send pings, only servers do.
 func (c *Conn) WritePing() error {
 	// Clients never send pings.
 	if c.connType == clientConnection {
@@ -361,10 +474,14 @@ func (c *Conn) Close() error {
 func (c *Conn) closeWithErrFrame(frame ws.Frame) error {
 	c.mu.Lock()
 	c.closeFrame = &frame
+	c.underlyingConn.SetWriteDeadline(time.Now().Add(-1 * time.Second))
+
+	err := c.managedConn.closeLocked()
+
 	c.mu.Unlock()
 
 	// Signal the write loop to send the close frame.
-	err := c.managedConn.Close()
+
 	// Wait for the read and write loops to finish.
 	c.wg.Wait()
 
