@@ -274,6 +274,7 @@ const (
 	AuthService_CreatePrivilegeToken_FullMethodName                = "/proto.AuthService/CreatePrivilegeToken"
 	AuthService_GetInstaller_FullMethodName                        = "/proto.AuthService/GetInstaller"
 	AuthService_GetInstallers_FullMethodName                       = "/proto.AuthService/GetInstallers"
+	AuthService_ListInstallers_FullMethodName                      = "/proto.AuthService/ListInstallers"
 	AuthService_SetInstaller_FullMethodName                        = "/proto.AuthService/SetInstaller"
 	AuthService_DeleteInstaller_FullMethodName                     = "/proto.AuthService/DeleteInstaller"
 	AuthService_DeleteAllInstallers_FullMethodName                 = "/proto.AuthService/DeleteAllInstallers"
@@ -977,8 +978,11 @@ type AuthServiceClient interface {
 	CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.InstallerV1, error)
+	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(ctx context.Context, in *types.InstallerV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -3586,10 +3590,21 @@ func (c *authServiceClient) GetInstaller(ctx context.Context, in *types.Resource
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.InstallerV1List)
 	err := c.cc.Invoke(ctx, AuthService_GetInstallers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInstallersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListInstallers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4603,8 +4618,11 @@ type AuthServiceServer interface {
 	CreatePrivilegeToken(context.Context, *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(context.Context, *types.ResourceRequest) (*types.InstallerV1, error)
+	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -5404,6 +5422,9 @@ func (UnimplementedAuthServiceServer) GetInstaller(context.Context, *types.Resou
 }
 func (UnimplementedAuthServiceServer) GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstallers not implemented")
+}
+func (UnimplementedAuthServiceServer) ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInstallers not implemented")
 }
 func (UnimplementedAuthServiceServer) SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetInstaller not implemented")
@@ -9661,6 +9682,24 @@ func _AuthService_GetInstallers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListInstallers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInstallersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListInstallers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListInstallers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListInstallers(ctx, req.(*ListInstallersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_SetInstaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.InstallerV1)
 	if err := dec(in); err != nil {
@@ -11138,6 +11177,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInstallers",
 			Handler:    _AuthService_GetInstallers_Handler,
+		},
+		{
+			MethodName: "ListInstallers",
+			Handler:    _AuthService_ListInstallers_Handler,
 		},
 		{
 			MethodName: "SetInstaller",
