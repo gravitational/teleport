@@ -565,59 +565,59 @@ func TestHostUniqueCheck(t *testing.T) {
 
 	testCases := []struct {
 		role     types.SystemRole
-		upserter func(t *testing.T, name string)
-		deleter  func(t *testing.T, name string)
+		upserter func(t *testing.T, hostID string)
+		deleter  func(t *testing.T, hostID string)
 	}{
 		{
 			role: types.RoleNode,
-			upserter: func(t *testing.T, name string) {
+			upserter: func(t *testing.T, hostID string) {
 				node := &types.ServerV2{
 					Kind:    types.KindNode,
 					Version: types.V2,
 					Metadata: types.Metadata{
-						Name:      name,
+						Name:      hostID,
 						Namespace: defaults.Namespace,
 					},
 				}
 				_, err := a.UpsertNode(context.Background(), node)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteNode(t.Context(), defaults.Namespace, name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteNode(t.Context(), defaults.Namespace, hostID))
 			},
 		},
 		{
 			role: types.RoleProxy,
-			upserter: func(t *testing.T, name string) {
+			upserter: func(t *testing.T, hostID string) {
 				proxy := &types.ServerV2{
 					Kind:    types.KindProxy,
 					Version: types.V2,
 					Metadata: types.Metadata{
-						Name:      name,
+						Name:      hostID,
 						Namespace: defaults.Namespace,
 					},
 				}
 				err := a.UpsertProxy(context.Background(), proxy)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteProxy(t.Context(), name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteProxy(t.Context(), hostID))
 			},
 		},
 		{
 			role: types.RoleKube,
-			upserter: func(t *testing.T, name string) {
+			upserter: func(t *testing.T, hostID string) {
 				kube, err := types.NewKubernetesServerV3(
 					types.Metadata{
-						Name:      name,
+						Name:      "test-kube-cluster",
 						Namespace: defaults.Namespace,
 					},
 					types.KubernetesServerSpecV3{
-						HostID:   name,
-						Hostname: "test-kube",
+						HostID:   hostID,
+						Hostname: "test-kube-hostname",
 						Cluster: &types.KubernetesClusterV3{
 							Metadata: types.Metadata{
-								Name:      name,
+								Name:      "test-kube-cluster",
 								Namespace: defaults.Namespace,
 							},
 						},
@@ -626,43 +626,30 @@ func TestHostUniqueCheck(t *testing.T) {
 				_, err = a.UpsertKubernetesServer(context.Background(), kube)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteKubernetesServer(t.Context(), name, name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteKubernetesServer(t.Context(), hostID, "test-kube-cluster"))
 			},
 		},
 		{
 			role: types.RoleDatabase,
-			upserter: func(t *testing.T, name string) {
-				db, err := types.NewDatabaseServerV3(
+			upserter: func(t *testing.T, hostID string) {
+				db, err := types.NewDatabaseServiceV1(
 					types.Metadata{
-						Name:      name,
-						Namespace: defaults.Namespace,
+						Name: hostID,
 					},
-					types.DatabaseServerSpecV3{
-						HostID:   name,
-						Hostname: "test-db",
-						Database: &types.DatabaseV3{
-							Metadata: types.Metadata{
-								Name:      "test-db",
-								Namespace: defaults.Namespace,
-							},
-							Spec: types.DatabaseSpecV3{
-								Protocol: types.DatabaseProtocolPostgreSQL,
-								URI:      "https://db.localhost",
-							},
-						},
-					})
+					types.DatabaseServiceSpecV1{},
+				)
 				require.NoError(t, err)
-				_, err = a.UpsertDatabaseServer(context.Background(), db)
+				_, err = a.UpsertDatabaseService(context.Background(), db)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteDatabaseServer(t.Context(), defaults.Namespace, name, name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteDatabaseService(t.Context(), hostID))
 			},
 		},
 		{
 			role: types.RoleApp,
-			upserter: func(t *testing.T, name string) {
+			upserter: func(t *testing.T, hostID string) {
 				app, err := types.NewAppV3(
 					types.Metadata{
 						Name:      "test-app",
@@ -674,25 +661,25 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 				appServer, err := types.NewAppServerV3(
 					types.Metadata{
-						Name:      name,
+						Name:      "test-app",
 						Namespace: defaults.Namespace,
 					},
 					types.AppServerSpecV3{
-						HostID: name,
+						HostID: hostID,
 						App:    app,
 					})
 				require.NoError(t, err)
 				_, err = a.UpsertApplicationServer(context.Background(), appServer)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, name, name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-app"))
 			},
 		},
 		{
 			role: types.RoleWindowsDesktop,
-			upserter: func(t *testing.T, name string) {
-				wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: name},
+			upserter: func(t *testing.T, hostID string) {
+				wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: hostID},
 					types.WindowsDesktopServiceSpecV3{
 						Addr:            "localhost:3028",
 						TeleportVersion: "10.2.2",
@@ -702,16 +689,16 @@ func TestHostUniqueCheck(t *testing.T) {
 				_, err = a.UpsertWindowsDesktopService(context.Background(), wds)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteWindowsDesktopService(t.Context(), name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteWindowsDesktopService(t.Context(), hostID))
 			},
 		},
 		{
 			role: types.RoleOkta,
-			upserter: func(t *testing.T, name string) {
+			upserter: func(t *testing.T, hostID string) {
 				app, err := types.NewAppV3(
 					types.Metadata{
-						Name:      "test-app",
+						Name:      "test-okta-app",
 						Namespace: defaults.Namespace,
 					},
 					types.AppSpecV3{
@@ -720,11 +707,11 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 				appServer, err := types.NewAppServerV3(
 					types.Metadata{
-						Name:      name,
+						Name:      "test-okta-app",
 						Namespace: defaults.Namespace,
 					},
 					types.AppServerSpecV3{
-						HostID: name,
+						HostID: hostID,
 						App:    app,
 					})
 				require.NoError(t, err)
@@ -732,8 +719,8 @@ func TestHostUniqueCheck(t *testing.T) {
 				_, err = a.UpsertApplicationServer(context.Background(), appServer)
 				require.NoError(t, err)
 			},
-			deleter: func(t *testing.T, name string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, name, name))
+			deleter: func(t *testing.T, hostID string) {
+				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-okta-app"))
 			},
 		},
 	}
