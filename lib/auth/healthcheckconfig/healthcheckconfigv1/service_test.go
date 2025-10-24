@@ -23,11 +23,16 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -98,7 +103,7 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 				resp, err := clt.ServiceUnderTest.ListHealthCheckConfigs(ctx, &healthcheckconfigv1.ListHealthCheckConfigsRequest{})
 				if err == nil {
 					require.NotNil(t, resp)
-					require.Len(t, resp.Configs, 2, "the test bootstrapped exactly 2 health_check_config resources")
+					require.Len(t, resp.Configs, 4, "expected 2 inserted, and 2 virtual presets")
 				}
 				return err
 			},
@@ -199,7 +204,7 @@ func (c *accessTest) run(t *testing.T) {
 		ctx, clt := c.setup(t, spec)
 		err := c.actionFn(t, ctx, clt)
 		require.Error(t, err)
-		require.IsType(t, trace.AccessDenied(""), err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
 
 	t.Run(fmt.Sprintf("%s is denied", c.name), func(t *testing.T) {
@@ -210,7 +215,7 @@ func (c *accessTest) run(t *testing.T) {
 		ctx, clt := c.setup(t, spec)
 		err := c.actionFn(t, ctx, clt)
 		require.Error(t, err)
-		require.IsType(t, trace.AccessDenied(""), err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
 }
 
@@ -314,4 +319,141 @@ func authorizerForDummyUser(t *testing.T, clt testClient, roleSpecs ...types.Rol
 			Groups:   roleNames,
 		},
 	})
+}
+
+func newPresetService(t *testing.T, verbs ...string) (testClient, context.Context) {
+	t.Helper()
+	clt := newService(t, t.Context())
+	return clt, authorizerForDummyUser(t, clt, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{healthCheckConfigRule(verbs...)},
+		},
+	})
+}
+
+type presetTest struct {
+	name  string
+	verbs []string
+	run   func(t *testing.T, ctx context.Context, clt testClient)
+}
+
+func TestHealthCheckConfigPresets(t *testing.T) {
+	t.Parallel()
+
+	tests := []presetTest{
+		{
+			name:  "Get",
+			verbs: []string{types.VerbRead},
+			run: func(t *testing.T, ctx context.Context, clt testClient) {
+				// Ensure that virtual presets can be retrieved without being
+				// explicitly created.
+
+				kube, err := clt.ServiceUnderTest.GetHealthCheckConfig(ctx, &healthcheckconfigv1.GetHealthCheckConfigRequest{
+					Name: teleport.VirtualDefaultHealthCheckConfigKubeName,
+				})
+				require.NoError(t, err)
+				require.Equal(t, services.VirtualDefaultHealthCheckConfigKube(), kube)
+			},
+		},
+		{
+			name:  "Create And Get",
+			verbs: []string{types.VerbCreate, types.VerbRead},
+			run: func(t *testing.T, ctx context.Context, clt testClient) {
+				// Ensure that an explicitly created preset can be retrieved
+				// without being overwritten by the virtual preset.
+
+				// Kube preset
+				kube1 := services.VirtualDefaultHealthCheckConfigKube()
+				kube1.Spec.Interval = durationpb.New(99 * time.Second)
+				_, err := clt.ServiceUnderTest.CreateHealthCheckConfig(ctx, &healthcheckconfigv1.CreateHealthCheckConfigRequest{
+					Config: kube1,
+				})
+				require.NoError(t, err)
+				kube2, err := clt.ServiceUnderTest.GetHealthCheckConfig(ctx, &healthcheckconfigv1.GetHealthCheckConfigRequest{
+					Name: teleport.VirtualDefaultHealthCheckConfigKubeName,
+				})
+				require.NoError(t, err)
+				require.Equal(t, kube1.Spec.Interval.AsDuration(), kube2.Spec.Interval.AsDuration())
+			},
+		},
+		{
+			name:  "List",
+			verbs: []string{types.VerbRead, types.VerbList},
+			run: func(t *testing.T, ctx context.Context, clt testClient) {
+				// Ensure that presets can be listed without being
+				// explicitly created.
+				resp, err := clt.ServiceUnderTest.ListHealthCheckConfigs(ctx, &healthcheckconfigv1.ListHealthCheckConfigsRequest{})
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.Len(t, resp.Configs, 1, "expected 1 virtual preset")
+				for _, actual := range resp.Configs {
+					switch actual.GetMetadata().GetName() {
+					case teleport.VirtualDefaultHealthCheckConfigKubeName:
+						require.Empty(t, cmp.Diff(services.VirtualDefaultHealthCheckConfigKube(), actual, protocmp.Transform()))
+					}
+				}
+			},
+		},
+		{
+			name:  "Create And List",
+			verbs: []string{types.VerbCreate, types.VerbRead, types.VerbList},
+			run: func(t *testing.T, ctx context.Context, clt testClient) {
+				// Ensure that explicitly created presets can be listed
+				// without being overwritten by the virtual presets.
+
+				kube := services.VirtualDefaultHealthCheckConfigKube()
+				kube.Spec.Interval = durationpb.New(99 * time.Second)
+				_, err := clt.ServiceUnderTest.CreateHealthCheckConfig(ctx, &healthcheckconfigv1.CreateHealthCheckConfigRequest{
+					Config: kube,
+				})
+				require.NoError(t, err)
+
+				resp, err := clt.ServiceUnderTest.ListHealthCheckConfigs(ctx, &healthcheckconfigv1.ListHealthCheckConfigsRequest{})
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.Len(t, resp.Configs, 1, "expected 1 virtual preset")
+				for _, actual := range resp.Configs {
+					switch actual.GetMetadata().GetName() {
+					case teleport.VirtualDefaultHealthCheckConfigKubeName:
+						require.Equal(t, kube.Spec.Interval.AsDuration(), actual.Spec.Interval.AsDuration())
+					}
+				}
+			},
+		},
+		{
+			name:  "Get And Upsert",
+			verbs: []string{types.VerbCreate, types.VerbRead, types.VerbUpdate},
+			run: func(t *testing.T, ctx context.Context, clt testClient) {
+				// Ensure that virtual presets can be retrieved then upserted.
+
+				// Kube preset
+				kube1, err := clt.ServiceUnderTest.GetHealthCheckConfig(ctx, &healthcheckconfigv1.GetHealthCheckConfigRequest{
+					Name: teleport.VirtualDefaultHealthCheckConfigKubeName,
+				})
+				require.NoError(t, err)
+				require.Equal(t, services.VirtualDefaultHealthCheckConfigKube(), kube1)
+				kube1.Spec.Interval = durationpb.New(99 * time.Second)
+				kube2, err := clt.ServiceUnderTest.UpsertHealthCheckConfig(ctx, &healthcheckconfigv1.UpsertHealthCheckConfigRequest{
+					Config: kube1,
+				})
+				require.NoError(t, err)
+				require.Equal(t, kube1.Spec.Interval.AsDuration(), kube2.Spec.Interval.AsDuration())
+			},
+		},
+		{
+			name:  "Delete",
+			verbs: []string{types.VerbDelete},
+			run: func(t *testing.T, ctx context.Context, clt testClient) {
+				// Ensure that virtual presets can be deleted without error.
+				_, err := clt.ServiceUnderTest.DeleteHealthCheckConfig(ctx, &healthcheckconfigv1.DeleteHealthCheckConfigRequest{
+					Name: teleport.VirtualDefaultHealthCheckConfigKubeName,
+				})
+				require.NoError(t, err)
+			},
+		},
+	}
+	for _, test := range tests {
+		clt, ctx := newPresetService(t, test.verbs...)
+		test.run(t, ctx, clt)
+	}
 }

@@ -17,7 +17,6 @@
 package local
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -35,12 +34,13 @@ import (
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestHealthCheckConfigService(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
@@ -106,7 +106,7 @@ func TestHealthCheckConfigService(t *testing.T) {
 
 	t.Run("delete not found", func(t *testing.T) {
 		err := service.DeleteHealthCheckConfig(ctx, "asdf")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorIs(t, trace.NotFound("health_check_config \"asdf\" doesn't exist"), err)
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -129,6 +129,17 @@ func TestHealthCheckConfigService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, out)
 	})
+}
+
+func TestHealthCheckConfigService_VirtualResources(t *testing.T) {
+	t.Parallel()
+
+	virtualResources, err := iterstream.Collect((*HealthCheckConfigService)(nil).rangeVirtualResources(""))
+	require.NoError(t, err)
+
+	require.True(t, slices.IsSortedFunc(virtualResources, func(a, b *healthcheckconfigv1.HealthCheckConfig) int {
+		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
+	}), "expected virtual resources to be sorted")
 }
 
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
