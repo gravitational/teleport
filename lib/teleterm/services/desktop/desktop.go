@@ -156,7 +156,11 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 				Severity: tdp.SeverityWarning,
 			}}, nil
 		}
-		return []tdp.Message{msg}, nil
+
+		if msg != nil {
+			return []tdp.Message{msg}, nil
+		}
+		return nil, nil
 	}, nil))
 
 	return trace.Wrap(tdpConnProxy.Run())
