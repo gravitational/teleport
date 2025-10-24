@@ -55,7 +55,9 @@ if (!process.defaultApp) {
 app.commandLine.appendSwitch('gtk-version', '3');
 
 if (app.requestSingleInstanceLock()) {
-  initializeApp();
+  initializeApp().catch(error =>
+    showDialogWithError('Could not initialize the app', error)
+  );
 } else {
   console.log('Attempted to open a second instance of the app, exiting.');
   // All windows will be closed immediately without asking the user,
