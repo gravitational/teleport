@@ -90,6 +90,14 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					return NewSet(locals...), nil
 				}),
+			"regexp.match": typical.BinaryFunction[evaluationEnv](
+				func(inputs Set, expression string) (bool, error) {
+					match, err := utils.RegexMatchesAny(inputs.items(), expression)
+					if err != nil {
+						return false, trace.Wrap(err, "invalid regular expression %q", expression)
+					}
+					return match, nil
+				}),
 			"regexp.replace": typical.TernaryFunction[evaluationEnv](
 				func(inputs Set, match string, replacement string) (Set, error) {
 					replaced, err := parse.RegexpReplace(inputs.items(), match, replacement)
