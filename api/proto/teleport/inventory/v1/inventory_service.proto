@@ -1,0 +1,75 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.inventory.v1;
+
+import "teleport/legacy/types/types.proto";
+import "teleport/machineid/v1/bot_instance.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1;inventoryv1";
+
+// InventoryService provides methods to list instances from the inventory cache. This service does not fallback to the backend if the cache is unhealthy.
+service InventoryService {
+  // ListUnifiedInstances returns a page of teleport instances and bot_instances. This API will refuse any requests when the cache is unhealthy or not yet
+  // fully initialized.
+  rpc ListUnifiedInstances(ListUnifiedInstancesRequest) returns (ListUnifiedInstancesResponse);
+}
+
+// ListUnifiedInstancesRequest is the request for listing instances.
+message ListUnifiedInstancesRequest {
+  // page_size is the size of the page to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous ListUnifiedInstances request, if any.
+  string page_token = 2;
+  // filter specifies optional search criteria to limit which instances should be returned.
+  ListUnifiedInstancesFilter filter = 3;
+}
+
+// ListUnifiedInstancesResponse is the response from listing instances.
+message ListUnifiedInstancesResponse {
+  // items is the list of instances (instances or bot instances) returned.
+  repeated UnifiedInstanceItem items = 1;
+  // next_page_token contains the next page token to use as the start key for the next page of instances.
+  string next_page_token = 2;
+}
+
+// ListUnifiedInstancesFilter provides a mechanism to refine ListUnifiedInstances results.
+message ListUnifiedInstancesFilter {
+  // search is a basic string search query which will filter results by name (hostname for instances, bot name for bot instances).
+  string search = 1;
+  // advanced_search is an advanced search query using predicate language.
+  string advanced_search = 2;
+  // kinds is the kinds of instances to return. If omitted, both instances and bot instances will be returned.
+  repeated string kinds = 3;
+  // services is the list of services to filter instances by. Not applicable to bot instances.
+  repeated string services = 4;
+  // updater_groups is the list of updater groups to filter instances by. Not applicable to bot instances.
+  repeated string updater_groups = 5;
+  // upgraders is the list of upgraders to filter instances by. Not applicable to bot instances.
+  repeated string upgraders = 6;
+}
+
+// UnifiedInstanceItem represents either a teleport or bot instance.
+message UnifiedInstanceItem {
+  oneof item {
+    // instance is the canonical instance type from the Instance heartbeat system.
+    types.InstanceV1 instance = 1;
+    // bot_instance is the canonical bot instance type.
+    teleport.machineid.v1.BotInstance bot_instance = 2;
+  }
+}
