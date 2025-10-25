@@ -98,7 +98,7 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 				resp, err := clt.ServiceUnderTest.ListHealthCheckConfigs(ctx, &healthcheckconfigv1.ListHealthCheckConfigsRequest{})
 				if err == nil {
 					require.NotNil(t, resp)
-					require.Len(t, resp.Configs, 2, "the test bootstrapped exactly 2 health_check_config resources")
+					require.Len(t, resp.Configs, 4, "expected 2 inserted, and 2 virtual defaults")
 				}
 				return err
 			},
@@ -199,7 +199,7 @@ func (c *accessTest) run(t *testing.T) {
 		ctx, clt := c.setup(t, spec)
 		err := c.actionFn(t, ctx, clt)
 		require.Error(t, err)
-		require.IsType(t, trace.AccessDenied(""), err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
 
 	t.Run(fmt.Sprintf("%s is denied", c.name), func(t *testing.T) {
@@ -210,7 +210,7 @@ func (c *accessTest) run(t *testing.T) {
 		ctx, clt := c.setup(t, spec)
 		err := c.actionFn(t, ctx, clt)
 		require.Error(t, err)
-		require.IsType(t, trace.AccessDenied(""), err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
 }
 

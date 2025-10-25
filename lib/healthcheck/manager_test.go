@@ -126,6 +126,9 @@ func TestManager(t *testing.T) {
 	healthConfigSvc, err := local.NewHealthCheckConfigService(bk)
 	require.NoError(t, err)
 
+	// disable virtual defaults to allow testing explicit config matching behavior
+	disableVirtualHealthCheckDefaults(t, ctx, healthConfigSvc)
+
 	// create a health check config that only matches prod databases
 	prodHCC := healthCheckConfigFixture(t, "prod")
 	prodHCC.Spec.Match.DbLabelsExpression = `labels.env == "prod"`
@@ -151,7 +154,8 @@ func TestManager(t *testing.T) {
 		mgr.mu.RLock()
 		configs := mgr.configs[:]
 		mgr.mu.RUnlock()
-		require.Len(t, configs, 1, "starting the manager should have blocked until configs were initialized")
+		require.Len(t, configs, 1+teleport.VirtualDefaultHealthCheckConfigCount,
+			"starting the manager should have blocked until configs were initialized")
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -615,5 +619,20 @@ func lastResultFailTestEvent(targetName string) testEvent {
 	return testEvent{
 		name:   lastResultFail,
 		target: targetName,
+	}
+}
+
+func disableVirtualHealthCheckDefaults(t *testing.T, ctx context.Context, svc *local.HealthCheckConfigService) {
+	t.Helper()
+	virtualDefaults := []string{
+		teleport.VirtualDefaultHealthCheckConfigDBName,
+		teleport.VirtualDefaultHealthCheckConfigKubeName,
+	}
+	for _, name := range virtualDefaults {
+		cfg, err := svc.GetHealthCheckConfig(ctx, name)
+		require.NoError(t, err)
+		cfg.Spec.Match.Disabled = true
+		_, err = svc.UpdateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
 	}
 }
