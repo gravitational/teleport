@@ -193,6 +193,9 @@ type RegisterParams struct {
 	// CreateSignedSTSIdentityRequestFunc overrides the function used to
 	// generate a signed AWs sts:GetCallerIdentity request.
 	CreateSignedSTSIdentityRequestFunc func(ctx context.Context, challenge string, opts ...iam.STSIdentityRequestOption) ([]byte, error)
+	// GetInstanceIdentityDocumentFunc overrides the function used to get an
+	// EC2 Instance Identity Document for the host.
+	GetInstanceIdentityDocumentFunc func(ctx context.Context) ([]byte, error)
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -210,6 +213,10 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 
 	if r.CreateSignedSTSIdentityRequestFunc == nil {
 		r.CreateSignedSTSIdentityRequestFunc = iam.CreateSignedSTSIdentityRequest
+	}
+
+	if r.GetInstanceIdentityDocumentFunc == nil {
+		r.GetInstanceIdentityDocumentFunc = awsutils.GetRawEC2IdentityDocument
 	}
 
 	return nil
@@ -296,7 +303,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = awsutils.GetRawEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = params.GetInstanceIdentityDocumentFunc(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

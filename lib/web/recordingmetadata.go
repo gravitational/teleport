@@ -87,37 +87,16 @@ func (h *Handler) getSessionRecordingMetadata(
 		return nil, nil
 	}
 
-	metadata, err := stream.Recv()
-	if err != nil {
-		if trace.IsNotFound(err) {
-			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
-				Error: fmt.Sprintf("metadata for session %q not found", sessionID),
-			})
-		} else {
-			h.logger.ErrorContext(ctx, "failed to receive metadata", "session_id", sessionID, "error", err)
-			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
-				Error: err.Error(),
-			})
-		}
-		return nil, nil
-	}
-
-	if metadata.GetMetadata() == nil {
-		h.logger.ErrorContext(ctx, "received nil metadata in stream", "session_id", sessionID)
-		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
-			Error: trace.BadParameter("received nil metadata").Error(),
-		})
-		return nil, nil
-	}
-
-	if err := sendMessage(ws, recordingMetadataMessageType, encodeSessionRecordingMetadata(metadata.GetMetadata())); err != nil {
-		h.logger.ErrorContext(ctx, "failed to send metadata", "session_id", sessionID, "error", err)
-		return nil, nil
-	}
-
 	for {
 		chunk, err := stream.Recv()
 		if err != nil {
+			if trace.IsNotFound(err) {
+				sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+					Error: fmt.Sprintf("metadata for session %q not found", sessionID),
+				})
+				return nil, nil
+			}
+
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -128,18 +107,30 @@ func (h *Handler) getSessionRecordingMetadata(
 			return nil, nil
 		}
 
-		if chunk.GetFrame() == nil {
-			h.logger.ErrorContext(ctx, "received nil frame in metadata stream")
-			sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
-				Error: trace.BadParameter("received nil frame").Error(),
-			})
-			return nil, nil
+		if chunk.GetMetadata() != nil {
+			if err := sendMessage(ws, recordingMetadataMessageType, encodeSessionRecordingMetadata(chunk.GetMetadata())); err != nil {
+				h.logger.ErrorContext(ctx, "failed to send metadata", "session_id", sessionID, "error", err)
+				return nil, nil
+			}
+
+			continue
 		}
 
-		if err := sendMessage(ws, recordingThumbnailMessageType, encodeSessionRecordingThumbnail(chunk.GetFrame())); err != nil {
-			h.logger.ErrorContext(ctx, "failed to send thumbnail", "session_id", sessionID, "error", err)
-			return nil, nil
+		if chunk.GetFrame() != nil {
+			if err := sendMessage(ws, recordingThumbnailMessageType, encodeSessionRecordingThumbnail(chunk.GetFrame())); err != nil {
+				h.logger.ErrorContext(ctx, "failed to send thumbnail", "session_id", sessionID, "error", err)
+				return nil, nil
+			}
+
+			continue
 		}
+
+		h.logger.ErrorContext(ctx, "received nil frame in metadata stream")
+		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
+			Error: trace.BadParameter("received nil frame").Error(),
+		})
+
+		return nil, nil
 	}
 
 	return nil, nil
