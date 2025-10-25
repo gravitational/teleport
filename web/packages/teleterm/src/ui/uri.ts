@@ -178,11 +178,13 @@ export const routing = {
   },
 
   /**
-   * parseClusterName should be used only when getting the cluster object from ClustersService is
-   * not possible.
+   * Returns the profile name for root clusters and the cluster name for leaf clusters.
    *
-   * rootClusterId in the URI is not the name of the cluster but rather just the hostname of the
-   * proxy. These two might be different.
+   * In the URI, `rootClusterId` may not be the root cluster's name but the hostname
+   * of its proxy (these may differ).
+   * `leafClusterId`, on the other hand, always matches the leaf cluster's name.
+   *
+   * TODO(gzdunek): Split this function into `parseProfileName` and `parseLeafClusterName`.
    */
   parseClusterName(clusterUri: string) {
     const parsed = routing.parseClusterUri(clusterUri);

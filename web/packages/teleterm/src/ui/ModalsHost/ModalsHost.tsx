@@ -108,7 +108,6 @@ function renderDialog({
         <ClusterLogout
           hidden={hidden}
           clusterUri={dialog.clusterUri}
-          clusterTitle={dialog.clusterTitle}
           onClose={handleClose}
         />
       );

@@ -33,7 +33,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 import { IAppContext } from 'teleterm/ui/types';
 import * as uri from 'teleterm/ui/uri';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export type SsoPrompt =
   /**
@@ -190,7 +190,7 @@ export function useClusterLogin(props: Props) {
   return {
     ssoPrompt,
     passwordlessLoginState,
-    title: cluster?.name,
+    title: routing.parseClusterName(clusterUri),
     loggedInUserName,
     onLoginWithLocal,
     onLoginWithPasswordless,
@@ -211,10 +211,6 @@ export function useClusterLogin(props: Props) {
     quitAndInstallAppUpdate: mainProcessClient.quitAndInstallAppUpdate,
     changeAppUpdatesManagingCluster:
       mainProcessClient.changeAppUpdatesManagingCluster,
-    clusterGetter: {
-      findCluster: (clusterUri: RootClusterUri) =>
-        clustersService.findCluster(clusterUri),
-    },
   };
 }
 

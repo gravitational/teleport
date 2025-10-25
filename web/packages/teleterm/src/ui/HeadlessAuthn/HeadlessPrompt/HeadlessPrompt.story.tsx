@@ -18,7 +18,7 @@
 
 import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 
@@ -28,7 +28,7 @@ export default {
 
 export const Story = () => (
   <HeadlessPrompt
-    cluster={makeRootCluster()}
+    rootClusterUri={rootClusterUri}
     clientIp="localhost"
     skipConfirm={false}
     onApprove={async () => {}}

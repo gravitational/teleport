@@ -73,7 +73,6 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
         <DetailsView
           platform={platform}
           updateEvent={updateEvent}
-          clusterGetter={appContext.clustersService}
           onCancelDownload={() => void cancelAppUpdateDownload()}
           onDownload={() => void downloadAppUpdate()}
           onCheckForUpdates={() => void checkForAppUpdates()}

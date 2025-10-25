@@ -52,9 +52,6 @@ test('download button is available when autoDownload is false', async () => {
           },
         }
       )}
-      clusterGetter={{
-        findCluster: () => undefined,
-      }}
       platform="darwin"
       onCheckForUpdates={() => {}}
       onDownload={() => {}}
@@ -99,9 +96,6 @@ test('when there are multiple clusters available, managing cluster can be select
           ],
         },
       })}
-      clusterGetter={{
-        findCluster: () => undefined,
-      }}
       platform="darwin"
       onCheckForUpdates={() => {}}
       onDownload={() => {}}

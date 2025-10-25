@@ -26,7 +26,6 @@ import { Cross } from 'design/Icon';
 import { P } from 'design/Text/Text';
 import { pluralize } from 'shared/utils/text';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export function DocumentsReopen(props: {
@@ -37,12 +36,7 @@ export function DocumentsReopen(props: {
   hidden?: boolean;
 }) {
   const { rootClusterUri } = props;
-  const { clustersService } = useAppContext();
-  // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
-  // clustersService. https://github.com/gravitational/teleport/issues/33733
-  const clusterName =
-    clustersService.findCluster(rootClusterUri)?.name ||
-    routing.parseClusterName(rootClusterUri);
+  const clusterName = routing.parseClusterName(rootClusterUri);
 
   return (
     <DialogConfirmation

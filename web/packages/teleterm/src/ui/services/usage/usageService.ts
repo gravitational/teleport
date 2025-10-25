@@ -308,7 +308,14 @@ export class UsageService {
   private getClusterProperties(uri: ClusterOrResourceUri) {
     const rootClusterUri = routing.ensureRootClusterUri(uri);
     const cluster = this.findCluster(rootClusterUri);
-    if (!(cluster && cluster.loggedInUser && cluster.authClusterId)) {
+    if (
+      !(
+        cluster &&
+        cluster.loggedInUser &&
+        cluster.authClusterId &&
+        cluster.name
+      )
+    ) {
       return;
     }
 
