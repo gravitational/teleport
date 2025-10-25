@@ -108,7 +108,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 5/10: Create a role for tbot
+## Step 5/10. Create a role for tbot
 
 To let Teleport users or services run `tbot`, you need a role that grants the required permissions for authenticating and requesting short-lived certificates.
 `tbot` uses a bot token issued by the Auth Service and operates under a bot role that defines what the bot can impersonate (e.g., roles, resources).
@@ -141,23 +141,21 @@ spec:
 $ tctl create -f tbot-role.yaml
 ```
 
-#### Understanding the configuration
+<Admonition type="note">
+**Understanding the configuration**
 
-**impersonate.roles**: This section tells Teleport which roles `tbot` is allowed to act on behalf of when issuing short-lived certificates.
+- **impersonate.roles**: This section tells Teleport which roles `tbot` is allowed to act on behalf of when issuing short-lived certificates.
 In this example, `['workload', 'ci-cd']` represent two roles that your workloads or CI/CD jobs will use when connecting to Teleport.
 When `tbot` requests new credentials, it can impersonate these roles so that the generated certificates inherit their permissions.
-You can replace these names with any roles that reflect your organization's use cases, for example, ['database', 'monitoring'].
-
-**rules**: These allow tbot to perform basic operations required during impersonation.
-**resources ['token'] with verbs ['create']**: lets `tbot` create temporary join tokens as part of its workflow.
-**resources ['role'] with verbs ['read'**: lets it look up role definitions to ensure it can correctly issue impersonated certificates.
-**max_session_ttl**: Controls how long certificates issued through this role can live before renewal. The example uses one year (8760 hours) 
+You can replace these names with any roles that reflect your organization's use cases, for example, `['database', 'monitoring']`.
+- **rules**: These allow tbot to perform basic operations required during impersonation.
+- **resources ['token'] with verbs ['create']**: lets `tbot` create temporary join tokens as part of its workflow.
+- **resources ['role'] with verbs ['read'**: lets it look up role definitions to ensure it can correctly issue impersonated certificates.
+- **max_session_ttl**: Controls how long certificates issued through this role can live before renewal. The example uses one year (8760 hours) 
 to accommodate long-running bot instances, though the actual certificates `tbot` issues will still be short-lived.
+</Admonition>
 
-Together, these settings let tbot securely act as a delegate that retrieves and renews Teleport-issued credentials for your workloads, without giving it 
-unnecessary or permanent privileges.
-
-## Step 6/10: Assign the role to the bot
+## Step 6/10. Assign the role to the bot
 
 Assign the `tbot` role to the bot created earlier.
 
