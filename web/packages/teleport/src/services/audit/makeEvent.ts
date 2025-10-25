@@ -1211,7 +1211,7 @@ export const formatters: Formatters = {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
     format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
-      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
+      let message = `User [${user}] started session [${sid}] on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` with domain [${windows_domain}]`;
       }
@@ -1237,7 +1237,7 @@ export const formatters: Formatters = {
       if (windows_domain) {
         desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session [${sid}] for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
