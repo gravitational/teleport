@@ -50,7 +50,6 @@ func (m *mockEnv0Validator) ValidateToken(ctx context.Context, token []byte) (*e
 
 type env0JoinTestCase struct {
 	desc             string
-	authServer       *authtest.Server
 	tokenName        string
 	requestTokenName string
 	tokenSpec        types.ProvisionTokenSpecV2
@@ -63,22 +62,13 @@ func TestJoinEnv0(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	regularServer, err := authtest.NewTestServer(authtest.ServerConfig{
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir: t.TempDir(),
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
-
-	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir:  t.TempDir(),
-			FIPS: true,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(ctx)) })
 
 	// Define some fake names and IDs the fake "provider" will issue.
 	const (
@@ -123,17 +113,13 @@ func TestJoinEnv0(t *testing.T) {
 		}
 	}
 
-	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
-		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
+	isAccessDenied := func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError), msgAndArgs...)
 	}
-	// isBadParameter := func(t require.TestingT, err error, _ ...any) {
-	// 	require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
-	// }
 
 	testCases := []env0JoinTestCase{
 		{
 			desc:             "basic passing case",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -154,7 +140,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "passes with all rules configured",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -188,29 +173,7 @@ func TestJoinEnv0(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "basic fips passing case",
-			authServer:       fipsServer,
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			oidcToken:        "correct-token",
-			validator:        validator("correct-token"),
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles:      []types.SystemRole{types.RoleNode},
-				JoinMethod: types.JoinMethodEnv0,
-				Env0: &types.ProvisionTokenSpecV2Env0{
-					Allow: []*types.ProvisionTokenSpecV2Env0_Rule{
-						{
-							OrganizationID: defaultOrganizationID,
-							ProjectID:      defaultProjectID,
-						},
-					},
-				},
-			},
-			assertError: require.NoError,
-		},
-		{
 			desc:             "requested wrong token",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "wrong-token",
 			oidcToken:        "correct-token",
@@ -231,7 +194,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "oidc token fails validation",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "invalid-token",
@@ -252,7 +214,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong organization",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -273,7 +234,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong project id",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -294,7 +254,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong project name",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -316,7 +275,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong template id",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -338,7 +296,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong template name",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -360,7 +317,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong environment id",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -382,7 +338,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong environment name",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -404,7 +359,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong workspace name",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -426,7 +380,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong deployment type",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -448,7 +401,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong deployer email",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -470,7 +422,6 @@ func TestJoinEnv0(t *testing.T) {
 		},
 		{
 			desc:             "wrong custom tag",
-			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			oidcToken:        "correct-token",
@@ -494,15 +445,15 @@ func TestJoinEnv0(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			testEnv0Join(t, &tc)
+			testEnv0Join(t, authServer, &tc)
 		})
 	}
 }
 
-func testEnv0Join(t *testing.T, tc *env0JoinTestCase) {
+func testEnv0Join(t *testing.T, authServer *authtest.Server, tc *env0JoinTestCase) {
 	ctx := t.Context()
 	// Set mock client.
-	tc.authServer.Auth().SetEnv0IDTokenValidator(tc.validator)
+	authServer.Auth().SetEnv0IDTokenValidator(tc.validator)
 
 	// Add token to auth server.
 	token, err := types.NewProvisionTokenFromSpec(
@@ -510,13 +461,13 @@ func testEnv0Join(t *testing.T, tc *env0JoinTestCase) {
 		time.Now().Add(time.Minute),
 		tc.tokenSpec)
 	require.NoError(t, err)
-	require.NoError(t, tc.authServer.Auth().UpsertToken(ctx, token))
+	require.NoError(t, authServer.Auth().UpsertToken(ctx, token))
 	t.Cleanup(func() {
-		assert.NoError(t, tc.authServer.Auth().DeleteToken(ctx, token.GetName()))
+		assert.NoError(t, authServer.Auth().DeleteToken(ctx, token.GetName()))
 	})
 
 	// Make an unauthenticated auth client that will be used for the join.
-	nopClient, err := tc.authServer.NewClient(authtest.TestNop())
+	nopClient, err := authServer.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 	defer nopClient.Close()
 

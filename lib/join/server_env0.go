@@ -36,7 +36,7 @@ type Env0TokenValidator interface {
 	) (*env0.IDTokenClaims, error)
 }
 
-// handleTokenJoin handles join attempts for the token join method.
+// handleEnv0Join handles join attempts for the token join method.
 func (s *Server) handleEnv0Join(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
@@ -68,8 +68,6 @@ func (s *Server) handleEnv0Join(
 		return nil, trace.Wrap(err)
 	}
 
-	// There are no additional checks for the token join method, just make the
-	// result message and return it.
 	result, err := s.makeResult(
 		stream.Context(),
 		stream.Diagnostic(),

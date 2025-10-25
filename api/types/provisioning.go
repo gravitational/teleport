@@ -1091,13 +1091,11 @@ func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
 	}
 
 	for i, allowRule := range a.Allow {
-		projectSet := allowRule.ProjectID != "" || allowRule.ProjectName != ""
-
 		if allowRule.OrganizationID == "" {
 			return trace.BadParameter("allow[%d]: organization_id must be set", i)
 		}
 
-		if !projectSet {
+		if allowRule.ProjectID == "" && allowRule.ProjectName == "" {
 			return trace.BadParameter("allow[%d]: at least one of ['project_id', 'project_name'] must be set", i)
 		}
 	}
