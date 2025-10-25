@@ -27,6 +27,53 @@ import (
 // IDTokenClaims are the additional custom claims provided by Env0 for their
 // issued OIDC tokens. See also:
 // https://docs.envzero.com/guides/integrations/oidc-integrations
+// Example token claims:
+//
+//	{
+//	  "apiKeyType": "oidc",
+//	  "aud": "https://prod.env0.com",
+//	  "azp": "hoMiq9PdkRh9LUvVpH4wIErWg50VSG1b",
+//	  "deployerEmail": "user@email.com",
+//	  "deploymentLogId": "4224831d-05c4-4548-841d-d61988e179cb",
+//	  "deploymentType": "deploy",
+//	  "environmentId": "50aa6e65-2956-4984-aab3-27af9dcc06dc",
+//	  "environmentName": "teleport-env0-demo",
+//	  "exp": 1761193071,
+//	  "gty": "password",
+//	  "https://aws.amazon.com/tags": {
+//	    "principal_tags": {
+//	      "deployerEmail": ["user@email.com"],
+//	      "deploymentType": ["deploy"],
+//	      "environmentId": ["50aa6e65-2956-4984-aab3-27af9dcc06dc"],
+//	      "organizationId": ["948de0c4-94d6-4ad6-8e56-1374353e9a38"],
+//	      "projectId": ["df15f983-808a-49c7-bc91-910cb10411ec"],
+//	      "templateId": ["00d81864-757c-4449-a91c-cf6bee07e44a"]
+//	    }
+//	  },
+//	  "https://env0.com/apiKeyType": "oidc",
+//	  "https://env0.com/deployerEmail": "user@email.com",
+//	  "https://env0.com/deploymentLogId": "4224831d-05c4-4548-841d-d61988e179cb",
+//	  "https://env0.com/deploymentType": "deploy",
+//	  "https://env0.com/environmentId": "50aa6e65-2956-4984-aab3-27af9dcc06dc",
+//	  "https://env0.com/environmentName": "teleport-env0-demo",
+//	  "https://env0.com/organization": "948de0c4-94d6-4ad6-8e56-1374353e9a38",
+//	  "https://env0.com/organizationId": "948de0c4-94d6-4ad6-8e56-1374353e9a38",
+//	  "https://env0.com/projectId": "df15f983-808a-49c7-bc91-910cb10411ec",
+//	  "https://env0.com/projectName": "My First Project",
+//	  "https://env0.com/templateId": "00d81864-757c-4449-a91c-cf6bee07e44a",
+//	  "https://env0.com/templateName": "single-use-template-for-teleport-env0-demo",
+//	  "https://env0.com/workspaceName": "teleport-env0-demo-000000",
+//	  "iat": 1761106671,
+//	  "iss": "https://login.app.env0.com/",
+//	  "organization": "948de0c4-94d6-4ad6-8e56-1374353e9a38",
+//	  "organizationId": "948de0c4-94d6-4ad6-8e56-1374353e9a38",
+//	  "projectId": "df15f983-808a-49c7-bc91-910cb10411ec",
+//	  "projectName": "My First Project",
+//	  "sub": "auth0|68f8497fe94b94dab2324697",
+//	  "templateId": "00d81864-757c-4449-a91c-cf6bee07e44a",
+//	  "templateName": "single-use-template-for-teleport-env0-demo",
+//	  "workspaceName": "teleport-env0-demo-000000"
+//	}
 type IDTokenClaims struct {
 	oidc.TokenClaims
 
