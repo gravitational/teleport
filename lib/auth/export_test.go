@@ -286,10 +286,6 @@ func CreatePresetRoles(ctx context.Context, um PresetRoleManager) error {
 	return createPresetRoles(ctx, um)
 }
 
-func CreatePresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
-	return createPresetHealthCheckConfig(ctx, svc)
-}
-
 func GetPresetUsers() []types.User {
 	return getPresetUsers()
 }
