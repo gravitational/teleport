@@ -24,9 +24,6 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/env0"
-	"github.com/gravitational/teleport/lib/join/internal/authz"
-	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
-	"github.com/gravitational/teleport/lib/join/internal/messages"
 )
 
 type Env0TokenValidator interface {
@@ -36,51 +33,30 @@ type Env0TokenValidator interface {
 	) (*env0.IDTokenClaims, error)
 }
 
-// handleEnv0Join handles join attempts for the token join method.
-func (s *Server) handleEnv0Join(
-	stream messages.ServerStream,
-	authCtx *authz.Context,
-	clientInit *messages.ClientInit,
+// validateEnv0Token performs OIDC token verification for Env0-type JWTs,
+// suitable for use in `handleOIDCJoin`
+func (s *Server) validateEnv0Token(
+	ctx context.Context,
 	provisionToken types.ProvisionToken,
-) (messages.Response, error) {
-	// Receive the TokenInit message from the client.
-	tokenInit, err := messages.RecvRequest[*messages.OIDCInit](stream)
+	idToken []byte,
+) (any, *workloadidentityv1.JoinAttrs, error) {
+	verifiedIdentity, err := s.cfg.AuthService.GetEnv0IDTokenValidator().ValidateToken(ctx, idToken)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Set any diagnostic info from the ClientParams.
-	setDiagnosticClientParams(stream.Diagnostic(), &tokenInit.ClientParams)
-
-	verifiedIdentity, err := s.cfg.AuthService.GetEnv0IDTokenValidator().ValidateToken(stream.Context(), tokenInit.IDToken)
-	stream.Diagnostic().Set(func(info *diagnostic.Info) {
-		info.RawJoinAttrs = verifiedIdentity
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "verifying Env0 OIDC token")
+		return nil, nil, trace.Wrap(err, "validating Env0 OIDC token")
 	}
 
 	ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
+		return nil, nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
 	}
 
 	if err := checkEnv0AllowRules(ptv2, verifiedIdentity); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	result, err := s.makeResult(
-		stream.Context(),
-		stream.Diagnostic(),
-		authCtx,
-		clientInit,
-		&tokenInit.ClientParams,
-		provisionToken,
-		verifiedIdentity,
-		&workloadidentityv1.JoinAttrs{
-			Env0: verifiedIdentity.JoinAttrs(),
-		},
-	)
-	return result, trace.Wrap(err)
+	return verifiedIdentity, &workloadidentityv1.JoinAttrs{
+		Env0: verifiedIdentity.JoinAttrs(),
+	}, nil
 }
 
 func checkEnv0AllowRules(token *types.ProvisionTokenV2, claims *env0.IDTokenClaims) error {

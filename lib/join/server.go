@@ -210,7 +210,7 @@ func (s *Server) handleJoinMethod(
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, provisionToken)
 	case types.JoinMethodEnv0:
-		return s.handleEnv0Join(stream, authCtx, clientInit, provisionToken)
+		return s.handleOIDCJoin(stream, authCtx, clientInit, provisionToken, s.validateEnv0Token)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
