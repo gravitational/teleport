@@ -615,7 +615,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		UserTasks:                       cfg.UserTasks,
 		DiscoveryConfigs:                cfg.DiscoveryConfigs,
 		Okta:                            cfg.Okta,
-		AccessLists:                     cfg.AccessLists,
+		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
@@ -879,7 +879,7 @@ type Services struct {
 	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
-	services.AccessLists
+	services.AccessListsInternal
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
@@ -5724,7 +5724,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListsInternal, promotions)
 
 		if req.GetRequestKind().IsLongTerm() {
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)
