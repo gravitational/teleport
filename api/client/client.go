@@ -2245,6 +2245,25 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 	return githubConnectors, nil
 }
 
+// ListGithubConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	resp, err := c.grpc.ListGithubConnectors(ctx, &proto.ListGithubConnectorsRequest{
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	githubConnectors := make([]types.GithubConnector, 0, len(resp.Connectors))
+	for _, githubConnector := range resp.Connectors {
+		githubConnectors = append(githubConnectors, githubConnector)
+	}
+	return githubConnectors, resp.NextPageToken, nil
+}
+
 // CreateGithubConnector creates a Github connector.
 func (c *Client) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	githubConnector, ok := connector.(*types.GithubConnectorV3)

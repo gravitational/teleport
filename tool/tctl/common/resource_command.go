@@ -3605,7 +3605,15 @@ func getOIDCConnectors(ctx context.Context, client *authclient.Client, name stri
 
 func getGithubConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.GithubConnector, error) {
 	if name == "" {
-		connectors, err := client.GetGithubConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+				return client.ListGithubConnectors(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.GithubConnector, error) {
+				return client.GetGithubConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
