@@ -105,7 +105,7 @@ func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc 
 
 func eventWithHeader(r *http.Request) eventOptionFunc {
 	return func(o *eventOptions) {
-		o.header = r.Header
+		o.header = redactSecretsFromHeader(r.Header)
 	}
 }
 
@@ -329,4 +329,13 @@ func (a *sessionAuditor) makeSessionMetadata() apievents.SessionMetadata {
 
 func (a *sessionAuditor) makeUserMetadata() apievents.UserMetadata {
 	return a.sessionCtx.Identity.GetUserMetadata()
+}
+
+func redactSecretsFromHeader(h http.Header) http.Header {
+	if len(h.Values("Authorization")) == 0 {
+		return h
+	}
+	ret := h.Clone()
+	ret.Set("Authorization", "<REDACTED>")
+	return ret
 }
