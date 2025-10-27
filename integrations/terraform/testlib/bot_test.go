@@ -18,10 +18,18 @@ package testlib
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func (s *TerraformSuiteOSS) TestBot() {
@@ -196,6 +204,64 @@ func (s *TerraformSuiteOSS) TestBot() {
 					resource.TestCheckResourceAttr(botName, "spec.roles.1", "deployer"),
 					resource.TestCheckResourceAttr(botName, "spec.max_session_ttl", "1h"),
 				),
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestImportBot() {
+	t := s.T()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	r := "teleport_bot"
+	id := "test_import"
+	name := r + "." + id
+
+	bot := &machineidv1.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: id,
+		},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{"deployer"},
+			Traits: []*machineidv1.Trait{
+				{
+					Name:   "logins",
+					Values: []string{"root", "ubuntu"},
+				},
+			},
+			MaxSessionTtl: durationpb.New(5 * time.Minute),
+		},
+	}
+	bot, err := s.client.BotServiceClient().
+		CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: bot})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, err := s.client.BotServiceClient().
+			GetBot(ctx, &machineidv1.GetBotRequest{BotName: bot.Metadata.Name})
+		return err == nil
+	}, 5*time.Second, time.Second)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
+				ResourceName:  name,
+				ImportState:   true,
+				ImportStateId: id,
+				ImportStateCheck: func(state []*terraform.InstanceState) error {
+					assert.Equal(t, types.KindBot, state[0].Attributes["kind"])
+					assert.Equal(t, "5m0s", state[0].Attributes["spec.max_session_ttl"])
+					assert.Equal(t, "deployer", state[0].Attributes["spec.roles.0"])
+					assert.Equal(t, "root", state[0].Attributes["spec.traits.logins.0"])
+
+					return nil
+				},
 			},
 		},
 	})
