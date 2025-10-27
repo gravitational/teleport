@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -416,6 +415,10 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return ok
 		}
 
+		if _, ok := kinds[types.KindMCP]; ok && r.GetSubKind() == types.KindMCP {
+			return true
+		}
+
 		_, ok := kinds[types.KindIdentityCenterAccount]
 		return ok
 	case types.KindKubeServer:
@@ -446,8 +449,19 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return ok
 		}
 
-		_, ok := kinds[types.KindAppServer]
-		return ok
+		if _, ok := kinds[types.KindAppServer]; ok {
+			return ok
+		}
+
+		if _, ok := kinds[types.KindMCP]; ok {
+			type appGetter interface {
+				GetApp() types.Application
+			}
+			if appServer, ok := r.(appGetter); ok && appServer.GetApp().GetSubKind() == types.SubKindMCP {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
@@ -724,20 +738,20 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var startKey string
 	for {
-		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resp, nextKey, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
-		for _, acct := range resultsPage {
-			accounts = append(accounts, IdentityCenterAccountToAppServer(acct.Account))
+		for _, acct := range resp {
+			accounts = append(accounts, IdentityCenterAccountToAppServer(acct))
 		}
 
-		if nextPage == pagination.EndOfList {
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
+		startKey = nextKey
 	}
 	return accounts, nil
 }
@@ -760,7 +774,7 @@ func (c *UnifiedResourceCache) getGitServers(ctx context.Context) (all []types.S
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
-// wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
+// whether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
 // not be accessed after the closure completes.
 func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedResourceCache) error) error {
 	c.rw.RLock()
@@ -932,6 +946,14 @@ func newResourceCollection(r resource) resourceCollection {
 					status:         aggregateHealthStatuses(servers),
 				}
 			})
+	case types.KubeServer:
+		return newServerResourceCollection(r,
+			func(srv types.KubeServer, servers map[string]types.KubeServer) types.KubeServer {
+				return &aggregatedKube{
+					KubeServer: srv,
+					status:     aggregateHealthStatuses(servers),
+				}
+			})
 	case serverResource:
 		return newServerResourceCollection(r, nil)
 	default:
@@ -1052,6 +1074,46 @@ func (d *aggregatedDatabase) Copy() types.DatabaseServer {
 // CloneResource returns a copy of the underlying database server with
 // aggregated health status.
 func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
+	return d.Copy()
+}
+
+// aggregatedKube wraps a kube server with aggregated health status.
+// It is assumed that multiple heartbeats with the same resource name but
+// different host IDs may be received and they may report different health
+// statuses.
+// This type provides the following properties:
+//   - avoid cloning the resource *before* filtering.
+//   - when the resource is cloned *after* filtering, set the clone's health
+//     status to the aggregate health status.
+//
+// Go generics do not support embedding a generic type, otherwise this type
+// would be made generic.
+type aggregatedKube struct {
+	types.KubeServer
+	status types.TargetHealthStatus
+}
+
+// This type MUST implement [types.KubeServer] to act as a facade type,
+// otherwise dynamic assertions elsewhere will fail.
+var _ types.KubeServer = (*aggregatedKube)(nil)
+
+// GetTargetHealthStatus gets the aggregate health status for filtering by
+// health status.
+func (d *aggregatedKube) GetTargetHealthStatus() types.TargetHealthStatus {
+	return d.status
+}
+
+// Copy returns a copy of the underlying kube server with aggregated health
+// status.
+func (d *aggregatedKube) Copy() types.KubeServer {
+	out := d.KubeServer.Copy()
+	out.SetTargetHealthStatus(d.status)
+	return out
+}
+
+// CloneResource returns a copy of the underlying kube server with
+// aggregated health status.
+func (d *aggregatedKube) CloneResource() types.ResourceWithLabels {
 	return d.Copy()
 }
 

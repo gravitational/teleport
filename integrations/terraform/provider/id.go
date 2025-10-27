@@ -16,8 +16,6 @@ limitations under the License.
 
 package provider
 
-// TODO(kopiczko) Uncomment when the teleport_access_list_member resource is generated. For now the linter complains about unused functions.
-/*
 import (
 	"strings"
 
@@ -45,4 +43,3 @@ func parseID(id string) (prefix, name string, err error) {
 	}
 	return prefix, name, nil
 }
-*/

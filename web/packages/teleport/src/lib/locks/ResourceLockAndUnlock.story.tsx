@@ -70,6 +70,48 @@ export const LockingDialogs: Story = {
   },
 };
 
+export const UnlockNotSupported: Story = {
+  args: {
+    targetKind: 'user',
+    targetName: 'example-user',
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        listV2LocksSuccess({
+          locks: [
+            {
+              name: '785d167d-cb2b-4de4-8268-efb6d8932dde',
+              message: 'Locking bots until security alert is resolved.',
+              expires: '2023-01-01T00:00:00Z',
+              createdAt: '2023-01-01T00:00:00Z',
+              targets: {
+                user: 'example-user',
+              },
+            },
+            {
+              name: '0ef9909f-4980-40f7-bc85-ad9ef72bc059',
+              expires: '2023-01-01T00:00:00Z',
+              targets: {
+                user: 'example-user',
+              },
+            },
+            {
+              name: '0e07e3f6-55bc-421d-ab24-1b521a0b6452',
+              message:
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
+              createdAt: '2023-01-01T00:00:00Z',
+              targets: {
+                user: 'example-user',
+              },
+            },
+          ],
+        }),
+      ],
+    },
+  },
+};
+
 type Props = {
   targetKind: LockResourceKind;
   targetName: string;

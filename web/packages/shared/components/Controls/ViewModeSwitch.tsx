@@ -63,7 +63,7 @@ export const ViewModeSwitch = ({
   );
 };
 
-const ViewModeSwitchContainer = styled.div`
+export const ViewModeSwitchContainer = styled.div`
   height: 22px;
   border: ${p => p.theme.borders[1]} ${p => p.theme.colors.spotBackground[2]};
   border-radius: ${p => p.theme.radii[2]}px;
@@ -79,7 +79,10 @@ const ViewModeSwitchContainer = styled.div`
   }
 `;
 
-const ViewModeSwitchButton = styled.button<{ first?: boolean; last?: boolean }>`
+export const ViewModeSwitchButton = styled.button<{
+  first?: boolean;
+  last?: boolean;
+}>`
   height: 100%;
   width: 100%;
   overflow: hidden;

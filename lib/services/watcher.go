@@ -36,6 +36,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -528,7 +529,7 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return cfg.KubernetesClusterGetter.GetKubernetesClusters(ctx)
+			return iterstream.Collect(cfg.KubernetesClusterGetter.RangeKubernetesClusters(ctx, "", ""))
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,
@@ -583,8 +584,8 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceDiffer func(old, new T) bool
 	// ResourceKey defines how the resources should be keyed.
 	ResourceKey func(resource T) string
-	// ResourcesC is a channel used to report the current resourxe set. It receives
-	// a fresh list at startup and subsequently a list of all known resourxes
+	// ResourcesC is a channel used to report the current resource set. It receives
+	// a fresh list at startup and subsequently a list of all known resources
 	// whenever an addition or deletion is detected.
 	ResourcesC chan []T
 	// CloneFunc defines how a resource is cloned. All resources provided via

@@ -261,6 +261,63 @@ func (c *Cache[T, K]) ResourcesSubjectToPolicyScope(scope string, opts ...Option
 	}
 }
 
+// AllNonOrthogonalResources returns all resources at scopes non-orhthogonal to the given scope.  For example, given the
+// scope '/foo', this will return resources at '/', '/foo', '/foo/bar', etc, but not '/bar'. This operation is less typical
+// than either PoliciesApplicableToResourceScope or ResourcesSubjectToPolicyScope.  Currently, the only operation that wants
+// this kind of query is scope pin generation, which must discover all policies that might apply to access at the pinned scope
+// *or* any of its sub-scopes. This can reasonably be thought of as producing the union of the result of both the
+// PoliciesApplicableToResourceScope and ResourcesSubjectToPolicyScope methods.
+func (c *Cache[T, K]) AllNonOrthogonalResources(scope string, opts ...Option[T, K]) iter.Seq[ScopedItems[T]] {
+	return func(yield func(ScopedItems[T]) bool) {
+		c.rw.RLock()
+		defer c.rw.RUnlock()
+
+		var options options[T, K]
+		for _, opt := range opts {
+			opt(&options)
+		}
+
+		if c.root == nil {
+			return
+		}
+
+		// keep track of the segments visited
+		var visited []string
+
+		// search for start position, beginning at the root
+		current := c.root
+
+		descender := newDescender(options.cursor)
+		defer descender.Stop()
+
+		for segment := range scopes.DescendingSegments(scope) {
+			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.items, c.cfg.Clone, options.filter) {
+				return
+			}
+
+			// get next scope if it exists
+			var ok bool
+			current, ok = current.children.Get(segment)
+			if !ok {
+				// reached the end prior to finding the target scope,
+				// nothing to yield.
+				return
+			}
+
+			// advance the descender to the next scope
+			descender.Descend(segment)
+
+			// update visited segments
+			visited = append(visited, segment)
+		}
+
+		// recursively yield current position and all of its descendants
+		if !recursiveYield(yield, visited, &descender, current, c.items, c.cfg.Clone, options.filter) {
+			return
+		}
+	}
+}
+
 // recursiveYield is a helper function for recursively yielding all members of a given scope node, and all
 // members of all of its children. The returned bool is the return value of the last call to yield.
 func recursiveYield[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, visited []string, descender *descender[K], current *node[K], items map[K]T, clone func(T) T, filter func(T) bool) bool {
@@ -458,7 +515,7 @@ func (d *descender[K]) Descend(segment string) {
 	d.segment, d.descending = d.next()
 }
 
-// Yield indicates wether or not we've descended to the appropriate depth to
+// Yield indicates whether or not we've descended to the appropriate depth to
 // start yielding items.
 func (d *descender[K]) Yield() bool {
 	return !d.descending

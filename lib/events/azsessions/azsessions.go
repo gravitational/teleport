@@ -75,6 +75,18 @@ func summaryName(sid session.ID) string {
 	return sid.String() + ".summary.json"
 }
 
+// metadataName returns the name of the blob that contains the metadata for a
+// given session.
+func metadataName(sid session.ID) string {
+	return sid.String() + ".metadata"
+}
+
+// thumbnailName returns the name of the blob that contains the thumbnail for a
+// given session.
+func thumbnailName(sid session.ID) string {
+	return sid.String() + ".thumbnail"
+}
+
 // uploadMarkerPrefix is the prefix of the names of the upload marker blobs.
 // Listing blobs with this prefix will return an empty blob for each upload.
 const uploadMarkerPrefix = "upload/"
@@ -262,6 +274,16 @@ func (h *Handler) summaryBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(summaryName(sessionID))
 }
 
+// metadataBlob returns a BlockBlobClient for the blob of the session metadata.
+func (h *Handler) metadataBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(metadataName(sessionID))
+}
+
+// thumbnailBlob returns a BlockBlobClient for the blob of the session thumbnail.
+func (h *Handler) thumbnailBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(thumbnailName(sessionID))
+}
+
 // uploadMarkerBlob returns a BlockBlobClient for the marker blob of the stream
 // upload.
 func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) *blockblob.Client {
@@ -285,6 +307,18 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
 }
 
+// UploadMetadata implements [events.UploadHandler] and uploads the session
+// metadata.
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadBlob(ctx, sessionID, h.metadataBlob(sessionID), reader)
+}
+
+// UploadThumbnail implements [events.UploadHandler] and uploads the session
+// thumbnail.
+func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return h.uploadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), reader)
+}
+
 func (h *Handler) uploadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, reader io.Reader) (string, error) {
 	if _, err := cErr(blob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
 		AccessConditions: &blobDoesNotExist,
@@ -304,6 +338,16 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 // DownloadSummary implements [events.UploadHandler] and downloads a session summary.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
+}
+
+// DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadBlob(ctx, sessionID, h.metadataBlob(sessionID), writer)
+}
+
+// DownloadThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.downloadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), writer)
 }
 
 func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writer events.RandomAccessWriter) error {

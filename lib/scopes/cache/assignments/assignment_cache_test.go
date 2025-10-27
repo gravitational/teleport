@@ -33,7 +33,7 @@ import (
 
 // TestListScopedRoleAssignmentsScenarios tests particular more tricky ListScopedRoleAssignments scenarios, such
 // as attempts to use an out-of-band cursor to read values outside of the target scope.
-func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
+func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	t.Parallel()
 
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{

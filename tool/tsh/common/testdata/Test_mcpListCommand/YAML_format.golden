@@ -3,6 +3,7 @@
     description: description
     labels:
       env: dev
+      teleport.internal/app-sub-kind: mcp
     name: allow-read
   permissions:
     mcp:
@@ -24,6 +25,7 @@
     description: description
     labels:
       env: dev
+      teleport.internal/app-sub-kind: mcp
     name: deny-write
   permissions:
     mcp:

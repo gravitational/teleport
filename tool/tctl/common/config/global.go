@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -159,9 +158,8 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	}
 
 	authConfig := new(authclient.Config)
-	// read the host UUID only in case the identity was not provided,
-	// because it will be used for reading local auth server identity
-	cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
+	// read the host UUID file only to test for existence and permission errors.
+	_, err = hostid.ReadFile(cfg.DataDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
@@ -174,7 +172,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		return nil, trace.Wrap(err)
 	}
-	identity, err := storage.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	identity, err := storage.ReadLocalIdentityForRole(filepath.Join(cfg.DataDir, teleport.ComponentProcess), types.RoleAdmin)
 	if err != nil {
 		// The "admin" identity is not present? This means the tctl is running
 		// NOT on the auth server

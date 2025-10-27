@@ -1,0 +1,333 @@
+---
+title: Configuring Kubernetes OIDC Joining With IaC
+description: Use infrastructure-as-code tooling to join Teleport Kubernetes agents.
+labels:
+ - how-to
+ - zero-trust
+---
+
+In this guide you will see how to configure Teleport to allow Kubernetes Agents
+to join without secret tokens. Teleport supports three ways to dynamically
+create resources from code:
+
+- The Teleport Kubernetes Operator, which allows you to manage Teleport resources
+from Kubernetes
+- The Teleport Terraform Provider, which allows you to manage Teleport resources
+via Terraform
+- The `tctl` CLI, which allows you to manage Teleport resources from your local
+computer or your CI environment
+
+## How it works
+
+This guide relies on the OIDC variant of
+[the Kubernetes join method](../../../reference/deployment/join-methods.mdx#kubernetes-oidc).
+Most Kubernetes clusters use an OpenID Connect (OIDC) provider to sign their
+Service Account tokens.
+
+In this guide you will configure Teleport to trust the Kubernetes OIDC provider
+so the agent running in the Kubernetes cluster can use its Kubernetes-issued
+token to join the Teleport cluster.
+
+## Prerequisites
+
+To follow this guide, you must have:
+- A Teleport cluster running v18.1.5 or above
+- A Kubernetes cluster you want to enroll, whose service account tokens are
+  signed by a publicly reachable OIDC provider.
+
+<Admonition type="note">
+Cloud-managed Kubernetes clusters either have public OIDC provider by default,
+or this can be configured when creating the cluster:
+- EKS and GKE clusters should all have a publicly reachable OIDC provider.
+- this is [optional on AKS clusters](https://learn.microsoft.com/en-us/azure/aks/use-oidc-issuer)
+- [OIDC Discovery is optional on OKE cluster](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengOpenIDConnect-Discovery.htm)
+
+The cluster does not have to be public, only its OIDC provider has to.
+</Admonition>
+
+<Tabs>
+<TabItem label="tctl">
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+A running operator by following either:
+- [the guide to enable the operator in the `teleport-cluster` Helm chart](../teleport-operator/teleport-operator-helm.mdx).
+- [the guide to setup a standalone operator](../teleport-operator/teleport-operator-standalone.mdx).
+
+You must also set the namespace in which you deployed the operator as this is
+the namespace where you will deploy the CustomResources:
+
+```code
+# for operators deployed with the `teleport-cluster` Helm chart
+$ export OPERATOR_NAMESPACE="teleport-cluster"
+
+# for standalone operators
+$ export OPERATOR_NAMESPACE="teleport-iac"
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+A functional Teleport Terraform provider by following [the Terraform provider guide](../terraform-provider/terraform-provider.mdx).
+
+</TabItem>
+</Tabs>
+
+## Step 1/4. Detect the OIDC provider URL
+
+In this step we will connect to the cluster and recover the OIDC provider URL.
+If you already have the cluster's OIDC provider URL (e.g. as an output from the
+cluster provisioning), you can skip to step 2.
+
+Validate that you have access:
+```code
+$ kubectl cluster-info
+
+Kubernetes control plane is running at https://kube.example.com:443
+CoreDNS is running at https://kube.example.com:443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+Metrics-server is running at https://kube.example.com:443/api/v1/namespaces/kube-system/services/https:metrics-server:/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+```
+
+Retrieve the OIDC issuer URL in the `issuer` field of the OIDC configuration endpoint:
+```code
+$ kubectl get --raw=/.well-known/openid-configuration
+
+{"issuer":"<Var name="https://oidc.example.com/path/to/issuer/"/>",
+"jwks_uri":"https://kube.example.com:443/openid/v1/jwks","response_types_supported":["id_token"],
+"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256"]}
+```
+
+In the example above, it is <Var name="https://oidc.example.com/path/to/issuer/"/>.
+
+<Admonition type="important">
+The issuer URL must be copied exactly, including the presence or absence of trailing `/` in the URL.
+</Admonition>
+
+Validate that the OIDC provider is publicly reachable by running the following command
+and making sure it returns JSON:
+
+```code
+$ curl <Var name="https://oidc.example.com/path/to/issuer/"/>.well-known/openid-configuration
+
+{
+  "issuer": "<Var name="https://oidc.example.com/path/to/issuer/"/>",
+  "jwks_uri": "<Var name="https://oidc.example.com/path/to/issuer/"/>openid/v1/jwks",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [
+    "public"
+  ],
+  "id_token_signing_alg_values_supported": [
+    "RS256"
+  ]
+}
+```
+
+## Step 2/4. Create the Join Token
+
+In this step we will configure Teleport to trust tokens signed by the Kubernetes OIDC provider.
+This will allow agents running in this Kubernetes cluster to join the Teleport cluster.
+
+<Admonition type="note">
+We recommend naming the token after the Kubernetes cluster it's trusting,
+this will allow you to enroll other clusters without facing token name conflicts.
+</Admonition>
+
+### Write the manifest
+
+When creating the token, you will need to specify the future agent namespace
+(<Var name="teleport"/>) and agent release name (<Var name="teleport-agent"/>).
+This will be used by Teleport to check if the agent can join.
+
+<Tabs>
+<TabItem label="tctl">
+
+Create the file `token.yaml` with the following content:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: <Var name="kube-cluster-name"/>-oidc
+spec:
+  roles: ['Kube']
+  join_method: "kubernetes"
+  kubernetes:
+    type: oidc
+    oidc:
+      issuer: "<Var name="https://oidc.example.com/path/to/issuer/"/>"
+    allow:
+      - service_account: "<Var name="teleport"/>:<Var name="teleport-agent"/>"
+```
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+Create the file `token.yaml` with the following content:
+
+```yaml
+apiVersion: resources.teleport.dev/v1
+kind: TeleportProvisionToken
+metadata:
+  name: <Var name="kube-cluster-name"/>-oidc
+spec:
+  roles: ['Kube']
+  join_method: "kubernetes"
+  kubernetes:
+    type: oidc
+    oidc:
+      issuer: "<Var name="https://oidc.example.com/path/to/issuer/"/>"
+    allow:
+      - service_account: "<Var name="teleport"/>:<Var name="teleport-agent"/>"
+```
+
+<Admonition type="note">
+  Kubernetes validates all custom resource names to follow RFC 1123, which
+  includes specifications for hostnames. This requires the `metadata.name` field
+  of Teleport resources controlled by the operator to consist of lowercase
+  alphanumeric characters, `-` or `.`, and to start and end with an alphanumeric
+  character.
+</Admonition>
+
+</TabItem>
+<TabItem label="Terraform">
+
+Create the file `token.tf` with the following content:
+
+```hcl
+resource "teleport_token" "<Var name="kube-cluster-name"/>" {
+  version = "v2"
+  metadata = {
+    name = "<Var name="kube-cluster-name"/>-oidc"
+  }
+
+  spec = {
+    roles = ["Kube"]
+    join_method = "kubernetes"
+    kubernetes = {
+      type = "oidc"
+      oidc = {
+        issuer = "<Var name="https://oidc.example.com/path/to/issuer/"/>"
+      }
+      allow = [
+        {
+          service_account = "<Var name="teleport"/>:<Var name="teleport-agent"/>"
+        }
+      ]
+    }
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+### Apply the manifest
+
+<Tabs>
+<TabItem label="tctl">
+
+```code
+$ tctl create -f token.yaml
+token '<Var name="kube-cluster-name"/>-oidc' has been created
+```
+
+</TabItem>
+<TabItem label="Kubernetes Operator">
+
+```code
+$ kubectl apply -n "$OPERATOR_NAMESPACE" -f token.yaml
+
+teleportprovisiontokenv2.resources.teleport.dev/<Var name="kube-cluster-name"/>-oidc created
+```
+
+List the created Kubernetes resources:
+
+```code
+$ kubectl get teleportprovisiontokenv2 -n "$OPERATOR_NAMESPACE"
+
+NAME                                  AGE
+<Var name="kube-cluster-name"/>-oidc   10m
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+```code
+$ terraform plan
+[...]
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+$ terraform apply
+teleport_provision_token.<Var name="kube-cluster-name"/>-oidc: Creating...
+teleport_provision_token.<Var name="kube-cluster-name"/>-oidc: Creation complete after 0s [id=<Var name="kube-cluster-name"/>-oidc]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+```
+</TabItem>
+</Tabs>
+
+## Step 3/4. Configure the agent
+
+In this step we will write the `teleport-kube-agent` Helm chart configuration
+so that the agent uses the previously created token to join.
+
+You must have the following information:
+- The Teleport cluster address: <Var name="teleport.example.com:443"/>
+- The Teleport cluster name: <Var name="teleport.example.com"/>
+- The name of the kubernetes cluster you are connecting: <Var name="kube-cluster-name"/>
+
+Write the following `values.yaml` YAML manifest.
+
+```yaml
+roles: "kube"
+proxyAddr: <Var name="teleport.example.com:443"/>
+# If you use Teleport Community Edition or AGPL, set to false
+enterprise: true
+updater:
+  enabled: true
+joinParams:
+  method: "kubernetes"
+  tokenName: <Var name="kube-cluster-name"/>-oidc
+kubeClusterName: <Var name="kube-cluster-name"/>
+teleportClusterName: <Var name="teleport.example.com"/>
+```
+
+## Step 4/4. Deploy the agent
+
+In this step we will deploy a release of the `teleport-kube-agent` chart using
+the values we wrote previously.
+
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+Finally deploy the Teleport Kubernetes Agent using the values we previously set in the provision token:
+- The namespace in which you will deploy the agent: <Var name="teleport"/>
+- The name of the Teleport Agent release: <Var name="teleport-agent"/>
+
+```code
+$ helm upgrade --install <Var name="teleport-agent"/> teleport/teleport-kube-agent \
+  --namespace <Var name="teleport"/> --create-namespace \
+  --version (=teleport.version=) \
+  --values values.yaml
+```
+
+Validate that the agent successfully joined the cluster by checking its pod readiness
+(this can take a couple of minutes):
+
+```code
+$ kubectl get pods -n <Var name="teleport"/>
+
+NAME                                     READY   STATUS    RESTARTS   AGE
+<Var name="teleport-agent"/>-0                         1/1     Running   0          9s
+<Var name="teleport-agent"/>-updater-6b8b74996-jz4qg   1/1     Running   0          15s
+```
+
+## Next steps
+
+Look at [the `teleport-kube-agent` Helm chart reference](../../../reference/helm-reference/teleport-kube-agent.mdx)
+for the list of supported values.

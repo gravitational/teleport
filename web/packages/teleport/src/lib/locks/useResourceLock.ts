@@ -21,8 +21,8 @@ import { useCallback } from 'react';
 
 import { LockResourceKind } from 'teleport/LocksV2/NewLock/common';
 import {
-  createLock,
-  deleteLock,
+  createLockMutationFn,
+  deleteLockMutationFn,
   listLocks,
 } from 'teleport/services/locks/locks';
 import { createQueryHook } from 'teleport/services/queryHelpers';
@@ -70,7 +70,7 @@ export function useResourceLock(opts: {
     isPending: unlockPending,
     error: unlockError,
   } = useMutation({
-    mutationFn: deleteLock,
+    mutationFn: deleteLockMutationFn,
     onSuccess: (_, vars) => {
       queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
         return existingLocks?.filter(lock => lock.name !== vars.uuid);
@@ -83,7 +83,7 @@ export function useResourceLock(opts: {
     isPending: lockPending,
     error: lockError,
   } = useMutation({
-    mutationFn: createLock,
+    mutationFn: createLockMutationFn,
     onSuccess: newLock => {
       queryClient.setQueryData(listLocksQueryKey(queryVars), existingLocks => {
         return existingLocks ? [...existingLocks, newLock] : [newLock];
@@ -91,11 +91,12 @@ export function useResourceLock(opts: {
     },
   });
 
-  // The lock (singular) can be removed if it targets only the given resource,
-  // otherwise it may affect other resources
+  // The lock/s can be removed if they all target the given resource, other
+  // locks may affect other resources
   const canUnlock =
     hasRemovePermission &&
-    data?.length === 1 &&
+    !!data &&
+    data.length > 0 &&
     data.reduce(
       (acc, lock) =>
         acc &&
@@ -103,16 +104,16 @@ export function useResourceLock(opts: {
       true
     );
 
-  const unlock = useCallback(() => {
-    if (!canUnlock) return;
+  const unlock = useCallback(async () => {
+    if (!canUnlock) throw new Error('missing permission to remove locks');
     return removeLock({ uuid: data[0].name });
   }, [canUnlock, data, removeLock]);
 
   const canLock = hasAddPermission;
 
   const lock = useCallback(
-    (message: string, ttl: string) => {
-      if (!canLock) return;
+    async (message: string, ttl: string) => {
+      if (!canLock) throw new Error('missing permission to create locks');
       return addLock({
         message,
         ttl,
@@ -128,6 +129,7 @@ export function useResourceLock(opts: {
     locks: isSuccess ? data : null,
     error,
     canUnlock,
+    /** Removes the lock. If there are multiple locks, only the first one is removed */
     unlock,
     unlockPending,
     unlockError,

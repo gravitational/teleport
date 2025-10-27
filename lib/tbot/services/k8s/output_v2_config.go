@@ -20,10 +20,14 @@ package k8s
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -54,11 +58,26 @@ type OutputV2Config struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
+
+	// ContextNameTemplate determines the format of context names in the
+	// generated kubeconfig. It is a "text/template" string that supports the
+	// following variables:
+	//
+	//   - {{.ClusterName}} - Name of the Teleport cluster
+	//   - {{.KubeName}} - Name of the Kubernetes cluster resource
+	//
+	// By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
+	ContextNameTemplate string `yaml:"context_name_template,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
 func (o *OutputV2Config) GetName() string {
 	return o.Name
+}
+
+// SetName sets the service's name to an automatically generated one.
+func (o *OutputV2Config) SetName(name string) {
+	o.Name = name
 }
 
 func (o *OutputV2Config) CheckAndSetDefaults() error {
@@ -76,6 +95,14 @@ func (o *OutputV2Config) CheckAndSetDefaults() error {
 	for _, s := range o.Selectors {
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	if o.ContextNameTemplate == "" {
+		o.ContextNameTemplate = defaultContextNameTemplate
+	} else {
+		if _, err := kubeconfig.ContextNameFromTemplate(o.ContextNameTemplate, "", ""); err != nil {
+			return trace.BadParameter("context_name_template is invalid: %v", err)
 		}
 	}
 
@@ -137,6 +164,27 @@ type KubernetesSelector struct {
 	Name string `yaml:"name,omitempty"`
 
 	Labels map[string]string `yaml:"labels,omitempty"`
+
+	// DefaultNamespace specifies the default namespace that should be set in
+	// the resulting kubeconfig context for clusters yielded by this selector.
+	DefaultNamespace string `yaml:"default_namespace,omitempty"`
+}
+
+// String returns a human-readable representation of the selector for logs.
+func (s *KubernetesSelector) String() string {
+	switch {
+	case s.Name != "":
+		return fmt.Sprintf("name=%s", s.Name)
+	case len(s.Labels) != 0:
+		labels := make([]string, 0, len(s.Labels))
+		for k, v := range s.Labels {
+			labels = append(labels, k+"="+v)
+		}
+		slices.Sort(labels)
+		return fmt.Sprintf("labels={%s}", strings.Join(labels, ", "))
+	default:
+		return "<empty selector>"
+	}
 }
 
 func (s *KubernetesSelector) CheckAndSetDefaults() error {

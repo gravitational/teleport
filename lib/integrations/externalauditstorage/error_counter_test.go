@@ -118,6 +118,74 @@ func TestErrorCounter(t *testing.T) {
 			}},
 		},
 		{
+			desc: "metadata upload errors alert",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.UploadMetadata(ctx, "", nil)
+						pack.successHandler.UploadMetadata(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: testError,
+			expectAlerts: []alert{{
+				name:    sessionUploadFailureClusterAlert,
+				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
+			}},
+		},
+		{
+			desc: "metadata download errors alert",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.DownloadMetadata(ctx, "", nil)
+						pack.successHandler.DownloadMetadata(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: testError,
+			expectAlerts: []alert{{
+				name:    sessionDownloadFailureClusterAlert,
+				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
+			}},
+		},
+		{
+			desc: "thumbnail upload errors alert",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.UploadThumbnail(ctx, "", nil)
+						pack.successHandler.UploadThumbnail(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: testError,
+			expectAlerts: []alert{{
+				name:    sessionUploadFailureClusterAlert,
+				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
+			}},
+		},
+		{
+			desc: "thumbnail download errors alert",
+			steps: []testStep{
+				{
+					action: func(pack *testPack) {
+						pack.errHandler.DownloadThumbnail(ctx, "", nil)
+						pack.successHandler.DownloadThumbnail(ctx, "", nil)
+					},
+					repeat: 10,
+				},
+			},
+			err: testError,
+			expectAlerts: []alert{{
+				name:    sessionDownloadFailureClusterAlert,
+				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
+			}},
+		},
+		{
 			desc: "emit errors alert",
 			steps: []testStep{
 				{
@@ -312,10 +380,26 @@ func (h *errorHandler) UploadSummary(ctx context.Context, sessionID session.ID, 
 	return "", h.err
 }
 
+func (h *errorHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return "", h.err
+}
+
+func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return "", h.err
+}
+
 func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.err
 }
 
 func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.err
+}
+
+func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return h.err
+}
+
+func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return h.err
 }

@@ -2,9 +2,11 @@
 title: Run the Discord Access Request Plugin
 sidebar_label: Discord
 description: How to set up Teleport's Discord plugin for privilege elevation approvals.
-labels:
+tags:
+ - access-requests
  - how-to
  - identity-governance
+ - privileged-access
 ---
 
 import BotLogo from "/static/avatar_logo.png";
@@ -106,9 +108,12 @@ Discord API.
 
 ### Install and authorize the application in your Discord server
 
-Go to the "OAuth2" tab, open the "URL Generator" and check the "bot" and "Send Messages" permissions.
+Go to the "OAuth2" tab, open the "URL Generator" and check the following
+permissions:
 
-![Set Discord permissions](../../../img/enterprise/plugins/discord/discord-permissions.png)
+- bot
+- View Channels
+- Send Messages
 
 Copy and access the generated URL. Choose to install the application into the
 desired Discord server. If the server is not available in the

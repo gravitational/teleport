@@ -33,6 +33,7 @@ import Table, { Cell } from 'design/DataTable';
 import { TableColumn } from 'design/DataTable/types';
 import * as Icons from 'design/Icon';
 import { H3, P2, P3, Subtitle2 } from 'design/Text';
+import { Markdown } from 'shared/components/Markdown/Markdown';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -50,8 +51,7 @@ import {
   UserTaskDetail,
 } from 'teleport/services/integrations';
 
-import { AwsResource } from '../StatCard';
-import { Markdown } from './Markdown';
+import { AwsResource } from '../Cards/StatCard';
 import { SidePanel } from './SidePanel';
 
 export function Task({
@@ -171,7 +171,7 @@ export function Task({
       <H3 my={2} style={{ overflow: 'unset' }}>
         Details
       </H3>
-      <Markdown text={taskAttempt.data.description} />
+      <Markdown text={taskAttempt.data.description} enableLinks />
       <H3 my={2} style={{ overflow: 'unset' }}>
         Impacted instances ({Object.keys(impacts).length})
       </H3>

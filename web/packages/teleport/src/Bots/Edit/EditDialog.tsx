@@ -19,7 +19,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Alert, Box, ButtonPrimary, ButtonSecondary, Indicator } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Indicator,
+} from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -28,16 +35,20 @@ import Dialog, {
 } from 'design/DialogConfirmation';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
+import { FieldTextArea } from 'shared/components/FieldTextArea/FieldTextArea';
 import { Option } from 'shared/components/Select';
 import {
   TraitsEditor,
   TraitsOption,
 } from 'shared/components/TraitsEditor/TraitsEditor';
 import Validation from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredMaxLength,
+} from 'shared/components/Validation/rules';
 
-import { editBot, fetchRoles } from 'teleport/services/bot/bot';
-import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
+import { editBotMutationFunction, fetchRoles } from 'teleport/services/bot/bot';
+import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';
@@ -62,6 +73,10 @@ export function EditDialog(props: {
   const [selectedMaxSessionDuration, setSelectedMaxSessionDuration] = useState<
     string | null
   >(null);
+  const [selectedDescription, setSelectedDescription] = useState<string | null>(
+    null
+  );
+
   const { isSuccess, data, error, isLoading } = useGetBot(
     { botName },
     {
@@ -75,9 +90,7 @@ export function EditDialog(props: {
     error: saveError,
     isPending: isSubmitting,
   } = useMutation({
-    mutationFn: (params: EditBotRequest) => {
-      return editBot(ctx.getFeatureFlags(), botName, params);
-    },
+    mutationFn: editBotMutationFunction,
     onSuccess: newData => {
       const key = createGetBotQueryKey({ botName: newData.name });
       queryClient.setQueryData(key, newData);
@@ -99,20 +112,23 @@ export function EditDialog(props: {
       })) ?? null;
     const max_session_ttl =
       selectedMaxSessionDuration?.trim().replaceAll(' ', '') ?? null;
+    const description = selectedDescription?.trim();
 
-    const request = {
+    const req = {
       roles,
       traits,
       max_session_ttl,
+      description,
     };
 
-    mutate(request);
+    mutate({ botName, req });
   };
 
   const isDirty =
     selectedRoles !== null ||
     selectedTraits !== null ||
-    selectedMaxSessionDuration !== null;
+    selectedMaxSessionDuration !== null ||
+    selectedDescription !== null;
 
   const missingPermissions = [
     ...(hasReadPermission ? [] : ['bots.read']),
@@ -183,6 +199,17 @@ export function EditDialog(props: {
                   value={data?.name ?? ''}
                   readonly={true}
                   helperText={'Bot name cannot be changed'}
+                />
+                <FieldTextArea
+                  label="Description"
+                  placeholder="Description"
+                  value={selectedDescription ?? data?.description ?? ''}
+                  onChange={e => setSelectedDescription(e.target.value)}
+                  rule={requiredMaxLength(
+                    'Description must be 200 characters or shorter.',
+                    200
+                  )}
+                  helperText={'200 characters maximum'}
                 />
                 <FieldSelectAsync
                   menuPosition="fixed"
@@ -263,21 +290,22 @@ export function EditDialog(props: {
               ) : undefined}
             </DialogContent>
             <DialogFooter>
-              <ButtonPrimary
-                type="submit"
-                mr="3"
-                disabled={
-                  isLoading || isSubmitting || !hasEditPermission || !isDirty
-                }
-              >
-                Save
-              </ButtonPrimary>
-              <ButtonSecondary
-                disabled={isLoading || isSubmitting}
-                onClick={onCancel}
-              >
-                Cancel
-              </ButtonSecondary>
+              <Flex gap={3}>
+                <ButtonPrimary
+                  type="submit"
+                  disabled={
+                    isLoading || isSubmitting || !hasEditPermission || !isDirty
+                  }
+                >
+                  Save
+                </ButtonPrimary>
+                <ButtonSecondary
+                  disabled={isLoading || isSubmitting}
+                  onClick={onCancel}
+                >
+                  Cancel
+                </ButtonSecondary>
+              </Flex>
             </DialogFooter>
           </form>
         )}

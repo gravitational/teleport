@@ -1,6 +1,6 @@
 const { env, platform } = require('process');
 const fs = require('fs');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const isMac = platform === 'darwin';
 const isWindows = platform === 'win32';
 
@@ -144,6 +144,8 @@ module.exports = {
       },
     ].filter(Boolean),
   },
+  // Copy the tray icon to resources.
+  extraResources: ['build_resources/icon-macTemplate@2x.png'],
   dmg: {
     artifactName: '${productName}-${version}-${arch}.${ext}',
     // Turn off blockmaps since we don't support automatic updates.
@@ -168,13 +170,13 @@ module.exports = {
       // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
       // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
       signingHashAlgorithms: ['sha256'],
-      sign: customSign => {
+      sign: async customSign => {
         if (process.env.CI !== 'true') {
           console.warn('Not running in CI pipeline: signing will be skipped');
           return;
         }
 
-        spawnSync(
+        await promisifiedSpawn(
           'powershell',
           [
             '-noprofile',
@@ -206,6 +208,8 @@ module.exports = {
         from: env.CONNECT_MSGFILE_DLL_PATH,
         to: './bin/msgfile.dll',
       },
+      // Copy the tray icon to resources.
+      'build_resources/icon-win.ico',
     ].filter(Boolean),
   },
   nsis: {
@@ -245,6 +249,8 @@ module.exports = {
         from: 'build_resources/linux/apparmor-profile',
         to: './apparmor-profile',
       },
+      // Copy the tray icon to resources.
+      'build_resources/icon-linux/tray.png',
     ].filter(Boolean),
   },
   directories: {
@@ -252,3 +258,26 @@ module.exports = {
     output: 'build/release',
   },
 };
+
+function promisifiedSpawn(cmd, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, options);
+
+    child.on('error', reject);
+
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const codeOrSignal = [
+          // code can be 0, so we cannot just check it the same way as the signal.
+          code != null && `code ${code}`,
+          signal && `signal ${signal}`,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        reject(new Error(`Exited with ${codeOrSignal}`));
+      }
+    });
+  });
+}

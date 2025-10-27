@@ -11,4 +11,4 @@ if test -z "$GRAFANA_POD"; then
     exit 1
 fi
 
-kubectl exec --stdin --namespace="monitoring" --tty --container grafana $GRAFANA_POD -- grafana-cli admin reset-admin-password $GRAFANA_PASS
+kubectl exec --stdin --namespace="monitoring" --tty --container grafana $GRAFANA_POD -- grafana cli admin reset-admin-password $GRAFANA_PASS

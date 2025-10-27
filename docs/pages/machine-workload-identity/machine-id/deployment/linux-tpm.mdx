@@ -1,9 +1,10 @@
 ---
 title: Deploying tbot on Linux (TPM)
 description: How to install and configure Machine ID on a Linux host and use a TPM 2.0 for authentication
-labels:
+tags:
  - how-to
  - mwi
+ - infrastructure-identity
 ---
 
 This page explains how to deploy Machine ID on a Linux host, and use the
@@ -164,8 +165,8 @@ onboarding:
 storage:
   type: directory
   path: /var/lib/teleport/bot
-# outputs will be filled in during the completion of an access guide.
-outputs: []
+# services will be filled in during the completion of an access guide.
+services: []
 ```
 
 Replace:
@@ -196,16 +197,16 @@ $ sudo chown teleport:teleport /var/lib/teleport/bot
 
 (!docs/pages/includes/machine-id/daemon.mdx!)
 
-## Step 5/5. Configure outputs
+## Step 5/5. Configure services
 
-(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+(!docs/pages/includes/machine-id/configure-services.mdx!)
 
 ## Next steps
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
 your environment.
-- Read the [TPM joining reference](../../../reference/join-methods.mdx#trusted-platform-module-tpm)
+- Read the [TPM joining reference](../../../reference/deployment/join-methods.mdx#trusted-platform-module-tpm)
 to learn more about `tpm`joining.
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
 all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)

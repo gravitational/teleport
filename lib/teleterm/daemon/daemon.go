@@ -875,12 +875,12 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	defer s.gatewaysMu.RUnlock()
 	for _, gw := range s.gateways {
 		targetURI := gw.TargetURI()
-		if !targetURI.IsKube() && targetURI.GetRootClusterURI() != cluster.URI {
+		if !targetURI.IsKube() || targetURI.GetRootClusterURI() != cluster.URI {
 			continue
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			return trace.Wrap(err)
 		}
 		kubeGw.ClearCerts()
 	}
@@ -922,6 +922,27 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// ListKubernetesServers returns a paginated list of Kubernetes servers (resource kind "kube_server").
+func (s *Service) ListKubernetesServers(ctx context.Context, req *api.ListKubernetesServersRequest) (*clusters.ListKubernetesServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, _, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.ListKubernetesServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
+	return response, trace.Wrap(err)
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").

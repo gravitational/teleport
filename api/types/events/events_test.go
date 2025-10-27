@@ -46,7 +46,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				DatabaseQuery: strings.Repeat("A", 7000),
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: strings.Repeat("A", 5375),
+				DatabaseQuery: strings.Repeat("A", 5373),
 			},
 		},
 		{
@@ -60,7 +60,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				},
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: strings.Repeat("A", 590),
+				DatabaseQuery: strings.Repeat("A", 589),
 				DatabaseQueryParameters: []string{
 					strings.Repeat("A", 89),
 					strings.Repeat("A", 89),
@@ -100,7 +100,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				DatabaseQuery: `{` + strings.Repeat(`"a": "b",`, 100) + "}",
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: `{"a": "b","a":`,
+				DatabaseQuery: `{"a": "b","a"`,
 			},
 		},
 		// UserLogin
@@ -115,8 +115,8 @@ func TestTrimToMaxSize(t *testing.T) {
 			},
 			want: &UserLogin{
 				Status: Status{
-					Error:       strings.Repeat("A", 1336),
-					UserMessage: strings.Repeat("A", 1336),
+					Error:       strings.Repeat("A", 1335),
+					UserMessage: strings.Repeat("A", 1335),
 				},
 			},
 			cmpOpts: []cmp.Option{

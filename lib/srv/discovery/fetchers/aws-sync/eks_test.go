@@ -219,9 +219,6 @@ func TestPollAWSEKSClusters(t *testing.T) {
 						return a.Key < b.Key
 					},
 				),
-				protocmp.IgnoreFields(&accessgraphv1alpha.AWSEKSClusterV1{}, "last_sync_time"),
-				protocmp.IgnoreFields(&accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1{}, "last_sync_time"),
-				protocmp.IgnoreFields(&accessgraphv1alpha.AWSEKSClusterAccessEntryV1{}, "last_sync_time"),
 			))
 		})
 	}

@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
@@ -92,6 +93,15 @@ func TestURLChecker_AWS(t *testing.T) {
 	require.NoError(t, err)
 	testCases = append(testCases, append(elastiCacheClusterDBs, elastiCacheClusterConfigurationModeDB)...)
 
+	// ElastiCache Serverless.
+	elastiCacheServerlessCache := mocks.ElastiCacheServerless("ec-serverless-redis", region)
+	elastiCacheServerlessCacheDB, err := common.NewDatabaseFromElastiCacheServerlessCache(elastiCacheServerlessCache, nil)
+	require.NoError(t, err)
+	elastiCacheServerlessValkeyCache := mocks.ElastiCacheServerless("ec-serverless-valkey", region, func(c *ectypes.ServerlessCache) { c.Engine = aws.String("valkey") })
+	elastiCacheServerlessValkeyCacheDB, err := common.NewDatabaseFromElastiCacheServerlessCache(elastiCacheServerlessValkeyCache, nil)
+	require.NoError(t, err)
+	testCases = append(testCases, elastiCacheServerlessCacheDB, elastiCacheServerlessValkeyCacheDB)
+
 	// MemoryDB.
 	memoryDBCluster := mocks.MemoryDBCluster("memorydb", region)
 	memoryDBClusterDB, err := common.NewDatabaseFromMemoryDBCluster(memoryDBCluster, nil)
@@ -132,6 +142,7 @@ func TestURLChecker_AWS(t *testing.T) {
 			awsClients: fakeAWSClients{
 				ecClient: &mocks.ElastiCacheClient{
 					ReplicationGroups: []ectypes.ReplicationGroup{*elastiCacheClusterConfigurationMode, *elastiCacheCluster},
+					Caches:            []ectypes.ServerlessCache{*elastiCacheServerlessCache, *elastiCacheServerlessValkeyCache},
 				},
 				mdbClient: &mocks.MemoryDBClient{
 					Clusters: []memorydbtypes.Cluster{*memoryDBCluster},

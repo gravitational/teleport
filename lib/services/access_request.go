@@ -183,6 +183,7 @@ type DynamicAccess interface {
 // actors with limited privileges.
 type DynamicAccessOracle interface {
 	GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error)
 }
 
 func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.AccessCapabilitiesRequest) (bool, error) {
@@ -254,6 +255,34 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	caps.AutoRequest = v.autoRequestOnLogin
 
 	return &caps, nil
+}
+
+// PruneMappedSearchAsRoles calculates the roles required to access the given
+// resources based on the supplied set of `search_as` roles.
+func PruneMappedSearchAsRoles(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, mappedUser UserState, mappedSearchAsRoles []string, resources []types.ResourceID, loginHint string) ([]string, error) {
+	clusterNameResource, err := getter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClusterName := clusterNameResource.GetClusterName()
+
+	hasRemoteResources := slices.ContainsFunc(resources,
+		func(rID types.ResourceID) bool { return rID.ClusterName != localClusterName })
+	if hasRemoteResources {
+		return nil, trace.BadParameter("request must only contain resources in local cluster")
+	}
+
+	rv, err := NewRequestValidatorForUser(ctx, clock, getter, mappedUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := rv.pruneResourceRequestRoles(ctx, resources, loginHint, mappedSearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return roles, nil
 }
 
 func (v *RequestValidator) calcRequireReasonCap(ctx context.Context, req types.AccessCapabilitiesRequest, caps types.AccessCapabilities) (requireReason bool, err error) {
@@ -440,13 +469,13 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		return trace.Wrap(err)
 	}
 
+	// set threshold indexes
+	rev.ThresholdIndexes = tids
+
 	// set a review created time if not already set
 	if rev.Created.IsZero() {
 		rev.Created = time.Now()
 	}
-
-	// set threshold indexes
-	rev.ThresholdIndexes = tids
 
 	// Resolved requests should not be updated.
 	switch {
@@ -1099,12 +1128,19 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		return RequestValidator{}, trace.Wrap(err)
 	}
 
-	m := RequestValidator{
-		logger:    slog.With(teleport.ComponentKey, "request.validator"),
-		clock:     clock,
-		getter:    getter,
-		userState: uls,
+	v, err := NewRequestValidatorForUser(ctx, clock, getter, uls, opts...)
+	if err != nil {
+		return RequestValidator{}, trace.Wrap(err)
+	}
+	return v, nil
+}
 
+func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, user UserState, opts ...ValidateRequestOption) (RequestValidator, error) {
+	m := RequestValidator{
+		logger:               slog.With(teleport.ComponentKey, "request.validator"),
+		clock:                clock,
+		getter:               getter,
+		userState:            user,
 		requiringReasonRoles: make(map[string]struct{}),
 	}
 	for _, opt := range opts {
@@ -1153,6 +1189,8 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 	if !req.GetState().IsPromoted() && req.GetPromotedAccessListTitle() != "" {
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
+
+	// TODO(kiosion): As part of Reviewer changes for long-term requests, roles, expiry, maxDur should not be allowed to be set.
 
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
@@ -1300,6 +1338,8 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 
 		// Pin the time to the current time to prevent time drift.
 		now := m.clock.Now().UTC()
+
+		// TODO(kiosion): The following logic shouldn't be relevant for long-term requests, post-Reviewer-changes.
 
 		// Calculate the expiration time of the elevated certificate that will
 		// be issued if the Access Request is approved.
@@ -1730,6 +1770,11 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 	if !m.opts.expandVars {
 		// Don't set the roles if expandVars is not set, they have probably
 		// already been set and we are just validating the request.
+		return nil
+	}
+	if req.GetRequestKind().IsLongTerm() {
+		// Don't set roles on LongTerm requests; they are only allowed
+		// to be search-based resource requests.
 		return nil
 	}
 	if len(req.GetRequestedResourceIDs()) == 0 {

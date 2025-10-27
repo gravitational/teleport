@@ -318,8 +318,8 @@ func TestCredentialsCache(t *testing.T) {
 				expectedExpiry := clock.Now().Add(TokenLifetime)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					creds, err := provider.Retrieve(ctx)
-					assert.NoError(t, err)
-					assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
+					require.NoError(t, err)
+					require.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
 				}, waitFor, tick)
 				credentialsUpdated = true
 			}

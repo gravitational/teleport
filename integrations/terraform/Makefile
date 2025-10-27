@@ -11,7 +11,20 @@ BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
+# base name for release archive (used for .tar.gz packaging across all platforms)
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
+
+# executable extension (.exe) for windows specific builds
+EXEEXT =
+ifeq ($(OS),windows)
+  EXEEXT = .exe
+endif
+
+# filename of the compiled binary $(BUILDDIR)
+BINARY_NAME = terraform-provider-teleport$(EXEEXT)
+
+# windows terraform provider filename as it will appear on downloads page
+WINDOWS_DOWNLOAD_FILENAME := terraform-provider-teleport-v$(VERSION)-windows-$(ARCH)$(EXEEXT)
 
 .PHONY: tfclean
 tfclean:
@@ -25,12 +38,15 @@ clean: tfclean
 	rm -rf $(PROVIDER_PATH)*
 	rm -rf $(BUILDDIR)/*
 	rm -rf $(RELEASE).tar.gz
+	rm -rf $(RELEASE)$(EXEEXT)
 	go clean
 
 .PHONY: build
 build: clean
 # Turning off GOWORK to prevent missing package errors.
-	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) \
+		go build -tags "kustomize_disable_go_plugin_support,terraformprovider" \
+		-o $(BUILDDIR)/$(BINARY_NAME) $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
@@ -151,10 +167,18 @@ endif
 .PHONY: release
 ifeq ($(OS),darwin)
 release: darwin-signed-build
-else
-release: build
-endif
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+else ifeq ($(OS),linux)
+release: build
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+else ifeq ($(OS),windows)
+release: build
+	# copy the built windows binary to its final release filename for public downloads
+	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_DOWNLOAD_FILENAME)
+	# package ony the binary file into a .tar.gz archive, the release service will repackage this into a .zip
+	# for the Terraform registry
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz $(BINARY_NAME)
+endif
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)

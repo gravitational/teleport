@@ -51,26 +51,37 @@ import (
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
 
-func OutputV1ServiceBuilder(cfg *OutputV1Config, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+func OutputV1ServiceBuilder(cfg *OutputV1Config, opts ...OutputV1Option) bot.ServiceBuilder {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &OutputV1Service{
 			botAuthClient:             deps.Client,
 			botIdentityReadyCh:        deps.BotIdentityReadyCh,
-			defaultCredentialLifetime: defaultCredentialLifetime,
+			defaultCredentialLifetime: bot.DefaultCredentialLifetime,
 			cfg:                       cfg,
 			proxyPinger:               deps.ProxyPinger,
 			reloadCh:                  deps.ReloadCh,
 			executablePath:            autoupdate.StableExecutable,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		for _, opt := range opts {
+			opt.applyToV1Output(svc)
+		}
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(OutputV1ServiceType, cfg.Name, buildFn)
+}
+
+// OutputV1Option is an option that can be provided to customize the service.
+type OutputV1Option interface{ applyToV1Output(*OutputV1Service) }
+
+func (opt DefaultCredentialLifetimeOption) applyToV1Output(o *OutputV1Service) {
+	o.defaultCredentialLifetime = opt.lifetime
 }
 
 // OutputV1Service produces credentials which can be used to connect to

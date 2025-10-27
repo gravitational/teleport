@@ -90,6 +90,18 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 			m.Params.Azure = &AzureInstallerParams{}
 		}
 
+		if m.Params.Suffix != "" {
+			if !isAlphanumericIncluding(m.Params.Suffix, '-') {
+				return trace.BadParameter("install.suffix can only contain alphanumeric characters and hyphens")
+			}
+		}
+
+		if m.Params.UpdateGroup != "" {
+			if !isAlphanumericIncluding(m.Params.UpdateGroup, '-') {
+				return trace.BadParameter("install.update_group can only contain alphanumeric characters and hyphens")
+			}
+		}
+
 		switch m.Params.JoinMethod {
 		case JoinMethodAzure, "":
 			m.Params.JoinMethod = JoinMethodAzure

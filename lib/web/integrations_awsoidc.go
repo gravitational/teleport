@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -71,7 +72,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -113,7 +114,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -161,7 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
 		const group, updaterUUID = "", ""
-		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		autoUpdateVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.WarnContext(r.Context(),
 				"Cannot read autoupdate target version, falling back to our own version",
@@ -206,7 +207,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -217,7 +218,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 	teleportVersionTag := teleport.Version
 	if automaticUpgrades(h.GetClusterFeatures()) {
 		const group, updaterUUID = "", ""
-		autoUpdateVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		autoUpdateVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.WarnContext(r.Context(),
 				"Cannot read autoupdate target version, falling back to self version.",
@@ -281,7 +282,7 @@ func (h *Handler) awsOIDCListDeployedDatabaseService(w http.ResponseWriter, r *h
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	regions, err := regionsForListingDeployedDatabaseService(ctx, r, clt, clt.DiscoveryConfigClient())
@@ -760,6 +761,21 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
+// TODO(hugoShaka): change the version getter signature to take group and id
+// so we can get rid of this wrapper.
+
+// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.GetVersion.
+type handlerVersionGetter struct {
+	*Handler
+}
+
+// GetVersion implements version.Getter.
+func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+	const group, updaterUUID = "", ""
+	agentVersion, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
+	return agentVersion, trace.Wrap(err)
+}
+
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
 // v2 endpoint introduces "extraLabels" field.
 func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
@@ -777,7 +793,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	versionGetter := &handlerVersionGetter{h}
@@ -829,7 +845,7 @@ func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request,
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -863,7 +879,7 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -951,7 +967,7 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1069,7 +1085,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1156,7 +1172,7 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1390,7 +1406,7 @@ func (h *Handler) awsOIDCListSubnets(w http.ResponseWriter, r *http.Request, p h
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1436,7 +1452,7 @@ func (h *Handler) awsOIDCListDatabaseVPCs(w http.ResponseWriter, r *http.Request
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
@@ -1558,7 +1574,7 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req ui.AWSOIDCPingRequest

@@ -29,12 +29,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -45,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -56,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
@@ -78,21 +74,6 @@ func init() {
 	}
 
 	modules.SetModules(&cliModules{})
-}
-
-// MakeTestServer creates a Teleport Server for testing.
-// Deprecated: Use NewTestServer instead.
-// TODO(tross): Remove this after everything has migrated to NewTeleportProcess
-func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) *service.TeleportProcess {
-	process, err := NewTeleportProcess(t.TempDir(), opts...)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
-
-	return process
 }
 
 // NewTeleportProcess creates a Teleport Server for testing.
@@ -483,6 +464,10 @@ func StartDummyHTTPServer(name string) *httptest.Server {
 
 type cliModules struct{}
 
+func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
+}
+
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
@@ -552,33 +537,14 @@ func (p *cliModules) EnableAccessMonitoring() {}
 func (p *cliModules) SetFeatures(f modules.Features) {
 }
 
-// MakeDefaultAuthClient reimplements the bare minimum needed to create a
-// default root-level auth client for a Teleport server started by
-// MakeTestServer.
-// Deprecated: Prefer using NewDefaultAuthClient
-// TODO(tross): Remove once all callers are converted to NewDefaultAuthClient.
-func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *authclient.Client {
-	t.Helper()
-
-	clt, err := NewDefaultAuthClient(process)
-	require.NoError(t, err)
-
-	return clt
-}
-
 // NewDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // NewTeleportProcess.
 func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
-	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	identity, err := storage.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		types.RoleAdmin,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

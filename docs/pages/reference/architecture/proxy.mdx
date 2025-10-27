@@ -2,7 +2,7 @@
 title: Teleport Proxy Service
 description: Architecture of Teleport's identity-aware proxy service
 h1: Teleport Identity-Aware Proxy Service
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -20,7 +20,7 @@ provides the following key features:
   to one TLS port using TLS routing feature.
 - Records commands and API calls, and queries and streams them to the audit log.
   The audit log is stored on one of the Teleport Auth Service
-  [backends](../backends.mdx).
+  [backends](../deployment/backends.mdx).
 
 ![Proxy service](../../../img/architecture/proxy.png)
 

@@ -1,0 +1,26 @@
+---
+title: Teleport Signals
+h1: Teleport Signals Reference
+description: "Signals you can send to a running teleport process."
+tags:
+ - reference
+ - platform-wide
+---
+
+You can send the following signals to a `teleport` process to trigger different
+functionality.
+
+To send a signal, execute the following command on the host where `teleport` is
+running, replacing `SIG` with the name of the signal.
+
+```code
+$ kill -SIG
+```
+
+| Signal | Teleport Daemon Behavior |
+| - | - |
+| `USR1` | Dumps diagnostics/debugging information into syslog. |
+| `QUIT`| Graceful shutdown. The daemon will stop accepting new connections and it will wait (for up to 30 hours) until existing connections are closed before exiting. |
+| `TERM`, `INT` | Immediate non-graceful shutdown. All existing connections will be closed after a very short delay. |
+| `USR2` | Forks a new Teleport daemon to serve new connections. |
+| `HUP` | Forks a new Teleport daemon to serve new connections **and** initiates the graceful shutdown of the existing process, same as `SIGQUIT`. |

@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -22,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"testing"
@@ -47,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -246,10 +246,10 @@ func TestDiscoveryServerEKS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithCancel(t.Context())
-
-			synctest.Run(func() {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
 				fakeConfigProvider := mocks.AWSConfigProvider{
+					AWSConfig: &aws.Config{},
 					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
 						Integration: awsOIDCIntegration,
 					},
@@ -290,11 +290,8 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				// Wait for the discovery server to complete one iteration of discovering resources
 				synctest.Wait()
 
-				// Start server shutdown.
-				cancel()
-
 				// Discovery usage events are reported.
-				require.Greater(t, len(mockAccessPoint.usageEvents), 0)
+				require.NotEmpty(t, mockAccessPoint.usageEvents)
 
 				// Check the UserTasks created by the discovery server.
 				existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))
@@ -350,12 +347,29 @@ func (m *mockAuthServer) UpdateDiscoveryConfigStatus(ctx context.Context, name s
 func (m *mockAuthServer) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	return nil, nil
 }
+
+func (m *mockAuthServer) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockAuthServer) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	return func(yield func(types.KubeCluster, error) bool) {}
+}
+
 func (m *mockAuthServer) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
 	return nil, nil
 }
 
 func (m *mockAuthServer) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return nil, nil
+}
+
+func (m *mockAuthServer) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockAuthServer) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return stream.Empty[types.Database]()
 }
 
 func (m *mockAuthServer) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {

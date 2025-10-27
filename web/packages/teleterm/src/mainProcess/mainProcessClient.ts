@@ -18,6 +18,7 @@
 
 import { ipcRenderer } from 'electron';
 
+import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
@@ -26,7 +27,6 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { createConfigServiceClient } from '../services/config';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
-import { deserializeError } from './ipcSerializer';
 import {
   AgentProcessState,
   ChildProcessAddresses,
@@ -189,9 +189,6 @@ export default function createMainProcessClient(): MainProcessClient {
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
-    refreshClusterList() {
-      ipcRenderer.send(MainProcessIpc.RefreshClusterList);
-    },
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
@@ -234,9 +231,6 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
-        if (updateEvent.kind === 'error') {
-          updateEvent.error = deserializeError(updateEvent.error);
-        }
         listener(updateEvent);
       };
 
@@ -252,6 +246,83 @@ export default function createMainProcessClient(): MainProcessClient {
         cleanup: () =>
           ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
       };
+    },
+    subscribeToIsInBackgroundMode: listener => {
+      const ipcListener = (_, { isInBackgroundMode }) => {
+        listener({ isInBackgroundMode });
+      };
+
+      ipcRenderer.addListener(RendererIpc.IsInBackgroundMode, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.IsInBackgroundMode,
+            ipcListener
+          ),
+      };
+    },
+    subscribeToClusterStore: listener => {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.InitClusterStoreSubscription,
+        listener
+      );
+
+      return {
+        cleanup: close,
+      };
+    },
+    addCluster: async (proxyAddress: string) => {
+      return await ipcRenderer.invoke(MainProcessIpc.AddCluster, proxyAddress);
+    },
+    syncRootClusters: async options => {
+      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters, options);
+    },
+    syncCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
+    },
+    logoutCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
+    },
+  };
+}
+
+/**
+ * Sets up a `MessagePort` listener in the renderer process and transfers
+ * the port to the main process via the specified IPC `channel`.
+ *
+ * The main process is expected to create an `AwaitableSender` using the received port,
+ * enabling it to send messages that require acknowledgments from the renderer.
+ */
+function startAwaitableSenderListener<T>(
+  channel: string,
+  listener: (value: T) => void
+): {
+  close: () => void;
+} {
+  const { port1: localPort, port2: transferablePort } = new MessageChannel();
+
+  localPort.onmessage = (event: MessageEvent<Message>) => {
+    const msg = event.data;
+    if (msg.type !== 'data') {
+      return;
+    }
+    const ack: MessageAck = { type: 'ack', id: msg.id };
+    try {
+      listener(msg.payload as T);
+    } catch (e) {
+      ack.error = e;
+    }
+    localPort.postMessage(ack);
+  };
+
+  localPort.start();
+  ipcRenderer.postMessage(channel, undefined, [transferablePort]);
+
+  return {
+    close: () => {
+      localPort.onmessage = undefined;
+      localPort.close();
+      transferablePort.close();
     },
   };
 }

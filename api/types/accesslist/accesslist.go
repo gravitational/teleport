@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -217,6 +218,10 @@ type Owner struct {
 	// Name is the username of the owner.
 	Name string `json:"name" yaml:"name"`
 
+	// Title is the title of an owner if it is of type MEMBERSHIP_KIND_LIST.
+	// This is only populated by the proxy when fetching an access list and its members for the web UI
+	Title string `json:"title" yaml:"title"`
+
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
 
@@ -226,6 +231,22 @@ type Owner struct {
 	// MembershipKind describes the kind of ownership,
 	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
+}
+
+// IsMembershipKindUser returns true if the owner is of kind user.
+// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+func (o *Owner) IsMembershipKindUser() bool {
+	return isMembershipKindUser(o.MembershipKind)
+}
+
+func isMembershipKindUser(membershipKind string) bool {
+	switch membershipKind {
+	case MembershipKindUnspecified, MembershipKindUser, "":
+		return true
+	default:
+		// In case if MembershipKind was extended.
+		return false
+	}
 }
 
 // Audit describes the audit configuration for an access list.
@@ -278,6 +299,17 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+}
+
+// Clone returns a copy of the Grants.
+func (grants *Grants) Clone() Grants {
+	if grants == nil {
+		return Grants{}
+	}
+	return Grants{
+		Roles:  slices.Clone(grants.Roles),
+		Traits: grants.Traits.Clone(),
+	}
 }
 
 // Status contains dynamic fields calculated during retrieval.
@@ -440,9 +472,12 @@ func (a *AccessList) MatchSearch(values []string) bool {
 
 // Clone returns a copy of the list.
 func (a *AccessList) Clone() *AccessList {
-	var copy *AccessList
-	utils.StrictObjectToStruct(a, &copy)
-	return copy
+	if a == nil {
+		return nil
+	}
+	out := &AccessList{}
+	deriveDeepCopyAccessList(out, a)
+	return out
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {

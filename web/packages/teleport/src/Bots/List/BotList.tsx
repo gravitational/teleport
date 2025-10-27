@@ -20,10 +20,10 @@ import { useState } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
 
-import { DeleteBot } from 'teleport/Bots/DeleteBot';
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 import { BotListProps } from 'teleport/Bots/types';
 
+import { DeleteDialog } from '../Delete/DeleteDialog';
 import { EditDialog } from '../Edit/EditDialog';
 import { ViewBot } from '../ViewBot';
 
@@ -35,7 +35,6 @@ enum Interaction {
 }
 
 export function BotList({
-  attempt,
   bots,
   disabledEdit,
   disabledDelete,
@@ -78,12 +77,16 @@ export function BotList({
                 disabledEdit={disabledEdit}
                 disabledDelete={disabledDelete}
                 onClickEdit={() => {
-                  setSelectedBot(bot);
-                  setInteraction(Interaction.EDIT);
+                  if (!disabledEdit) {
+                    setSelectedBot(bot);
+                    setInteraction(Interaction.EDIT);
+                  }
                 }}
                 onClickDelete={() => {
-                  setSelectedBot(bot);
-                  setInteraction(Interaction.DELETE);
+                  if (!disabledDelete) {
+                    setSelectedBot(bot);
+                    setInteraction(Interaction.DELETE);
+                  }
                 }}
               />
             ),
@@ -98,11 +101,11 @@ export function BotList({
         }}
       />
       {selectedBot && interaction === Interaction.DELETE && (
-        <DeleteBot
-          attempt={attempt}
-          name={selectedBot.name}
-          onClose={onClose}
-          onDelete={onDelete}
+        <DeleteDialog
+          botName={selectedBot.name}
+          onCancel={onClose}
+          onComplete={onDelete}
+          showLockAlternative={false}
         />
       )}
       {selectedBot && interaction === Interaction.EDIT && (

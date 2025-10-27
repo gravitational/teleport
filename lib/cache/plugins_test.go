@@ -19,15 +19,16 @@ package cache
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
-func newPlugin(name string) types.Plugin {
+func newPlugin(name string) *types.PluginV1 {
 	return &types.PluginV1{
 		Metadata: types.Metadata{Name: name},
 		Spec: types.PluginSpecV1{
@@ -40,7 +41,7 @@ func newPlugin(name string) types.Plugin {
 	}
 }
 
-func newPluginWithCreds(name string) types.Plugin {
+func newPluginWithCreds(name string) *types.PluginV1 {
 	item := newPlugin(name)
 	creds := types.PluginCredentialsV1{
 		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
@@ -74,15 +75,11 @@ func TestPlugin(t *testing.T) {
 			cacheGet: func(ctx context.Context, name string) (types.Plugin, error) {
 				return p.cache.GetPlugin(ctx, name, false)
 			},
-			list: func(ctx context.Context) ([]types.Plugin, error) {
-				fn := func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
-					return p.plugin.ListPlugins(ctx, pageSize, token, false)
-				}
-				out, err := stream.Collect(clientutils.Resources(ctx, fn))
-				return out, trace.Wrap(err)
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Plugin, string, error) {
+				return p.plugin.ListPlugins(ctx, pageSize, pageToken, false)
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.Plugin, error) {
-				return p.cache.GetPlugins(ctx, false)
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Plugin, string, error) {
+				return p.cache.ListPlugins(ctx, pageSize, pageToken, false)
 			},
 			update: func(ctx context.Context, item types.Plugin) error {
 				_, err := p.plugin.UpdatePlugin(ctx, item)
@@ -102,22 +99,14 @@ func TestPlugin(t *testing.T) {
 			create: func(ctx context.Context, item types.Plugin) error {
 				return trace.Wrap(p.plugin.CreatePlugin(ctx, item))
 			},
-			list: func(ctx context.Context) ([]types.Plugin, error) {
-				fn := func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
-					return p.plugin.ListPlugins(ctx, pageSize, token, false)
-				}
-				out, err := stream.Collect(clientutils.Resources(ctx, fn))
-				return out, trace.Wrap(err)
+			list: func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
+				return p.plugin.ListPlugins(ctx, pageSize, token, false)
 			},
 			cacheGet: func(ctx context.Context, name string) (types.Plugin, error) {
 				return p.cache.GetPlugin(ctx, name, false)
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.Plugin, error) {
-				fn := func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
-					return p.cache.ListPlugins(ctx, pageSize, token, false)
-				}
-				out, err := stream.Collect(clientutils.Resources(ctx, fn))
-				return out, trace.Wrap(err)
+			cacheList: func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
+				return p.cache.ListPlugins(ctx, pageSize, token, false)
 			},
 			update: func(ctx context.Context, item types.Plugin) error {
 				_, err := p.plugin.UpdatePlugin(ctx, item)
@@ -140,19 +129,11 @@ func TestPlugin(t *testing.T) {
 			cacheGet: func(ctx context.Context, name string) (types.Plugin, error) {
 				return p.cache.GetPlugin(ctx, name, true)
 			},
-			list: func(ctx context.Context) ([]types.Plugin, error) {
-				fn := func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
-					return p.plugin.ListPlugins(ctx, pageSize, token, true)
-				}
-				out, err := stream.Collect(clientutils.Resources(ctx, fn))
-				return out, trace.Wrap(err)
+			list: func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
+				return p.plugin.ListPlugins(ctx, pageSize, token, true)
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.Plugin, error) {
-				fn := func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
-					return p.cache.ListPlugins(ctx, pageSize, token, true)
-				}
-				out, err := stream.Collect(clientutils.Resources(ctx, fn))
-				return out, trace.Wrap(err)
+			cacheList: func(ctx context.Context, pageSize int, token string) ([]types.Plugin, string, error) {
+				return p.cache.ListPlugins(ctx, pageSize, token, true)
 			},
 			update: func(ctx context.Context, item types.Plugin) error {
 				_, err := p.plugin.UpdatePlugin(ctx, item)
@@ -163,4 +144,50 @@ func TestPlugin(t *testing.T) {
 			},
 		})
 	})
+}
+
+func TestPlugin_HasPluginType(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	slackPlugin := newPlugin("test_slack_1")
+	slackPlugin.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{
+		SlackAccessPlugin: &types.PluginSlackAccessSettings{
+			FallbackChannel: "#foo",
+		},
+	}
+	scimPlugin := newPlugin("test_scim_1")
+	scimPlugin.Spec.Settings = &types.PluginSpecV1_Scim{
+		Scim: &types.PluginSCIMSettings{
+			SamlConnectorName: "example-saml-connector",
+		},
+	}
+
+	err := p.plugin.CreatePlugin(ctx, slackPlugin)
+	require.NoError(t, err)
+
+	err = p.plugin.CreatePlugin(ctx, scimPlugin)
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		plugins, _, err := p.cache.ListPlugins(ctx, 0, "", false)
+		require.NoError(t, err)
+		require.Len(t, plugins, 2)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	has, err := p.cache.HasPluginType(ctx, types.PluginTypeSlack)
+	require.NoError(t, err)
+	require.True(t, has)
+
+	has, err = p.cache.HasPluginType(ctx, types.PluginTypeSCIM)
+	require.NoError(t, err)
+	require.True(t, has)
+
+	has, err = p.cache.HasPluginType(ctx, types.PluginTypeOkta)
+	require.NoError(t, err)
+	require.False(t, has)
 }

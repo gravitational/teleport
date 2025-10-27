@@ -21,6 +21,7 @@ package accessmonitoring
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -52,7 +53,7 @@ func mockFetchRecipient(ctx context.Context, recipient string) (*common.Recipien
 	return nil, nil
 }
 
-func TestRecipeints(t *testing.T) {
+func TestRecipients(t *testing.T) {
 	const (
 		pluginName = "fakePluginName"
 		pluginType = "fakePluginType"
@@ -133,7 +134,7 @@ func TestRecipeints(t *testing.T) {
 	require.ElementsMatch(t, []string{}, rawRecipients)
 }
 
-func TestRecipeintsWithResources(t *testing.T) {
+func TestRecipientsWithResources(t *testing.T) {
 	const (
 		pluginName = "fakePluginName"
 		pluginType = "fakePluginType"
@@ -203,6 +204,85 @@ func TestRecipeintsWithResources(t *testing.T) {
 
 	rawRecipients := amrh.RawRecipientsFromAccessMonitoringRules(ctx, req)
 	require.ElementsMatch(t, []string{recipient}, rawRecipients)
+}
+
+func TestRecipientsWithSchedules(t *testing.T) {
+	const (
+		pluginName = "fakePluginName"
+		pluginType = "fakePluginType"
+		recipient  = "recipient@goteleport.com"
+	)
+
+	teleportClient := &mockTeleportClient{}
+	teleportClient.
+		On("GetUser", mock.Anything, mock.Anything, mock.Anything).
+		Return(&types.UserV2{}, nil)
+
+	amrh := NewRuleHandler(RuleHandlerConfig{
+		Client:     teleportClient,
+		PluginType: pluginType,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(ctx context.Context, recipient string) (*common.Recipient, error) {
+			return emailRecipient(recipient), nil
+		},
+	})
+
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects: []string{types.KindAccessRequest},
+		Schedules: map[string]*pb.Schedule{
+			"default": {
+				Time: &pb.TimeSchedule{
+					Shifts: []*pb.TimeSchedule_Shift{
+						{
+							Weekday: time.Monday.String(),
+							Start:   "14:00",
+							End:     "15:00",
+						},
+					},
+				},
+			},
+		},
+		Condition: `true`,
+		Notification: &pb.Notification{
+			Name:       pluginName,
+			Recipients: []string{recipient},
+		},
+	})
+	require.NoError(t, err)
+	err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule1),
+	})
+	require.NoError(t, err)
+	require.Len(t, amrh.getAccessMonitoringRules(), 1)
+
+	ctx := context.Background()
+
+	// Expect recipient from matching rule.
+	req := &types.AccessRequestV3{
+		Spec: types.AccessRequestSpecV3{
+			Created: time.Date(2025, time.August, 11, 14, 30, 0, 0, time.UTC),
+		},
+	}
+
+	recipients := amrh.RecipientsFromAccessMonitoringRules(ctx, req)
+	require.ElementsMatch(t, []common.Recipient{*emailRecipient(recipient)}, recipients.ToSlice())
+
+	rawRecipients := amrh.RawRecipientsFromAccessMonitoringRules(ctx, req)
+	require.ElementsMatch(t, []string{recipient}, rawRecipients)
+
+	// Expect no recipient when not in schedule.
+	req = &types.AccessRequestV3{
+		Spec: types.AccessRequestSpecV3{
+			Created: time.Date(2025, time.August, 11, 15, 30, 0, 0, time.UTC),
+		},
+	}
+
+	recipients = amrh.RecipientsFromAccessMonitoringRules(ctx, req)
+	require.ElementsMatch(t, []common.Recipient{}, recipients.ToSlice())
+
+	rawRecipients = amrh.RawRecipientsFromAccessMonitoringRules(ctx, req)
+	require.ElementsMatch(t, []string{}, rawRecipients)
 }
 
 func emailRecipient(recipient string) *common.Recipient {

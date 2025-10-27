@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -274,24 +273,154 @@ func TestLargeTableRetrieve(t *testing.T) {
 func TestFromWhereExpr(t *testing.T) {
 	t.Parallel()
 
-	// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
-	cond := &types.WhereExpr{And: types.WhereExpr2{
-		L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
-			L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
-			R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
-		}}},
-		R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
-	}}
+	t.Run("sid", func(t *testing.T) {
+		cond := &types.WhereExpr{Equals: types.WhereExpr2{
+			L: &types.WhereExpr{Field: events.SessionEventID},
+			R: &types.WhereExpr{Literal: "test-session-id"},
+		}}
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
 
-	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
-	expr, err := fromWhereExpr(cond, &params)
-	require.NoError(t, err)
+		require.Equal(t, "FieldsMap.#condName0 = :condValue0", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "sid"},
+			attrValues: map[string]any{":condValue0": "test-session-id"},
+		}, params)
+	})
 
-	require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
-	require.Equal(t, condFilterParams{
-		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
-		attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
-	}, params)
+	t.Run("contains", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+		cond := &types.WhereExpr{And: types.WhereExpr2{
+			L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+				L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+				R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+			}}},
+			R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
+		}}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
+		}, params)
+	})
+
+	t.Run("contains_any", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_any(participants, set("test-user","other-user"))
+		cond := &types.WhereExpr{And: types.WhereExpr2{
+			L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+				L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+				R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+			}}},
+			R: &types.WhereExpr{ContainsAny: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+		}}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) OR contains(FieldsMap.#condName1, :condValue3)))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+
+	t.Run("contains_all", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_all(participants, set("test-user","other-user"))
+		cond := &types.WhereExpr{And: types.WhereExpr2{
+			L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+				L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+				R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+			}}},
+			R: &types.WhereExpr{ContainsAll: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+		}}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) AND contains(FieldsMap.#condName1, :condValue3)))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+
+	t.Run("can_view AND", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_all(participants, set("test-user","other-user")) && can_view()
+		cond := &types.WhereExpr{
+			And: types.WhereExpr2{
+				L: &types.WhereExpr{And: types.WhereExpr2{
+					L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+						L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+						R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+					}}},
+					R: &types.WhereExpr{ContainsAll: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+				}},
+				R: &types.WhereExpr{CanView: &types.WhereNoExpr{}},
+			},
+		}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "((NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) AND contains(FieldsMap.#condName1, :condValue3)))) AND (attribute_exists(SessionID))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+	t.Run("can_view OR ", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_all(participants, set("test-user","other-user")) || can_view()
+		cond := &types.WhereExpr{
+			Or: types.WhereExpr2{
+				L: &types.WhereExpr{And: types.WhereExpr2{
+					L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+						L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+						R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+					}}},
+					R: &types.WhereExpr{ContainsAll: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+				}},
+				R: &types.WhereExpr{CanView: &types.WhereNoExpr{}},
+			},
+		}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "((NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) AND contains(FieldsMap.#condName1, :condValue3)))) OR (attribute_exists(SessionID))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+
+	t.Run("map_ref", func(t *testing.T) {
+		// session.server_labels["env"] = "prod"
+		cond := &types.WhereExpr{Equals: types.WhereExpr2{
+			L: &types.WhereExpr{MapRef: &types.WhereExpr2{
+				L: &types.WhereExpr{Field: "server_labels"},
+				R: &types.WhereExpr{Literal: "env"},
+			}},
+			R: &types.WhereExpr{Literal: "prod"},
+		}}
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+		require.Equal(t, "FieldsMap.#condName0.#condName1 = :condValue0", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "server_labels", "#condName1": "env"},
+			attrValues: map[string]any{":condValue0": "prod"},
+		}, params)
+	})
 }
 
 // TestEmitAuditEventForLargeEvents tries to emit large audit events to
@@ -318,8 +447,8 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 			EventTypes: []string{events.DatabaseSessionQueryEvent},
 			Order:      types.EventOrderAscending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
 	}, 10*time.Second, 500*time.Millisecond)
 
 	appReqEvent := &testAuditEvent{
@@ -695,5 +824,91 @@ func TestStartKeyBackCompat(t *testing.T) {
 	newCP, err := getCheckpointFromStartKey(newStartKey)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(oldCP, newCP))
+	// we must check the iterator field equality separately because it's a string
+	// containing a JSON-encoded event and field ordering might not be consistent.
+	require.Equal(t, oldCP.EventKey, newCP.EventKey)
+	require.Equal(t, oldCP.Date, newCP.Date)
+
+	var oldIterator, newIterator event
+	require.NoError(t, json.Unmarshal([]byte(oldCP.Iterator), &oldIterator))
+	require.NoError(t, json.Unmarshal([]byte(newCP.Iterator), &newIterator))
+	require.Equal(t, oldIterator, newIterator)
+}
+
+// TestCursorIteratorPrecision exists because cursors are sensitive to data-loss
+// and we had a bug where we would unmarshall a cursor into `map[string]any`,
+// causing all int64 to do a round-trip through float64 and losing precision.
+// The precision loss would cause the cursor hash to be in te past.
+// If the cursor shifts by more events than the page size, this creates a
+// livelock and the query cannot proceed.
+// This test creates events with very close EventIndex (1 nanosecond diff),
+// reads the events 1 by one, and makes sure the reader is not stuck reading the
+// same event over and over.
+func TestCursorIteratorPrecision(t *testing.T) {
+	tt := setupDynamoContext(t)
+	clock, ok := tt.log.Clock.(*clockwork.FakeClock)
+	require.True(t, ok, "this test requires a FakeClock")
+	baseTime := clock.Now().UTC()
+
+	// Test Setup: creating fixtures really close in the dynamo index.
+
+	// For this test to work, we need the same session ID for all events
+	sessionId := uuid.NewString()
+	numEvents := 5
+	testEvents := make(map[string]struct{}, numEvents)
+
+	for range numEvents {
+		id := uuid.NewString()
+		// For the first event, EventIndex will be zero, for the next ones it
+		// will be the unix nanosecond timestamp.
+		clock.Advance(time.Nanosecond)
+		err := tt.log.EmitAuditEvent(context.Background(), &apievents.Exec{
+			UserMetadata: apievents.UserMetadata{User: "test-user"},
+			Metadata: apievents.Metadata{
+				ID:   id,
+				Type: events.UserLoginEvent,
+				Time: clock.Now().UTC(),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sessionId,
+			},
+		})
+		testEvents[id] = struct{}{}
+		require.NoError(t, err)
+	}
+
+	// Test execution: do paginated queries to read all the fixtures.
+	eventsSeen := make(map[string]apievents.AuditEvent, numEvents)
+	toTime := baseTime.Add(time.Hour)
+	var arr []apievents.AuditEvent
+	var err error
+	var checkpoint string
+
+	for range testEvents {
+		arr, checkpoint, err = tt.log.SearchEvents(t.Context(), events.SearchEventsRequest{
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		require.NoError(t, err)
+		require.Len(t, arr, 1)
+
+		id := arr[0].GetID()
+		var c checkpointKey
+		require.NoError(t, json.Unmarshal([]byte(checkpoint), &c), "event %s", id)
+		require.NotEmpty(t, c.Iterator, "event %s", id)
+
+		var e EventKey
+		require.NoError(t, json.Unmarshal([]byte(c.Iterator), &e), "event %s", id)
+		eventsSeen[id] = arr[0]
+	}
+
+	// Test validation: make sure that all fixtures were read (as opposed to
+	// some event being returned several times because of a cursor issue).
+	for id := range testEvents {
+		require.Contains(t, eventsSeen, id, "eventsSeen should contain %q", id)
+	}
+
 }

@@ -8,25 +8,29 @@
 preload = true
 
 [teleport]
-# Teleport Auth/Proxy Server address.
-# addr = "example.com:3025"
+# Teleport Auth Service or Proxy Service address.
+# Example: examples/resources/plugins/teleport-msteams.toml
+# addr = ""
 #
-# Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
+# Should be port 3025 for the Auth Service and 3080 or 443 for the Proxy
+# Service.
 # For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
 
 # Credentials generated with `tctl auth sign`.
 #
 # When using --format=file:
-# identity = "/var/lib/teleport/plugins/msteams/identity"   # Identity file
-# refresh_identity = true                                   # Refresh identity file periodically
+# Identity file, e.g., /var/lib/teleport/plugins/msteams/identity
+identity = ""   
+# Refresh identity file periodically
+refresh_identity = true                                   
 #
 # When using --format=tls:
-# client_key = "/var/lib/teleport/plugins/msteams/auth.key" # Teleport TLS secret key
-# client_crt = "/var/lib/teleport/plugins/msteams/auth.crt" # Teleport TLS certificate
-# root_cas = "/var/lib/teleport/plugins/msteams/auth.cas"   # Teleport CA certs
-addr = "localhost:3025"
-identity = "identity"
-refresh_identity = true
+# Teleport TLS secret key, e.g., /var/lib/teleport/plugins/msteams/auth.key
+# client_key = "" 
+# Teleport TLS certificate, e.g., /var/lib/teleport/plugins/msteams/auth.crt
+# client_crt = "" 
+# Teleport CA certs, e.g., /var/lib/teleport/plugins/msteams/auth.cas
+# root_cas = ""   
 
 [msapi]
 # MS API IDs. Please, check the documentation.
@@ -45,8 +49,10 @@ teams_app_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 #
 # "dev" = "devs-msteams-channel"
 # "*" = ["admin@email.com", "admin-msteams-channel"]
-"*" = ["foo@example.com"]
+"*" = []
 
 [log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/msteams.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+# Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/msteams.log"
+output = "stderr" 
+# Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+severity = "INFO" 

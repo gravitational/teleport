@@ -19,6 +19,7 @@
 package reversetunnelclient
 
 import (
+	"context"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -31,18 +32,18 @@ import (
 // FakeServer is a fake Server implementation used in tests.
 type FakeServer struct {
 	Server
-	// Clusters is a list of clusters registered via this fake reverse tunnel.
-	Clusters []Cluster
+	// FakeClusters is a list of clusters registered via this fake reverse tunnel.
+	FakeClusters []Cluster
 }
 
-// GetSites returns all available clusters.
-func (s *FakeServer) GetSites() ([]Cluster, error) {
-	return s.Clusters, nil
+// Clusters returns all available clusters.
+func (s *FakeServer) Clusters(context.Context) ([]Cluster, error) {
+	return s.FakeClusters, nil
 }
 
-// GetSite returns the cluster by name.
-func (s *FakeServer) GetSite(name string) (Cluster, error) {
-	for _, cluster := range s.Clusters {
+// Cluster returns the cluster by name.
+func (s *FakeServer) Cluster(_ context.Context, name string) (Cluster, error) {
+	for _, cluster := range s.FakeClusters {
 		if cluster.GetName() == name {
 			return cluster, nil
 		}

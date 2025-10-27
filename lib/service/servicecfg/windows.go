@@ -61,6 +61,9 @@ type WindowsDesktopConfig struct {
 	Discovery         []LDAPDiscoveryConfig
 	DiscoveryInterval time.Duration
 
+	// PublishCRLInterval determines how often CRLs should be published.
+	PublishCRLInterval time.Duration
+
 	// StaticHosts is an optional list of static Windows hosts to expose through this
 	// service.
 	StaticHosts []WindowsHost

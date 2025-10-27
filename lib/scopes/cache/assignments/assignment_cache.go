@@ -26,7 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
@@ -117,9 +117,9 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *sc
 	if req.GetResourceScope() != nil {
 		// a resource-scope based filter has been provided
 		switch req.GetResourceScope().GetMode() {
-		case scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
+		case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
 			getter = c.cache.ResourcesSubjectToPolicyScope
-		case scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
+		case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
 			getter = c.cache.PoliciesApplicableToResourceScope
 		default:
 			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role assignment resource scope filter", req.GetResourceScope().GetMode())

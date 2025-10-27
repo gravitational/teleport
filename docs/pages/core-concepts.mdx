@@ -1,7 +1,7 @@
 ---
 title: Teleport Core Concepts
 description: Learn the key components that make up Teleport.
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -20,7 +20,7 @@ within your infrastructure, such as Kubernetes clusters and Windows desktops.
 A minimal Teleport cluster consists of the **Teleport Auth Service** and
 **Teleport Proxy Service**. In a demo environment, you can run these two
 services from a single `teleport` process on a [Linux
-host](linux-demo.mdx).
+host](./get-started/deploy-community.mdx).
 
 ### Teleport Auth Service
 
@@ -170,7 +170,7 @@ and **Proxy Service**, including upgrades and certificate management. Each
 customer account, known as a **Teleport Enterprise Cloud tenant**, has its own
 subdomain of `.teleport.sh`, e.g., `mytenant.teleport.sh`.
 
-Read more in our [Teleport Enterprise (Cloud) getting started guide](./get-started.mdx).
+Read more in our [Teleport Enterprise (Cloud) getting started guide](./get-started/deploy-cloud.mdx).
 
 ### Teleport Enterprise
 
@@ -194,7 +194,7 @@ A **configuration resource** is a document stored on the **Teleport Auth
 Service** backend that specifies settings for your **Teleport cluster**.
 Examples include **roles**, **local users**, and **authentication connectors**
 
-Read more in our [resource reference](./reference/resources.mdx).
+Read more in our [resource reference](reference/infrastructure-as-code/resources.mdx).
 
 ### Role
 
@@ -203,7 +203,7 @@ privileges within a cluster. Teleport's role-based access control (RBAC) is
 restrictive by default, and a user needs explicit permissions before they can
 access a resource or perform management tasks on a cluster.
 
-Read our [guide to Teleport roles](zero-trust-access/access-controls/guides/role-templates.mdx).
+Read our [guide to Teleport roles](zero-trust-access/rbac-get-started/role-templates.mdx).
 
 ### Teleport users
 

@@ -18,12 +18,18 @@
 
 import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { AwsRolesAnywhereSetup } from 'teleport/Integrations/Enroll/AwsConsole/AwsRolesAnywhereSetup';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';
 
 export function getRoutesToEnrollIntegrations() {
   return [
+    <Route
+      key={IntegrationKind.AwsRa}
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa)}
+      component={AwsRolesAnywhereSetup}
+    />,
     <Route
       key={IntegrationKind.AwsOidc}
       exact

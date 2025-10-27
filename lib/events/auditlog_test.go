@@ -21,6 +21,7 @@ package events_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -315,6 +317,55 @@ func TestExternalLog(t *testing.T) {
 
 	require.Len(t, m.Emitter.Events(), 1)
 	require.Equal(t, m.Emitter.Events()[0], evt)
+}
+
+func TestUploadEncryptedRecording(t *testing.T) {
+	ctx := t.Context()
+	uploader := eventstest.NewMemoryUploader()
+	alog, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:       t.TempDir(),
+		ServerID:      "server1",
+		UploadHandler: uploader,
+	})
+	require.NoError(t, err)
+	defer alog.Close()
+
+	parts := [][]byte{
+		[]byte("123"),
+		[]byte("456"),
+		[]byte("789"),
+	}
+	partIter := func(yield func([]byte, error) bool) {
+		for _, part := range parts {
+			if part == nil {
+				if !yield(nil, errors.New("invalid part")) {
+					return
+				}
+			} else {
+				if !yield(part, nil) {
+					return
+				}
+			}
+		}
+	}
+	sessionID, err := uuid.NewV7()
+	require.NoError(t, err)
+
+	err = alog.UploadEncryptedRecording(ctx, sessionID.String(), partIter)
+	require.NoError(t, err)
+
+	uploads, err := uploader.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Len(t, uploads, 1)
+
+	uploaded, err := uploader.ListParts(ctx, uploads[0])
+	require.NoError(t, err)
+
+	require.Len(t, uploaded, len(parts))
+	for idx, part := range uploaded {
+		// uploaded part numbers should increment starting with 1
+		require.Equal(t, int64(idx+1), part.Number)
+	}
 }
 
 func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {

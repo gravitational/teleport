@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // WriteContextCloser provides close method with context
@@ -401,7 +402,7 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
-	remove := NewSet(values...)
+	remove := set.New(values...)
 	return slices.DeleteFunc(slice, func(s string) bool { return remove.Contains(s) })
 }
 

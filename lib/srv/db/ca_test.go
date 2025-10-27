@@ -61,6 +61,25 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	elastiCacheServerless, err := types.NewDatabaseV3(types.Metadata{
+		Name: "elasti-serverless",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "localhost:6379",
+		AWS: types.AWS{
+			Region: "us-east-1",
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: "serverless-example",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, elastiCacheServerless.IsElastiCacheServerless())
+
+	elastiCacheServerlessWithCert := elastiCacheServerless.Copy()
+	elastiCacheServerlessWithCert.SetName("elasti-serverless-with-cert")
+	elastiCacheServerlessWithCert.SetCA("elasticache-serverless-test-cert")
+
 	rds, err := types.NewDatabaseV3(types.Metadata{
 		Name: "rds",
 	}, types.DatabaseSpecV3{
@@ -155,6 +174,8 @@ func TestInitCACert(t *testing.T) {
 
 	allDatabases := []types.Database{
 		selfHosted,
+		elastiCacheServerless,
+		elastiCacheServerlessWithCert,
 		rds,
 		rdsWithCert,
 		redshift,
@@ -185,6 +206,16 @@ func TestInitCACert(t *testing.T) {
 			desc:     "shouldn't download RDS CA when it's set",
 			database: rdsWithCert.GetName(),
 			cert:     rdsWithCert.GetCA(),
+		},
+		{
+			desc:     "should download ElastiCache CA when it's not set",
+			database: elastiCacheServerless.GetName(),
+			cert:     fixtures.TLSCACertPEM,
+		},
+		{
+			desc:     "shouldn't download ElastiCache CA when it's set",
+			database: elastiCacheServerlessWithCert.GetName(),
+			cert:     elastiCacheServerlessWithCert.GetCA(),
 		},
 		{
 			desc:     "should download Redshift CA when it's not set",

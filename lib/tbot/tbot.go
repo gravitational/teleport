@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -118,6 +119,10 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+	b.log.InfoContext(
+		ctx, "Initializing tbot",
+		"version", versionLogValue(),
+	)
 
 	if err := metrics.RegisterPrometheusCollectors(
 		metrics.BuildCollector(),
@@ -167,15 +172,20 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	// This faux service allows us to get the bot's internal identity and client
 	// for tests, without exposing them on the core bot.Bot struct.
-	services = append(services, func(deps bot.ServiceDependencies) (bot.Service, error) {
-		b.mu.Lock()
-		defer b.mu.Unlock()
+	if b.cfg.Testing {
+		services = append(services,
+			bot.NewServiceBuilder("internal/client-fetcher", "client-fetcher",
+				func(deps bot.ServiceDependencies) (bot.Service, error) {
+					b.mu.Lock()
+					defer b.mu.Unlock()
 
-		b.identity = deps.BotIdentity
-		b.client = deps.Client
+					b.identity = deps.BotIdentity
+					b.client = deps.Client
 
-		return bot.NewNopService("client-fetcher"), nil
-	})
+					return bot.NewNopService("client-fetcher"), nil
+				}),
+		)
+	}
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
@@ -188,7 +198,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			return trustBundleCache
 		}
 		trustBundleCache = workloadidentity.NewTrustBundleCacheFacade()
-		services = append(services, trustBundleCache.BuildService)
+		services = append(services, trustBundleCache.Builder())
 		return trustBundleCache
 	}
 
@@ -201,7 +211,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			return crlCache
 		}
 		crlCache = workloadidentity.NewCRLCacheFacade()
-		services = append(services, crlCache.BuildService)
+		services = append(services, crlCache.Builder())
 		return crlCache
 	}
 
@@ -216,9 +226,16 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *ssh.MultiplexerConfig:
 			services = append(services, ssh.MultiplexerServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, clientMetrics))
 		case *k8s.OutputV1Config:
-			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
 		case *k8s.OutputV2Config:
-			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
+		case *k8s.ArgoCDOutputConfig:
+			services = append(services, k8s.ArgoCDServiceBuilder(
+				svcCfg,
+				k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
+				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
+				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
+			))
 		case *ssh.HostOutputConfig:
 			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
@@ -231,6 +248,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
 			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
+		case *application.ProxyServiceConfig:
+			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
 		case *workloadidentitysvc.X509OutputConfig:
 			services = append(services, workloadidentitysvc.X509OutputServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *workloadidentitysvc.JWTOutputConfig:
@@ -245,6 +264,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	}
 
 	bt, err := bot.New(bot.Config{
+		Kind:               bot.KindTbot,
 		Connection:         b.cfg.ConnectionConfig(),
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
@@ -363,4 +383,12 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	}
 
 	return nil
+}
+
+func versionLogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("teleport", teleport.Version),
+		slog.String("teleport_git", teleport.Gitref),
+		slog.String("go", runtime.Version()),
+	)
 }

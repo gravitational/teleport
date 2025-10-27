@@ -36,9 +36,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -93,34 +93,36 @@ func setupKubernetesHarness(
 	kubeMock := startKubeAPIMock(t)
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeMock.URL))
 
-	return testenv.MakeTestServer(
-		t,
-		func(o *testenv.TestServersOpts) error {
-			testenv.WithClusterName(teleClusterName)(o)
-			testenv.WithConfig(func(cfg *servicecfg.Config) {
-				cfg.Logger = log
-				cfg.Proxy.PublicAddrs = []utils.NetAddr{
-					{
-						AddrNetwork: "tcp",
-						Addr: net.JoinHostPort(
-							"localhost",
-							strconv.Itoa(cfg.Proxy.WebAddr.Port(0)),
-						),
-					},
-				}
-				cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
-					cfg.Proxy.ReverseTunnelListenAddr,
-				}
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithClusterName(teleClusterName),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Logger = log
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+				{
+					AddrNetwork: "tcp",
+					Addr: net.JoinHostPort(
+						"localhost",
+						strconv.Itoa(cfg.Proxy.WebAddr.Port(0)),
+					),
+				},
+			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
+			}
 
-				cfg.Kube.Enabled = true
-				cfg.Kube.KubeconfigPath = kubeConfigPath
-				cfg.Kube.ListenAddr = utils.MustParseAddr(
-					helpers.NewListener(t, service.ListenerKube, &cfg.FileDescriptors))
-			})(o)
-			return nil
-		},
+			cfg.Kube.Enabled = true
+			cfg.Kube.KubeconfigPath = kubeConfigPath
+			cfg.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &cfg.FileDescriptors))
+		}),
 		testenv.WithProxyKube(),
-	), kubeMock
+	)
+	if err != nil {
+		t.Fatalf("failed to create Teleport process: %v", err)
+	}
+
+	return process, kubeMock
 }
 
 func setupKubernetesAccessBot(
@@ -153,7 +155,7 @@ func setupKubernetesAccessBot(
 	})
 	require.NoError(t, err)
 
-	fakeJoinSigner, err := fakejoin.NewKubernetesSigner(
+	fakeJoinSigner, err := fakeissuer.NewKubernetesSigner(
 		clockwork.NewRealClock(),
 	)
 	require.NoError(t, err)

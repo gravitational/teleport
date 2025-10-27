@@ -26,6 +26,7 @@ import {
   makeRetryableError,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import ModalsHost from 'teleterm/ui/ModalsHost';
@@ -321,12 +322,14 @@ it('shows a login modal when a request to a cluster from the current workspace f
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <SearchBarConnected />
-          <ModalsHost />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <AppUpdaterContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <SearchBarConnected />
+            <ModalsHost />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
+      </AppUpdaterContextProvider>
     </MockAppContextProvider>
   );
 

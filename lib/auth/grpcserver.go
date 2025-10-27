@@ -24,10 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net"
 	"os"
+	goslices "slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -69,6 +72,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	recordingmetadatav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -109,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
 	scopedaccess "github.com/gravitational/teleport/lib/auth/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/auth/scopes/joining"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
@@ -127,11 +132,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/joinserver"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -1141,6 +1150,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1487,6 +1508,10 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1610,6 +1635,34 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	return &authpb.GetSnowflakeSessionsResponse{
 		Sessions: out,
 	}, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake sessions.
+func (g *GRPCServer) ListSnowflakeSessions(ctx context.Context, req *authpb.ListSnowflakeSessionsRequest) (*authpb.ListSnowflakeSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, next, err := auth.ListSnowflakeSessions(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSnowflakeSessionsResponse{
+		Sessions:      make([]*types.WebSessionV2, 0, len(sessions)),
+		NextPageToken: next,
+	}
+
+	for _, session := range sessions {
+		webessionV2, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported web session type %T", session)
+		}
+		resp.Sessions = append(resp.Sessions, webessionV2)
+	}
+
+	return resp, nil
 }
 
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *authpb.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
@@ -1865,7 +1918,7 @@ func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequ
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := auth.WebTokens().Get(ctx, *req)
+	resp, err := auth.GetWebToken(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1886,7 +1939,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := auth.WebTokens().List(ctx)
+	tokens, err := auth.GetWebTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1905,6 +1958,34 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	}, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, next, err := auth.ListWebTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListWebTokensResponse{
+		Tokens:        make([]*types.WebTokenV3, 0, len(tokens)),
+		NextPageToken: next,
+	}
+
+	for _, t := range tokens {
+		tokenV3, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", t)
+		}
+		resp.Tokens = append(resp.Tokens, tokenV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteWebToken removes the web token given with req.
 func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1912,7 +1993,7 @@ func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTok
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+	if err := auth.DeleteWebToken(ctx, *req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1926,7 +2007,7 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+	if err := auth.DeleteAllWebTokens(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2474,12 +2555,28 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.Wrap(err)
 	}
 
-	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
-	if err != nil {
-		return trace.Wrap(err)
+	// We must use the real username associated with the identity.
+	// GetUser() can be remote-{user}-{cluster} if we are using
+	// a leaf cluster.
+	realUsername := actx.Identity.GetIdentity().Username
+	originCluster := actx.Identity.GetIdentity().OriginClusterName
+	origErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, realUsername, originCluster)
+	switch {
+	case trace.IsNotFound(origErr):
+		// If the user was not found, it may be because the session tracker
+		// was created with the .GetUser() value (remote-{user}-{cluster}).
+		// Try again with that username as a fallback.
+		// TODO(tigrato): DELETE IN 20.0.0
+		if fallbackErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user, originCluster); fallbackErr != nil {
+			// Return the original error, as that is more relevant to the client.
+			return trace.Wrap(origErr)
+		}
+		return nil
+	case origErr != nil:
+		return trace.Wrap(origErr)
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
@@ -2685,6 +2782,31 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	}, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+func (g *GRPCServer) ListOIDCConnectors(ctx context.Context, req *authpb.ListOIDCConnectorsRequest) (*authpb.ListOIDCConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ocs, next, err := auth.ServerWithRoles.ListOIDCConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectors := make([]*types.OIDCConnectorV3, len(ocs))
+	for i, oc := range ocs {
+		var ok bool
+		if connectors[i], ok = oc.(*types.OIDCConnectorV3); !ok {
+			return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
+		}
+	}
+
+	return &authpb.ListOIDCConnectorsResponse{
+		Connectors:    connectors,
+		NextPageToken: next,
+	}, nil
+}
+
 // CreateOIDCConnector creates a new OIDC connector.
 func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -2827,6 +2949,40 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	return &types.SAMLConnectorV2List{
 		SAMLConnectors: samlConnectorsV2,
 	}, nil
+}
+
+// ListSAMLConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (g *GRPCServer) ListSAMLConnectors(ctx context.Context, req *authpb.ListSAMLConnectorsRequest) (*authpb.ListSAMLConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	scs, next, err := auth.ServerWithRoles.ListSAMLConnectorsWithOptions(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.WithSecrets,
+		types.SAMLConnectorValidationFollowURLs(!req.NoFollowUrls),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSAMLConnectorsResponse{
+		NextPageToken: next,
+		Connectors:    make([]*types.SAMLConnectorV2, 0, len(scs)),
+	}
+	for _, sc := range scs {
+		scpb, ok := sc.(*types.SAMLConnectorV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected SAML connector type: %T", sc)
+		}
+		resp.Connectors = append(resp.Connectors, scpb)
+	}
+
+	return resp, nil
 }
 
 // CreateSAMLConnector creates a new SAML connector.
@@ -2973,6 +3129,33 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	return &types.GithubConnectorV3List{
 		GithubConnectors: githubConnectorsV3,
 	}, nil
+}
+
+// ListGithubConnectors returns a page of valid registered Github connectors.
+func (g *GRPCServer) ListGithubConnectors(ctx context.Context, req *authpb.ListGithubConnectorsRequest) (*authpb.ListGithubConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, next, err := auth.ServerWithRoles.ListGithubConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListGithubConnectorsResponse{
+		Connectors:    make([]*types.GithubConnectorV3, 0, len(connectors)),
+		NextPageToken: next,
+	}
+
+	for _, connector := range connectors {
+		if v3, ok := connector.(*types.GithubConnectorV3); ok {
+			resp.Connectors = append(resp.Connectors, v3)
+		} else {
+			return nil, trace.Errorf("encountered unexpected Github connector type %T", connector)
+		}
+	}
+
+	return resp, nil
 }
 
 // UpsertGithubConnectorV2 creates a new or replaces an existing Github connector.
@@ -3844,6 +4027,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3858,6 +4044,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -4029,6 +4218,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	return &types.DatabaseV3List{
 		Databases: databasesV3,
 	}, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteDatabase removes the specified database.
@@ -4838,6 +5055,93 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}, nil
 }
 
+// rangeDefaultInstallers returns implicit default installer scripts within the range [start, end).
+//
+// TODO(okraport): This should really belong in [services.ClusterConfigurationService], however moving
+// this to the service layer affects the event stream which may lead to inconsistencies when operating on implicit default keys.
+// Investigate the feasiablity of adding implicit builtin default keys to the service layer and refactor.
+func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	isInRange := func(value, start, end string) bool {
+		if start == "" && end == "" {
+			return true
+		}
+		if start == "" {
+			return value < end
+		}
+		if end == "" {
+			return value >= start
+		}
+		return value >= start && value < end
+	}
+
+	return func(yield func(types.Installer, error) bool) {
+		var defaultInstallers []types.Installer
+
+		if isInRange(installers.InstallerScriptNameAgentless, start, end) {
+			defaultInstallers = append(defaultInstallers, installers.DefaultAgentlessInstaller)
+		}
+
+		if isInRange(types.DefaultInstallerScriptName, start, end) {
+			defaultInstaller, err := g.defaultInstaller(ctx)
+			if err != nil {
+				if !yield(*new(types.Installer), err) {
+					return
+				}
+			}
+			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		// Sort in case the names change in the future as the streams must be sorted.
+		goslices.SortFunc(defaultInstallers, func(a, b types.Installer) int {
+			return strings.Compare(a.GetName(), b.GetName())
+		})
+
+		for _, installer := range defaultInstallers {
+			if !yield(installer, nil) {
+				return
+			}
+		}
+
+	}
+}
+
+// ListInstallers returns a page of installer script resources.
+func (g *GRPCServer) ListInstallers(ctx context.Context, req *authpb.ListInstallersRequest) (*authpb.ListInstallersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, next, err := generic.CollectPageAndCursor(
+		iterstream.MergeStreamsWithPriority(
+			auth.RangeInstallers(ctx, req.PageToken, ""),
+			g.rangeDefaultInstallers(ctx, req.PageToken, ""),
+			func(a, b types.Installer) int { return strings.Compare(a.GetName(), b.GetName()) },
+		),
+		int(req.PageSize),
+		types.Installer.GetName,
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListInstallersResponse{
+		Installers:    make([]*types.InstallerV1, 0, len(page)),
+		NextPageToken: next,
+	}
+
+	for _, inst := range page {
+		installersV1, ok := inst.(*types.InstallerV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported installer type %T", inst)
+		}
+		resp.Installers = append(resp.Installers, installersV1)
+	}
+
+	return resp, nil
+}
+
 // DeleteInstaller sets the installer script resource to its default
 func (g *GRPCServer) DeleteInstaller(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -4967,6 +5271,34 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	return &types.KubernetesClusterV3List{
 		KubernetesClusters: kubeClusters,
 	}, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, next, err := auth.ListKubernetesClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListKubernetesClustersResponse{
+		KubernetesClusters: make([]*types.KubernetesClusterV3, 0, len(clusters)),
+		NextPageToken:      next,
+	}
+
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kubernetes cluster type %T", clusterV3)
+		}
+		resp.KubernetesClusters = append(resp.KubernetesClusters, clusterV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
@@ -5622,7 +5954,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
 		Authorizer: cfg.Authorizer,
-		Reader:     cfg.AuthServer.scopedAccessCache,
+		Reader:     cfg.AuthServer.ScopedAccessCache,
 		Writer:     cfg.AuthServer.scopedAccessBackend,
 		Logger:     logger,
 	})
@@ -5633,6 +5965,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
 		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer,
+		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -5680,18 +6014,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		AuthServer: cfg.AuthServer,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		AuthServer:       cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(cfg.AuthServer)
-	authpb.RegisterJoinServiceServer(server, joinServiceServer)
+	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
+	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
+
+	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
+		Authorizer:  cfg.Authorizer,
+		AuthService: cfg.AuthServer,
+		FIPS:        cfg.AuthServer.fips,
+	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
@@ -5710,7 +6051,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationAWSOIDCServiceServer, err := integrationv1.NewAWSOIDCService(&integrationv1.AWSOIDCServiceConfig{
 		Authorizer:            cfg.Authorizer,
 		IntegrationService:    integrationServiceServer,
-		Cache:                 cfg.AuthServer,
+		Cache:                 cfg.AuthServer.Cache,
+		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
 	})
@@ -5794,6 +6136,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Uploader:   cfg.AuthServer.Services,
+		KeyRotater: cfg.AuthServer.Services,
 		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 	})
 	if err != nil {
@@ -5917,6 +6260,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
 	}
+
+	recordingMetadataService, err := recordingmetadatav1.NewService(recordingmetadatav1.ServiceConfig{
+		Authorizer: NewSessionRecordingAuthorizer(
+			cfg.AuthServer,
+			cfg.Authorizer,
+		),
+		Streamer:        cfg.AuthServer,
+		DownloadHandler: cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating recording metadata service")
+	}
+	recordingmetadatav1pb.RegisterRecordingMetadataServiceServer(server, recordingMetadataService)
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
 		DecisionService: cfg.AuthServer.pdp,
@@ -6057,4 +6413,31 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 			return trail.ToGRPC(trace.Wrap(err))
 		}
 	}
+}
+
+// ValidateTrustedCluster is called by the Proxy when a leaf cluster is
+// requesting to join.
+func (g *GRPCServer) ValidateTrustedCluster(
+	ctx context.Context,
+	req *authpb.ValidateTrustedClusterRequest,
+) (*authpb.ValidateTrustedClusterResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nativeReq := authclient.ValidateTrustedClusterRequestFromProto(req)
+	nativeResp, err := auth.ValidateTrustedCluster(ctx, nativeReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := nativeResp.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(
+			err,
+			"converting native ValidateTrustedClusterResponse to proto representation",
+		)
+	}
+
+	return protoResp, nil
 }

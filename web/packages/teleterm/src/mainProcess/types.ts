@@ -16,10 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
+import { CloneableAbortSignal } from 'teleterm/services/tshd';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -147,10 +151,10 @@ export type MainProcessClient = {
    * Tells the OS to focus the window. If wait is true, polls periodically for window status and
    * resolves when it's focused or after a short timeout.
    *
-   * Most of the time wait shouldn't be used, it's there for use cases where it's important for the
-   * app to be focused (e.g., the business logic needs to use the clipboard API). Even in that case,
-   * the logic must handle a scenario where focus wasn't received as focus cannot be guaranteed.
-   * Any app can steal focus at any time.
+   * Most of the time wait shouldn't be used. It's for use cases where the app must be focused
+   * before carrying out the rest of the logic (e.g., the clipboard API requires focus). Even in
+   * those cases, the logic must handle a scenario where focus wasn't received as focus cannot be
+   * guaranteed. Any app can steal focus at any time.
    */
   forceFocusWindow(
     args?: { wait?: false } | { wait: true; signal?: AbortSignal }
@@ -195,7 +199,6 @@ export type MainProcessClient = {
    * interacted with the relevant modals during startup and is free to use the app.
    */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
-  refreshClusterList(): void;
   /**
    * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
    * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
@@ -222,6 +225,20 @@ export type MainProcessClient = {
     cleanup: () => void;
   };
   subscribeToOpenAppUpdateDialog(listener: () => void): {
+    cleanup: () => void;
+  };
+  subscribeToIsInBackgroundMode(
+    listener: (opts: { isInBackgroundMode: boolean }) => void
+  ): {
+    cleanup: () => void;
+  };
+  addCluster(proxyAddress: string): Promise<Cluster>;
+  syncCluster(clusterUri: RootClusterUri): Promise<void>;
+  syncRootClusters(options: {
+    abortSignal: CloneableAbortSignal;
+  }): Promise<Cluster[]>;
+  logoutCluster(clusterUri: RootClusterUri): Promise<void>;
+  subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
     cleanup: () => void;
   };
 };
@@ -331,12 +348,12 @@ export enum RendererIpc {
   DeepLinkLaunch = 'renderer-deep-link-launch',
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
+  IsInBackgroundMode = 'renderer-is-in-background-mode',
 }
 
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
   TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
-  RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
@@ -349,6 +366,11 @@ export enum MainProcessIpc {
   ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
   MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
   SupportsAppUpdates = 'main-process-supports-app-updates',
+  InitClusterStoreSubscription = 'main-process-init-cluster-store-subscription',
+  SyncCluster = 'main-process-sync-cluster',
+  AddCluster = 'main-process-add-cluster',
+  SyncRootClusters = 'main-process-sync-root-clusters',
+  Logout = 'main-process-logout',
 }
 
 export enum WindowsManagerIpc {

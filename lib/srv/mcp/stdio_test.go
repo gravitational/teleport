@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	"math/rand/v2"
 	"os"
 	"path"
 	"testing"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
 
@@ -44,22 +47,24 @@ func Test_handleAuthErrStdio(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    mockAuthClient{},
 	})
 	require.NoError(t, err)
 
-	clientSourceConn, clientDestConn := makeDualPipeNetConn(t)
+	testCtx := setupTestContext(t, withAdminRole(t))
 
 	originalAuthErr := trace.AccessDenied("test access denied")
 	handlerDoneCh := make(chan struct{}, 1)
 	go func() {
-		handlerErr := s.HandleUnauthorizedConnection(ctx, clientDestConn, originalAuthErr)
+		handlerErr := s.HandleUnauthorizedConnection(ctx, testCtx.SessionCtx.ClientConn, testCtx.SessionCtx.App, originalAuthErr)
 		handlerDoneCh <- struct{}{}
 		require.ErrorIs(t, handlerErr, originalAuthErr)
 	}()
 
-	stdioClient := mcptest.NewStdioClientFromConn(t, clientSourceConn)
+	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
 	_, err = mcptest.InitializeClient(ctx, stdioClient)
-	require.EqualError(t, err, originalAuthErr.Error())
+	require.ErrorContains(t, err, originalAuthErr.Error())
 
 	select {
 	case <-time.After(time.Second * 10):
@@ -77,6 +82,8 @@ func Test_handleStdio(t *testing.T) {
 		ParentContext: ctx,
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -84,17 +91,17 @@ func Test_handleStdio(t *testing.T) {
 	defer close(handlerDoneCh)
 	go func() {
 		// Use the demo server.
-		handlerErr := s.handleStdio(ctx, *testCtx.SessionCtx, makeDemoServerRunner)
+		handlerErr := s.handleStdio(ctx, testCtx.SessionCtx, makeDemoServerRunner)
 		handlerDoneCh <- struct{}{}
 		require.NoError(t, handlerErr)
 	}()
 
 	// Use a real client. Verify session start and end events.
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		event := emitter.LastEvent()
 		_, ok := event.(*apievents.MCPSessionStart)
-		assert.True(collect, ok)
+		require.True(t, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 
 	// Some basic tests on the demo server.
@@ -150,6 +157,8 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 		ParentContext: t.Context(),
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -172,6 +181,14 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 
 		// Check container is running.
 		require.NotEmpty(t, findDockerContainerID(t.Context(), dockerClient, containerName))
+
+		// Note that some metrics may be incremented by other tests too so here
+		// just checking they are non-zero.
+		require.Positive(t, testutil.ToFloat64(accumulatedSessions.WithLabelValues(types.MCPTransportStdio)))
+		require.Positive(t, testutil.ToFloat64(activeSessions.WithLabelValues(types.MCPTransportStdio)))
+		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "request", "initialize")))
+		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "notification", "notifications/initialized")))
+		require.Positive(t, testutil.ToFloat64(messagesFromServer.WithLabelValues(types.MCPTransportStdio, "response", "initialize")))
 	}
 
 	tests := []struct {
@@ -207,11 +224,38 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			afterHandlerStop:   containerShouldBeRemoved,
 		},
 		{
+			// Randomly cancel the context to simulate a case where client
+			// disconnects while cmd is being set up, which may cause a race
+			// condition that leaves docker container behind:
+			// https://github.com/gravitational/teleport/issues/59768
+			//
+			// To restore the bug, use `sync.OnceValue` when creating the func for `cmd.Cancel`:
+			//   cmd.Cancel = sync.OnceValue(func() error {
+			//
+			// Run this test with -count=100 for better coverage.
+			name:          "random cancel handler context",
+			cmd:           "docker",
+			dockerRunArgs: []string{"mcp/everything"},
+			checkHandlerError: func(require.TestingT, error, ...interface{}) {
+				// Depends on the timing, this can return error or nil. So just ignore.
+			},
+			cancelHandlerCtx:   true,
+			waitForHandlerExit: time.Second * 15,
+			afterHandlerStart: func(t *testing.T, testCtx *testContext, containerName string) {
+				time.Sleep(time.Duration(rand.Uint32N(10000)) * time.Microsecond)
+			},
+			// Make sure the container is removed no matter the timing.
+			afterHandlerStop: containerShouldBeRemoved,
+		},
+		{
 			// Make sure handler is not blocked when command fails to start.
 			name:               "fail to start",
 			cmd:                "fail-to-start",
 			checkHandlerError:  require.Error,
 			waitForHandlerExit: time.Second * 5,
+			afterHandlerStop: func(t *testing.T, _ *testContext, _ string) {
+				require.Positive(t, testutil.ToFloat64(setupErrors.WithLabelValues(types.MCPTransportStdio)))
+			},
 		},
 		{
 			// Make sure handler is not blocked when command starts then fails
@@ -239,12 +283,16 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 				`trap "" INT; while :; do sleep 1; done`,
 			},
 			checkHandlerError: require.Error,
-			afterHandlerStart: func(t *testing.T, testCtx *testContext, _ string) {
-				// Trigger shutdown.
+			afterHandlerStart: func(t *testing.T, testCtx *testContext, containerName string) {
+				ctx := t.Context()
+				t.Log("waiting for docker container to spawn before killing client connection")
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					require.NotEmpty(t, findDockerContainerID(ctx, dockerClient, containerName))
+				}, time.Second*5, time.Millisecond*100)
 				testCtx.clientSourceConn.Close()
 				t.Log("waiting 10 seconds for SIGKILL")
 			},
-			waitForHandlerExit: time.Second * 15,
+			waitForHandlerExit: time.Second * 20,
 		},
 	}
 
@@ -274,12 +322,9 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			testCtx := setupTestContext(t, withAdminRole(t), withApp(app))
 			handlerCtx, handlerCtxCancel := context.WithCancel(t.Context())
 			defer handlerCtxCancel()
-			handlerDoneCh := make(chan struct{}, 1)
-			defer close(handlerDoneCh)
+			handlerErrChan := make(chan error, 1)
 			go func() {
-				handlerErr := s.HandleSession(handlerCtx, *testCtx.SessionCtx)
-				handlerDoneCh <- struct{}{}
-				tt.checkHandlerError(t, handlerErr)
+				handlerErrChan <- s.HandleSession(handlerCtx, testCtx.SessionCtx)
 			}()
 
 			if tt.afterHandlerStart != nil {
@@ -292,7 +337,8 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			select {
 			case <-time.After(tt.waitForHandlerExit):
 				require.Fail(t, "timed out waiting for handler")
-			case <-handlerDoneCh:
+			case handlerErr := <-handlerErrChan:
+				tt.checkHandlerError(t, handlerErr)
 			}
 
 			if tt.afterHandlerStop != nil {

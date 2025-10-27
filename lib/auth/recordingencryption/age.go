@@ -22,12 +22,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"io"
 
 	"filippo.io/age"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // RecordingStanza is the type used for the identifying stanza added by RecordingRecipient.
@@ -111,7 +110,7 @@ type RecordingRecipient struct {
 
 // ParseRecordingRecipient parses a PEM encoded RSA 4096 public key into a RecordingRecipient.
 func ParseRecordingRecipient(in []byte) (*RecordingRecipient, error) {
-	pubKey, err := keys.ParsePublicKey(in)
+	pubKey, err := x509.ParsePKIXPublicKey(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

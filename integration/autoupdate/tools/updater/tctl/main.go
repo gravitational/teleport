@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package tctl
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 )
 
-func main() {
+func Main() {
 	ctx, cancel := stacksignal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 

@@ -141,24 +141,25 @@ func (m *manager) Start(ctx context.Context) error {
 	return nil
 }
 
-// supportedTargetKinds is a list of resource kinds that support health checks.
-var supportedTargetKinds = []string{
-	types.KindDatabase,
-}
-
 // AddTarget adds a new target health checker and starts the health checker.
 func (m *manager) AddTarget(target Target) error {
 	if err := target.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	resource := target.GetResource()
-	if !slices.Contains(supportedTargetKinds, resource.GetKind()) {
+	var metricType string
+	switch resource.GetKind() {
+	case types.KindDatabase:
+		metricType = teleport.MetricResourceDB
+	case types.KindKubernetesCluster:
+		metricType = teleport.MetricResourceKubernetes
+	default:
 		return trace.BadParameter("health check target resource kind %q is not supported", resource.GetKind())
 	}
 
+	key := newResourceKey(resource)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	key := newResourceKey(resource)
 	if _, ok := m.workers[key]; ok {
 		return trace.AlreadyExists("target health checker %q already exists", key)
 	}
@@ -170,7 +171,8 @@ func (m *manager) AddTarget(target Target) error {
 			"target_kind", resource.GetKind(),
 			"target_origin", resource.Origin(),
 		),
-		Target: target,
+		Target:     target,
+		metricType: metricType,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -202,9 +204,9 @@ func (m *manager) RemoveTarget(r types.ResourceWithLabels) error {
 // GetTargetHealth returns the health of a given resource.
 func (m *manager) GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHealth, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	key := newResourceKey(r)
 	worker, ok := m.workers[key]
+	m.mu.RUnlock()
 	if !ok {
 		return nil, trace.NotFound("health checker %q not found", key)
 	}
@@ -326,6 +328,10 @@ func (m *manager) updateWorkersLocked(ctx context.Context) {
 // getConfigLocked gets a matching config for the the given resource or returns
 // nil if no config matches.
 func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabels) *healthCheckConfig {
+	if m.configs == nil {
+		m.logger.DebugContext(ctx, "Health check config unavailable")
+		return nil
+	}
 	for _, cfg := range m.configs {
 		matched, _, err := services.CheckLabelsMatch(
 			types.Allow,

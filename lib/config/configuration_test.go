@@ -2961,6 +2961,46 @@ func TestDatabaseCLIFlags(t *testing.T) {
 			},
 		},
 		{
+			desc: "AlloyDB database",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "alloydb",
+				DatabaseProtocol: defaults.ProtocolPostgres,
+				DatabaseURI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+			},
+		},
+		{
+			desc: "AlloyDB database with public endpoint type",
+			inFlags: CommandLineFlags{
+				DatabaseName:                   "alloydb",
+				DatabaseProtocol:               defaults.ProtocolPostgres,
+				DatabaseURI:                    "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				DatabaseGCPAlloyDBEndpointType: "public",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "alloydb",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				GCP: servicecfg.DatabaseGCP{
+					AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+						EndpointType: "public",
+					},
+				},
+			},
+		},
+		{
 			desc: "SQL Server",
 			inFlags: CommandLineFlags{
 				DatabaseName:         "sqlserver",
@@ -3858,6 +3898,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							Azure: &AzureInstallParams{
 								ClientID: "abcd1234",
 							},
+							Suffix: "blue",
 						},
 					},
 				},
@@ -3876,6 +3917,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							Azure: &types.AzureInstallerParams{
 								ClientID: "abcd1234",
 							},
+							Suffix: "blue",
 						},
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -4710,6 +4752,7 @@ func TestDiscoveryConfig(t *testing.T) {
 								"method":     "iam",
 							},
 							"script_name": "installer-custom",
+							"suffix":      "blue",
 						},
 						"ssm": cfgMap{
 							"document_name": "hello_document",
@@ -4732,6 +4775,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      "installer-custom",
 					InstallTeleport: true,
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					Suffix:          "blue",
 				},
 				SSM: &types.AWSSSM{DocumentName: "hello_document"},
 				AssumeRole: &types.AssumeRole{
@@ -4741,8 +4785,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
-			desc:          "AWS section with eice enroll mode",
-			expectError:   require.NoError,
+			desc:          "AWS section with eice enroll mode, returns an error",
+			expectError:   require.Error,
 			expectEnabled: require.True,
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
@@ -4770,27 +4814,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				}
 			},
-			expectedAWSMatchers: []types.AWSMatcher{{
-				Types:   []string{"ec2"},
-				Regions: []string{"eu-central-1"},
-				Tags: map[string]apiutils.Strings{
-					"discover_teleport": []string{"yes"},
-				},
-				Params: &types.InstallerParams{
-					JoinMethod:      types.JoinMethodIAM,
-					JoinToken:       "hello-iam-a-token",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					ScriptName:      "installer-custom",
-					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
-				},
-				SSM:         &types.AWSSSM{DocumentName: "hello_document"},
-				Integration: "my-integration",
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID: "externalID123",
-				},
-			}},
 		},
 		{
 			desc:          "AWS cannot use EICE mode without integration",

@@ -34,6 +34,12 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
       global.Element.prototype.scrollIntoView = () => {};
     }
 
+    // TODO(ryanclark): Remove this once JSDOM provides scrollTo.
+    // https://github.com/jsdom/jsdom/issues/2751
+    if (!global.Element.prototype.scrollTo) {
+      global.Element.prototype.scrollTo = () => {};
+    }
+
     // TODO(gzdunek): Remove this once JSDOM provides matchMedia.
     // https://github.com/jsdom/jsdom/issues/3522
     if (!global.matchMedia) {
