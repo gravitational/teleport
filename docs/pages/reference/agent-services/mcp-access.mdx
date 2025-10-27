@@ -65,12 +65,9 @@ app_service:
       # - none: exclude both roles and traits from the JWT token
       # Default: roles-and-traits
       jwt_claims: roles-and-traits
-      # Rewrite the "Location" header on redirect responses replacing the
-      # host with the public address of this application.
-      redirect:
-      - "grafana.internal.dev"
       # Headers passthrough configuration.
       headers:
+      - "Authorization: Bearer {{internal.jwt}}"
       - "X-Custom-Header: example"
       - "X-External-Trait: {{external.env}}"
 ```
@@ -120,12 +117,9 @@ spec:
     # - none: exclude both roles and traits from the JWT token
     # Default: roles-and-traits
     jwt_claims: roles-and-traits
-    # Rewrite the "Location" header on redirect responses replacing the
-    # host with the public address of this application.
-    redirect:
-    - "grafana.internal.dev"
     # Headers passthrough configuration.
     headers:
+    - "Authorization: Bearer {{internal.jwt}}"
     - "X-Custom-Header: example"
     - "X-External-Trait: {{external.env}}"
 ```
