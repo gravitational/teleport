@@ -1300,15 +1300,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
-	var err error
-	cf.executablePath, err = autoupdateagent.StableExecutable()
-	if errors.Is(err, autoupdateagent.ErrUnstableExecutable) {
-		logger.WarnContext(ctx, "Templates may be rendered with an unstable path to the tsh executable. Please reinstall tsh with Managed Updates to prevent instability.")
-	} else if err != nil {
-		return trace.Wrap(err, "determining executable path")
-	}
 	if reExecPath := autoupdatetools.GetReExecPath(); reExecPath != "" {
+		// Always prefer Client Tools Managed Updates re-exec path (~/.tsh/bin/) if set
 		cf.executablePath = reExecPath
+	} else {
+		// Otherwise, use the Agent Managed Updates stable path, if available
+		var err error
+		cf.executablePath, err = autoupdateagent.StableExecutable()
+		if errors.Is(err, autoupdateagent.ErrUnstableExecutable) {
+			logger.WarnContext(ctx, "Templates may be rendered with an unstable path to the tsh executable; reinstall tsh with Managed Updates to prevent instability")
+		} else if err != nil {
+			return trace.Wrap(err, "determining executable path")
+		}
 	}
 
 	// configs
