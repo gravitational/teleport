@@ -2976,7 +2976,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindInstaller:
 		if rc.ref.Name == "" {
-			installers, err := client.GetInstallers(ctx)
+			// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+			installers, err := clientutils.CollectWithFallback(ctx, client.ListInstallers, client.GetInstallers)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
