@@ -1333,6 +1333,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
+		services.NewPresetIdentitySecurityViewRole(),
 		services.NewPresetMCPUserRole(),
 	}
 
