@@ -208,9 +208,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	}
 
 	// Record action ID if set in SessionData.ActionID.
-	if actionID != nil {
-		sd.ActionID = *actionID
-	}
+	sd.ActionID = actionID
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)

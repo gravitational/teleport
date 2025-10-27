@@ -407,7 +407,7 @@ type SessionData struct {
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions,omitempty"`
 	// actionID is the optional MFA action ID associated with this webauthn session.
-	ActionID string `json:"action_id,omitempty"`
+	ActionID *string `json:"action_id,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an

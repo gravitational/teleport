@@ -1,13 +1,19 @@
 package mfa
 
+// XXX: This file contains tons of hacks to just get basic WebAuthn MFA working. This needs to be completely gutted and
+// redone when actually implementing this service.
+
 import (
 	"context"
 	"log/slog"
+	"net/url"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -15,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 )
 
 // CheckAndSetDefaults checks the config and sets default values where appropriate.
@@ -62,8 +69,8 @@ type Config struct {
 	// MFADeviceGetter is used to retrieve MFA devices.
 	MFADeviceGetter MFADeviceGetter
 
-	// Identity is used to manage WebAuthn session data.
-	Identity wanlib.LoginIdentity
+	// Identity is used to manage session data.
+	Identity services.Identity
 
 	Emitter apievents.Emitter
 }
@@ -130,15 +137,14 @@ func (s *Service) CreateChallengeForAction(
 }
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices registered by the user.
-// TODO(cthach): This function needs to be updated to persist the action ID with each challenge created.
-func (a *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, actionID string) (*proto.MFAAuthenticateChallenge, error) {
+func (s *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, actionID string) (*proto.MFAAuthenticateChallenge, error) {
 	// Check what kind of MFA is enabled.
-	apref, err := a.cfg.AccessPoint.GetAuthPreference(ctx)
+	apref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
-	// enableSSO := apref.IsSecondFactorSSOAllowed()
+	enableSSO := apref.IsSecondFactorSSOAllowed()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
@@ -164,7 +170,7 @@ func (a *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectU
 		return nil, trace.BadParameter("user required")
 	}
 
-	devs, err := a.cfg.MFADeviceGetter.GetMFADevices(ctx, user, true /* withSecrets */)
+	devs, err := s.cfg.MFADeviceGetter.GetMFADevices(ctx, user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,7 +192,7 @@ func (a *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectU
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
-			Identity: wanlib.WithDevices(a.cfg.Identity, groupedDevs.Webauthn),
+			Identity: wanlib.WithDevices(s.cfg.Identity, groupedDevs.Webauthn),
 		}
 		assertion, err := webLogin.Begin(
 			ctx,
@@ -206,21 +212,21 @@ func (a *Service) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectU
 	}
 
 	// TODO(cthach): Implement SSO MFA challenge.
-	// // If the user has an SSO device and the client provided a redirect URL to handle
-	// // the MFA SSO flow, create an SSO challenge.
-	// if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-	// 	if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
-	// 		return nil, trace.Wrap(err)
-	// 	}
-	// }
+	// If the user has an SSO device and the client provided a redirect URL to handle
+	// the MFA SSO flow, create an SSO challenge.
+	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+		if challenge.SSOChallenge, err = s.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, &actionID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
-	clusterName, err := a.cfg.AccessPoint.GetClusterName(ctx)
+	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// TODO(cthach): Fix UI is showing "unknown" for this event.
-	if err := a.cfg.Emitter.EmitAuditEvent(ctx, &apievents.CreateMFAChallengeForAction{
+	if err := s.cfg.Emitter.EmitAuditEvent(ctx, &apievents.CreateMFAChallengeForAction{
 		Metadata: apievents.Metadata{
 			Type:        events.CreateMFAChallengeForActionEvent,
 			Code:        events.CreateMFAChallengeForActionCode,
@@ -280,4 +286,94 @@ func (s *Service) ValidateChallengeForAction(
 	slog.Debug("Validating MFA challenge for action", slog.String("action_id", req.GetActionId()))
 
 	return nil, trace.NotImplemented("not implemented")
+}
+
+// beginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
+func (s *Service) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, actionID *string) (*proto.SSOChallenge, error) {
+	chal := &proto.SSOChallenge{
+		Device: sso,
+	}
+
+	switch sso.ConnectorType {
+	case constants.SAML:
+		resp, err := s.CreateSAMLAuthRequestForMFA(ctx, types.SAMLAuthRequest{
+			ConnectorID:       sso.ConnectorId,
+			Type:              sso.ConnectorType,
+			ClientRedirectURL: ssoClientRedirectURL,
+			CheckUser:         true,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		chal.RequestId = resp.ID
+		chal.RedirectUrl = resp.RedirectURL
+	case constants.OIDC:
+		codeVerifier := oauth2.GenerateVerifier()
+
+		resp, err := s.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
+			ConnectorID:       sso.ConnectorId,
+			Type:              sso.ConnectorType,
+			ClientRedirectURL: ssoClientRedirectURL,
+			ProxyAddress:      proxyAddress,
+			PkceVerifier:      codeVerifier,
+			CheckUser:         true,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		chal.RequestId = resp.StateToken
+		chal.RedirectUrl = resp.RedirectURL
+	default:
+		return nil, trace.BadParameter("unsupported sso connector type %v", sso.ConnectorType)
+	}
+
+	if err := s.upsertSSOMFASession(ctx, user, chal.RequestId, sso.ConnectorId, sso.ConnectorType, actionID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, nil
+}
+
+// CreateSAMLAuthRequest delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Service) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	return nil, trace.Errorf("TODO(cthach): implement")
+}
+
+// CreateSAMLAuthRequestForMFA delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Service) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	return nil, trace.Errorf("TODO(cthach): implement")
+}
+
+// ValidateSAMLResponse delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Service) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
+	return nil, trace.Errorf("TODO(cthach): implement")
+}
+
+// upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
+// sessionID, connector details, and challenge extensions.
+func (a *Service) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, actionID *string) error {
+	err := a.cfg.Identity.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
+		Username:      user,
+		RequestID:     sessionID,
+		ConnectorID:   connectorID,
+		ConnectorType: connectorType,
+		ActionID:      actionID,
+	})
+
+	return trace.Wrap(err)
+}
+
+// CreateOIDCAuthRequestForMFA delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Service) CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	return nil, trace.Errorf("TODO(cthach): implement")
+}
+
+// ValidateOIDCAuthCallback delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Service) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
+	return nil, trace.Errorf("TODO(cthach): implement")
 }
