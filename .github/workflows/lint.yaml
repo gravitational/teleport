@@ -17,6 +17,7 @@ jobs:
       has_proto: ${{ steps.changes.outputs.has_proto }}
       has_rfd: ${{ steps.changes.outputs.has_rfd }}
       has_ui: ${{ steps.changes.outputs.has_ui }}
+      has_bpf: ${{ steps.changes.outputs.has_bpf }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -80,6 +81,10 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
+            has_bpf:
+              - '.github/workflows/lint.yaml'
+              - 'lib/bpf/*bpfel.go'
+              - 'lib/bpf/*bpfel.o'
 
   lint-go:
     name: Lint (Go)
@@ -334,3 +339,22 @@ jobs:
       - name: Check icons
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make icons-up-to-date
+
+  lint-bpf:
+    name: BPF Generated Files
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_bpf == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if BPF generated files are up to date
+        run: make bpf-up-to-date

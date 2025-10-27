@@ -469,6 +469,14 @@ else
 $(error "clang is required to build BPF bytecode")
 endif # clang installed
 
+# bpf-up-to-date checks if the generated BPF bytecode is up to date.
+.PHONY: bpf-up-to-date
+bpf-up-to-date: must-start-clean/host bpf-bytecode
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "bpf bytecode" "make -C build.assets bpf-bytecode"; \
+		exit 1; \
+	fi
+
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
@@ -1684,7 +1692,7 @@ icons-up-to-date: must-start-clean/host
 
 # go-generate will execute `go generate` and generate go code.
 .PHONY: go-generate
-go-generate: bpf-bytecode
+go-generate:
 	go generate ./lib/...
 
 # go-generate-up-to-date checks if the generated code is up to date.
