@@ -574,6 +574,31 @@ func (c *ServerContext) GetServer() Server {
 	return c.srv
 }
 
+// GetJoinParams gets join params if they are set.
+//
+// These params (env vars) are set synchronously between the "session" channel request
+// and the "shell" / "exec" channel request. Therefore, these params are only guaranteed
+// to be accurately set during and after the "shell" / "exec" channel request.
+//
+// TODO(Joerger): Rather than relying on the out-of-band env var params, we should
+// provide session params upfront as extra data in the session channel request.
+func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	sid, found := c.getEnvLocked(sshutils.SessionEnvVar)
+	if !found {
+		return "", ""
+	}
+
+	mode := types.SessionPeerMode // default
+	if modeString, found := c.getEnvLocked(teleport.EnvSSHJoinMode); found {
+		mode = types.SessionParticipantMode(modeString)
+	}
+
+	return sid, mode
+}
+
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
 func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
