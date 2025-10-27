@@ -2214,8 +2214,10 @@ func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecret
 }
 
 // GetGithubConnectors returns a list of Github connectors.
+// Deprecated: Prefer paginated variant such as [Client.ListGithubConnectors] or [Client.RangeGithubConnectors]
 func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
 	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetGithubConnectors(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2225,6 +2227,39 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 		githubConnectors[i] = githubConnector
 	}
 	return githubConnectors, nil
+}
+
+// ListGithubConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	resp, err := c.grpc.ListGithubConnectors(ctx, &proto.ListGithubConnectorsRequest{
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	githubConnectors := make([]types.GithubConnector, 0, len(resp.Connectors))
+	for _, githubConnector := range resp.Connectors {
+		githubConnectors = append(githubConnectors, githubConnector)
+	}
+	return githubConnectors, resp.NextPageToken, nil
+}
+
+// RangeGithubConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (c *Client) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+			return c.ListGithubConnectors(ctx, limit, start, withSecrets)
+		},
+		types.GithubConnector.GetName,
+	)
 }
 
 // CreateGithubConnector creates a Github connector.
