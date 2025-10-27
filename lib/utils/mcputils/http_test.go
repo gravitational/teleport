@@ -64,11 +64,11 @@ func TestReplaceHTTPResponse(t *testing.T) {
 	client := mcpclient.NewClient(mcpClientTransport)
 	require.NoError(t, client.Start(ctx))
 
-		// Initialize client and call a tool.
-		result := mcptest.MustInitializeClient(t, client)
-		require.Equal(t, "111.222.333", result.ServerInfo.Version)
-		mcptest.MustCallServerTool(t, client)
-		require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
+	// Initialize client and call a tool.
+	result := mcptest.MustInitializeClient(t, client)
+	require.Equal(t, "111.222.333", result.ServerInfo.Version)
+	mcptest.MustCallServerTool(t, client)
+	require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
 	// Send notifications from server. Notifications will be sent through SSE.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {

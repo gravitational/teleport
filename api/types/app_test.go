@@ -703,6 +703,7 @@ func TestNewAppV3(t *testing.T) {
 				Metadata: Metadata{
 					Name:      "mcp-everything",
 					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
 				},
 				Spec: AppSpecV3{
 					URI: "mcp+sse+http://localhost:12345/sse",
