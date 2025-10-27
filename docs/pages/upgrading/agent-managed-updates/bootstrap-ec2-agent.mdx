@@ -34,7 +34,7 @@ rather than requiring you to re-enter them.
 
 For full Managed Updates v2 instructions, see [Managed Updates forAgents (v2)](./agent-managed-updates.mdx).
 
-Every agent belongs to an update group (e.g., development, staging, prod), unless the `default` group is used.
+Every agent belongs to an update group (e.g., development, staging, prod), if no group is configured `default` is used.
 The cluster-side `autoupdate_config` resource defines when each group may update.
 Cloud or self-hosted clusters use the same schedule model. Self-hosted clusters also set the desired
 version via `autoupdate_version` resource.
@@ -76,7 +76,7 @@ This defines which AWS accounts and roles can join via IAM. You can use `aws_acc
 
 On AWS, prepare an IAM role that your EC2 instances will assume to prove their identity.
 No permissions required - the join verification only calls `sts:GetCallerIdentity`.
-You can create an even empty role (no policies attached).
+You can create an empty role (no policies attached).
 
 Example trust policy for EC2:
 ```json
@@ -143,7 +143,7 @@ spec:
           wait_hours: 24  # run a day later than development
 ```
 
-This resource is used to controls the update schedule by defining different groups, sequence and upgrade window.
+This resource is used to control the update schedule by defining different groups, sequence and upgrade window.
 
 In the example, we define two update groups: `development` and `staging`. Upgrades are allowed on Monday, Tuesday,
 Wednesday, and Thursday.
@@ -166,14 +166,14 @@ autoupdate_config has been created
 ```
 
 <Admonition type="note">
-    Changes to the schedule configuration might take into effect for the next version change.
+    Changes to the schedule configuration will take effect for the next version change.
 </Admonition>
 
-## Step 3/5. Define the version
+## Step 3/5. Define the version (self-hosted only)
 
 <Admonition type="important">
     Self-hosted Teleport users must specify which version their agents should update
-    to via the `autoupdate_version` resource. Cloud-hosted Teleport Enterprise users should
+    to via the `autoupdate_version` resource. Cloud-hosted Teleport Enterprise users must
     skip this step, as it is managed by the Cloud team.
 </Admonition>
 
@@ -187,8 +187,8 @@ metadata:
   name: autoupdate-version
 spec:
   agents:
-    start_version: 18.2.2
-    target_version: 18.2.2
+    start_version: (=teleport.version=)
+    target_version: (=teleport.version=)
     schedule: regular
     mode: enabled
 ```
