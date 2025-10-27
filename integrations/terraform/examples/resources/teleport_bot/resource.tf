@@ -29,6 +29,11 @@ resource "teleport_provision_token" "bot_example" {
 }
 
 resource "teleport_bot" "example" {
-  name  = local.bot_name
-  roles = ["access"]
+  metadata = {
+    name = local.bot_name
+  }
+
+  spec = {
+    roles = ["access"]
+  }
 }
