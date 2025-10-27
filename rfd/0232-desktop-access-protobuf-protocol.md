@@ -64,7 +64,7 @@ See [all message definitions](#appendix-a-example-message-definitions) below.
 
 ### Framing
 All TDPB messages will be preceded by a simple framing header consisting of
-two unsigned varints representing the message type and message length respectively. 
+two unsigned varint encoded integers representing the message type and message length respectively.
 
 ```
 | message type (uvarint) | message_length (uvarint) | message_data []byte |
