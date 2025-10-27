@@ -25,6 +25,7 @@ import {
   canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceMetricsResponse,
   validateGetBotInstanceResponse,
   validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
@@ -263,4 +264,24 @@ export async function getBotInstance(
   }
 
   return data;
+}
+
+export async function getBotInstanceMetrics(
+  variables: null,
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl({ action: 'metrics' });
+
+  try {
+    const data = await api.get(path, signal);
+
+    if (!validateGetBotInstanceMetricsResponse(data)) {
+      throw new Error('failed to validate get bot instance metrics response');
+    }
+
+    return data;
+  } catch (err: unknown) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
+  }
 }

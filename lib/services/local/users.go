@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1577,28 +1578,62 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.OIDCConnector
-	for _, item := range result.Items {
-		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeOIDCConnectors(ctx, "", "", withSecrets))
+}
+
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeOIDCConnectors(ctx, start, "", withSecrets), limit, types.OIDCConnector.GetName)
+}
+
+// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error] {
+	mapFn := func(item backend.Item) (types.OIDCConnector, bool) {
+		conn, err := services.UnmarshalOIDCConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling OIDC Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
 			conn.SetClientSecret("")
 			conn.SetGoogleServiceAccount("")
 		}
-		connectors = append(connectors, conn)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	connectorKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
+	startKey := connectorKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(connectorKey)
+	if end != "" {
+		endKey = connectorKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.OIDCConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		})
+
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1751,27 +1786,39 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 // GetSAMLConnectors returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	return s.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets)
+	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
 }
 
 // GetSAMLConnectorsWithValidationOptions returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.SAMLConnector
-	for _, item := range result.Items {
-		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, opts...))
+}
+
+// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeSAMLConnectorsWithOptions(ctx, start, "", withSecrets, opts...), limit, types.SAMLConnector.GetName)
+}
+
+// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
+	mapFn := func(item backend.Item) (types.SAMLConnector, bool) {
+		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			item.Value,
+			opts,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling SAML Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
 			keyPair := conn.GetSigningKeyPair()
 			if keyPair != nil {
@@ -1779,9 +1826,30 @@ func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Con
 				conn.SetSigningKeyPair(keyPair)
 			}
 		}
-		connectors = append(connectors, conn)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix))
+	if end != "" {
+		endKey = backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, end).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.SAMLConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		},
+	)
 }
 
 // CreateSAMLAuthRequest creates new auth request
@@ -1998,27 +2066,60 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 
 // GetGithubConnectors returns all configured Github connectors
 func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.GithubConnector
-	for _, item := range result.Items {
-		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeGithubConnectors(ctx, "", "", withSecrets))
+}
+
+// ListGithubConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeGithubConnectors(ctx, start, "", withSecrets), limit, types.GithubConnector.GetName)
+}
+
+// RangeGithubConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
+	mapFn := func(item backend.Item) (types.GithubConnector, bool) {
+		conn, err := services.UnmarshalGithubConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling GitHub Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
-			connector.SetClientSecret("")
+			conn.SetClientSecret("")
 		}
-		connectors = append(connectors, connector)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix))
+	if end != "" {
+		endKey = backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, end).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.GithubConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		})
+
 }
 
 // GetGithubConnector returns a particular Github connector.

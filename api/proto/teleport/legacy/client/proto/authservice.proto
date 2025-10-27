@@ -2118,6 +2118,22 @@ message IdentityCenterAccountAssignment {
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 
+message ListInstallersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListInstallersResponse {
+  // Installers is a list of installer resources.
+  repeated types.InstallerV1 installers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
   // Resource is the resource itself.
@@ -2443,6 +2459,24 @@ message GetGithubAuthRequestRequest {
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
 }
 
+message ListOIDCConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListOIDCConnectorsResponse {
+  // Connectors is a list of OIDC connectors.
+  repeated types.OIDCConnectorV3 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // CreateOIDCConnectorRequest is a request for CreateOIDCConnector.
 message CreateOIDCConnectorRequest {
   // Connector to be created.
@@ -2477,6 +2511,45 @@ message UpdateSAMLConnectorRequest {
 message UpsertSAMLConnectorRequest {
   // Connector to be created or updated.
   types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+message ListSAMLConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+  // NoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  bool no_follow_urls = 4;
+}
+
+message ListSAMLConnectorsResponse {
+  // Connectors is a list of SAML connectors.
+  repeated types.SAMLConnectorV2 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+message ListGithubConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListGithubConnectorsResponse {
+  // Connectors is a list of Github connectors.
+  repeated types.GithubConnectorV3 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // CreateGithubConnectorRequest is a request for CreateGithubConnector.
@@ -3228,7 +3301,13 @@ service AuthService {
   // GetOIDCConnector gets an OIDC connector resource by name.
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
-  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
+  //
+  // Deprecated: Use ListOIDCConnectors instead.
+  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List) {
+    option deprecated = true;
+  }
+  // ListOIDCConnectors returns a page of current OIDC connector resources.
+  rpc ListOIDCConnectors(ListOIDCConnectorsRequest) returns (ListOIDCConnectorsResponse);
   // UpsertOIDCConnector creates a new OIDC connector in the backend.
   rpc CreateOIDCConnector(CreateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -3251,7 +3330,13 @@ service AuthService {
   // GetSAMLConnector gets a SAML connector resource by name.
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
-  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+  //
+  // Deprecated: Use ListSAMLConnectors instead.
+  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List) {
+    option deprecated = true;
+  }
+  // ListSAMLConnectors returns a page of current SAML connector resources.
+  rpc ListSAMLConnectors(ListSAMLConnectorsRequest) returns (ListSAMLConnectorsResponse);
   // CreateSAMLConnector creates a new SAML connector in the backend.
   rpc CreateSAMLConnector(CreateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -3274,7 +3359,13 @@ service AuthService {
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
-  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
+  //
+  // Deprecated: Use ListGithubConnectors instead.
+  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List) {
+    option deprecated = true;
+  }
+  // ListGithubConnectors returns a page of current Github connector resources.
+  rpc ListGithubConnectors(ListGithubConnectorsRequest) returns (ListGithubConnectorsResponse);
   // CreateGithubConnector creates a new Github connector in the backend.
   rpc CreateGithubConnector(CreateGithubConnectorRequest) returns (types.GithubConnectorV3);
   // UpdateGithubConnector updates an existing Github connector in the backend.
@@ -3596,7 +3687,11 @@ service AuthService {
   // GetInstaller retrieves the installer script resource
   rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
   // GetInstallers retrieves all of installer script resources.
-  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
+  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List) {
+    option deprecated = true;
+  }
+  // ListInstallers returns a page of installer script resources.
+  rpc ListInstallers(ListInstallersRequest) returns (ListInstallersResponse);
 
   // SetInstaller sets the installer script resource
   rpc SetInstaller(types.InstallerV1) returns (google.protobuf.Empty);

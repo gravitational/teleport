@@ -29,11 +29,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -637,7 +639,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		return nil
 	}
 
-	t := asciitable.MakeTable([]string{"ID", "Join Method", "Version", "Hostname", "Last Seen"})
+	t := asciitable.MakeTable([]string{"ID", "Join Method", "Version", "Hostname", "Status", "Last Seen"})
 	for _, i := range instances {
 		var (
 			joinMethod string
@@ -685,9 +687,14 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			}
 		}
 
+		healthStatus := "-"
+		if hasStatus, status := aggregateServiceHealth(i.GetStatus().GetServiceHealth()); hasStatus {
+			healthStatus = formatStatus(status, false) // Disable color, it messes with the table layout
+		}
+
 		t.AddRow([]string{
 			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
-			version, hostname, lastSeen.Format(time.RFC3339),
+			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
 	fmt.Fprintln(c.stdout, t.AsBuffer().String())
@@ -767,14 +774,18 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
 	"bold": bold,
-}).Parse(`Bot: {{.instance.Spec.BotName}}
-ID:  {{.instance.Spec.InstanceId}}
+}).Parse(`Bot:    {{.instance.Spec.BotName}}
+ID:     {{.instance.Spec.InstanceId}}
+Status: {{.health_status}}
 
 Initial Authentication: {{.initial_authentication_table}}
 
 Latest Authentication: {{.latest_authentication_table}}
 
 Latest Heartbeat: {{.heartbeat_table}}
+
+Services:
+{{.services_table}}
 
 To view a full, machine-readable record including past heartbeats and
 authentication records, run:
@@ -818,12 +829,24 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		heartbeatTable = "No heartbeat records."
 	}
 
+	healthStatus := "-"
+	if hasStatus, status := aggregateServiceHealth(instance.GetStatus().GetServiceHealth()); hasStatus {
+		healthStatus = formatStatus(status, true)
+	}
+
+	servicesTable := "  No reported services."
+	if instance.GetStatus().GetServiceHealth() != nil {
+		servicesTable = formatServices(instance.GetStatus().GetServiceHealth())
+	}
+
 	templateData := map[string]any{
 		"executable":                   os.Args[0],
 		"instance":                     instance,
 		"initial_authentication_table": initialAuthenticationTable,
 		"latest_authentication_table":  latestAuthenticationTable,
 		"heartbeat_table":              heartbeatTable,
+		"health_status":                healthStatus,
+		"services_table":               servicesTable,
 	}
 
 	return trace.Wrap(showMessageTemplate.Execute(os.Stdout, templateData))
@@ -937,6 +960,61 @@ func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
 
+// formatServices returns a string containing a tabular representation of a
+// bot's services.
+func formatServices(services []*machineidv1pb.BotInstanceServiceHealth) string {
+	all := strings.Builder{}
+
+	sortedServices := slices.SortedFunc(slices.Values(services), func(a, b *machineidv1pb.BotInstanceServiceHealth) int {
+		return cmp.Compare(a.GetService().GetName(), b.GetService().GetName())
+	})
+	for _, service := range sortedServices {
+		all.WriteString("Name:        " + service.GetService().GetName())
+		all.WriteString("\n")
+		all.WriteString("Type:        " + service.GetService().GetType())
+		all.WriteString("\n")
+		all.WriteString("Status:      " + formatStatus(service.GetStatus(), true))
+		all.WriteString("\n")
+
+		if service.GetReason() != "" {
+			all.WriteString("Reason:      " + service.GetReason())
+			all.WriteString("\n")
+		}
+
+		all.WriteString("Reported at: " + service.GetUpdatedAt().AsTime().Format(time.RFC3339))
+		all.WriteString("\n\n")
+	}
+
+	return indentString(all.String(), "  ")
+}
+
+// formatStatus returns an human-readable representation of a service status.
+// Optionally, it can include a colored dot.
+func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) string {
+	switch status {
+	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY:
+		if useColor {
+			return color.GreenString("\u25CF") + " Healthy"
+		}
+		return "Healthy"
+	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY:
+		if useColor {
+			return color.RedString("\u25CF") + " Unhealthy"
+		}
+		return "Unhealthy"
+	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING:
+		if useColor {
+			return color.WhiteString("\u25CF") + " Initializing"
+		}
+		return "Initializing"
+	default:
+		if useColor {
+			return color.YellowString("\u25CF") + " Unknown"
+		}
+		return "Unknown"
+	}
+}
+
 // parseInstanceID converts an instance ID string in the form of
 // '[bot name]/[uuid]' to separate bot name and UUID strings.
 func parseInstanceID(s string) (name string, uuid string, err error) {
@@ -962,4 +1040,35 @@ func indentString(s string, indent string) string {
 	}
 
 	return buf.String()
+}
+
+// aggregateServiceHealth returns the least healthy status from the list of
+// services provided. Priority; unhealthy, unspecified, initializing, healthy
+func aggregateServiceHealth(services []*machineidv1pb.BotInstanceServiceHealth) (bool, machineidv1pb.BotInstanceHealthStatus) {
+	if len(services) == 0 {
+		return false, 0
+	}
+
+	hasUnhealthy := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
+		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+	})
+	if hasUnhealthy {
+		return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
+	}
+
+	hasUnknown := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
+		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
+	})
+	if hasUnknown {
+		return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
+	}
+
+	hasInitializing := slices.ContainsFunc(services, func(service *machineidv1pb.BotInstanceServiceHealth) bool {
+		return service.GetStatus() == machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+	})
+	if hasInitializing {
+		return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
+	}
+
+	return true, machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY
 }

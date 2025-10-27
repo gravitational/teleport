@@ -74,6 +74,29 @@ spec:
     # access monitoring rule is applied.
     recipients:
     - example@goteleport.com
+
+  # Optional: schedules defines a map of named schedules to apply to this rule.
+  schedules:
+    demo-schedule:
+      time:
+        # timezone specifies the schedule's time zone. This field is optional and
+        # defaults to "UTC". Accepted values follow the time zone identifiers defined in the
+        # IANA Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or
+        # "Asia/Singapore".
+        #
+        # For a list of supported values, see: https://data.iana.org/time-zones/tzdb/zone1970.tab
+        timezone: America/Los_Angeles
+
+        # shifts is a list of time blocks that make up the schedule.
+        # Each shift specifies a weekday, a start time, and an end time.
+        # Start and end times are inclusive.
+        shifts:
+        - weekday: Friday
+          start: 17:00
+          end: 23:59
+        - weekday: Saturday
+          start: 00:00
+          end: 23:59
 ```
 
 ## Notification routing rules
@@ -200,6 +223,57 @@ spec:
     decision: APPROVED
 ```
 
+### Example scheduled automatic review rule
+
+If the following rule is configured, any Access Request for the `access` role and
+resources labeled `env: dev` will be automatically approved on Sundays (UTC time).
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: env-dev-approval
+spec:
+  subjects:
+  - access_request
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev")
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+  schedules:
+    dev-on-call:
+      time:
+        timezone: UTC
+        shifts:
+        - weekday: Sunday
+          start: 00:00
+          end: 23:59
+```
+
+### Example automatic review rule with wildcard or regular expression
+
+If the following rule is configured, any Access Request for the `access` role
+with a request reason containing phrase "on-call" will be automatically approved.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: on-call-automatic-approval
+spec:
+  subjects:
+  - access_request
+  condition: |-
+    regexp.match(set(access_request.spec.request_reason), "*on-call*")
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
+```
+
 ## Condition
 
 The `condition` field is a predicate expression that evaluates to a boolean value
@@ -225,7 +299,7 @@ Examples:
 # Applies if the request contains at least one role.
 condition: !is_empty(access_request.spec.roles)
 
-# Applies if created by "example_user"
+# Applies if created by "example_user".
 condition: access_request.spec.user == "example_user"
 
 # Applies if the "example_role" role is requested.
@@ -235,13 +309,16 @@ condition: access_request.spec.roles.contains("example_role")
 condition: set("role_1", "role_2").contains_all(access_request.spec.roles)
 
 # Applies if the user has trait "team: dev" or "team: stage".
-condition: contains_any(user.traits["team"], set("dev". "stage"))
+condition: contains_any(user.traits["team"], set("dev", "stage"))
 
 # Applies if all requested resources have the `env: dev` label.
 condition: access_request.spec.resource_labels_intersection["env"].contains("dev")
 
 # Applies if any requested resources has the `env: prod` label.
 condition: access_request.spec.resource_labels_union["env"].contains("prod")
+
+# Applies if the request reason contains a phrase "on-call".
+condition: regexp.match(set(access_request.spec.request_reason), "*on-call*")
 ```
 
 See [Predicate Language](predicate-language.mdx) for more details.

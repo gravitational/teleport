@@ -28,17 +28,15 @@ import { P } from 'design/Text/Text';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { logoutWithCleanup } from './logoutWithCleanup';
 
 export function ClusterLogout({
   clusterUri,
   onClose,
-  clusterTitle,
   hidden,
 }: {
-  clusterTitle: string;
   clusterUri: RootClusterUri;
   hidden?: boolean;
   onClose(): void;
@@ -54,6 +52,8 @@ export function ClusterLogout({
       onClose();
     }
   }
+
+  const profileName = routing.parseClusterName(clusterUri);
 
   return (
     <DialogConfirmation
@@ -72,7 +72,7 @@ export function ClusterLogout({
         }}
       >
         <DialogHeader justifyContent="space-between">
-          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {clusterTitle}</H2>
+          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {profileName}</H2>
           <ButtonIcon
             type="button"
             disabled={status === 'processing'}

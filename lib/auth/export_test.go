@@ -83,8 +83,6 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
-
-	AWSRSA2048CertBytes = awsRSA2048CertBytes
 )
 
 func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
@@ -413,8 +411,6 @@ type AzureRegisterConfig = azureRegisterConfig
 type AzureVMClientGetter = vmClientGetter
 type AzureVerifyTokenFunc = azureVerifyTokenFunc
 type AccessTokenClaims = accessTokenClaims
-type EC2Client = ec2Client
-type EC2ClientKey = ec2ClientKey
 
 func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
 	return func(cfg *AzureRegisterConfig) {
