@@ -175,6 +175,7 @@ const (
 	AuthService_GetSAMLAuthRequest_FullMethodName                  = "/proto.AuthService/GetSAMLAuthRequest"
 	AuthService_GetGithubConnector_FullMethodName                  = "/proto.AuthService/GetGithubConnector"
 	AuthService_GetGithubConnectors_FullMethodName                 = "/proto.AuthService/GetGithubConnectors"
+	AuthService_ListGithubConnectors_FullMethodName                = "/proto.AuthService/ListGithubConnectors"
 	AuthService_CreateGithubConnector_FullMethodName               = "/proto.AuthService/CreateGithubConnector"
 	AuthService_UpdateGithubConnector_FullMethodName               = "/proto.AuthService/UpdateGithubConnector"
 	AuthService_UpsertGithubConnector_FullMethodName               = "/proto.AuthService/UpsertGithubConnector"
@@ -684,6 +685,8 @@ type AuthServiceClient interface {
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(ctx context.Context, in *CreateGithubConnectorRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -2646,6 +2649,15 @@ func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.R
 	return out, nil
 }
 
+func (c *authServiceClient) ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error) {
+	out := new(ListGithubConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListGithubConnectors_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateGithubConnector(ctx context.Context, in *CreateGithubConnectorRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error) {
 	out := new(types.GithubConnectorV3)
 	err := c.cc.Invoke(ctx, AuthService_CreateGithubConnector_FullMethodName, in, out, opts...)
@@ -4264,6 +4276,8 @@ type AuthServiceServer interface {
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -5027,6 +5041,9 @@ func (UnimplementedAuthServiceServer) GetGithubConnector(context.Context, *types
 }
 func (UnimplementedAuthServiceServer) GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGithubConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGithubConnector not implemented")
@@ -8009,6 +8026,24 @@ func _AuthService_GetGithubConnectors_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListGithubConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGithubConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListGithubConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, req.(*ListGithubConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateGithubConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateGithubConnectorRequest)
 	if err := dec(in); err != nil {
@@ -10842,6 +10877,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGithubConnectors",
 			Handler:    _AuthService_GetGithubConnectors_Handler,
+		},
+		{
+			MethodName: "ListGithubConnectors",
+			Handler:    _AuthService_ListGithubConnectors_Handler,
 		},
 		{
 			MethodName: "CreateGithubConnector",

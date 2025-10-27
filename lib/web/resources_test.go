@@ -634,6 +634,7 @@ type mockedResourceAPIGetter struct {
 	mockListRoles             func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	mockListGithubConnectors  func(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	mockDeleteGithubConnector func(ctx context.Context, id string) error
 	mockUpsertTrustedCluster  func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
@@ -679,6 +680,16 @@ func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withS
 	}
 
 	return nil, trace.NotImplemented("mockGetGithubConnectors not implemented")
+}
+
+// ListGithubConnectors returns a page of valid registered Github connectors.
+// withSecrets adds or removes client secret from return results.
+func (m *mockedResourceAPIGetter) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	if m.mockListGithubConnectors != nil {
+		return m.mockListGithubConnectors(ctx, limit, start, withSecrets)
+	}
+
+	return nil, "", trace.NotImplemented("mockListGithubConnectors not implemented")
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
