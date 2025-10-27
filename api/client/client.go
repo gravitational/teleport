@@ -2101,6 +2101,43 @@ func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, wit
 	return samlConnectors, nil
 }
 
+// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	resp, err := c.grpc.ListSAMLConnectors(ctx, &proto.ListSAMLConnectorsRequest{
+		PageSize:     int32(limit),
+		PageToken:    start,
+		WithSecrets:  withSecrets,
+		NoFollowUrls: options.NoFollowURLs,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	samlConnectors := make([]types.SAMLConnector, len(resp.Connectors))
+	for i, samlConnector := range resp.Connectors {
+		samlConnectors[i] = samlConnector
+	}
+	return samlConnectors, resp.NextPageToken, nil
+}
+
+// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (c *Client) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLConnector, string, error) {
+			return c.ListSAMLConnectorsWithOptions(ctx, pageSize, pageToken, withSecrets, opts...)
+		},
+		types.SAMLConnector.GetName)
+}
+
 // CreateSAMLConnector creates a SAML connector.
 func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
@@ -3246,6 +3283,29 @@ func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	return installers, nil
 }
 
+// ListInstallers returns a page of installer script resources.
+func (c *Client) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	resp, err := c.grpc.ListInstallers(ctx, &proto.ListInstallersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	installers := make([]types.Installer, len(resp.Installers))
+	for i, inst := range resp.Installers {
+		installers[i] = inst
+	}
+
+	return installers, resp.NextPageToken, nil
+}
+
+// RangeInstallers returns installer script resources within the range [start, end).
+func (c *Client) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListInstallers, types.Installer.GetName)
+}
+
 // GetUIConfig gets the configuration for the UI served by the proxy service
 func (c *Client) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	resp, err := c.grpc.GetUIConfig(ctx, &emptypb.Empty{})
@@ -3896,6 +3956,42 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetRelayServer returns the relay server heartbeat with a given name.
+func (c *Client) GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error) {
+	req := &presencepb.GetRelayServerRequest{
+		Name: name,
+	}
+	resp, err := c.PresenceServiceClient().GetRelayServer(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetRelayServer(), nil
+}
+
+// ListRelayServers returns a paginated list of relay server heartbeats.
+func (c *Client) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error) {
+	req := &presencepb.ListRelayServersRequest{
+		PageSize:  int64(pageSize),
+		PageToken: pageToken,
+	}
+
+	resp, err := c.PresenceServiceClient().ListRelayServers(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.GetRelays(), resp.GetNextPageToken(), nil
+}
+
+// DeleteRelayServer deletes a relay server heartbeat by name.
+func (c *Client) DeleteRelayServer(ctx context.Context, name string) error {
+	req := &presencepb.DeleteRelayServerRequest{
+		Name: name,
+	}
+	_, err := c.PresenceServiceClient().DeleteRelayServer(ctx, req)
+	return trace.Wrap(err)
 }
 
 func (c *Client) GetDesktopBootstrapScript(ctx context.Context) (string, error) {

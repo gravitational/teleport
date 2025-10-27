@@ -38,6 +38,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -331,6 +332,11 @@ type ReadProxyAccessPoint interface {
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+
 	// ListIntegrations returns a paginated list of all integration resources.
 	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
 }
@@ -351,6 +357,33 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+}
+
+// ReadRelayAccessPoint is a read only API interface to be used by a Relay
+// service.
+//
+// NOTE: This interface must be a subset of the [*cache.Cache] methods usable in the
+// cache configured by [cache.ForRelay].
+type ReadRelayAccessPoint interface {
+	io.Closer
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 }
 
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -1182,6 +1215,10 @@ type Cache interface {
 
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error)
+	// RangeInstallers returns installer script resources within the range [start, end).
+	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
@@ -1317,6 +1354,11 @@ type Cache interface {
 	// HealthCheckConfigReader defines methods for fetching health checkc config
 	// resources.
 	services.HealthCheckConfigReader
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)

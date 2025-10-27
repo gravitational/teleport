@@ -2652,7 +2652,12 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
-	return services.GetUserOrLoginState(ctx, a, username)
+	// use Services (real backend instead of cache) to make sure that the GetUserOrLoginState function
+	// return always the up-to-date user state.
+	// During Login webhooks evaluation the user state is created an upserted into backend where next Login steps
+	// fetches the state from store and relies to have the latest version.
+	// TODO(smallinsky): Get rid of sharing user state via backend and use the proper param forwarding instead.
+	return services.GetUserOrLoginState(ctx, a.Services, username)
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
@@ -5260,7 +5265,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
+	if (types.SystemRoles{req.Role}).IncludeAny(
+		types.RoleAuth,
+		types.RoleAdmin,
+		types.RoleProxy,
+		types.RoleRelay,
+		types.RoleKube,
+		types.RoleWindowsDesktop,
+	) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -5308,6 +5320,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			DatabaseCleanup:               true,
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
+			RelayServerHeartbeatsCleanup:  true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {

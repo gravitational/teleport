@@ -297,6 +297,8 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
+		RelayAddr:               profile.RelayAddr,
+		DefaultRelayAddr:        profile.DefaultRelayAddr,
 		Username:                profile.Username,
 		SiteName:                profile.SiteName,
 		KubeProxyAddr:           profile.KubeProxyAddr,

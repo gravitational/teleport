@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -165,6 +166,16 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error 
 	}
 	a.lastServerExpiry = ka.Expires
 	return a.err
+}
+
+// UpsertRelayServer implements [Auth].
+func (a *fakeAuth) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error) {
+	panic("unimplemented")
+}
+
+// DeleteRelayServer implements [Auth].
+func (a *fakeAuth) DeleteRelayServer(ctx context.Context, name string) error {
+	panic("unimplemented")
 }
 
 func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) error {
