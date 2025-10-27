@@ -103,14 +103,14 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeContext, closeFunc := context.WithCancel(context.Background())
-
 	// If BPF-based auditing is not enabled, don't configure anything return
 	// right away.
 	if !config.Enabled {
-		logger.DebugContext(closeContext, "Enhanced session recording is not enabled, skipping")
+		logger.DebugContext(context.Background(), "Enhanced session recording is not enabled, skipping")
 		return &NOP{}, nil
 	}
+
+	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
 		BPFConfig:    config,
