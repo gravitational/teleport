@@ -195,6 +195,6 @@ export type JoinTokenRequest = {
 };
 
 export type ListJoinTokensResponse = {
-  items: JoinToken[];
+  items?: JoinToken[] | null;
   next_page_token?: string;
 };
