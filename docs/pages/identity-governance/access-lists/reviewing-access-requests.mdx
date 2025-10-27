@@ -9,26 +9,26 @@ tags:
  - access-requests
 ---
 
-Access list owners can be automatically assigned as suggested reviewers to
-resource-based access requests that include resources granted by their access
-list.
+Access List owners can be automatically assigned as suggested reviewers to
+resource-based Access Requests that include resources granted by their Access
+List.
 
 In this guide we will walk through an example and the configuration of this
 use-case.
 
 ## How it works
 
-We will create an access list that grants users access to certain resources and
-allows its owners to review access requests to those resources.
+We will create an Access List that grants users access to certain resources and
+allows its owners to review Access Requests to those resources.
 
-Then, we will issue an access request to those resources to verify that the list
+Then, we will issue an Access Request to those resources to verify that the list
 owners are prepopulated as suggested reviewers.
 
 ## Prerequisites
 
 - Teleport cluster with a connected resource e.g. an SSH node.
 - Teleport user (`admin` in this guide) with an `editor` role to perform configuration.
-- Teleport user (`alice` in this guide) acting as an access request reviewer.
+- Teleport user (`alice` in this guide) acting as an Access Request reviewer.
 - Teleport user (`bob` in this guide) acting as a low-privileged requester user.
 
 ## Step 1/5. Create roles
@@ -37,7 +37,7 @@ As an `admin` user, let's create 3 roles:
 
 - Role that grants access to SSH nodes with a label `env:prod`
 - Role that allows users to request access to SSH nodes with that label
-- Role that allows users to review access requests for SSH nodes with that label
+- Role that allows users to review Access Requests for SSH nodes with that label
 
 The `ssh-access` role allows access to SSH nodes with the label `env: prod`:
 
@@ -68,7 +68,7 @@ spec:
       - ssh-access
 ```
 
-The `ssh-access-reviewer` role allows to review such access requests:
+The `ssh-access-reviewer` role allows to review such Access Requests:
 
 ```yaml
 kind: role
@@ -90,12 +90,12 @@ As an `admin` user, assign the `ssh-access-requester` role to `bob`.
 
 ![bob user roles](../../../img/identity-governance/access-lists/bob-user-roles.png)
 
-This role will allow `bob` to issue access requests to SSH nodes with `env: prod`
+This role will allow `bob` to issue Access Requests to SSH nodes with `env: prod`
 labels.
 
-## Step 3/5. Create access list
+## Step 3/5. Create an Access List
 
-Now, as an `admin` user, let's create an access list that grants access to the
+Now, as an `admin` user, let's create an Access List that grants access to the
 SSH nodes (via `ssh-access` member role grant) and allows its owners to review
 requests to these SSH nodes (via `ssh-access-reviewer` owner role grant).
 
@@ -111,12 +111,12 @@ List" and create a new one with the following parameters:
 
 You can fill out the rest of the parameters as desired.
 
-## Step 4/5. Submit access request
+## Step 4/5. Submit an Access Request
 
 Once you log into Teleport as `bob`, you should be able to see your SSH node(-s)
 as requestable resources.
 
-On the access request checkout dialog, you should see that `alice` has been
+On the Access Request checkout dialog, you should see that `alice` has been
 prepopulated as a suggested reviewer because she is an owner of the access
 list that grants access to the requested SSH node.
 
@@ -132,8 +132,8 @@ Access Requests page to see `bob`'s pending request and review it:
 ![alice is suggested reviewer](../../../img/identity-governance/access-lists/alice-review-request.png)
 
 That's it! `alice` as an owner of the "SSH Access" list has successfully reviewed
-`bob`'s request to an SSH node that's granted by her access list.
+`bob`'s request to an SSH node that's granted by her Access List.
 
 ## Next steps
 
-- Learn more about [resource access requests](../access-requests/resource-requests.mdx).
+- Learn more about [Resource Access Requests](../access-requests/resource-requests.mdx).
