@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -3762,6 +3763,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	// use the local auth server for uploads if auth happens to be
 	// running in this process, otherwise wait for the instance client
 	var uploaderClient procUploader
+	var encryptedRecordingMaxUploadSize int
 	if la := process.getLocalAuth(); la != nil {
 		// The auth service's upload completer is initialized separately,
 		// so as a special case we can stop early if auth happens to be
@@ -3777,6 +3779,7 @@ func (process *TeleportProcess) initUploaderService() error {
 			return trace.Wrap(err, "cannot get cluster name")
 		}
 		clusterName = cn.GetClusterName()
+
 	} else {
 		logger.DebugContext(process.ExitContext(), "auth is not running in-process, waiting for instance connector")
 		conn, err := waitForInstanceConnector(process, logger)
@@ -3788,6 +3791,10 @@ func (process *TeleportProcess) initUploaderService() error {
 		}
 		uploaderClient = conn.Client
 		clusterName = conn.ClusterName()
+
+		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
+		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
+		encryptedRecordingMaxUploadSize = grpcutils.MaxClientRecvMsgSize()
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -3826,12 +3833,13 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:                   uploaderClient,
-		ScanDir:                    uploadsDir,
-		CorruptedDir:               corruptedDir,
-		EventsC:                    process.Config.Testing.UploadEventsC,
-		InitialScanDelay:           15 * time.Second,
-		EncryptedRecordingUploader: uploaderClient,
+		Streamer:                        uploaderClient,
+		ScanDir:                         uploadsDir,
+		CorruptedDir:                    corruptedDir,
+		EventsC:                         process.Config.Testing.UploadEventsC,
+		InitialScanDelay:                15 * time.Second,
+		EncryptedRecordingUploader:      uploaderClient,
+		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
 	})
 	if err != nil {
 		return trace.Wrap(err)

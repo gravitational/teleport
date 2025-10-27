@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -67,6 +66,12 @@ type UploaderConfig struct {
 	Component string
 	// EncryptedRecordingUploader uploads encrypted session recordings
 	EncryptedRecordingUploader events.EncryptedRecordingUploader
+	// EncryptedRecordingUploadTargetSize is the target size used when aggregating
+	// encrypted recording parts before sending them to EncryptedRecordingUploader.
+	EncryptedRecordingUploadTargetSize int
+	// EncryptedRecordingUploadTargetSize is the maximum size used when aggregating
+	// encrypted recording parts before sending them to EncryptedRecordingUploader.
+	EncryptedRecordingUploadMaxSize int
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -91,6 +96,11 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentUpload
+	}
+	if cfg.EncryptedRecordingUploader != nil {
+		if cfg.EncryptedRecordingUploadTargetSize == 0 {
+			cfg.EncryptedRecordingUploadTargetSize = events.MinUploadPartSizeBytes
+		}
 	}
 	return nil
 }
@@ -386,21 +396,17 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
 	}
 
+	// The upload parts in the given reader are each ~128kb. Usually these parts are consumed and reconstructed
+	// by Auth in 5MB chunks to meet the minimum upload size of upload providers like S3. Since these uploads
+	// are proxied directly to the uploader from the agent here (see link below), this agent needs to combine
+	// these upload parts into larger, aggregated upload parts.
+	//
+	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
 	partIter := func(yield func([]byte, error) bool) {
-		// These upload parts are each ~128KiB. Usually these parts are consumed and reconstructed by Auth in 5MiB
-		// chunks to meet the minimum upload size of upload providers like S3. Since these uploads are proxied
-		// directly to the uploader from the agent here (see link below), this agent needs to reconstruct the upload
-		// parts instead, while staying below the GRPC_MSG_LMT (4MiB default). Note that Auth will add padding to
-		// reach the 5MiB limit as well, in cases where GRPC_MSG_LMT < 5MiB.
-		//
-		// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
-		targetUploadSize := events.MinUploadPartSizeBytes
-		maxUploadSize := min(grpc.MaxClientRecvMsgSize(), events.MinUploadPartSizeBytes)
-
-		// buf holds multiple upload parts, aggregated into a single upload part.
+		// buf holds aggregated upload parts that will be uploaded as a single upload part.
 		var buf bytes.Buffer
 
-		// yield the current upload aggregated upload part and reset the buffer.
+		// yield the current aggregated upload part and reset the buffer.
 		yieldCurrent := func() bool {
 			// Copy the buffer to a new []byte so that the next
 			// iteration doesn't wipe the previous yielded bytes.
@@ -428,10 +434,10 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 				return
 			}
 
-			// Check if there is room to aggregate this upload part. If not, yield
-			// the current aggregate before continuing.
+			// If a max size is configured and the aggregate buffer is not empty, check if there is
+			// room to add this upload part. If not, yield the current aggregate before continuing.
 			totalPartSize := int64(len(header.Bytes())) + int64(header.PartSize)
-			if buf.Len()+int(totalPartSize) > maxUploadSize {
+			if u.cfg.EncryptedRecordingUploadMaxSize != 0 && buf.Len() > 0 && buf.Len()+int(totalPartSize) > u.cfg.EncryptedRecordingUploadMaxSize {
 				if !yieldCurrent() {
 					return
 				}
@@ -473,7 +479,7 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 
 			// If we've reached the target upload size, yield the current
 			// aggregated upload part before continuing.
-			if buf.Len() > targetUploadSize {
+			if buf.Len() > u.cfg.EncryptedRecordingUploadTargetSize {
 				if !yieldCurrent() {
 					return
 				}
