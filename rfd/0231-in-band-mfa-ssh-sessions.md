@@ -188,13 +188,15 @@ message SSHAccessPermit {
   // ... existing fields ...
 
   // Preconditions is a list of conditions that must be satisfied before access is granted.
-  repeated Precondition preconditions = 25;
+ repeated Precondition preconditions = 26;
 }
 
 // PreconditionKind defines the types of preconditions that can be specified.
 enum PreconditionKind {
-  // PreconditionPerSessionMFA requires per-session MFA to be completed.
-  PRECONDITION_PER_SESSION_MFA = 1;
+  // PreconditionKindUnspecified is an unspecified precondition. This value has no effect.
+  PRECONDITION_KIND_UNSPECIFIED = 0;
+  // PreconditionKindPerSessionMFA requires per-session MFA to be completed.
+  PRECONDITION_KIND_PER_SESSION_MFA = 1;
 }
 
 // Precondition represents a condition that must be satisfied before access is granted.
