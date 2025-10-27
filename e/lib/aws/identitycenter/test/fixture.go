@@ -141,7 +141,6 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 	})
 	require.NoError(t, err)
 
-	authOpts := append(args.authOptions, authtest.WithClock(args.clock))
 	auth, err := auth.NewServer(&auth.InitConfig{
 		Authority:              authority.New(),
 		Backend:                backend,
@@ -149,7 +148,8 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 		SkipPeriodicOperations: true,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		HostUUID:               uuid.NewString(),
-	}, authOpts...)
+		Clock:                  args.clock,
+	}, args.authOptions...)
 	require.NoError(t, err, "creating Auth server")
 	cleanup := sync.OnceFunc(func() { require.NoError(t, auth.Close()) })
 	t.Cleanup(cleanup)

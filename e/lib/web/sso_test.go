@@ -73,8 +73,8 @@ func TestSAML(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			s := newWebSuite(t)
+			ctx := t.Context()
+			s := newWebSuite(t, withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))))
 			input := tc.rawConnector
 
 			connector := prepareSSOConnectorSetup(t, input, ctx, s)
@@ -104,8 +104,8 @@ func TestSAMLNoEphemeralUser(t *testing.T) {
 			},
 		},
 	})
-	ctx := context.Background()
-	s := newWebSuite(t)
+	ctx := t.Context()
+	s := newWebSuite(t, withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))))
 	input := fixtures.SAMLOktaConnectorV2
 
 	oktaUserTraits := map[string][]string{"okta/org": {"dev"}}
@@ -170,7 +170,6 @@ func prepareSSOConnectorSetup(t *testing.T, input string, ctx context.Context, s
 	mustCreateRole(t, ctx, s, connector.GetAttributesToRoles()[0].Roles[0])
 	_, err := s.testAuthServer.Auth().CreateSAMLConnector(ctx, connector)
 	require.NoError(t, err)
-	s.testAuthServer.Auth().SetClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC)))
 	return connector
 }
 
