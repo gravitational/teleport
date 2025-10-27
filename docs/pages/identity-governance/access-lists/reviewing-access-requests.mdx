@@ -11,8 +11,18 @@ tags:
 
 Access list owners can be automatically assigned as suggested reviewers to
 resource-based access requests that include resources granted by their access
-list. In this guide we will walk through an example and the configuration of
-this use-case.
+list.
+
+In this guide we will walk through an example and the configuration of this
+use-case.
+
+## How it works
+
+We will create an access list that grants users access to certain resources and
+allows its owners to review access requests to those resources.
+
+Then, we will issue an access request to those resources to verify that the list
+owners are prepopulated as suggested reviewers.
 
 ## Prerequisites
 
@@ -25,11 +35,11 @@ this use-case.
 
 As an `admin` user, let's create 3 roles:
 
-- Role that grants access to SSH nodes with a particular label
+- Role that grants access to SSH nodes with a label `env:prod`
 - Role that allows users to request access to SSH nodes with that label
 - Role that allows users to review access requests for SSH nodes with that label
 
-The `ssh-access` role allows access to SSH nodes with a label `env: prod`:
+The `ssh-access` role allows access to SSH nodes with the label `env: prod`:
 
 ```yaml
 kind: role
