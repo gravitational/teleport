@@ -18,6 +18,13 @@
 
 import * as whatwg from 'whatwg-url';
 
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import {
+  Cluster,
+  LoggedInUser_UserType,
+  ShowResources,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 /**
  * Accepts a proxy host in the form of "cluster-address.example.com:3090" and returns the host as
  * understood by browsers.
@@ -64,4 +71,32 @@ export function proxyHostname(proxyHost: string) {
   }
 
   return whatwgURL.hostname;
+}
+
+/** Produces cluster with properties that can be read from the profile. */
+export function makeClusterWithOnlyProfileProperties(a: Cluster): Cluster {
+  return {
+    uri: a.uri,
+    connected: a.connected,
+    leaf: a.leaf,
+    profileStatusError: a.profileStatusError,
+    proxyHost: a.proxyHost,
+    ssoHost: a.ssoHost,
+    name: '',
+    showResources: ShowResources.UNSPECIFIED,
+    features: undefined,
+    authClusterId: '',
+    proxyVersion: '',
+    loggedInUser: a.loggedInUser && {
+      name: a.loggedInUser.name,
+      activeRequests: a.loggedInUser.activeRequests,
+      roles: a.loggedInUser.roles,
+      isDeviceTrusted: a.loggedInUser.isDeviceTrusted,
+      userType: LoggedInUser_UserType.UNSPECIFIED,
+      trustedDeviceRequirement: TrustedDeviceRequirement.UNSPECIFIED,
+      requestableRoles: [],
+      suggestedReviewers: [],
+      acl: undefined,
+    },
+  };
 }
