@@ -63,6 +63,11 @@ export class UsageService {
     private runtimeSettings: RuntimeSettings
   ) {}
 
+  /**
+   * Should be called only after a successful cluster sync.
+   * Otherwise, details of the root cluster (`authClusterId` and `name`)
+   * will be empty and this event won't be captured.
+   */
   captureUserLogin(uri: ClusterOrResourceUri, connectorType: string): void {
     const clusterProperties = this.getClusterProperties(uri);
     if (!clusterProperties) {
