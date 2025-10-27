@@ -371,7 +371,11 @@ type BedrockProvider struct {
 	// by the Bedrock API.
 	BedrockModelId string `protobuf:"bytes,2,opt,name=bedrock_model_id,json=bedrockModelId,proto3" json:"bedrock_model_id,omitempty"`
 	// Temperature controls the randomness of the model's output.
-	Temperature   float32 `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	Temperature float32 `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	// Integration is the AWS OIDC Integration name. If unset, Teleport will use
+	// AWS credentials available on the auth server machine; otherwise, it will
+	// use the specified OIDC integration for assuming appropriate role.
+	Integration   string `protobuf:"bytes,4,opt,name=integration,proto3" json:"integration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -425,6 +429,13 @@ func (x *BedrockProvider) GetTemperature() float32 {
 		return x.Temperature
 	}
 	return 0
+}
+
+func (x *BedrockProvider) GetIntegration() string {
+	if x != nil {
+		return x.Integration
+	}
+	return ""
 }
 
 // InferenceSecret resource stores session summarization inference provider
@@ -846,11 +857,12 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x0fopenai_model_id\x18\x01 \x01(\tR\ropenaiModelId\x12 \n" +
 	"\vtemperature\x18\x02 \x01(\x01R\vtemperature\x12+\n" +
 	"\x12api_key_secret_ref\x18\x03 \x01(\tR\x0fapiKeySecretRef\x12\x19\n" +
-	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\"u\n" +
+	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\"\x97\x01\n" +
 	"\x0fBedrockProvider\x12\x16\n" +
 	"\x06region\x18\x01 \x01(\tR\x06region\x12(\n" +
 	"\x10bedrock_model_id\x18\x02 \x01(\tR\x0ebedrockModelId\x12 \n" +
-	"\vtemperature\x18\x03 \x01(\x02R\vtemperature\"\xd5\x01\n" +
+	"\vtemperature\x18\x03 \x01(\x02R\vtemperature\x12 \n" +
+	"\vintegration\x18\x04 \x01(\tR\vintegration\"\xd5\x01\n" +
 	"\x0fInferenceSecret\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
