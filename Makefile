@@ -461,8 +461,10 @@ tctl-app:
 # This is a requirement for building BPF bytecode.
 .PHONY: bpf-bytecode
 bpf-bytecode:
-ifneq ("$(wildcard /usr/include/linux/bpf.h)","")
-ifneq ("$(wildcard /usr/include/bpf/bpf_helpers.h)","")
+ifneq ($(or $(wildcard /usr/include/linux/bpf.h), $(wildcard /usr/include/bpf/bpf_helpers.h)), "")
+else
+$(error "libbpf-dev is required to build BPF bytecode")
+endif # libbpf-dev installed
 ifneq ("$(shell clang --version 2>/dev/null)","")
 	go generate -tags bpf ./lib/bpf/
 else
@@ -481,9 +483,6 @@ bpf-up-to-date: must-start-clean/host bpf-bytecode
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
-
-endif # /usr/include/bpf/bpf_helpers.h exists
-endif # /usr/include/linux/bpf.h exists
 
 .PHONY: rdpclient
 rdpclient:
