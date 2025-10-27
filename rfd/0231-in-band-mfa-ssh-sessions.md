@@ -64,7 +64,8 @@ No changes are expected since this is an internal change.
 ### High-Level Flow
 
 The client will first dial its target SSH host using the Proxy and its standard Teleport client certificate. The Proxy
-will then resolve the target cluster and host, and invoke the `EvaluateSSHAccess` RPC of the Decision service. Upon
+will then resolve the target cluster and host, and invoke the `EvaluateSSHAccess` RPC of the [Decision
+service](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md). Upon
 receiving a permit from the Decision service, the Proxy will staple the permit to the connection and open a connection
 to the respective cluster's SSH service.
 
@@ -92,9 +93,9 @@ The MFA keyboard-interactive question will follow this schema:
 
 The client must then invoke the `CreateChallengeForAction` RPC of the MFA service, providing the action ID along with
 any relevant request metadata. The MFA service will respond to the client with a challenge that must be solved. The
-client must solve the MFA challenge and send a base64 encoded `MFAAuthenticateResponse` message to the SSH service via
-the keyboard-interactive channel. The Protobuf message must be base64 encoded to ensure they can be safely transmitted
-over the SSH keyboard-interactive channel.
+client must solve the MFA challenge and send a base64 encoded `MFAAuthenticateResponse` Protobuf message to the SSH
+service via the keyboard-interactive channel. The Protobuf message must be base64 encoded to ensure they can be safely
+transmitted over the SSH keyboard-interactive channel.
 
 Once the MFA challenge response is received, the SSH service will invoke the `ValidateChallengeForAction` RPC with the
 action ID, the client's MFA challenge response, and any other relevant metadata. If the MFA response is valid and the
@@ -183,13 +184,18 @@ The Decision service will return a new field called `preconditions` in `SSHAcces
 condition of access. It is up to the SSH service to enforce the MFA requirement during session establishment.
 
 ```proto
-// SSHAccessPermit describes the parameters/constraints of a permissible SSH
-// access attempt.
+// SSHAccessPermit describes the parameters/constraints of a permissible SSH access attempt.
 message SSHAccessPermit {
   // ... existing fields ...
 
   // Preconditions is a list of conditions that must be satisfied before access is granted.
  repeated Precondition preconditions = 26;
+}
+
+// Precondition represents a condition that must be satisfied before access is granted.
+message Precondition {
+  // Kind specifies the type of precondition.
+  PreconditionKind kind = 1;
 }
 
 // PreconditionKind defines the types of preconditions that can be specified.
@@ -198,12 +204,6 @@ enum PreconditionKind {
   PRECONDITION_KIND_UNSPECIFIED = 0;
   // PreconditionKindPerSessionMFA requires per-session MFA to be completed.
   PRECONDITION_KIND_PER_SESSION_MFA = 1;
-}
-
-// Precondition represents a condition that must be satisfied before access is granted.
-message Precondition {
-  // Kind specifies the type of precondition.
-  PreconditionKind kind = 1;
 }
 ```
 
@@ -238,14 +238,12 @@ message CreateChallengeForActionRequest {
   // action_id is a required unique identifier associated with the MFA challenge. The challenge will be correlated to a
   // specific user action based on this ID. This field MUST be a UUID v4 (RFC 4122, version 4).
   string action_id = 1;
-  // user is the username of the user attempting to authenticate.
-  string user = 2;
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
-  string sso_client_redirect_url = 3;
+  string sso_client_redirect_url = 2;
   // proxy_address is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
   // is required to determine which URL to redirect the user to when there are multiple options.
-  string proxy_address = 4;
+  string proxy_address = 3;
 }
 
 // CreateChallengeForActionResponse is the response message for CreateChallengeForAction.
@@ -264,7 +262,7 @@ message ValidateChallengeForActionRequest {
   string action_id = 1;
   // mfa_response contains the MFA challenge response provided by the user.
   MFAAuthenticateResponse mfa_response = 2;
-  // user is the username of the user attempting to authenticate.
+  // user is the Teleport username of the user attempting to authenticate.
   string user = 3;
 }
 
@@ -273,7 +271,7 @@ message ValidateChallengeForActionResponse {
   // action_id is the unique identifier associated with the MFA challenge. It indicates which action the
   // challenge/response was tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
   string action_id = 1;
-  // user is the username of the user authenticated by the MFA challenge.
+  // user is the Teleport username of the user authenticated by the MFA challenge.
   string user = 2;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 3;
