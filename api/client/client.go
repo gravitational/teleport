@@ -3283,6 +3283,29 @@ func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	return installers, nil
 }
 
+// ListInstallers returns a page of installer script resources.
+func (c *Client) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	resp, err := c.grpc.ListInstallers(ctx, &proto.ListInstallersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	installers := make([]types.Installer, len(resp.Installers))
+	for i, inst := range resp.Installers {
+		installers[i] = inst
+	}
+
+	return installers, resp.NextPageToken, nil
+}
+
+// RangeInstallers returns installer script resources within the range [start, end).
+func (c *Client) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListInstallers, types.Installer.GetName)
+}
+
 // GetUIConfig gets the configuration for the UI served by the proxy service
 func (c *Client) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	resp, err := c.grpc.GetUIConfig(ctx, &emptypb.Empty{})
