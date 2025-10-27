@@ -1363,6 +1363,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	// TODO(rana): Add broader support for virtual resources in list operations.
+	// Virtual resources change the total count returned by list operations,
+	// and is unexpected for the current test. When updated, we can remove virtual
+	// resource filtering and paging from lib/cache/health_check_config_test.go.
+	opts = append(opts, withSkipPaginationTest())
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
 }
