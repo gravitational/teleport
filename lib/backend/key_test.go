@@ -492,6 +492,8 @@ func TestKeyAppendKey(t *testing.T) {
 	}
 }
 
+// TestKeyAppendKeyNoOverwrite checks that the mutable storage of [backend.Key]
+// is not shared between objects after using [backend.Key.AppendKey].
 func TestKeyAppendKeyNoOverwrite(t *testing.T) {
 	var components []string
 	for range 3 {
@@ -502,8 +504,13 @@ func TestKeyAppendKeyNoOverwrite(t *testing.T) {
 	k1 := k.AppendKey(backend.NewKey("b"))
 	require.Equal(t, "/a/a/a/b", k1.String())
 
+	// a previous implementation had a bug where AppendKey could modify the
+	// underlying array of the slice of components of k which would be then
+	// shared between future invocations of AppendKey...
 	_ = k.AppendKey(backend.NewKey("c"))
 
+	// ...so that further AppendKey might end up using the modified components
+	// slice - in this case, a "c" would appear in the components
 	k2 := k1.AppendKey(backend.NewKey("b"))
 	require.Equal(t, "/a/a/a/b/b", k2.String())
 }
