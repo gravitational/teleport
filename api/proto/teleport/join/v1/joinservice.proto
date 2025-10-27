@@ -107,6 +107,20 @@ message TokenInit {
   ClientParams client_params = 1;
 }
 
+// OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
+//
+// The join flow for all OIDC-based join methods is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: OIDCInit
+// 4. server->client: Result
+message OIDCInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // IdToken is the OIDC identity token.
+  bytes id_token = 2;
+}
+
 // BoundKeypairInit is sent from the client in response to the ServerInit
 // message for the bound keypair join method.
 // The server is expected to respond with a BoundKeypairChallenge.
@@ -280,6 +294,7 @@ message JoinRequest {
     IAMInit iam_init = 5;
     GivingUp giving_up = 6;
     EC2Init ec2_init = 7;
+    OIDCInit oidc_init = 8;
   }
 }
 

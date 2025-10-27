@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -34,6 +35,7 @@ import (
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -197,7 +199,8 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodToken,
 		types.JoinMethodBoundKeypair,
 		types.JoinMethodIAM,
-		types.JoinMethodEC2:
+		types.JoinMethodEC2,
+		types.JoinMethodEnv0:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -275,6 +278,8 @@ func joinWithMethod(
 	clientParams messages.ClientParams,
 	method string,
 ) (messages.Response, error) {
+	var err error
+
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
@@ -284,6 +289,15 @@ func joinWithMethod(
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEC2:
 		return ec2Join(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodEnv0:
+		// Tests may specify their own IDToken, so only overwrite it when empty.
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = env0.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{
