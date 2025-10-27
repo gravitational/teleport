@@ -461,21 +461,28 @@ tctl-app:
 # This is a requirement for building BPF bytecode.
 .PHONY: bpf-bytecode
 bpf-bytecode:
-ifneq ("$(wildcard /usr/include/linux/bpf.h)","")
-ifneq ("$(wildcard /usr/include/bpf/bpf_helpers.h)","")
+ifneq ($(or $(wildcard /usr/include/linux/bpf.h), $(wildcard /usr/include/bpf/bpf_helpers.h)), "")
+else
+$(error "libbpf-dev is required to build BPF bytecode")
+endif # libbpf-dev installed
 ifneq ("$(shell clang --version 2>/dev/null)","")
 	go generate -tags bpf ./lib/bpf/
 else
 $(error "clang is required to build BPF bytecode")
 endif # clang installed
 
+# bpf-up-to-date checks if the generated BPF bytecode is up to date.
+.PHONY: bpf-up-to-date
+bpf-up-to-date: must-start-clean/host bpf-bytecode
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "bpf bytecode" "make -C build.assets bpf-bytecode"; \
+		exit 1; \
+	fi
+
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
-
-endif # /usr/include/bpf/bpf_helpers.h exists
-endif # /usr/include/linux/bpf.h exists
 
 .PHONY: rdpclient
 rdpclient: rustup-toolchain-warning

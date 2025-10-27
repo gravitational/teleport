@@ -21,26 +21,11 @@
 package bpf
 
 import (
-	"os"
-	
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentBPF)
-
-const (
-	kprobeProgPrefix     = "kprobe__"
-	kretprobeProgPrefix  = "kretprobe__"
-	tracepointProgPrefix = "tracepoint__"
-	syscallsCategory     = "syscalls"
-	syscallEnterPrefix   = "sys_enter_"
-	syscallExitPrefix    = "sys_exit_"
-	counterSuffix        = "_counter"
-	doorbellSuffix       = "_doorbell"
-)
-
-var pageSize = os.Getpagesize()
 
 const (
 	// CommMax is the maximum length of a command from linux/sched.h.
@@ -57,7 +42,4 @@ const (
 
 	// eventRet holds the return value and other data about an event.
 	eventRet = 1
-
-	// chanSize is the size of the event channels.
-	chanSize = 1024
 )
