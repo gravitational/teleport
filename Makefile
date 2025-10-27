@@ -1683,7 +1683,7 @@ icons-up-to-date: must-start-clean/host
 
 # go-generate will execute `go generate` and generate go code.
 .PHONY: go-generate
-go-generate:
+go-generate: bpf-bytecode
 	go generate ./lib/...
 
 # go-generate-up-to-date checks if the generated code is up to date.

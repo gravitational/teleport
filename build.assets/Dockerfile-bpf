@@ -15,22 +15,15 @@ ENV LANGUAGE="en_US.UTF-8" \
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    clang \
-    llvm \
-    curl \
-    libbpf-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN apt-get -y update && \
-    apt-get install -q -y --no-install-recommends \
+RUN apt -y update && \
+    apt install -q -y --no-install-recommends \
         build-essential \
+        ca-certificates \
         clang \
         curl \
         libbpf-dev \
         llvm && \
-    apt-get -y clean && \
+    apt -y clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go.
