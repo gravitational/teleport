@@ -963,7 +963,7 @@ const (
 	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
 	SCIMDeleteEvent = "scim.delete"
 
-	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated
+	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
 )
 
