@@ -166,6 +166,7 @@ const (
 	AuthService_GetOIDCAuthRequest_FullMethodName                  = "/proto.AuthService/GetOIDCAuthRequest"
 	AuthService_GetSAMLConnector_FullMethodName                    = "/proto.AuthService/GetSAMLConnector"
 	AuthService_GetSAMLConnectors_FullMethodName                   = "/proto.AuthService/GetSAMLConnectors"
+	AuthService_ListSAMLConnectors_FullMethodName                  = "/proto.AuthService/ListSAMLConnectors"
 	AuthService_CreateSAMLConnector_FullMethodName                 = "/proto.AuthService/CreateSAMLConnector"
 	AuthService_UpdateSAMLConnector_FullMethodName                 = "/proto.AuthService/UpdateSAMLConnector"
 	AuthService_UpsertSAMLConnector_FullMethodName                 = "/proto.AuthService/UpsertSAMLConnector"
@@ -175,6 +176,7 @@ const (
 	AuthService_GetSAMLAuthRequest_FullMethodName                  = "/proto.AuthService/GetSAMLAuthRequest"
 	AuthService_GetGithubConnector_FullMethodName                  = "/proto.AuthService/GetGithubConnector"
 	AuthService_GetGithubConnectors_FullMethodName                 = "/proto.AuthService/GetGithubConnectors"
+	AuthService_ListGithubConnectors_FullMethodName                = "/proto.AuthService/ListGithubConnectors"
 	AuthService_CreateGithubConnector_FullMethodName               = "/proto.AuthService/CreateGithubConnector"
 	AuthService_UpdateGithubConnector_FullMethodName               = "/proto.AuthService/UpdateGithubConnector"
 	AuthService_UpsertGithubConnector_FullMethodName               = "/proto.AuthService/UpsertGithubConnector"
@@ -273,6 +275,7 @@ const (
 	AuthService_CreatePrivilegeToken_FullMethodName                = "/proto.AuthService/CreatePrivilegeToken"
 	AuthService_GetInstaller_FullMethodName                        = "/proto.AuthService/GetInstaller"
 	AuthService_GetInstallers_FullMethodName                       = "/proto.AuthService/GetInstallers"
+	AuthService_ListInstallers_FullMethodName                      = "/proto.AuthService/ListInstallers"
 	AuthService_SetInstaller_FullMethodName                        = "/proto.AuthService/SetInstaller"
 	AuthService_DeleteInstaller_FullMethodName                     = "/proto.AuthService/DeleteInstaller"
 	AuthService_DeleteAllInstallers_FullMethodName                 = "/proto.AuthService/DeleteAllInstallers"
@@ -668,8 +671,13 @@ type AuthServiceClient interface {
 	GetOIDCAuthRequest(ctx context.Context, in *GetOIDCAuthRequestRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
+	// Deprecated: Do not use.
 	// GetSAMLConnectors gets all current SAML connector resources.
+	//
+	// Deprecated: Use ListSAMLConnectors instead.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(ctx context.Context, in *CreateSAMLConnectorRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -689,8 +697,13 @@ type AuthServiceClient interface {
 	GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
+	//
+	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(ctx context.Context, in *CreateGithubConnectorRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -971,8 +984,11 @@ type AuthServiceClient interface {
 	CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.InstallerV1, error)
+	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(ctx context.Context, in *types.InstallerV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -2464,10 +2480,21 @@ func (c *authServiceClient) GetSAMLConnector(ctx context.Context, in *types.Reso
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.SAMLConnectorV2List)
 	err := c.cc.Invoke(ctx, AuthService_GetSAMLConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSAMLConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSAMLConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2555,10 +2582,21 @@ func (c *authServiceClient) GetGithubConnector(ctx context.Context, in *types.Re
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.GithubConnectorV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetGithubConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGithubConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListGithubConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3569,10 +3607,21 @@ func (c *authServiceClient) GetInstaller(ctx context.Context, in *types.Resource
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.InstallerV1List)
 	err := c.cc.Invoke(ctx, AuthService_GetInstallers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInstallersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListInstallers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4278,8 +4327,13 @@ type AuthServiceServer interface {
 	GetOIDCAuthRequest(context.Context, *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
+	// Deprecated: Do not use.
 	// GetSAMLConnectors gets all current SAML connector resources.
+	//
+	// Deprecated: Use ListSAMLConnectors instead.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -4299,8 +4353,13 @@ type AuthServiceServer interface {
 	GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
+	//
+	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -4581,8 +4640,11 @@ type AuthServiceServer interface {
 	CreatePrivilegeToken(context.Context, *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(context.Context, *types.ResourceRequest) (*types.InstallerV1, error)
+	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -5059,6 +5121,9 @@ func (UnimplementedAuthServiceServer) GetSAMLConnector(context.Context, *types.R
 func (UnimplementedAuthServiceServer) GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnectors not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSAMLConnectors not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSAMLConnector not implemented")
 }
@@ -5085,6 +5150,9 @@ func (UnimplementedAuthServiceServer) GetGithubConnector(context.Context, *types
 }
 func (UnimplementedAuthServiceServer) GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGithubConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGithubConnector not implemented")
@@ -5379,6 +5447,9 @@ func (UnimplementedAuthServiceServer) GetInstaller(context.Context, *types.Resou
 }
 func (UnimplementedAuthServiceServer) GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstallers not implemented")
+}
+func (UnimplementedAuthServiceServer) ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInstallers not implemented")
 }
 func (UnimplementedAuthServiceServer) SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetInstaller not implemented")
@@ -7706,6 +7777,24 @@ func _AuthService_GetSAMLConnectors_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSAMLConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSAMLConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSAMLConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, req.(*ListSAMLConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateSAMLConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateSAMLConnectorRequest)
 	if err := dec(in); err != nil {
@@ -7864,6 +7953,24 @@ func _AuthService_GetGithubConnectors_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetGithubConnectors(ctx, req.(*types.ResourcesWithSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListGithubConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGithubConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListGithubConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, req.(*ListGithubConnectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -9618,6 +9725,24 @@ func _AuthService_GetInstallers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListInstallers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInstallersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListInstallers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListInstallers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListInstallers(ctx, req.(*ListInstallersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_SetInstaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.InstallerV1)
 	if err := dec(in); err != nil {
@@ -10673,6 +10798,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSAMLConnectors_Handler,
 		},
 		{
+			MethodName: "ListSAMLConnectors",
+			Handler:    _AuthService_ListSAMLConnectors_Handler,
+		},
+		{
 			MethodName: "CreateSAMLConnector",
 			Handler:    _AuthService_CreateSAMLConnector_Handler,
 		},
@@ -10707,6 +10836,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGithubConnectors",
 			Handler:    _AuthService_GetGithubConnectors_Handler,
+		},
+		{
+			MethodName: "ListGithubConnectors",
+			Handler:    _AuthService_ListGithubConnectors_Handler,
 		},
 		{
 			MethodName: "CreateGithubConnector",
@@ -11091,6 +11224,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInstallers",
 			Handler:    _AuthService_GetInstallers_Handler,
+		},
+		{
+			MethodName: "ListInstallers",
+			Handler:    _AuthService_ListInstallers_Handler,
 		},
 		{
 			MethodName: "SetInstaller",

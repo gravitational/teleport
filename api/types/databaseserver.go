@@ -57,6 +57,12 @@ type DatabaseServer interface {
 	SetDatabase(Database) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the database
+	// server is connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the database server
+	// is connected to.
+	GetRelayIDs() []string
 	// GetTargetHealth returns the database server's target health.
 	GetTargetHealth() TargetHealth
 	// SetTargetHealth sets the database server's target health.
@@ -190,6 +196,22 @@ func (s *DatabaseServerV3) GetProxyIDs() []string {
 // SetProxyID sets the proxy ids this server is connected to.
 func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetRelayGroup implements [DatabaseServer].
+func (s *DatabaseServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [DatabaseServer].
+func (s *DatabaseServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
 }
 
 // String returns the server string representation.
