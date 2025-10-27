@@ -520,6 +520,21 @@ func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourc
 	resp.State.RemoveResource(ctx)
 }
 
+func (r resourceTeleportBot) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, rsp *tfsdk.ImportResourceStateResponse) {
+	bot, err := r.p.Client.BotServiceClient().
+		GetBot(ctx, &machineidv1.GetBotRequest{BotName: req.ID})
+	if err != nil {
+		rsp.Diagnostics.Append(diagFromWrappedErr("Error reading Bot", trace.Wrap(err), "bot"))
+		return
+	}
+
+	diags := rsp.State.Set(ctx, r.botFromProto(ctx, bot, Bot{}))
+	rsp.Diagnostics.Append(diags...)
+	if rsp.Diagnostics.HasError() {
+		return
+	}
+}
+
 // rfd153OnlyValidator is used to ensure the user doesn't provide a mix of old
 // and new style attributes (e.g. `spec.roles` and `<root>.traits`).
 type rfd153OnlyValidator struct{}
