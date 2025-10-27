@@ -42,7 +42,6 @@ const populateRuleFieldTest =
     const { user, onUpdate } = renderComponent();
 
     const input = screen.getByPlaceholderText(placeholer);
-    expect(input).toBeInTheDocument();
     expect(input).toBeEnabled();
 
     await user.click(input);
@@ -84,7 +83,6 @@ const populateFieldTest =
     const { user, onUpdate } = renderComponent();
 
     const input = screen.getByPlaceholderText(placeholer);
-    expect(input).toBeInTheDocument();
     expect(input).toBeEnabled();
 
     await user.click(input);
