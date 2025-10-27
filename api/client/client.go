@@ -95,6 +95,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -134,6 +135,7 @@ type AuthServiceClient struct {
 	userpreferencespb.UserPreferencesServiceClient
 	notificationsv1pb.NotificationServiceClient
 	recordingencryptionv1pb.RecordingEncryptionServiceClient
+	joiningv1.ScopedJoiningServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -547,6 +549,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		UserPreferencesServiceClient:     userpreferencespb.NewUserPreferencesServiceClient(c.conn),
 		NotificationServiceClient:        notificationsv1pb.NewNotificationServiceClient(c.conn),
 		RecordingEncryptionServiceClient: recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn),
+		ScopedJoiningServiceClient:       joiningv1.NewScopedJoiningServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -5783,4 +5786,26 @@ func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// ListScopedTokens fetches pages of scoped tokens.
+func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
+	res, err := c.grpc.ListScopedTokens(ctx, req)
+	return res, trace.Wrap(err)
+}
+
+// DeleteScopedToken deletes an existing scoped token.
+func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// CreateScopedToken creates a new scoped token.
+func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: token,
+	})
+	return res.GetToken(), trace.Wrap(err)
 }
