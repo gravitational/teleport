@@ -30,11 +30,7 @@ import {
   newAccessMonitoringRule,
   StandardEditor,
 } from './standardeditor';
-import {
-  newNotificationRuleYaml,
-  newReviewRuleYaml,
-  YamlEditor,
-} from './yamleditor';
+import { YamlEditor } from './yamleditor';
 
 export const RuleEditor = ({
   selectedRule,
@@ -121,6 +117,7 @@ export const RuleEditor = ({
       reviewDecisionOption: standardEditor.reviewDecisionOption?.value
         ? standardEditor.reviewDecisionOption
         : configurableFields.reviewDecisionOption,
+      schedule: standardEditor.schedule || configurableFields.schedule,
     };
     return configurableFields;
   }
@@ -230,23 +227,9 @@ export const RuleEditor = ({
         if (yamlEditor.requiresReset) {
           break;
         }
-        if (!yamlEditor.content) {
-          let content = '';
-          if (editor === AccessMonitoringRuleType.Review) {
-            content = newReviewRuleYaml(standardEditor);
-          } else {
-            content = newNotificationRuleYaml(standardEditor);
-          }
-          setYamlEditor({
-            content,
-            isDirty: true,
-            requiresReset: standardEditor.errors?.length > 0,
-          });
-        } else {
-          const yamlified = await yamlilfyRule();
-          if (!yamlified) {
-            return;
-          }
+        const yamlified = await yamlilfyRule();
+        if (!yamlified) {
+          return;
         }
         break;
       }

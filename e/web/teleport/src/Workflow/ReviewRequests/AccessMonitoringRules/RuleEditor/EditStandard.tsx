@@ -1,7 +1,7 @@
 import { useState, type JSX } from 'react';
 import { components } from 'react-select';
 
-import { Box, Mark, Text } from 'design';
+import { Box, Flex, Mark, Text } from 'design';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
 import {
@@ -9,6 +9,7 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
+import { newSchedule, ScheduleEditor } from 'shared/components/ScheduleEditor';
 import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 import { TraitsEditor, TraitsOption } from 'shared/components/TraitsEditor';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -85,11 +86,16 @@ export const EditStandard = ({
     recipients,
     pluginOption,
     reviewDecisionOption,
+    schedule,
     errors,
   } = configurableFields;
 
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>(
     !!rule.spec?.notification?.name
+  );
+
+  const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(
+    !!schedule?.shifts && Object.keys(schedule.shifts).length > 0
   );
 
   function handleNotificationToggle(enabled: boolean) {
@@ -102,6 +108,17 @@ export const EditStandard = ({
     }
 
     setNotificationEnabled(enabled);
+  }
+
+  function handleScheduleToggle(enabled: boolean) {
+    // Clear schedule configuration when disabled.
+    if (!enabled) {
+      partialStandardEditorChange({
+        schedule: null,
+      });
+    }
+
+    setScheduleEnabled(enabled);
   }
 
   function onSave(validator: Validator) {
@@ -152,6 +169,8 @@ export const EditStandard = ({
   function partialStandardEditorChange(
     modified: Partial<ConfigurableFieldsForStandardEditor>
   ) {
+    // We use strict null comparision for certain fields to allow explicit null
+    // overrides, while missing or undefined fields fall back to existing values.
     const updatedFields: ConfigurableFieldsForStandardEditor = {
       ruleName:
         modified.ruleName === null
@@ -168,6 +187,10 @@ export const EditStandard = ({
       reviewDecisionOption:
         modified.reviewDecisionOption || standardEditor.reviewDecisionOption,
       desiredState: modified.desiredState || standardEditor.desiredState,
+      schedule:
+        modified.schedule === null
+          ? null
+          : modified.schedule || standardEditor.schedule,
     };
 
     onStandardEditorChange({
@@ -282,24 +305,46 @@ export const EditStandard = ({
                   </Box>
                   {editor === AccessMonitoringRuleType.Review && (
                     <>
-                      <Text typography="body3" mb={2}>
-                        User traits to match (Optional)
-                      </Text>
-                      <TraitsEditor
-                        label=""
-                        isLoading={attempt.status === 'processing'}
-                        configuredTraits={
-                          standardEditor.ruleCondition?.traitsCondition || []
-                        }
-                        setConfiguredTraits={(o: TraitsOption[]) =>
-                          partialStandardEditorChange({
-                            ruleCondition: {
-                              ...ruleCondition,
-                              traitsCondition: o,
-                            },
-                          })
-                        }
-                      />
+                      <Box mb={2}>
+                        <Text typography="body3" mb={2}>
+                          User traits to match (Optional)
+                        </Text>
+                        <TraitsEditor
+                          label=""
+                          isLoading={attempt.status === 'processing'}
+                          configuredTraits={
+                            standardEditor.ruleCondition?.traitsCondition || []
+                          }
+                          setConfiguredTraits={(o: TraitsOption[]) =>
+                            partialStandardEditorChange({
+                              ruleCondition: {
+                                ...ruleCondition,
+                                traitsCondition: o,
+                              },
+                            })
+                          }
+                        />
+                      </Box>
+                      <Box>
+                        <FieldCheckbox
+                          label="For specified times only"
+                          size="small"
+                          checked={scheduleEnabled}
+                          onChange={e => handleScheduleToggle(e.target.checked)}
+                        />
+                        {scheduleEnabled && (
+                          <Flex ml="28px">
+                            <ScheduleEditor
+                              schedule={schedule || newSchedule()}
+                              setSchedule={schedule => {
+                                partialStandardEditorChange({
+                                  schedule: schedule,
+                                });
+                              }}
+                            />
+                          </Flex>
+                        )}
+                      </Box>
                     </>
                   )}
                 </Box>

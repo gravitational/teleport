@@ -1,3 +1,5 @@
+import { newSchedule } from 'shared/components/ScheduleEditor';
+
 import {
   AccessMonitoringRule,
   AccessMonitoringRuleSubject,
@@ -23,7 +25,7 @@ test('buildRuleFromStandardEditor: empty notification fields', () => {
     kind: 'access_monitoring_rule',
     version: 'v1',
     metadata: {
-      name: '',
+      name: 'new_rule_name',
     },
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
@@ -41,7 +43,7 @@ test('buildRuleFromStandardEditor: empty notification fields', () => {
     kind: 'access_monitoring_rule',
     version: 'v1',
     metadata: {
-      name: '',
+      name: 'new_rule_name',
     },
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
@@ -49,6 +51,7 @@ test('buildRuleFromStandardEditor: empty notification fields', () => {
       desired_state: null,
       notification: null,
       automatic_review: null,
+      schedules: {},
     },
   });
 });
@@ -59,7 +62,7 @@ test('buildRuleFromStandardEditor: empty review fields', () => {
     kind: 'access_monitoring_rule',
     version: 'v1',
     metadata: {
-      name: '',
+      name: 'new_rule_name',
     },
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
@@ -77,7 +80,7 @@ test('buildRuleFromStandardEditor: empty review fields', () => {
     kind: 'access_monitoring_rule',
     version: 'v1',
     metadata: {
-      name: '',
+      name: 'new_rule_name',
     },
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
@@ -88,6 +91,7 @@ test('buildRuleFromStandardEditor: empty review fields', () => {
         decision: 'APPROVED',
         integration: 'builtin',
       },
+      schedules: {},
     },
   });
 });
@@ -111,6 +115,7 @@ test('buildRuleFromStandardEditor: empty rule with configurable fields defined',
     automaticReview: { value: 'pagerduty', label: 'pagerduty' },
     reviewDecisionOption: { label: 'Approved', value: 'APPROVED' },
     desiredState: 'reviewed',
+    schedule: null,
     isDirty: false,
   });
 
@@ -132,6 +137,7 @@ test('buildRuleFromStandardEditor: empty rule with configurable fields defined',
         integration: 'pagerduty',
         decision: 'APPROVED',
       },
+      schedules: {},
     },
   });
 });
@@ -162,6 +168,7 @@ test('buildRuleFromStandardEditor: partial configurable notification fields defi
     automaticReview: null,
     reviewDecisionOption: null,
     desiredState: null,
+    schedule: null,
   });
 
   const got = buildRuleFromStandardEditor({
@@ -187,6 +194,7 @@ test('buildRuleFromStandardEditor: partial configurable notification fields defi
       },
       automatic_review: null,
       desired_state: null,
+      schedules: {},
     },
   });
 });
@@ -219,7 +227,14 @@ test('buildRuleFromStandardEditor: partial configurable review fields defined', 
     automaticReview: { value: 'builtin', label: 'builtin' },
     reviewDecisionOption: { label: 'Approved', value: 'APPROVED' },
     desiredState: 'reviewed',
+    schedule: null,
   });
+
+  const schedule = newSchedule();
+  schedule.shifts.Monday = {
+    startTime: { value: '00:00', label: '00:00' },
+    endTime: { value: '23:59', label: '23:59' },
+  };
 
   const got = buildRuleFromStandardEditor({
     rule,
@@ -227,6 +242,7 @@ test('buildRuleFromStandardEditor: partial configurable review fields defined', 
     automaticReview: { value: 'pagerduty', label: 'pagerduty' },
     ruleCondition: null,
     isDirty: false,
+    schedule: schedule,
   });
 
   expect(got).toStrictEqual({
@@ -244,6 +260,20 @@ test('buildRuleFromStandardEditor: partial configurable review fields defined', 
         decision: 'APPROVED',
       },
       desired_state: 'reviewed',
+      schedules: {
+        default: {
+          time: {
+            timezone: 'UTC',
+            shifts: [
+              {
+                start: '00:00',
+                end: '23:59',
+                weekday: 'Monday',
+              },
+            ],
+          },
+        },
+      },
     },
   });
 });
@@ -351,6 +381,31 @@ describe('getConfigurableReviewFieldsForStandardEditor unsupported fields', () =
         },
       },
       errors: ['Unsupported condition: invalid'],
+    },
+    {
+      name: 'multiple schedules unsupported',
+      rule: {
+        ...rule,
+        spec: {
+          ...rule.spec,
+          desired_state: 'reviewed',
+          schedules: {
+            schedule1: {
+              time: {
+                timezone: 'UTC',
+                shifts: [],
+              },
+            },
+            schedule2: {
+              time: {
+                timezone: 'UTC',
+                shifts: [],
+              },
+            },
+          },
+        },
+      },
+      errors: ['The standard editor only supports 1 schedule'],
     },
   ];
 
@@ -485,6 +540,23 @@ describe('hasModifiedFields', () => {
         ...cfg,
         ruleCondition: {
           resourcesCondition: [{ name: 'env', value: 'dev' }],
+        },
+      },
+    },
+    {
+      name: 'modify schedule',
+      cfg: {
+        ...cfg,
+        schedule: {
+          name: 'default',
+          timezone: { value: 'UTC', label: 'UTC' },
+          shifts: {
+            ...newSchedule().shifts,
+            Monday: {
+              startTime: { value: '00:00', label: '00:00' },
+              endTime: { value: '23:59', label: '23:59' },
+            },
+          },
         },
       },
     },

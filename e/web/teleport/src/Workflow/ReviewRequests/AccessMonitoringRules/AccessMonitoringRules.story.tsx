@@ -49,6 +49,20 @@ const validCombinedRuleObject = {
       integration: 'builtin',
       decision: 'APPROVED',
     },
+    schedules: {
+      default: {
+        time: {
+          timezone: 'America/Los_Angeles',
+          shifts: [
+            {
+              weekday: 'Monday',
+              start: '00:00',
+              end: '23:59',
+            },
+          ],
+        },
+      },
+    },
   },
 };
 
@@ -200,6 +214,13 @@ spec:
   automatic_review:
     integration: builtin
     decision: APPROVED
+  schedules:
+    default:
+      time:
+        shifts:
+          - weekday: Monday
+            start: 00:00
+            end: 23:59
 version: v1`;
 
 const withPlugins = http.get(cfg.api.plugin.list, () =>
@@ -410,7 +431,7 @@ CreateAndViewReviewRule.parameters = {
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({
-          aml: reviewRuleYaml,
+          yaml: reviewRuleYaml,
         })
       ),
     ],

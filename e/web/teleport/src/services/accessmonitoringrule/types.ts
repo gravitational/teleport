@@ -61,6 +61,11 @@ export interface AccessMonitoringRule {
      */
     desired_state?: string;
     /**
+     * schedules specifies a map of named schedules that can be used to
+     * configure time-based conditions.
+     */
+    schedules?: Record<string, AccessMonitoringRuleSchedule>;
+    /**
      * notification defines the plugin configuration for notifications
      * if rule is triggered.
      */
@@ -91,6 +96,41 @@ export interface AccessMonitoringRule {
       decision: string;
     };
   };
+}
+
+export interface AccessMonitoringRuleSchedule {
+  /**
+   * time contains in-line schedule configuration.
+   */
+  time: {
+    /**
+     * timezone specifies the timezone for this schedule.
+     * Accepted timezone values are defined in the IANA Time Zone Database,
+     * such as "America/Los_Angeles", "Europe/Lisbon", or * "Asia/Singapore".
+     */
+    timezone: string;
+    /**
+     * shifts specifies a list of shifts that make up this schedule.
+     */
+    shifts: AccessMonitoringRuleScheduleShift[];
+  };
+}
+
+export interface AccessMonitoringRuleScheduleShift {
+  /**
+   * weekday specifies the weekday of the shift, e.g., "Monday", "Tuesday".
+   */
+  weekday: string;
+  /**
+   * start specifies the start time of the shift. This is a value between
+   * "00:00" and "23:59".
+   */
+  start: string;
+  /**
+   * end specifies the end time of the shift. This is a value between
+   * "00:00" and "23:59".
+   */
+  end: string;
 }
 
 export interface AccessMonitoringRuleWithYaml {

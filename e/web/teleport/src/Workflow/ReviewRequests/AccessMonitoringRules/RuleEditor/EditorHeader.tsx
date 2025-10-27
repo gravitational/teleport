@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Box, ButtonText, Flex, H2 } from 'design';
+import { Box, ButtonText, Flex, H2, Link } from 'design';
 import { Trash } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -85,21 +85,39 @@ export const EditorHeader = ({
 };
 
 function getDescriptionHeader(editor: AccessMonitoringRuleType) {
+  const docsURL =
+    'https://goteleport.com/docs/reference/access-controls/access-monitoring-rules/';
+  const docsRef = (
+    <p>
+      Refer to the{' '}
+      <Link href={docsURL} target="_blank">
+        Access Monitoring Rule documentation
+      </Link>{' '}
+      for reference.
+    </p>
+  );
+
   switch (editor) {
     case AccessMonitoringRuleType.Review:
       return (
-        <p>
-          With automatic review rules, access requests can be automatically
-          reviewed based on the <b>match condition</b>.
-        </p>
+        <>
+          <p>
+            With automatic review rules, access requests can be automatically
+            reviewed based on the <b>match condition</b>.
+          </p>
+          {docsRef}
+        </>
       );
     case AccessMonitoringRuleType.Notification:
       return (
-        <p>
-          With notification rules, access request notifications can be routed to
-          an external integration based on the <b>match condition</b> and the{' '}
-          <b>recipients</b>.
-        </p>
+        <>
+          <p>
+            With notification rules, access request notifications can be routed
+            to an external integration based on the <b>match condition</b> and
+            the <b>recipients</b>.
+          </p>
+          {docsRef}
+        </>
       );
   }
 }

@@ -1,7 +1,16 @@
+import {
+  newSchedule,
+  Schedule,
+  timeOptionsAll,
+  timezoneOptions,
+  weekdayOptions,
+} from 'shared/components/ScheduleEditor';
 import { Option } from 'shared/components/Select';
+import { equalsDeep } from 'shared/utils/highbar';
 
 import {
   AccessMonitoringRule,
+  AccessMonitoringRuleSchedule,
   AccessMonitoringRuleSubject,
   AccessMonitoringRuleVersion,
 } from 'e-teleport/services/accessmonitoringrule/types';
@@ -46,6 +55,7 @@ export type ConfigurableFieldsForStandardEditor = {
   automaticReview: Option;
   reviewDecisionOption: ReviewDecisionOption;
   desiredState: AccessMonitoringRuleState;
+  schedule: Schedule;
   /**
    * errors will be populated with any unsupported fields
    * that are not editable within the standard editor.
@@ -73,7 +83,7 @@ export function newAccessMonitoringRule(): AccessMonitoringRule {
     kind: 'access_monitoring_rule',
     version: AccessMonitoringRuleVersion.V1,
     metadata: {
-      name: '',
+      name: 'new_rule_name',
     },
     spec: {
       subjects: [AccessMonitoringRuleSubject.AccessRequest],
@@ -121,7 +131,7 @@ function ruleToReviewsEditor(
     }
   };
 
-  const configurableFields = {
+  const configurableFields: ConfigurableFieldsForStandardEditor = {
     ruleName: '',
     pluginOption: null,
     recipients: [],
@@ -129,6 +139,7 @@ function ruleToReviewsEditor(
     automaticReview: null,
     reviewDecisionOption: null,
     desiredState: getDesiredState(''),
+    schedule: null,
     errors: [],
   };
 
@@ -159,6 +170,7 @@ function ruleToReviewsEditor(
     desired_state,
     notification,
     automatic_review,
+    schedules,
     ...unsupportedSpec
   } = spec;
   if (unsupportedSpec) {
@@ -217,7 +229,64 @@ function ruleToReviewsEditor(
       `Unsupported desired_state: ${desired_state}`
     );
   }
+
+  if (schedules) {
+    const entries = Object.entries(schedules);
+
+    if (entries.length > 1) {
+      configurableFields.errors.push(
+        `The standard editor only supports 1 schedule`
+      );
+    } else if (entries.length === 1) {
+      const [name, schedule] = entries[0];
+      const configurableSchedule = getSchedule(schedule);
+      if (!configurableSchedule) {
+        configurableFields.errors.push(`Unsupported schedule: ${schedule}`);
+      } else {
+        configurableFields.schedule = {
+          ...configurableSchedule,
+          name: name,
+        };
+      }
+    }
+  }
+
   return configurableFields;
+}
+
+function getSchedule(schedule: AccessMonitoringRuleSchedule | null): Schedule {
+  if (
+    !schedule?.time?.timezone ||
+    !schedule?.time?.shifts ||
+    schedule?.time?.shifts.length === 0
+  ) {
+    return null;
+  }
+
+  const timezoneOption = timezoneOptions.find(
+    tz => tz.value === schedule.time.timezone
+  );
+  if (!timezoneOption) return null;
+
+  const result = newSchedule();
+  result.timezone = timezoneOption;
+
+  for (const shift of schedule.time.shifts) {
+    const { weekday, start, end } = shift;
+
+    const isValidWeekday = weekdayOptions.some(opt => opt.value === weekday);
+    const isDuplicateWeekday = !!result.shifts[weekday];
+    const startTime = timeOptionsAll.find(time => time.value === start);
+    const endTime = timeOptionsAll.find(time => time.value === end);
+
+    if (!isValidWeekday || isDuplicateWeekday || !startTime || !endTime) {
+      return null;
+    }
+
+    result.shifts[weekday] = { startTime, endTime };
+  }
+
+  return result;
 }
 
 // ruleToNotificationsEditor parses the notifications AccessMonitoringRule
@@ -226,7 +295,7 @@ function ruleToReviewsEditor(
 function ruleToNotificationsEditor(
   rule: AccessMonitoringRule
 ): ConfigurableFieldsForStandardEditor {
-  const configurableFields = {
+  const configurableFields: ConfigurableFieldsForStandardEditor = {
     ruleName: '',
     pluginOption: null,
     recipients: [],
@@ -234,6 +303,7 @@ function ruleToNotificationsEditor(
     automaticReview: null,
     reviewDecisionOption: null,
     desiredState: null,
+    schedule: null,
     errors: [],
   };
 
@@ -312,6 +382,7 @@ export function getConfigurableReviewFieldsForStandardEditor(
         o => o.value === 'APPROVED'
       ),
       desiredState: 'reviewed',
+      schedule: null,
     };
   }
 
@@ -345,6 +416,7 @@ export function getConfigurableNotificationFieldsForStandardEditor(
       automaticReview: null,
       reviewDecisionOption: null,
       desiredState: null,
+      schedule: null,
     };
   }
 
@@ -371,6 +443,7 @@ export function buildRuleFromStandardEditor(
     automaticReview,
     reviewDecisionOption,
     desiredState,
+    schedule,
   } = configurableFields;
 
   const getSubjects = () => {
@@ -398,7 +471,7 @@ export function buildRuleFromStandardEditor(
     ...rule,
     metadata: {
       ...rule.metadata,
-      name: ruleName,
+      name: ruleName || rule.metadata.name,
     },
     spec: {
       ...rule.spec,
@@ -409,6 +482,37 @@ export function buildRuleFromStandardEditor(
         notificationRoutingSpec.name !== '' ? notificationRoutingSpec : null,
       automatic_review:
         automaticReviewSpec.integration !== '' ? automaticReviewSpec : null,
+      schedules: schedulesSpec(schedule),
+    },
+  };
+}
+
+function schedulesSpec(
+  schedule: Schedule
+): Record<string, AccessMonitoringRuleSchedule> {
+  if (!schedule) {
+    return {};
+  }
+
+  // Filter empty shifts
+  const shifts = Object.entries(schedule?.shifts).filter(
+    ([, shift]) => shift?.startTime && shift?.endTime
+  );
+
+  if (shifts.length === 0) {
+    return {};
+  }
+
+  return {
+    [schedule.name]: {
+      time: {
+        timezone: schedule.timezone.value,
+        shifts: shifts.map(([weekday, { startTime, endTime }]) => ({
+          weekday,
+          start: startTime.value,
+          end: endTime.value,
+        })),
+      },
     },
   };
 }
@@ -486,6 +590,13 @@ export function hasModifiedFields(
   const modifiedDesiredState = () =>
     updated.desiredState !== originalRule?.spec.desired_state;
 
+  const modifiedSchedule = () => {
+    const updatedSchedule = schedulesSpec(updated.schedule);
+    const originalSchedule = originalRule?.spec.schedules || {};
+
+    return !equalsDeep(originalSchedule, updatedSchedule);
+  };
+
   return (
     modifiedRolesConditionField() ||
     modifiedRuleName() ||
@@ -495,6 +606,7 @@ export function hasModifiedFields(
     modifiedTraitsConditionField() ||
     modifiedAutomaticReview() ||
     modifiedReviewDecision() ||
-    modifiedDesiredState()
+    modifiedDesiredState() ||
+    modifiedSchedule()
   );
 }
