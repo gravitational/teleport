@@ -244,6 +244,9 @@ type Identity interface {
 
 	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
 
 	// GetGithubConnector returns a Github connector by its name
 	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error)

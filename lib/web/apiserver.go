@@ -1484,7 +1484,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 			}
 			as = githubSettings(githubConnector, authPreference)
 		} else {
-			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
+			// TODO(okraport): DELETE IN v21.0.0, remove GetGithubConnectors
+			githubConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+					return authClient.ListGithubConnectors(ctx, limit, start, false)
+				},
+				func(ctx context.Context) ([]types.GithubConnector, error) {
+					return authClient.GetGithubConnectors(ctx, false)
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}

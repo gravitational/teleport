@@ -1937,6 +1937,52 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	return connectors, nil
 }
 
+// ListGithubConnectors returns a page of valid registered Github connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix))
+
+	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var connectors []types.GithubConnector
+
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalGithubConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling Github Connector")
+			continue
+		}
+
+		if len(connectors) >= limit {
+			return connectors, conn.GetName(), nil
+		}
+
+		if !withSecrets {
+			conn.SetClientSecret("")
+		}
+
+		connectors = append(connectors, conn)
+	}
+
+	return connectors, "", nil
+}
+
 // GetGithubConnector returns a particular Github connector.
 func (s *IdentityService) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	if name == "" {
