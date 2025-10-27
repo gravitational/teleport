@@ -34,8 +34,9 @@ https://auth.<region>.oraclecloud.com/v1/authentication/authenticateClient
 ```
 
 This API is undocumented by Oracle, and when Oracle learned we were using it for
-this purpose and requiring this policy on all instances, they requested we find
-another method and pointed us in the direction of the design proposed here.
+this purpose and requiring this policy on all instances, they assisted us in
+finding another method using supported APIs that will have public documentation
+soon.
 
 ## Details
 
@@ -57,7 +58,7 @@ No configuration options will need to change on the agent or bot.
 
 The new method will leverage OCI instance identity certificates, which are made
 available to all OCI compute instances via the IMDS (Instance Metadata Service).
-The best docs I can find on this certificate are the FAQ entries
+The best docs available on this certificate are the FAQ entries
 [here](https://docs.oracle.com/en-us/iaas/Content/Identity/Tasks/callingservicesfrominstances.htm#faq).
 This certificate can be retrieved on any instance with the following `curl` command:
 
@@ -136,19 +137,24 @@ The Auth service handling the join request will then build a certificate chain
 including the intermediates sent by the client and the roots fetched from
 Oracle and verify the signature on the instance identity certificate.
 
+This process of signing an API request on the instance and having the Auth
+service send the pre-signed request to the cloud API is not entirely novel,
+it's quite similar to the way our existing Oracle and AWS IAM join methods
+work.
+
 Note: this `https://auth.<region>.oraclecloud.com/v1/instancePrincipalRootCACertificates`
-endpoint is currently undocumented, we learned of it in private discussion with
-Oracle, we are working with them to get it publicly documented.
+endpoint is currently undocumented, we learned of it in direct discussion with
+Oracle, they have said it will be documented soon.
 
 #### Verifying ownership of the instance identity certificate
 
-The joining instance must prove that it holds the private key associate with
+The joining instance must prove that it holds the private key associated with
 the instance identity certificate, or at least that it can sign messages using
 that private key.
 This avoids treating the certificate as a password sent to the Auth service,
 the instance proves ownership of the private key without sending it anywhere.
 
-Teleport join methods using bidirectional-streaming RPCs, which allows the Auth
+Teleport join methods use bidirectional-streaming RPCs, which allows the Auth
 service to issue a "challenge" that the instance must sign with its private
 key.
 The Auth service can then verify the signature against the public key included in
@@ -276,8 +282,8 @@ We will document that the IAM policy required by the old join method will no
 longer be required only if both the Auth server and the agent are both on a
 version >= whichever version this gets released in.
 
-Luckily this is being implemented at the same time I'm adding the new join gRPC
-service described in [RFD 27e](https://github.com/gravitational/teleport.e/blob/master/rfd/0027e-auth-assigned-uuids.md).
+Luckily this is being implemented at the same time as the new join gRPC service
+described in [RFD 27e](https://github.com/gravitational/teleport.e/blob/master/rfd/0027e-auth-assigned-uuids.md).
 The new join service will only support the new Oracle join method, the legacy
 join service will continue to support the existing Oracle join method, and we
 get all the above backward compatibility guarantees for free.
