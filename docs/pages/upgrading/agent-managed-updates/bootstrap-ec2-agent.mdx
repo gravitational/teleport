@@ -76,7 +76,6 @@ This defines which AWS accounts and roles can join via IAM. You can use `aws_acc
 
 On AWS, prepare an IAM role that your EC2 instances will assume to prove their identity.
 No permissions required - the join verification only calls `sts:GetCallerIdentity`.
-You can create an empty role (no policies attached).
 
 Example trust policy for EC2:
 ```json
@@ -92,7 +91,7 @@ Example trust policy for EC2:
 }
 ```
 
-This policy might be created using the [AWS Management Console or the AWS CLI](#step-45-create-an-ec2-instance).
+This policy is required and must be created using the [AWS Management Console or the AWS CLI](#step-45-create-an-ec2-instance).
 
 ## Step 2/5. Define groups and schedules
 
@@ -140,19 +139,19 @@ spec:
         - name: staging
           days: ["Mon","Tue","Wed","Thu"]
           start_hour: 5
-          wait_hours: 24  # run a day later than development
+          wait_hours: 24  # run a day later than <Var name="development" />
 ```
 
 This resource is used to control the update schedule by defining different groups, sequence and upgrade window.
 
-In the example, we define two update groups: `development` and `staging`. Upgrades are allowed on Monday, Tuesday,
+In the example, we define two update groups: `<Var name="development" />` and `staging`. Upgrades are allowed on Monday, Tuesday,
 Wednesday, and Thursday.
 
-The first group, `development`, must start the upgrade process at 04:00 UTC. Once it is completed and all
-agents in the `development` group are upgraded, the next group, `staging`, begins the upgrade process with
+The first group, `<Var name="development" />`, must start the upgrade process at 04:00 UTC. Once it is completed and all
+agents in the `<Var name="development" />` group are upgraded, the next group, `staging`, begins the upgrade process with
 a 24-hour delay at 05:00 UTC.
 
-If any agent in the `development` group fails, the upgrade process must stop. This behavior is controlled by
+If any agent in the `<Var name="development" />` group fails, the upgrade process must stop. This behavior is controlled by
 the `halt-on-error` strategy value.
 
 </TabItem>
@@ -313,10 +312,10 @@ base_url: https://cdn.teleport.dev
 enabled: true
 pinned: false
 active:
-    version: 18.2.2
+    version: (=teleport.version=)
     flags: [Enterprise]
 target:
-    version: 18.2.2
+    version: (=teleport.version=)
     flags: [Enterprise]
 in_window: false
 ```
@@ -354,7 +353,7 @@ teleport[2246081]: 2025-10-21T20:51:44.698Z INFO [PROC:1]    Successfully obtain
 
 $ journalctl -u teleport-update -n100 -f
 systemd[1]: Starting teleport-update.service - Teleport auto-update service...
-teleport-update[160893]: INFO [UPDATER]   Teleport is up-to-date. Update window is active, but no action is needed. active_version:18.2.2 agent/updater.go:877
+teleport-update[160893]: INFO [UPDATER]   Teleport is up-to-date. Update window is active, but no action is needed. active_version:(=teleport.version=) agent/updater.go:877
 systemd[1]: teleport-update.service: Deactivated successfully.
 systemd[1]: Finished teleport-update.service - Teleport auto-update service.
 ```
@@ -373,7 +372,7 @@ Confirm that the node is joined (it might take up to 15 min to be synced).
 $ tctl inventory ls
 Server ID                            Hostname                                    Services Agent Version Upgrader Upgrader Version Update Group
 ------------------------------------ ------------------------------------------- -------- ------------- -------- ---------------- ------------
-1fcaf1e0-0fbf-454d-ac13-49965918dc39 ip-172-31-44-126.us-west-2.compute.internal Node     v18.2.2       binary   v18.2.2          default
+1fcaf1e0-0fbf-454d-ac13-49965918dc39 ip-172-31-44-126.us-west-2.compute.internal Node     v(=teleport.version=)       binary   v(=teleport.version=)          default
 ```
 
 Check the Managed Update v2 status:
