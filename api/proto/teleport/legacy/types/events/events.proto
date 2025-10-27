@@ -9124,7 +9124,7 @@ message SCIMResourceEvent {
   string Display = 6 [(gogoproto.jsontag) = "display,omitempty"];
 }
 
-// ClientIPRestrictionsUpdate records a Client IP Restrictions update
+// ClientIPRestrictionsUpdate records a Client IP Restrictions update.
 message ClientIPRestrictionsUpdate {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
@@ -9161,6 +9161,6 @@ message ClientIPRestrictionsUpdate {
     (gogoproto.jsontag) = ""
   ];
 
-  // ClientIPRestrictions is the new client ip restrictions allowlist
+  // ClientIPRestrictions is the new Client IP Restrictions allowlist.
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
 }
