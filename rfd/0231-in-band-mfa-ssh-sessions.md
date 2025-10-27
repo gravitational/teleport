@@ -75,8 +75,9 @@ If MFA is _not required_, the SSH service will then proceed to establish the SSH
 
 If MFA _is required_, the SSH service will send a JSON-encoded question containing the action ID via the SSH
 [keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. An
-action ID is a unique identifier (UUID v4) that ties the MFA challenge to a specific user action (in this case, SSH
-session establishment). In the future, action IDs could be used for other Teleport features beyond SSH access.
+action ID is a unique identifier (UUID v4) that [ties the MFA challenge to a specific user
+action](#associating-mfa-challenges-with-user-actions) (in this case, SSH session establishment). In the future, action
+IDs could be used for other Teleport features beyond SSH access.
 
 The MFA keyboard-interactive question will follow this schema:
 
@@ -96,9 +97,9 @@ the keyboard-interactive channel. The Protobuf message must be base64 encoded to
 over the SSH keyboard-interactive channel.
 
 Once the MFA challenge response is received, the SSH service will invoke the `ValidateChallengeForAction` RPC with the
-action ID, the client's MFA challenge response, and any other relevant metadata. If the MFA response is valid, the SSH
-service will proceed to establish the SSH session. If the MFA response is invalid, the SSH service will deny the
-connection with an `Access Denied: Invalid MFA response` error.
+action ID, the client's MFA challenge response, and any other relevant metadata. If the MFA response is valid and the
+action ID matches the expected value, the SSH service will proceed to establish the SSH session. If the MFA response is
+invalid, the SSH service will deny the connection with an `Access Denied: Invalid MFA response` error.
 
 If the client fails to complete the MFA challenge within a specified timeout (e.g., default 1 minute), the SSH service
 will terminate the connection with an `Access Denied: MFA verification timed out` error. If the client wishes to retry,
@@ -152,8 +153,8 @@ well.
 Mitigations:
 
 1. Each MFA challenge will include a unique action ID that couples the challenge to a specific user action.
-1. The MFA service will maintain a record of issued challenges and their associated action IDs. Once a challenge has
-   been successfully completed or expired, it will be invalidated.
+1. The MFA service will [maintain a record](#associating-mfa-challenges-with-user-actions) of issued challenges and
+   their associated action IDs. Once a challenge has been successfully completed or expired, it will be invalidated.
 1. The MFA challenge is time-bound and will expire after a duration (e.g., 5 minutes).
 
 #### New RPCs Attack Surface Risk
@@ -167,7 +168,7 @@ Mitigations:
    will be rejected.
 1. Only Teleport instances are authorized to call the `ValidateChallengeForAction` RPC, requests from other sources will
    be rejected.
-1. Ensure that the MFA service validates the `MFAAuthenticateResponse` and `action_id` before processing the request to
+1. Ensure that the MFA service validates the `MFAAuthenticateResponse` and action ID before processing the request to
    avoid unnecessary processing of invalid requests.
 
 ### Privacy
@@ -315,6 +316,70 @@ message SSOChallengeResponse {
   string request_id = 1;
   // token is a secret token used to verify the user's SSO MFA session.
   string token = 2;
+}
+```
+
+##### Associating MFA Challenges with User Actions
+
+To associate MFA challenges with specific user actions, a new session data struct is introduced for each MFA method,
+scoped specifically for action-related MFA challenges. These structs are used only for challenges created via the
+`CreateChallengeForAction` RPC and are stored in the backend with the associated action ID.
+
+New structs are chosen to ensure that action-related MFA challenges are clearly separated from legacy session data. The
+structs model the legacy session data while omitting fields that are not relevant for action-scoped MFA challenges
+(e.g., Challenge extensions). The new structs will have explicit CRUD operations that model the legacy session data
+(e.g., key format, TTL handling, etc.).
+
+When the `ValidateChallengeForAction` RPC is called, the action ID is used in combination with the user information to
+retrieve the corresponding action-scoped MFA session data. This ensures that the MFA challenge response is validated
+against the correct context.
+
+###### WebAuthn Action Challenges
+
+A new `WebAuthnActionSessionData` struct is defined to encapsulate the action ID and relevant WebAuthn session
+information for action-scoped MFA challenges.
+
+```go
+// WebAuthnActionSessionData stores session data for WebAuthn MFA challenges tied to a specific user action.
+type WebAuthnActionSessionData struct {
+  // ActionID is the MFA action ID associated with this session.
+  ActionID string `json:"action_id"`
+  // Raw challenge used for the ceremony.
+  Challenge []byte `json:"challenge,omitempty"`
+  // Raw User ID.
+  UserID []byte `json:"userId,omitempty"`
+  // Raw Credential IDs of the credentials allowed for the ceremony.
+  AllowCredentials [][]byte `json:"allowCredentials,omitempty"`
+  // True if resident keys were required by the server / Relying Party.
+  ResidentKey bool `json:"residentKey,omitempty"`
+  // Requested user verification requirement, either "discouraged" or
+  // "required".
+  // An empty value is treated equivalently to "discouraged".
+  UserVerification string `json:"userVerification,omitempty"`
+}
+```
+
+###### SSO Action Challenges
+
+A new `SSOMFAActionSessionData` struct is defined to encapsulate the action ID and relevant SSO MFA session information
+for action-scoped MFA challenges.
+
+```go
+// SSOMFAActionSessionData stores session data for SSO MFA challenges tied to a specific user action.
+type SSOMFAActionSessionData struct {
+  // ActionID is the MFA action ID associated with this session.
+  ActionID string `json:"action_id"`
+  // RequestID is the ID of the corresponding SSO Auth request, which is used to
+  // identify this session.
+  RequestID string `json:"request_id,omitempty"`
+  // Username is the Teleport username.
+  Username string `json:"username,omitempty"`
+  // Token is an active token used to verify the owner of this SSO MFA session data.
+  Token string `json:"token,omitempty"`
+  // ConnectorID is id of the corresponding Auth connector.
+  ConnectorID string `json:"connector_id,omitempty"`
+  // ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC).
+  ConnectorType string `json:"connector_type,omitempty"`
 }
 ```
 
