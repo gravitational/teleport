@@ -413,8 +413,61 @@ in‑band MFA flow.
 
 ### Audit Events
 
-1. The `CreateChallengeForAction` RPC event will be emitted when an MFA challenge is created for a specific action.
-1. A `ValidateChallengeForAction` RPC event will be emitted when an MFA challenge response is validated.
+The RPCs defined in the [MFA service](#mfa-service) will emit audit events for creating and validating MFA challenges
+tied to specific user actions. No other changes to audit events are expected as they are already covered by existing
+events (e.g., SSH access).
+
+```proto
+// CreateMFAChallengeForAction records the creation of an MFA auth challenge.
+message CreateMFAChallengeForAction {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ActionID is the ID of the action requiring MFA.
+  string ActionID = 3 [(gogoproto.jsontag) = "action_id"];
+}
+
+// ValidateMFAChallengeForAction records the validation of an MFA auth challenge response.
+message ValidateMFAChallengeForAction {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // MFADevice is the MFA device used.
+  MFADeviceMetadata MFADevice = 4 [(gogoproto.jsontag) = "mfa_device,omitempty"];
+
+  // ActionID is the ID of the action requiring MFA.
+  string ActionID = 5 [(gogoproto.jsontag) = "action_id"];
+}
+```
 
 ### Observability
 
@@ -466,6 +519,7 @@ The following are assumed to be completed before starting work on this RFD:
 1. Update modern agents to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
    legacy clients.
 1. Add tests to ensure both legacy and modern clients can connect to both legacy and modern agents as expected.
+1. Audit events are emitted for the new `MFAService` RPCs.
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
