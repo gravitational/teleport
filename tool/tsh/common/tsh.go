@@ -74,7 +74,8 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	autoupdateagent "github.com/gravitational/teleport/lib/autoupdate/agent"
+	autoupdatetools "github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -828,7 +829,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 	// Check local update for specific proxy from configuration.
 	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
-	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1393,11 +1394,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	var err error
-	cf.executablePath, err = os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
+	cf.executablePath, err = autoupdateagent.StableExecutable()
+	if errors.Is(err, autoupdateagent.ErrUnstableExecutable) {
+		logger.WarnContext(ctx, "Templates may be rendered with an unstable path to the tsh executable. Please reinstall tsh with Managed Updates to prevent instability.")
+	} else if err != nil {
+		return trace.Wrap(err, "determining executable path")
 	}
-	if reExecPath := tools.GetReExecPath(); reExecPath != "" {
+	if reExecPath := autoupdatetools.GetReExecPath(); reExecPath != "" {
 		cf.executablePath = reExecPath
 	}
 
@@ -1955,7 +1958,7 @@ func onVersion(cf *CLIConf) error {
 		proxyPublicAddr = ppa
 	}
 
-	reExecFromVersion := tools.GetReExecFromVersion(cf.Context)
+	reExecFromVersion := autoupdatetools.GetReExecFromVersion(cf.Context)
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
@@ -2086,7 +2089,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2104,7 +2107,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2124,7 +2127,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2200,7 +2203,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -4342,7 +4345,7 @@ func wrapInitClientWithUpdateCheck(clientInitFunc ClientInitFunc, reExecArgs []s
 			return nil, trace.Wrap(err)
 		}
 		if cf.checkManagedUpdates {
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
