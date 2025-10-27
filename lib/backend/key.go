@@ -41,6 +41,9 @@ const (
 // NewKey joins parts into path separated by [Separator],
 // makes sure path always starts with [Separator].
 func NewKey(components ...string) Key {
+	if len(components) < 1 {
+		return Key{}
+	}
 	k := Key{
 		components: slices.Clone(components),
 		s:          SeparatorString + strings.Join(components, SeparatorString),
