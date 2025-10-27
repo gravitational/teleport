@@ -86,6 +86,8 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 			err := r.accessListSvc.DeleteAccessList(ctx, a.AccessList.GetName())
 			return trace.Wrap(err)
 		},
+		MetricsSubsystem: metricSubsystem + "_access_list",
+		MetricsRegistry:  r.metricsRegistry,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,10 +103,15 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	// access lists with nested members.
 	// BTW, there is no need to do the same thing for potential nested owners as all owners are
 	// overwritten with r.defaultOwners.
+	var start time.Time
 	for _, a := range alsWithNestedMembers {
-		if _, _, err := r.accessListSvc.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members); err != nil {
+		start = r.clock.Now()
+		_, _, err := r.accessListSvc.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members)
+		if err != nil {
 			reconcileErrs = append(reconcileErrs, trace.Wrap(err))
 		}
+		r.metrics.reconciledNestedMemberDuration.Observe(r.clock.Since(start).Seconds())
+		r.metrics.reconciledNestedMemberTotal.WithLabelValues(metricLabelResultFromError(err)).Inc()
 	}
 
 	if len(reconcileErrs) > 0 {

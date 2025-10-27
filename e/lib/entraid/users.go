@@ -37,6 +37,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	r.metrics.discoveredEntraUsers.Set(float64(len(entraUsers)))
 
 	connector, err := r.samlService.GetSAMLConnector(ctx, r.ssoConnectorID, false /* withSecrets */)
 	if err != nil {
@@ -89,9 +90,10 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 			return trace.Wrap(err)
 		},
 		OnDelete: func(ctx context.Context, u types.User) error {
-			err := r.userSvc.DeleteUser(ctx, u.GetName())
-			return trace.Wrap(err)
+			return trace.Wrap(r.userSvc.DeleteUser(ctx, u.GetName()))
 		},
+		MetricsRegistry:  r.metricsRegistry,
+		MetricsSubsystem: metricSubsystem + "_user",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

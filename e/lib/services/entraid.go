@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -80,7 +81,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		return trace.BadParameter("Azure OIDC integration spec is required for Entra ID service when system credentials are not used")
 	}
 
-	graphClient, err := constructGraphClient(credential)
+	graphClient, err := constructGraphClient(credential, process.Config.MetricsRegistry)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -119,17 +120,18 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 	}
 
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
-		Clock:          process.Clock,
-		Logger:         logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
-		GraphClient:    graphClient,
-		UserSvc:        authServer,
-		AccessListSvc:  authServer,
-		SAMLSvc:        authServer,
-		DefaultOwners:  owners,
-		TenantID:       tenantID,
-		EntraAppID:     appID,
-		SSOConnectorID: spec.SyncSettings.SsoConnectorId,
-		GroupsFilter:   groupsFilters,
+		Clock:           process.Clock,
+		Logger:          logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
+		MetricsRegistry: process.Config.MetricsRegistry,
+		GraphClient:     graphClient,
+		UserSvc:         authServer,
+		AccessListSvc:   authServer,
+		SAMLSvc:         authServer,
+		DefaultOwners:   owners,
+		TenantID:        tenantID,
+		EntraAppID:      appID,
+		SSOConnectorID:  spec.SyncSettings.SsoConnectorId,
+		GroupsFilter:    groupsFilters,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -207,9 +209,12 @@ func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, st
 }
 
 // constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
-func constructGraphClient(credential msgraph.AzureTokenProvider) (*msgraph.Client, error) {
+func constructGraphClient(credential msgraph.AzureTokenProvider, registerer prometheus.Registerer) (*msgraph.Client, error) {
+	r := prometheus.WrapRegistererWith(prometheus.Labels{teleport.ComponentLabel: eteleport.ComponentEntraID}, registerer)
+
 	graphClient, err := msgraph.NewClient(msgraph.Config{
-		TokenProvider: credential,
+		TokenProvider:   credential,
+		MetricsRegistry: r,
 	})
 
 	return graphClient, trace.Wrap(err)

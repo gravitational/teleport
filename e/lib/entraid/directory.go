@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -43,12 +44,14 @@ type samlService interface {
 // to synchronize Entra ID users and groups into the Teleport cluster
 // as users and access lists.
 type DirectoryReconciler struct {
-	clock         clockwork.Clock
-	logger        *slog.Logger
-	graphClient   GraphClient
-	userSvc       userAccessPoint
-	samlService   samlService
-	accessListSvc accessListAccessPoint
+	clock           clockwork.Clock
+	logger          *slog.Logger
+	metricsRegistry prometheus.Registerer
+	metrics         *directoryMetrics
+	graphClient     GraphClient
+	userSvc         userAccessPoint
+	samlService     samlService
+	accessListSvc   accessListAccessPoint
 
 	// defaultOwners specifies the default owners for access lists synchronized from Entra ID.
 	defaultOwners []accesslist.Owner
@@ -75,6 +78,8 @@ type DirectoryReconciler struct {
 type DirectoryReconcilerConfig struct {
 	Clock  clockwork.Clock
 	Logger *slog.Logger
+	// MetricsRegistry is used to register metrics. When nil, metrics are not registered.
+	MetricsRegistry prometheus.Registerer
 	// GraphClient is the instantiated Microsoft Graph API client.
 	GraphClient GraphClient
 	// UserSvc is the service used to read and modify Teleport users.
@@ -140,24 +145,41 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 		return nil, trace.Wrap(err)
 	}
 
+	metrics := newMetrics()
+	// gracefully handle not being given a metric registry
+	if cfg.MetricsRegistry != nil {
+		if err := metrics.register(cfg.MetricsRegistry); err != nil {
+			return nil, trace.Wrap(err, "registering metrics")
+		}
+	}
+
 	return &DirectoryReconciler{
-		clock:          cfg.Clock,
-		logger:         cfg.Logger,
-		graphClient:    cfg.GraphClient,
-		userSvc:        cfg.UserSvc,
-		accessListSvc:  cfg.AccessListSvc,
-		defaultOwners:  cfg.DefaultOwners,
-		tenantID:       cfg.TenantID,
-		samlService:    cfg.SAMLSvc,
-		ssoConnectorID: cfg.SSOConnectorID,
-		entraAppID:     cfg.EntraAppID,
-		groupsFilter:   cfg.GroupsFilter,
+		clock:           cfg.Clock,
+		logger:          cfg.Logger,
+		metricsRegistry: cfg.MetricsRegistry,
+		graphClient:     cfg.GraphClient,
+		userSvc:         cfg.UserSvc,
+		accessListSvc:   cfg.AccessListSvc,
+		defaultOwners:   cfg.DefaultOwners,
+		tenantID:        cfg.TenantID,
+		samlService:     cfg.SAMLSvc,
+		ssoConnectorID:  cfg.SSOConnectorID,
+		entraAppID:      cfg.EntraAppID,
+		groupsFilter:    cfg.GroupsFilter,
+		metrics:         metrics,
 	}, nil
 }
 
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
-func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
+func (r *DirectoryReconciler) Reconcile(ctx context.Context) (err error) {
+	defer func() {
+		r.metrics.reconciliationCount.With(prometheus.Labels{
+			metricLabelResult: metricLabelResultFromError(err),
+		}).Inc()
+	}()
+
+	reconciliationStart := r.clock.Now()
 	useLocalGroupMatcher := false
 	entraGroupMatcher := groupFilterMatcher(r.groupsFilter)
 	if _, err := filter.New(r.groupsFilter); err != nil {
@@ -174,22 +196,31 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	start := r.clock.Now()
 	teleportAccessListsWithMembersMap, err := listTeleportAccessListsWithMembers(ctx, r.accessListSvc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	took := r.clock.Since(start)
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "read_list_backend",
+	}).Observe(took.Seconds())
 
 	if useLocalGroupMatcher {
 		entraGroupMatcher = groupLocalMatcher(teleportAccessListsWithMembersMap)
 	}
 
-	start := r.clock.Now()
+	start = r.clock.Now()
 	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	took := r.clock.Since(start)
+	took = r.clock.Since(start)
 	r.logger.DebugContext(ctx, "Finished listing Entra ID groups", "took", took.String())
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "read_entra_groups",
+	}).Observe(took.Seconds())
+	r.metrics.discoveredEntraGroups.Set(float64(len(groupsMap)))
 
 	start = r.clock.Now()
 	groupMembersMap, err := listEntraGroupsMembers(ctx, r.graphClient, groupsMap)
@@ -198,6 +229,10 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 	}
 	took = r.clock.Since(start)
 	r.logger.DebugContext(ctx, "Finished listing Entra ID group members", "took", took.String())
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "read_entra_members",
+	}).Observe(took.Seconds())
+	r.metrics.discoveredEntraMemberships.Set(float64(len(groupMembersMap)))
 
 	start = r.clock.Now()
 	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap)
@@ -206,6 +241,9 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 	}
 	took = r.clock.Since(start)
 	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "took", took.String())
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "reconcile_users",
+	}).Observe(took.Seconds())
 
 	start = r.clock.Now()
 	if err := r.reconcileAccessLists(ctx,
@@ -217,6 +255,12 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 	}
 	took = r.clock.Since(start)
 	r.logger.DebugContext(ctx, "Finished reconciling Entra ID groups and Teleport access lists", "took", took.String())
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "reconcile_access_lists",
+	}).Observe(took.Seconds())
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "total",
+	}).Observe(r.clock.Since(reconciliationStart).Seconds())
 
 	return nil
 }
