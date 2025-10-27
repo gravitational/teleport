@@ -357,4 +357,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check if BPF generated files are up to date
-        run: make bpf-up-to-date
+        run: |
+          grep -i bpf Makefile
+          make bpf-up-to-date
