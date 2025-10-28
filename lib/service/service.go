@@ -1084,7 +1084,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
 	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
 	// config and reusing the same registry causes them to fail.
