@@ -265,10 +265,9 @@ type Config struct {
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
 
-	// MetricsRegistry is the prometheus metrics registry used by the Teleport process to register its metrics.
-	// As of today, not every Teleport metric is registered against this registry. Some Teleport services
-	// and Teleport dependencies are using the global registry.
-	// Both the MetricsRegistry and the default global registry are gathered by Teleport's metric service.
+	// MetricsRegistry is the test-only metrics registry configuration.
+	// This MUST NOT be used to access the process metrics registry, only to set it.
+	// You must use [service.TeleportProcess.MetricsRegistry()].
 	MetricsRegistry *prometheus.Registry
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
@@ -739,10 +738,6 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
-	}
-
-	if cfg.MetricsRegistry == nil {
-		cfg.MetricsRegistry = prometheus.NewRegistry()
 	}
 
 	if cfg.LoggerLevel == nil {
