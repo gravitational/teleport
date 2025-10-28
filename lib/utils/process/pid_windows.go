@@ -18,6 +18,8 @@
 
 package process
 
+import "errors"
+
 // CreateLockedPIDFile creates a PID file in the path specified by pidFile
 // containing the current PID, atomically swapping it in the final place and
 // leaving it with an exclusive advisory lock that will get released when the
