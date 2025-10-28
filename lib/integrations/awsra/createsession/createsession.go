@@ -145,16 +145,16 @@ func (req *CreateSessionRequest) checkAndSetDefaults() error {
 // > algorithm is used. This, in turn, is determined by the key bound to the
 // > signing certificate.
 const (
-	awsV4X509RSASHA256   = "AWS4-X509-RSA-SHA256"
-	awsV4X509ECDSASHA256 = "AWS4-X509-ECDSA-SHA256"
+	algoRSA   = "AWS4-X509-RSA-SHA256"
+	algoECDSA = "AWS4-X509-ECDSA-SHA256"
 )
 
 func algoForKey(key crypto.Signer) (string, error) {
 	switch key.(type) {
 	case *rsa.PrivateKey:
-		return awsV4X509RSASHA256, nil
+		return algoRSA, nil
 	case *ecdsa.PrivateKey:
-		return awsV4X509ECDSASHA256, nil
+		return algoECDSA, nil
 	default:
 		return "", trace.BadParameter("unsupported key type: %T", key)
 	}
