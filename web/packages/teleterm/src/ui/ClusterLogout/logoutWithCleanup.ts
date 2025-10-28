@@ -16,23 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Logger from 'teleterm/logger';
 import { IAppContext } from 'teleterm/ui/types';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 /** Disposes cluster-related resources and then logs out. */
 export async function logoutWithCleanup(
   ctx: IAppContext,
   clusterUri: RootClusterUri
 ): Promise<void> {
-  const logger = new Logger('logoutWithCleanup');
-  // This function checks for updates, do not wait for it.
-  ctx.mainProcessClient
-    .maybeRemoveAppUpdatesManagingCluster(clusterUri)
-    .catch(err => {
-      logger.error('Failed to remove managing cluster', err);
-    });
-
   if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
     const [firstConnectedWorkspace] = ctx.workspacesService
       .getConnectedWorkspacesClustersUri()
@@ -56,14 +47,6 @@ export async function logoutWithCleanup(
 
   await ctx.clustersService.removeClusterGateways(clusterUri);
 
-  const {
-    params: { rootClusterId },
-  } = routing.parseClusterUri(clusterUri);
-  await ctx.mainProcessClient.removeKubeConfig({
-    relativePath: rootClusterId,
-    isDirectory: true,
-  });
-
   // Remove the cluster, it does not depend on anything.
-  await ctx.clustersService.logout(clusterUri);
+  await ctx.mainProcessClient.logout(clusterUri);
 }

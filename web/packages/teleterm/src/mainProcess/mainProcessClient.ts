@@ -112,9 +112,6 @@ export default function createMainProcessClient(): MainProcessClient {
     openTabContextMenu,
     configService: createConfigServiceClient(),
     fileStorage: createFileStorageClient(),
-    removeKubeConfig(options) {
-      return ipcRenderer.invoke('main-process-remove-kube-config', options);
-    },
     forceFocusWindow(args) {
       return ipcRenderer.invoke(MainProcessIpc.ForceFocusWindow, args);
     },
@@ -221,14 +218,6 @@ export default function createMainProcessClient(): MainProcessClient {
         }
       );
     },
-    maybeRemoveAppUpdatesManagingCluster(clusterUri) {
-      return ipcRenderer.invoke(
-        MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
-        {
-          clusterUri,
-        }
-      );
-    },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
         listener(updateEvent);
@@ -280,7 +269,7 @@ export default function createMainProcessClient(): MainProcessClient {
     syncCluster: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
     },
-    logoutCluster: (clusterUri: RootClusterUri) => {
+    logout: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
     },
   };
