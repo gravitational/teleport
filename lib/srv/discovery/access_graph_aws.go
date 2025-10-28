@@ -130,14 +130,27 @@ func (s *Server) reconcileAccessGraph(
 	// Each fetcher can return an error and a result.
 	for range allFetchers {
 		fetcherResult := <-resultsC
-		if fetcherResult.err != nil {
-			errs = append(errs, fetcherResult.err)
+		fetcher, result, err := fetcherResult.fetcher, fetcherResult.result, fetcherResult.err
+		if err != nil {
+			errs = append(errs, err)
 		}
-		if fetcherResult.result != nil {
-			results = append(results, fetcherResult.result)
-			for _, cluster := range fetcherResult.result.EKSAuditLogClusters {
-				fetcherCluster := eksAuditLogCluster{fetcherResult.fetcher, cluster}
-				auditLogClusters = append(auditLogClusters, fetcherCluster)
+		if result == nil {
+			continue
+		}
+		results = append(results, result)
+		// If the fetcher is configured for EKS audit logs, see if any
+		// EKS clusters match the configured tags.
+		if fetcher.EKSAuditLogs == nil {
+			continue
+		}
+		for _, cluster := range result.EKSClusters {
+			clusterTags := make(map[string]string, len(cluster.Tags))
+			for _, tag := range cluster.Tags {
+				clusterTags[tag.GetKey()] = tag.GetValue().GetValue()
+			}
+			match, _, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
+			if match {
+				auditLogClusters = append(auditLogClusters, eksAuditLogCluster{fetcher, cluster})
 			}
 		}
 	}

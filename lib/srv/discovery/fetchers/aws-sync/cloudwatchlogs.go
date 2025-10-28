@@ -30,12 +30,6 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-// cwlClient has the AWS interfaces required by this package to fetch
-// CloudWatch logs.
-type cwlClient interface {
-	cloudwatchlogs.FilterLogEventsAPIClient
-}
-
 // FetchEKSAuditLogs returns a slice of audit log events for the given cluster
 // starting from the given cursor.
 func (a *Fetcher) FetchEKSAuditLogs(ctx context.Context, cluster *accessgraphv1alpha.AWSEKSClusterV1, cursor *accessgraphv1alpha.KubeAuditLogCursor) ([]cwltypes.FilteredLogEvent, error) {

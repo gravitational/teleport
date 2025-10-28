@@ -225,7 +225,7 @@ type fakeAWSClients struct {
 	s3Client  s3Client
 	stsClient stsClient
 	kmsClient kmsClient
-	cwlClient cwlClient
+	cwlClient cloudwatchlogs.FilterLogEventsAPIClient
 }
 
 func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
@@ -248,6 +248,6 @@ func (f fakeAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Options
 	return f.kmsClient
 }
 
-func (f fakeAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient {
+func (f fakeAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cloudwatchlogs.FilterLogEventsAPIClient {
 	return f.cwlClient
 }

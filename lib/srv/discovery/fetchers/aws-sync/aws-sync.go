@@ -133,8 +133,8 @@ type awsClientProvider interface {
 	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 	// getKMSClient provides a [kmsClient].
 	getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient
-	// getCloudWatchLogsClient provides a [cwlClient].
-	getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient
+	// getCloudWatchLogsClient provides a [cloudwatchlogs.FilterLogEventsAPIClient].
+	getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cloudwatchlogs.FilterLogEventsAPIClient
 }
 
 type defaultAWSClients struct{}
@@ -159,7 +159,7 @@ func (defaultAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Option
 	return kms.NewFromConfig(cfg, optFns...)
 }
 
-func (defaultAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient {
+func (defaultAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cloudwatchlogs.FilterLogEventsAPIClient {
 	return cloudwatchlogs.NewFromConfig(cfg, optFns...)
 }
 
@@ -234,11 +234,6 @@ type Resources struct {
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
 	// KMSKeys is a list of KMS keys.
 	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
-
-	// EKSAuditLogClusters is a subset of the clusters in the field EKSClusters.
-	// These are the clusters for which apiserver audit logs should be fetched.
-	// These are not sent to access graph with the other resources.
-	EKSAuditLogClusters []*accessgraphv1alpha.AWSEKSClusterV1
 }
 
 func (r *Resources) count() int {
