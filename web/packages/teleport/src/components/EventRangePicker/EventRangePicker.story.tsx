@@ -29,7 +29,5 @@ export const Picker = () => {
   const rangeOptions = getRangeOptions();
   const [range, setRange] = useState<EventRange>(rangeOptions[0]);
 
-  return (
-    <RangePicker range={range} ranges={rangeOptions} onChangeRange={setRange} />
-  );
+  return <RangePicker range={range} onChangeRange={setRange} />;
 };

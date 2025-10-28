@@ -18,8 +18,9 @@
 
 import { useState } from 'react';
 
-import { Box, Indicator } from 'design';
+import { Box } from 'design';
 import { Danger } from 'design/Alert';
+import { useInfiniteScroll } from 'shared/hooks';
 
 import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
@@ -33,6 +34,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
 import EventList from './EventList';
+import { EventListSkeleton } from './EventListSkeleton';
 import useAuditEvents, { State } from './useAuditEvents';
 
 export function AuditContainer() {
@@ -44,31 +46,41 @@ export function AuditContainer() {
 
 export function Audit(props: State) {
   const {
-    attempt,
     range,
     setRange,
-    rangeOptions,
     events,
     clusterId,
-    fetchMore,
-    fetchStatus,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    error,
+    isSuccess,
+    isLoading,
+    search,
+    setSearch,
+    sort,
+    setSort,
     ctx,
   } = props;
+
   const [errorMessage, setErrorMessage] = useState('');
+
+  const { setTrigger } = useInfiniteScroll({
+    fetch: async () => {
+      if (hasNextPage && !isFetchingNextPage && !error) {
+        fetchNextPage();
+      }
+    },
+  });
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="8">Audit Log</FeatureHeaderTitle>
-        <RangePicker
-          ml="auto"
-          range={range}
-          ranges={rangeOptions}
-          onChangeRange={setRange}
-        />
+        <RangePicker ml="auto" range={range} onChangeRange={setRange} />
       </FeatureHeader>
       <ExternalAuditStorageCta />
-      {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
+      {error && <Danger> {error.message} </Danger>}
       {!errorMessage && (
         <ClusterDropdown
           clusterLoader={ctx.clusterService}
@@ -78,17 +90,23 @@ export function Audit(props: State) {
         />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
+      {isLoading && events.length === 0 && (
+        <Box mt={2}>
+          <EventListSkeleton />
         </Box>
       )}
-      {attempt.status === 'success' && (
-        <EventList
-          events={events}
-          fetchMore={fetchMore}
-          fetchStatus={fetchStatus}
-        />
+      {isSuccess && (
+        <Box mt={2}>
+          <EventList
+            events={events}
+            search={search}
+            setSearch={setSearch}
+            sort={sort}
+            setSort={setSort}
+          />
+          {isFetchingNextPage && <EventListSkeleton />}
+          <div ref={setTrigger} />
+        </Box>
       )}
     </FeatureBox>
   );
