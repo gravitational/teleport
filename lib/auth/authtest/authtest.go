@@ -544,7 +544,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		Unstarted:    p.Unstarted,
 
 		Access:                  p.AuthServer.Services.Access,
-		AccessLists:             p.AuthServer.Services.AccessLists,
+		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
 		Applications:            p.AuthServer.Services.Applications,
