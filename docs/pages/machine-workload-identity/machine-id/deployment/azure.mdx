@@ -130,7 +130,7 @@ Replace:
 
 ## Step 6/6. Verify that tbot is running correctly
 
-nce the configuration file and services are in place, verify that your tbot
+Once the configuration file and services are in place, verify that your tbot
 instance successfully joined the cluster and is issuing credentials.
 
 Run the following command on the Azure VM:
@@ -139,7 +139,7 @@ Run the following command on the Azure VM:
 $ sudo tbot status
 ```
 
-If tbot is running correctly, you’ll see output similar to:
+If tbot is running correctly, you'll see output similar to:
 
 ```code
 
@@ -160,7 +160,7 @@ $ ls /var/lib/tbot/destinations/default
 You should see key and certificate files (`key`, `cert`, and `ca.pem`) that
 your workloads can use to authenticate through Teleport.
 
-If you’re using Workload Identity or SPIFFE, you can also run `spiffe-inspect` and see similar output:
+If you're using Workload Identity or SPIFFE, you can also run `spiffe-inspect` and see similar output:
 
 ```code
 $ tbot spiffe-inspect
@@ -179,8 +179,6 @@ identity and can issue short-lived credentials for your workloads.
 
 ## Next steps
 
-- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
-  your environment.
-- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
-  all the available configuration options.
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for your environment.
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)
