@@ -27,14 +27,17 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// TODO(espadolini): these sizes have been chosen after a little manual testing
-// to reach full throughput in the data transfer over a single SSH channel. They
-// should be checked again with some more real-world benchmarks before any
-// serious use; if necessary, they could be made configurable on a
-// per-connection basis.
+// 128 KB buffers were chosen as a resonable default for network I/O.
+// A Teleport Proxy behind a L7 load balancer will receive every single
+// connection through a WebSocket upgrade, so having reasonably sized buffers
+// helps with performance without using too much memory.
+// No buffer size will grow beyond this value, backpressure will be applied
+// by blocking writes until the reader has consumed some data or the connection
+// can be written to again.
 const (
-	receiveBufferSize = 128 * 1024
-	sendBufferSize    = 2 * 1024 * 1024
+	bufferSize        = 128 * 1024
+	receiveBufferSize = bufferSize
+	sendBufferSize    = bufferSize
 	initialBufferSize = 4096
 )
 
@@ -86,6 +89,10 @@ func (c *managedConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	return c.closeLocked()
+}
+
+func (c *managedConn) closeLocked() error {
 	if c.localClosed {
 		return net.ErrClosed
 	}
@@ -341,7 +348,7 @@ func (w *buffer) append(b []byte) {
 	f1, f2 := w.free()
 	// after reserve(n), len(f1)+len(f2) >= n, so this is guaranteed to work
 	copy(f2, b[copy(f1, b):])
-	w.end += len64(b)
+	w.grow(len64(b))
 }
 
 // write copies the slice to the tail of the buffer like in append, but only up
@@ -355,6 +362,17 @@ func (w *buffer) write(b []byte, max uint64) uint64 {
 	s := min(max-w.len(), len64(b))
 	w.append(b[:s])
 	return s
+}
+
+// grow advances the end pointer by n bytes, making previously free space
+// available as buffered data. The caller must ensure that n does not exceed
+// the currently free capacity.
+func (w *buffer) grow(n uint64) {
+	if n == 0 {
+		return
+	}
+
+	w.end += n
 }
 
 // advance will discard bytes from the head of the buffer, advancing its start

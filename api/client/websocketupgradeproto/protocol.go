@@ -17,9 +17,9 @@ package websocketupgradeproto
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"time"
 
@@ -46,6 +46,12 @@ const (
 	serverConnection connectionType = iota + 1
 	// clientConnection indicates that this is a client-side connection.
 	clientConnection
+)
+
+const (
+	// maxDeadlineOnClose is the time to wait for the close handshake to complete
+	// before forcefully closing the underlying connection.
+	maxDeadlineOnClose = 3 * time.Second
 )
 
 var _ interface {
@@ -153,24 +159,19 @@ func (c *Conn) readLoop() {
 		c.cond.Broadcast()
 	}()
 	for {
-		frame, err := ws.ReadFrame(c.underlyingConn)
+		header, err := ws.ReadHeader(c.underlyingConn)
 		if err != nil {
-			c.mu.Lock()
-			if !c.localClosed {
-				c.remoteClosed = true
-			}
-			c.cond.Broadcast()
-			c.mu.Unlock()
+			c.handleReadError()
 			return
 		}
 
-		// All client frames should be masked, so unmask them if needed.
-		if frame.Header.Masked {
-			frame = ws.UnmaskFrame(frame)
-		}
-
-		switch frame.Header.OpCode {
+		switch header.OpCode {
 		case ws.OpClose:
+			if err := c.drainFramePayload(header); err != nil {
+				c.handleReadError()
+				return
+			}
+
 			c.mu.Lock()
 			// If we already closed the connection locally, this message is
 			// the acknowledgment of our close frame, so we can just return.
@@ -188,25 +189,198 @@ func (c *Conn) readLoop() {
 			c.remoteClosed = true
 			c.cond.Broadcast()
 			c.mu.Unlock()
-		case ws.OpBinary:
-			c.mu.Lock()
-			// Store the received binary frame payload in the receive buffer
-			// and signal any waiting readers.
-			c.receiveBuffer.append(frame.Payload)
-			c.cond.Broadcast()
-			c.mu.Unlock()
+		case ws.OpBinary, ws.OpContinuation:
+			if err := c.readBinaryPayloadToBuffer(header); err != nil {
+				c.handleReadError()
+				return
+			}
 		case ws.OpPong:
-			// Receives Pong as response to Ping. Nothing to do.
+			// Pong frames are replies to Ping frames sent by us and should be ignored.
+			// Just read and discard the Pong frame payload.
+			if err := c.drainFramePayload(header); err != nil {
+				c.handleReadError()
+				return
+			}
 		case ws.OpPing:
+			// Read the Ping frame payload. Ping frames are control messages
+			// and their payloads are limited to 125 bytes.
+			// We need to read the payload to respond with a Pong frame because
+			// the Pong frame should contain the same payload as the Ping frame.
+			payload, err := c.readControlPayload(header)
+			if err != nil {
+				c.handleReadError()
+				return
+			}
+
 			c.mu.Lock()
 			// Respond to Ping frames with a Pong frame containing the same payload.
 			// Pong frames are queued to be sent after waking up the write loop.
-			pongFrame := ws.NewPongFrame(slices.Clone(frame.Payload))
+			pongFrame := ws.NewPongFrame(payload)
 			c.pingPongReplies = append(c.pingPongReplies, pongFrame)
 			c.cond.Broadcast()
 			c.mu.Unlock()
+		default:
+			// For other frame types, just drain the payload as we don't process them.
+			if err := c.drainFramePayload(header); err != nil {
+				c.handleReadError()
+				return
+			}
 		}
 	}
+}
+
+// handleReadError handles errors that occur during reading from the WebSocket connection.
+// It sets the remoteClosed flag if the connection is not already closed locally
+// and broadcasts the condition variable to wake up any waiting goroutines.
+func (c *Conn) handleReadError() {
+	c.mu.Lock()
+	if !c.localClosed {
+		c.remoteClosed = true
+	}
+	c.cond.Broadcast()
+	c.mu.Unlock()
+}
+
+// readBinaryPayloadToBuffer reads the binary payload of a WebSocket data frame
+// (or continuation frame) directly into the connection’s internal receive buffer.
+//
+// It ensures that the entire payload is read before returning and never produces
+// partial reads. If any error occurs during reading (such as an I/O or closure error),
+// the function aborts and returns that error.
+//
+// This function also handles masked frames, applying the WebSocket masking key
+// during reading as specified in RFC 6455 directly into the receive buffer.
+// Webscoket masks do not change the length of the payload, so no adjustments are needed.
+//
+// It ensures that the receive buffer [c.receiveBuffer] never exceeds its configured
+// capacity [receiveBufferSize]. If the buffer is full, it waits until space becomes
+// available before reading more data.
+//
+// Behavior Summary:
+//   - Fully reads the frame payload or returns an error.
+//   - Waits for buffer space when the receive buffer is full.
+//   - Handles masked frames correctly according to WebSocket protocol.
+//   - Respects connection closure state (`c.localClosed`).
+//   - Signals other goroutines when new data becomes available.
+func (c *Conn) readBinaryPayloadToBuffer(header ws.Header) error {
+	remaining := header.Length
+	if remaining == 0 {
+		return nil
+	}
+
+	offset := 0
+	c.mu.Lock()
+	for remaining > 0 {
+		// receiveBuffer is full, wait for space to become available.
+		// Next time .Read is called, it will read from the buffer
+		// and free up space and signal this condition variable.
+		for c.receiveBuffer.len() >= receiveBufferSize {
+			if c.localClosed {
+				c.mu.Unlock()
+				return net.ErrClosed
+			}
+			c.cond.Wait()
+		}
+
+		if c.localClosed {
+			c.mu.Unlock()
+			return net.ErrClosed
+		}
+
+		space := min(
+			receiveBufferSize-int(c.receiveBuffer.len()),
+			int(remaining),
+		)
+
+		if space == 0 {
+			continue
+		}
+
+		// we call reserve to ensure there is enough space in the buffer
+		// but space is never more than receiveBufferSize - len(receiveBuffer)
+		// so this will never allocate more than that.
+		c.receiveBuffer.reserve(uint64(space))
+
+		// Get the free slices from the receive buffer.
+		f1, f2 := c.receiveBuffer.free()
+
+		// Read into the first slice.
+		// First slice is guaranteed to have some space.
+		chunk := min(len(f1), space)
+		buf := f1[:chunk]
+		if err := c.readFramePartialPayloadLocked(buf); err != nil {
+			c.mu.Unlock()
+			return err
+		}
+		if header.Masked && chunk > 0 {
+			ws.Cipher(buf, header.Mask, offset)
+		}
+		offset += chunk
+		c.receiveBuffer.grow(uint64(chunk))
+
+		remaining -= int64(chunk)
+
+		if len(f2) > 0 {
+			chunk := min(len(f2), space-chunk)
+			buf := f2[:chunk]
+			if err := c.readFramePartialPayloadLocked(buf); err != nil {
+				c.mu.Unlock()
+				return err
+			}
+			if header.Masked && chunk > 0 {
+				ws.Cipher(buf, header.Mask, offset)
+			}
+			offset += chunk
+			c.receiveBuffer.grow(uint64(chunk))
+			remaining -= int64(chunk)
+		}
+
+		c.cond.Broadcast()
+
+	}
+	c.mu.Unlock()
+
+	return nil
+}
+
+// readFramePartialPayloadLocked reads a portion of the frame payload of len(buf) into the provided buffer.
+// It assumes that the connection mutex is already locked and unlocks it during the read
+// to avoid blocking other write operations. After reading, it re-locks the mutex.
+// It's the caller's responsibility to ensure that the buffer size does not exceed
+// the remaining payload length.
+// It's safe to unlock the mutex here because the readLoop is the only
+// goroutine that reads from the underlying connection and advances the buffer's .end field.
+// The conn.Read call only updates the .start field, which means it can only
+// increase the available space in the buffer, never reduce it—so there’s no risk of race conditions.
+func (c *Conn) readFramePartialPayloadLocked(buf []byte) error {
+	// Unlock the mutex while reading to avoid blocking other operations.
+	c.mu.Unlock()
+	defer c.mu.Lock()
+	_, err := io.ReadFull(c.underlyingConn, buf)
+	return err
+}
+
+// readControlPayload reads the payload of a control frame (Ping, Pong, Close).
+// It ensures that the payload length does not exceed the maximum allowed size
+// for control frames (125 bytes) and returns an error if it does.
+// The function reads the entire payload into a byte slice and returns it.
+func (c *Conn) readControlPayload(header ws.Header) ([]byte, error) {
+	if header.Length < 0 || header.Length > ws.MaxControlFramePayloadSize {
+		return nil, ws.ErrProtocolControlPayloadOverflow
+	}
+
+	payload := make([]byte, header.Length)
+	n, err := io.ReadFull(c.underlyingConn, payload)
+	return payload[:n], err
+}
+
+// drainFramePayload discards the payload of a WebSocket frame by reading
+// and ignoring it. This is used for frames where the payload is not needed,
+// such as control frames that are not processed further.
+func (c *Conn) drainFramePayload(header ws.Header) error {
+	// Discard the frame payload by reading it without processing.
+	_, err := io.CopyN(io.Discard, c.underlyingConn, header.Length)
+	return err
 }
 
 // writeLoop continuously sends WebSocket frames from the send buffer to the
@@ -359,13 +533,29 @@ func (c *Conn) Close() error {
 }
 
 func (c *Conn) closeWithErrFrame(frame ws.Frame) error {
+	// This afterFunc sets a deadline to unblock the read and write loops in case
+	// the remote side never acknowledges previously sent frames and the
+	// write loop gets stuck trying to send any frame.
+	// If the remote side does not respond, the deadline will trigger and
+	// the read and write loops will exit. In such cases, we don't properly
+	// complete the close handshake, but connection wasn't healthy anyway.
+	stopTimer := time.AfterFunc(
+		maxDeadlineOnClose,
+		func() {
+			c.underlyingConn.SetDeadline(time.Now().Add(-time.Second))
+		},
+	)
+	// This defer will ensure that the deadline is cleared when the function returns.
+	defer stopTimer.Stop()
+
 	c.mu.Lock()
 	c.closeFrame = &frame
+	// Signal the write loop to send the close frame.
+	err := c.managedConn.closeLocked()
 	c.mu.Unlock()
 
-	// Signal the write loop to send the close frame.
-	err := c.managedConn.Close()
 	// Wait for the read and write loops to finish.
+	// This will wait at most until the deadline [maxDeadlineOnClose] set above triggers.
 	c.wg.Wait()
 
 	return err
