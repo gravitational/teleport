@@ -128,6 +128,55 @@ Replace:
 
 (!docs/pages/includes/machine-id/configure-services.mdx!)
 
+## Step 6/6. Verify that tbot is running correctly
+
+nce the configuration file and services are in place, verify that your tbot
+instance successfully joined the cluster and is issuing credentials.
+
+Run the following command on the Azure VM:
+
+```code
+$ sudo tbot status
+```
+
+If tbot is running correctly, you’ll see output similar to:
+
+```code
+
+BOT STATUS
+Joined via: azure
+Auth server: example.teleport.sh:443
+Last renewal: 2025-03-10T15:05:22Z
+Next renewal: 2025-03-10T16:05:22Z
+Certificate destination: /var/lib/tbot/destinations/default
+```
+
+To further confirm that credentials are valid, list the generated identity files:
+
+```code
+$ ls /var/lib/tbot/destinations/default
+```
+
+You should see key and certificate files (`key`, `cert`, and `ca.pem`) that
+your workloads can use to authenticate through Teleport.
+
+If you’re using Workload Identity or SPIFFE, you can also run `spiffe-inspect` and see similar output:
+
+```code
+$ tbot spiffe-inspect
+
+INFO [TBOT] Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock
+INFO [TBOT] Received X.509 SVID context from Workload API bundles_count:1 svids_count:1
+SVIDS
+- spiffe://example.teleport.sh/svc/foo
+  - Expiry: 2025-03-20 10:55:52 +0000 UTC
+Trust Bundles
+- example.teleport.sh
+```
+
+This confirms that your bot successfully authenticated using Azure managed
+identity and can issue short-lived credentials for your workloads.
+
 ## Next steps
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
