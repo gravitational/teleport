@@ -693,7 +693,6 @@ export default class MainProcess {
         .catch(error => {
           this.logger.error('Failed to remove managing cluster', error);
         });
-      await this.removeKubeConfig(args.clusterUri);
       await this.clusterStore.logoutAndRemove(args.clusterUri);
     });
 
@@ -833,19 +832,6 @@ export default class MainProcess {
     });
     daemonStop.stderr.setEncoding('utf-8');
     daemonStop.stderr.on('data', data => logger.error(data));
-  }
-
-  private async removeKubeConfig(clusterUri: RootClusterUri): Promise<void> {
-    const { kubeConfigsDir } = this.settings;
-    const profileName = routing.parseClusterName(clusterUri);
-    const dirPath = path.join(kubeConfigsDir, 'keys', profileName);
-    const isOutOfRoot = dirPath.indexOf(kubeConfigsDir) !== 0;
-
-    if (isOutOfRoot) {
-      throw new Error(`Path is outside kubeConfigsDir ${dirPath}`);
-    }
-    // force: true - exceptions will be ignored if the path does not exist.
-    await fs.rm(dirPath, { recursive: true, force: true });
   }
 
   private logProcessExitAndError(
