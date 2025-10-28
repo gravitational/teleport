@@ -69,10 +69,9 @@ func (f *eksAuditLogFetcher) Run(ctx context.Context) error {
 		if len(events) == 0 {
 			select {
 			case <-ctx.Done():
-				break
 			case <-time.After(logPollInterval):
-				continue
 			}
+			continue
 		}
 
 		if err := f.sendTAGKubeAuditLogEvents(ctx, events, cursor); err != nil {
