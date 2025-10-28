@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.25.1
+go 1.25.3
 
 ignore (
 	./build
@@ -65,6 +65,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.10
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.40.5
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.6
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.1
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.50.5
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.31.0

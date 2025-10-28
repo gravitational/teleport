@@ -42,46 +42,141 @@ authentication methods:
 
 ## Deployment guides
 
-The guides in this section show you how to deploy Machine ID and join it
-to your cluster. Choose a guide based on the platform where you intend to run
-Machine ID.
+The guides in this section show you how to deploy Machine ID and join it to your cluster.
+Choose a guide based on the platform where you intend to run Machine ID.
 
 If a specific guide does not exist for your platform, the [Linux
 guide](linux.mdx) is compatible with most platforms. For
 custom approaches, you can also read the [Machine ID Reference](../../../reference/machine-workload-identity/machine-id/machine-id.mdx)
 and [Architecture](../../../reference/architecture/machine-id-architecture.mdx) to plan your deployment.
 
-### Self-hosted infrastructure
-
-Read the following guides for how to deploy Machine ID on your cloud platform or
-on-prem infrastructure.
-
-| Platform                               | Installation method                             | Join method                                         |
-|----------------------------------------|-------------------------------------------------|-----------------------------------------------------|
-| [Linux](linux.mdx)                     | Package manager or TAR archive                  | Static join token                                   |
-| [Linux (TPM)](linux-tpm.mdx)           | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
-| [Linux (Bound Keypair)][bound-keypair] | Package manager or TAR archive                  | Bound Keypair                                       |
-| [GCP](gcp.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
-| [AWS](aws.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
-| [Azure](azure.mdx)                     | Package manager or TAR archive                  | Identity document signed by Azure                   |
-| [Kubernetes](kubernetes.mdx)           | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
-| [Kubernetes OIDC](kubernetes-oidc.mdx) | Kubernetes pod on a cloud provider with OIDC    | Identity document signed by your cloud provider     |
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="aws" size="xl" />,
+      to: "./aws",
+      name: "AWS",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "./azure",
+      name: "Azure",
+    },
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "./azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "./bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "./circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "./gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="githubActions" size="xl" />,
+      to: "./github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "./gcp",
+      name: "Google Cloud",
+    },
+    {
+      icon: <Icon name="kubernetes2" size="xl" />,
+      to: "./kubernetes",
+      name: "Kubernetes",
+    },
+    {
+      icon: <Icon name="kubernetes" size="xl" />,
+      to: "./kubernetes-oidc",
+      name: "Kubernetes OIDC",
+    },
+    {
+      icon: <Icon name="linux" size="xl" />,
+      to: "./linux",
+      name: "Linux",
+    },
+    {
+      icon: <Icon name="linux-servers" size="xl" />,
+      to: "./linux-tpm",
+      name: "Linux TPM",
+    },
+    {
+      icon: <Icon name="lock" size="xl" />,
+      to: "../../../reference/machine-workload-identity/machine-id/bound-keypair/getting-started",
+      name: "Bound Keypair Joining",
+    }
+  ]}
+/>
 
 ### CI/CD
 
-Read the following guides for how to deploy Machine ID on a continuous
-integration and continuous deployment platform
+Read the following guides for how to deploy Machine ID on a continuous integration and continuous deployment platform.
 
-| Platform                                                                                               | Installation method                                           | Join method                              |
-|--------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------|
-| [Azure DevOps](azure-devops.mdx)                                                                       | TAR archive                                                   | Azure DevOps-signed identity document    |
-| [Bitbucket Pipelines](bitbucket.mdx)                                                                   | TAR archive                                                   | Bitbucket-signed identity document       |
-| [CircleCI](circleci.mdx)                                                                               | TAR archive                                                   | CircleCI-signed identity document        |
-| [GitLab](gitlab.mdx)                                                                                   | TAR archive                                                   | GitLab-signed identity document          |
-| [GitHub Actions](github-actions.mdx)                                                                   | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.         |
-| [Jenkins](jenkins.mdx)                                                                                 | Package manager or TAR archive                                | Static join token                        |
-| [Spacelift](../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document       |
-| [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "./azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "./bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "./circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "./gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="githubActions" size="xl" />,
+      to: "./github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="jenkins" size="xl" />,
+      to: "./jenkins",
+      name: "Jenkins",
+    },
+    {
+      icon: <Icon name="spacelift" size="xl" />,
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      name: "Spacelift",
+    },
+    {
+      icon: <Icon name="terraform" size="xl" />,
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud",
+      name: "Terraform Cloud",
+    },
+    {
+      icon: <Icon name="lock" size="xl" />,
+      to: "../../../reference/machine-workload-identity/machine-id/bound-keypair/static-keys",
+      name: "Bound Keypair static keys (Generic)",
+    }
+  ]}
+/>
 
+<Admonition type="tip" title="Unsupported Provider?">
+If your CI/CD provider does not have a dedicated join method listed above,
+consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+</Admonition>
 
-[bound-keypair]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/getting-started.mdx
+[bound-keypair-static]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/static-keys.mdx

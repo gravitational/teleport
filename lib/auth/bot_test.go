@@ -27,9 +27,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/digitorus/pkcs7"
@@ -57,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -65,6 +67,8 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -154,7 +158,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -294,7 +298,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, tok))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token:      tok.GetName(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
@@ -406,7 +410,7 @@ func TestRegisterBotInstance(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -552,7 +556,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -628,7 +632,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
 
-	result, err := join.Register(ctx, join.RegisterParams{
+	result, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -689,9 +693,9 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	remoteAddr := "42.42.42.42:42"
 
 	t.Run("IAM method", func(t *testing.T) {
-		a.SetHTTPClientForAWSSTS(&mockClient{
+		a.SetHTTPClientForAWSSTS(&mockSTSClient{
 			respStatusCode: http.StatusOK,
-			respBody: responseFromAWSIdentity(auth.AWSIdentity{
+			respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 				Account: "1234",
 				Arn:     "arn:aws::1111",
 			}),
@@ -822,9 +826,57 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	})
 }
 
+func responseFromAWSIdentity(id iamjoin.AWSIdentity) string {
+	return fmt.Sprintf(`{
+		"GetCallerIdentityResponse": {
+			"GetCallerIdentityResult": {
+				"Account": "%s",
+				"Arn": "%s"
+			}}}`, id.Account, id.Arn)
+}
+
+type mockSTSClient struct {
+	respStatusCode int
+	respBody       string
+}
+
+func (c *mockSTSClient) Do(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: c.respStatusCode,
+		Body:       io.NopCloser(strings.NewReader(c.respBody)),
+	}, nil
+}
+
+var identityRequestTemplate = template.Must(template.New("sts-request").Parse(`POST / HTTP/1.1
+Host: {{.Host}}
+User-Agent: aws-sdk-go/1.37.17 (go1.17.1; darwin; amd64)
+Content-Length: 43
+Accept: application/json
+Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211102/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;{{.SignedHeader}}, Signature=111
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+X-Amz-Date: 20211102T204300Z
+X-Amz-Security-Token: aaa
+X-Teleport-Challenge: {{.Challenge}}
+
+Action=GetCallerIdentity&Version=2011-06-15`))
+
+type identityRequestTemplateInput struct {
+	Host         string
+	SignedHeader string
+	Challenge    string
+}
+
+func defaultIdentityRequestTemplateInput(challenge string) identityRequestTemplateInput {
+	return identityRequestTemplateInput{
+		Host:         "sts.amazonaws.com",
+		SignedHeader: "x-teleport-challenge;",
+		Challenge:    challenge,
+	}
+}
+
 // authClientForRegisterResult is a test helper that creats an auth client for
-// the given [*join.RegisterResult].
-func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.NetAddr, result *join.RegisterResult) *authclient.Client {
+// the given [*joinclient.JoinResult].
+func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.NetAddr, result *joinclient.JoinResult) *authclient.Client {
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	require.NoError(t, err)
 	sshPub, err := ssh.NewPublicKey(result.PrivateKey.Public())
@@ -895,14 +947,14 @@ func instanceIDFromCerts(t *testing.T, certs *proto.Certs) (string, uint64) {
 	return ident.BotInstanceID, ident.Generation
 }
 
-// registerHelper calls `join.Register` with the given token, prefilling params
+// registerHelper calls `joinclient.Join` with the given token, prefilling params
 // where possible. Overrides may be applied with `fns`.
 func registerHelper(
 	ctx context.Context, token types.ProvisionToken,
 	addr *utils.NetAddr,
-	fns ...func(*join.RegisterParams),
-) (*join.RegisterResult, error) {
-	params := join.RegisterParams{
+	fns ...func(*joinclient.JoinParams),
+) (*joinclient.JoinResult, error) {
+	params := joinclient.JoinParams{
 		JoinMethod: token.GetJoinMethod(),
 		Token:      token.GetName(),
 		ID: state.IdentityID{
@@ -918,7 +970,7 @@ func registerHelper(
 		fn(&params)
 	}
 
-	result, err := join.Register(ctx, params)
+	result, err := joinclient.Join(ctx, params)
 	return result, trace.Wrap(err)
 }
 
@@ -948,9 +1000,9 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		return nil, errMockInvalidToken
 	})
 
-	a.SetHTTPClientForAWSSTS(&mockClient{
+	a.SetHTTPClientForAWSSTS(&mockSTSClient{
 		respStatusCode: http.StatusOK,
-		respBody: responseFromAWSIdentity(auth.AWSIdentity{
+		respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
 			Account: "1234",
 			Arn:     "arn:aws::1111",
 		}),
@@ -1015,7 +1067,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	require.NoError(t, a.UpsertToken(ctx, awsToken))
 
 	// Join as a "bot" with both token types.
-	k8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *join.RegisterParams) {
+	k8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *joinclient.JoinParams) {
 		p.KubernetesReadFileFunc = k8sReadFileFunc
 	})
 	require.NoError(t, err)
@@ -1035,7 +1087,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	// Rejoin using the k8s client and make sure we're issued certs with the
 	// same instance ID.
 	k8sClient := authClientForRegisterResult(t, ctx, addr, k8sResult)
-	rejoinedK8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *join.RegisterParams) {
+	rejoinedK8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *joinclient.JoinParams) {
 		p.KubernetesReadFileFunc = k8sReadFileFunc
 		p.AuthClient = k8sClient
 	})
@@ -1049,7 +1101,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	// join service, the instance ID must be provided to auth by the proxy as
 	// part of the `RegisterUsingTokenRequest`.
 	iamClient := authClientForRegisterResult(t, ctx, addr, awsResult)
-	rejoinedAWSResult, err := registerHelper(ctx, awsToken, addr, func(p *join.RegisterParams) {
+	rejoinedAWSResult, err := registerHelper(ctx, awsToken, addr, func(p *joinclient.JoinParams) {
 		p.AuthClient = iamClient
 	})
 	require.NoError(t, err)
@@ -1229,7 +1281,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, tokenB))
 
-	resultA, err := join.Register(ctx, join.RegisterParams{
+	resultA, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: tokenA.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -1242,7 +1294,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	initialInstanceA, _ := instanceIDFromCerts(t, certsA)
 	require.NotEmpty(t, initialInstanceA)
 
-	resultB, err := join.Register(ctx, join.RegisterParams{
+	resultB, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token: tokenB.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,

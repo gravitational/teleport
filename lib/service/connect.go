@@ -46,17 +46,16 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const updateClientsJoinWarning = "This agent joined the cluster during the update_clients phase of a host CA rotation, so its services might not be usable by clients that haven't logged in recently."
@@ -227,6 +227,19 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		return nil, trace.Wrap(err)
 	}
 
+	if role == types.RoleInstance {
+		// If necessary, heal the instance identity by rejoining to get a new
+		// identity with all required system roles. This is best-effort, any
+		// error will be logged and the current identity will continue to be
+		// used.
+		newIdentity, err := process.healInstanceIdentity(identity)
+		if err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Failed to heal instance identity", "error", err)
+		} else {
+			identity = newIdentity
+		}
+	}
+
 	rotation := processState.Spec.Rotation
 
 	switch rotation.State {
@@ -308,6 +321,98 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 	default:
 		return nil, trace.BadParameter("unsupported rotation state: %q", rotation.State)
 	}
+}
+
+func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Identity) (*state.Identity, error) {
+	currentSystemRoles := set.New(currentIdentity.SystemRoles...)
+	wantSystemRoles := set.NewWithCapacity[string](len(process.instanceRoles))
+	for role := range process.instanceRoles {
+		wantSystemRoles.Add(string(role))
+	}
+
+	missingSystemRoles := wantSystemRoles.Clone().Subtract(currentSystemRoles)
+	if len(missingSystemRoles) == 0 {
+		// The current instance identity contains all required roles, nothing to do.
+		return currentIdentity, nil
+	}
+
+	process.logger.InfoContext(process.ExitContext(), "Instance identity is missing required system roles, will attempt to self-heal", "missing_roles", missingSystemRoles.Elements())
+	additionalPrincipals, dnsNames := process.instanceAdditionalPrincipals()
+	var (
+		newIdentity *state.Identity
+		err         error
+	)
+	if server := process.getLocalAuth(); server != nil {
+		process.logger.InfoContext(process.ExitContext(), "Generating new Instance identity with local auth service")
+		newIdentity, err = auth.GenerateIdentity(server, currentIdentity.ID, additionalPrincipals, dnsNames)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate new instance identity with local auth service")
+		}
+	} else {
+		process.logger.InfoContext(process.ExitContext(), "Must rejoin to get a new Instance identity")
+		if !process.Config.HasToken() {
+			return nil, trace.Errorf("must rejoin to obtain missing system roles but no join token is configured")
+		}
+
+		// Make an auth client authenticated with the current instance identity to use for the rejoin.
+		currentConnector, err := process.getConnector(currentIdentity, currentIdentity)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to make connector with current instance identity")
+		}
+		currentAuthClient := currentConnector.Client
+
+		// Rejoin.
+		joinParams, err := process.makeJoinParams(
+			currentIdentity.ID,
+			additionalPrincipals,
+			dnsNames,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to make join params")
+		}
+		joinParams.AuthClient = currentAuthClient
+		rejoinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to rejoin")
+		}
+		privateKeyPEM, err := keys.MarshalPrivateKey(rejoinResult.PrivateKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to marshal private key")
+		}
+		newIdentity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, rejoinResult.Certs)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse new identity")
+		}
+	}
+
+	newSystemRoles := set.New(newIdentity.SystemRoles...)
+
+	// Sanity check we didn't lose any system roles.
+	if lostRoles := currentSystemRoles.Clone().Subtract(newSystemRoles); len(lostRoles) > 0 {
+		return nil, trace.Errorf("new Instance identity is missing the following system roles from the current identity (this is a bug): %v", lostRoles.Elements())
+	}
+
+	gainedSystemRoles := newSystemRoles.Clone().Subtract(currentSystemRoles)
+	if len(gainedSystemRoles) == 0 {
+		process.logger.WarnContext(process.ExitContext(), "Did not gain any system roles")
+		// Don't bother saving or returning the new identity if no system roles were gained.
+		return currentIdentity, nil
+	}
+
+	if rolesStillMissing := missingSystemRoles.Clone().Subtract(newSystemRoles); len(rolesStillMissing) > 0 {
+		process.logger.WarnContext(process.ExitContext(), "Partially healed instance identity but some required system roles are still missing",
+			"gained_roles", gainedSystemRoles.Elements(),
+			"missing_roles", rolesStillMissing.Elements())
+	} else {
+		process.logger.InfoContext(process.ExitContext(), "Obtained new instance identity with all required system roles",
+			"gained_roles", gainedSystemRoles.Elements(),
+		)
+	}
+
+	if err := process.storage.WriteIdentity(state.IdentityCurrent, *newIdentity); err != nil {
+		return nil, trace.Wrap(err, "failed to write new identity to storage")
+	}
+	return newIdentity, nil
 }
 
 // newWatcher returns a new watcher,
@@ -426,6 +531,15 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
 	}
+
+	if role == types.RoleInstance {
+		// Instance always joins first, only try to persist host ID after
+		// successfully completing the instance join and persisting the state
+		// and identity.
+		if err := process.storage.PersistAssignedHostID(process.GracefulExitContext(), process.Config, identity.ID.HostID()); err != nil {
+			return nil, trace.Wrap(err, "persisting host ID to storage")
+		}
+	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
 	return connector, nil
 }
@@ -463,7 +577,7 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	if role == types.RoleInstance {
 		// Always need to go through the join process to get the first Instance
 		// identity.
-		return process.join(role)
+		return process.instanceJoin()
 	}
 	// Wait for the instance connector to see if it can be used to reregister
 	// without going through the join process.
@@ -487,8 +601,10 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		// reach this point if the Instance identity couldn't get a certificate
 		// with this requested role, which should only happen if the new join
 		// service with auth-assigned host UUIDs is not available.
+		//
+		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
-		return process.joinWithHostUUID(role, instanceIdentity.ID.HostID())
+		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
 	}
 	// The instance connector does have the role requested, we can reregister
 	// without going through the join process.
@@ -496,7 +612,7 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	id := state.IdentityID{
 		Role:     role,
 		HostUUID: instanceIdentity.ID.HostUUID,
-		NodeName: instanceIdentity.ID.NodeName,
+		NodeName: process.Config.Hostname,
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, id.HostID())
 	if err != nil {
@@ -511,46 +627,76 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	return identity, trace.Wrap(err)
 }
 
-func (process *TeleportProcess) join(role types.SystemRole) (*state.Identity, error) {
-	// TODO(nklaassen): Host UUID should be generated and assigned by the auth
-	// service during joining.
-	hostUUID, err := process.storage.ReadOrGenerateHostID(process.GracefulExitContext(), process.Config)
+func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
+	id := state.IdentityID{
+		Role:     types.RoleInstance,
+		NodeName: process.Config.Hostname,
+	}
+	additionalPrincipals, dnsNames := process.instanceAdditionalPrincipals()
+	joinParams, err := process.makeJoinParams(id, additionalPrincipals, dnsNames)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := uuid.Parse(hostUUID); err != nil && !aws.IsEC2NodeID(hostUUID) {
-		process.Config.Logger.WarnContext(process.GracefulExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", hostUUID)
+	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
+	joinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+	if err != nil {
+		if utils.IsUntrustedCertErr(err) {
+			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.Wrap(err)
 	}
-	return process.joinWithHostUUID(role, hostUUID)
+	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+	return identity, trace.Wrap(err)
 }
 
-func (process *TeleportProcess) joinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {
-	if !process.Config.HasToken() {
-		return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
-	}
-
-	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-	token, err := process.Config.Token()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dataDir := defaults.DataDir
-	if process.Config.DataDir != "" {
-		dataDir = process.Config.DataDir
-	}
-
+func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {
 	id := state.IdentityID{
 		Role:     role,
-		HostUUID: hostUUID,
 		NodeName: process.Config.Hostname,
+		HostUUID: hostUUID,
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, hostUUID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	joinParams, err := process.makeJoinParams(id, additionalPrincipals, dnsNames)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
+	joinResult, err := joinclient.LegacyJoin(process.GracefulExitContext(), *joinParams)
+	if err != nil {
+		if utils.IsUntrustedCertErr(err) {
+			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.Wrap(err)
+	}
+	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+	return identity, trace.Wrap(err)
+}
 
-	registerParams := join.RegisterParams{
+func (process *TeleportProcess) makeJoinParams(
+	id state.IdentityID,
+	additionalPrincipals []string,
+	dnsNames []string,
+) (*joinclient.JoinParams, error) {
+	if !process.Config.HasToken() {
+		return nil, trace.BadParameter("must join a cluster but no token was configured")
+	}
+	token, err := process.Config.Token()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
+	joinParams := &joinclient.JoinParams{
 		Token:                token,
 		ID:                   id,
 		AuthServers:          process.Config.AuthServerAddresses(),
@@ -569,27 +715,12 @@ func (process *TeleportProcess) joinWithHostUUID(role types.SystemRole, hostUUID
 		FIPS:                 process.Config.FIPS,
 		Insecure:             lib.IsInsecureDevMode(),
 	}
-	if registerParams.JoinMethod == types.JoinMethodAzure {
-		registerParams.AzureParams = join.AzureParams{
+	if joinParams.JoinMethod == types.JoinMethodAzure {
+		joinParams.AzureParams = joinclient.AzureParams{
 			ClientID: process.Config.JoinParams.Azure.ClientID,
 		}
 	}
-
-	result, err := join.Register(process.ExitContext(), registerParams)
-	if err != nil {
-		if utils.IsUntrustedCertErr(err) {
-			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
-	return identity, trace.Wrap(err)
+	return joinParams, nil
 }
 
 func (process *TeleportProcess) initOpenSSH() {
@@ -936,6 +1067,13 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		return nil, trace.Wrap(err)
 	}
 
+	// Ensure the <hostname>.<clustername> principal is included and repair the
+	// host certificates if it is not. This is not included in the output of
+	// process.getAdditionalPrincipals which is usually called while joining
+	// before the cluster name is known.
+	additionalPrincipals = append(additionalPrincipals,
+		process.Config.Hostname+"."+conn.ClusterName())
+
 	var assertionID string
 	var systemRoles []types.SystemRole
 	var wantsSystemRoleRepair bool
@@ -944,6 +1082,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 		for _, baseRole := range clientIdentity.SystemRoles {
 			baseSystemRoles = append(baseSystemRoles, types.SystemRole(baseRole))
 		}
+		// Dangling system roles here should only be possible if
+		// healInstanceIdentity failed to get the necessary roles by rejoining
+		// via the new join service, this should only be necessary until the
+		// new join service supports all join methods.
+		//
+		// TODO(nklaassen): DELETE IN 20
 		var danglingSystemRoles []types.SystemRole
 		for _, activeRole := range process.getInstanceRoles() {
 			if slices.Contains(baseSystemRoles, activeRole) {

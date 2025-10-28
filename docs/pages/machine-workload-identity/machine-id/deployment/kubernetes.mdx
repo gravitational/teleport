@@ -69,77 +69,17 @@ a single join token. These services are:
   graduated to a generally available feature in Kubernetes 1.20).
 - `kubectl` authenticated with the ability to create resources in the cluster
   you wish to deploy `tbot` into.
+- The `helm` CLI tool installed.
 
 The examples in this guide will install a `tbot` deployment in the `default`
 Namespace of the Kubernetes cluster. Adjust references to `default` to the
 Namespace you wish to use.
 
-## Step 1/5. Prepare Kubernetes RBAC
-
-In order to prepare the Kubernetes cluster for Machine ID, several Kubernetes
-RBAC resources must be created.
-
-A ServiceAccount will be created and later assigned to the Pod that will run
-`tbot`. This creates a static identity that we can allow access to join the
-Teleport Cluster and also provides an identity to which we can assign Kubernetes
-privileges.
-
-A Role granting the ability to read and write to secrets in the Namespace will
-be created and then assigned to the ServiceAccount using a RoleBinding. This
-will allow the `tbot` Pod to read and write credentials to a Secret.
-
-Create a file called `k8s-rbac.yaml`:
-
-```yaml
-# This ServiceAccount will be used to give the `tbot` pods a discrete identity
-# which can be validated by the Teleport Auth Service.
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: tbot
-  namespace: default
----
-# This role grants the ability to manage secrets within the namespace - this is
-# necessary for the `kubernetes_secret` destination to work correctly.
-#
-# You may wish to add the `resourceNames` field to the role to further restrict
-# this access in sensitive environments.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: secrets-admin
-  namespace: default
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["*"]
----
-# Bind the role to the service account created for tbot.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: tbot-secrets-admin
-  namespace: default
-subjects:
-  - kind: ServiceAccount
-    name: tbot
-roleRef:
-  kind: Role
-  name:  secrets-admin
-  apiGroup: rbac.authorization.k8s.io
-```
-
-Apply this file to your Kubernetes cluster:
-
-```code
-$ kubectl apply -f ./k8s-rbac.yaml
-```
-
-## Step 2/5. Create a Bot
+## Step 1/4. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/5. Create a join token
+## Step 2/4. Create a join token
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
@@ -190,130 +130,46 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 4/5. Create a `tbot` deployment
+## Step 3/4. Create a `tbot` deployment
 
-First, a ConfigMap will be created to contain the configuration file for `tbot`.
-This will then be mounted into the Pod.
+Now, you'll deploy `tbot` to your Kubernetes cluster using the Teleport `tbot`
+Helm chart. This will be configured using values provided to the Helm CLI tool.
 
-Create `k8s-deployment-config.yaml`, replacing the value of `token` with the
-name of the token you created earlier and the value of `proxy_server` with the
-address of your Teleport Proxy Service:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: tbot-config
-  namespace: default
-data:
-  tbot.yaml: |
-    version: v2
-    onboarding:
-      join_method: kubernetes
-      # ensure token is set to the name of the join token you created earlier
-      token: bot-kubernetes
-    storage:
-      # a memory destination is used for the bots own state since the kubernetes
-      # join method does not require persistence.
-      type: memory
-    # ensure this is configured to the address of your Teleport Proxy Service.
-    proxy_server: example.teleport.sh:443
-    # outputs will be filled in during the completion of an access guide.
-    outputs: []
-```
-
-Apply this file to your Kubernetes cluster:
-
-```code
-$ kubectl apply -f k8s-deployment-config.yaml
-```
-
-With the ConfigMap created, you can now create the `tbot` deployment itself.
-
-Create `k8s-deployment.yaml`:
+First, create a file called `tbot-values.yaml` to hold the configuration values
+for the Helm chart:
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: tbot
-  namespace: default
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: tbot
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: tbot
-    spec:
-      containers:
-        - name: tbot
-          image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
-          args:
-            - start
-            - -c
-            - /config/tbot.yaml
-          env:
-            # POD_NAMESPACE is required for the `kubernetes_secret` destination
-            # type to work correctly.
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            # KUBERNETES_TOKEN_PATH specifies the path to the service account
-            # JWT to use for joining.
-            # This path is based on the configuration of the volume and
-            # volumeMount.
-            - name: KUBERNETES_TOKEN_PATH
-              value: /var/run/secrets/tokens/join-sa-token
-            # TELEPORT_ANONYMOUS_TELEMETRY enables the submission of anonymous
-            # usage telemetry.  This helps us shape the future development of
-            # `tbot`. You can disable this by omitting this.
-            - name: TELEPORT_ANONYMOUS_TELEMETRY
-              value: "1"
-          volumeMounts:
-            - mountPath: /config
-              name: config
-            - mountPath: /var/run/secrets/tokens
-              name: join-sa-token
-      serviceAccountName: tbot
-      volumes:
-        - name: config
-          configMap:
-            name: tbot-config
-        - name: join-sa-token
-          projected:
-            sources:
-              - serviceAccountToken:
-                  path: join-sa-token
-                  # 600 seconds is the minimum that Kubernetes supports. We
-                  # recommend this value is used.
-                  expirationSeconds: 600
-                  # `example.teleport.sh` must be replaced with the name of
-                  # your Teleport cluster.
-                  audience: example.teleport.sh
+# Replace the cluster name with the name of your Teleport cluster.
+# This is not necessarily the public address of your Teleport Proxy Service.
+clusterName: "example.teleport.sh"
+# Replace this with the address of your Teleport Proxy Service.
+teleportProxyAddress: "example.teleport.sh:443"
+# Ensure this matches the name of the join token you created earlier.
+token: "example-bot"
 ```
-
-Replace `example.teleport.sh` with the name of your Teleport cluster - this is
-not necessarily the public address (the port should not be included).
-
-This is an example manifest, consider modifying it to fit within the conventions
-of deployments to your clusters (e.g customizing labels).
 
 <Admonition type="warning" title="FIPS Compliance">
 The default `tbot-distroless` image does not contain the FIPS-compliant
 binaries. If you operate in an environment where FIPS compliance is required,
-please use the `tbot-fips-distroless` image instead.
+additionally set the `image: public.ecr.aws/gravitational/tbot-fips-distroless`.
 </Admonition>
 
-Apply this file to your Kubernetes cluster:
+Before you can deploy the Helm chart, if you have not previously deployed a
+Teleport Helm chart, you'll need to add the Teleport chart repository to your
+CLI:
 
 ```code
-$ kubectl apply -f ./k8s-deployment.yaml
+$ helm repo add teleport (=teleport.helm_repo_url=)
+$ helm repo update
+```
+
+You can now deploy the `tbot` Helm chart using the configuration you created
+earlier, ensuring you specify the namespace you wish to deploy `tbot` into:
+
+```code
+$ helm install tbot teleport/tbot \
+  --namespace default \
+  --values tbot-values.yaml
 ```
 
 Use `kubectl` to verify that the deployment is healthy:
@@ -324,26 +180,15 @@ $ kubectl logs deployment/tbot
 ```
 
 With this complete, `tbot` is now successfully deployed to your cluster.
-However, it is not yet producing any useful output.
 
-## Step 5/5. Configure outputs
+## Step 4/4. Using the output
 
-Follow one of the [access guides](../access-guides/access-guides.mdx) to configure an output
-that meets your access needs.
+By default, the `tbot` Helm chart is configured to write an identity file to a
+Kubernetes Secret called `tbot-out` in the namespace where `tbot` has been
+deployed.
 
-In order to adjust the access guides to work well with Kubernetes, use the
-Kubernetes Secret destination type. This will write the generated artifacts
-to a specified Kubernetes Secret, for example:
-
-```yaml
-outputs:
-  - type: identity
-    destination:
-      type: kubernetes_secret
-      name: identity-output
-```
-
-The output can then be consumed by mounting this secret within another pod:
+This identity file can be mounted into other pods and used with `tsh` or `tctl`
+to access and configure your Teleport cluster. For example:
 
 ```yaml
 apiVersion: v1
@@ -369,13 +214,21 @@ spec:
   volumes:
     - name: identity-output
       secret:
-        secretName: identity-output
+        secretName: tbot-out
 ```
+
+If you wish to use `tbot` for a different kind of access, you can override the
+type of output using the `services` value of the Helm chart and setting
+`defaultOutput.enabled` to `false`.
+
+Follow one of the [access guides](../access-guides/access-guides.mdx) to find
+out more about how to configure `tbot` for your use case.
 
 ## Next steps
 
-- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
-  your environment.
+- Explore the [Helm chart configuration reference](../../../reference/helm-reference/tbot.mdx).
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish
+  configuring `tbot` for your environment.
 - Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)

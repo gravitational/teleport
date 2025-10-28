@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/event-handler
 
-go 1.25.1
+go 1.25.3
 
 require (
 	github.com/alecthomas/kong v1.12.1
@@ -82,6 +82,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.254.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.32.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.65.0 // indirect

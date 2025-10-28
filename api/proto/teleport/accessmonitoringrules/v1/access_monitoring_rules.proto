@@ -100,8 +100,15 @@ message Schedule {
 // TimeSchedule specifies an in-line schedule.
 message TimeSchedule {
   // Shifts contains a set of shifts that make up the schedule.
-  // Shifts are configured in UTC.
   repeated Shift shifts = 1;
+
+  // Timezone specifies the schedule timezone. This field is optional and defaults
+  // to "UTC". Accepted values use timezone locations as defined in the IANA
+  // Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or
+  // "Asia/Singapore".
+  //
+  // See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.
+  string timezone = 2;
 
   // Shift contains the weekday, start time, and end time of a shift.
   message Shift {

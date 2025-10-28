@@ -274,9 +274,64 @@ its previous value.
 
 If [bot keypairs were rotated](#requesting-a-keypair-rotation) between the
 snapshot and restore of the Teleport cluster, note that bots only keep a record
-of the previous 10 keypairs. This means server-side recovery may impossible if
-the keypair expected by the restored Teleport cluster has been rotated out of
+of the previous 10 keypairs. This means server-side recovery may be impossible
+if the keypair expected by the restored Teleport cluster has been rotated out of
 the client-side history, or if the client-side history has been lost or deleted.
+
+## Manually rotating static keys
+
+Static keys prevent automatic key rotation as the `tbot` client cannot update
+keys in an arbitrary keystore. However, it may still possible to automate
+rotation if your environment or secret store allows you to update secrets
+through an API.
+
+The specific steps needed to automate these will vary based on your environment,
+but the general steps are:
+
+1. Generate a new keypair on any node using the tbot client:
+
+   ```code
+   $ tbot keypair create --proxy-server example.teleport.sh:443 --static --format json
+   ```
+
+2. Parse the `.public_key` and `.private_key` values using your tool of choice,
+   like `jq` or any other JSON parser.
+
+3. Replace the token in Teleport to trust the new public key, using the value in
+   the `.public_key` field:
+   ```code
+   $ cat my-token.yaml
+   version: v2
+   kind: token
+   metadata:
+     name: my-token
+   spec:
+     bot_name: example-bot
+     bound_keypair:
+       onboarding:
+         initial_public_key: <insert .public_key value here>
+       recovery:
+         mode: insecure
+     join_method: bound_keypair
+     roles:
+     - Bot
+   $ tctl create -f my-token.yaml
+   ```
+
+3. Insert the new private key into your keystore. This will vary depending on
+   which keystore or provider you are using.
+   * If passing the private key via an environment variable, copy the value directly
+   * If passing the private key via file, decode the base64-encoded private key first:
+     ```code
+     $ tbot keypair create --proxy-server example.teleport.sh:443 --static --format json | jq -r .private_key | base64 -d
+     ```
+     ...and store the result as needed.
+
+4. Future jobs should now use the new keypair.
+
+Frequently rotating static keys can help to mitigate the security tradeoffs of
+`insecure` recovery. See the [concepts page](concepts.mdx#static-keys) for more
+information about static keys.
 
 [rbac]: ../../../access-controls/roles.mdx
 [ephemeral]: ../../../architecture/machine-id-architecture.mdx#ephemeral-token

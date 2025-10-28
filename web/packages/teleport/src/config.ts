@@ -313,6 +313,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
+    kubernetesServer: {
+      list: `/v1/webapi/sites/:clusterId/kubernetesservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
 
     // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
@@ -502,6 +505,7 @@ const cfg = {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
       listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
+      metrics: '/v1/webapi/sites/:clusterId/machine-id/bot-instance/metrics',
     },
 
     workloadIdentity: {
@@ -1305,6 +1309,13 @@ const cfg = {
     });
   },
 
+  getKubernetesServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getAuthnChallengeWithTokenUrl(tokenId: string) {
     return generatePath(cfg.api.mfaAuthnChallengeWithTokenPath, {
       tokenId,
@@ -1710,6 +1721,9 @@ const cfg = {
           botName: string;
           instanceId: string;
         }
+      | {
+          action: 'metrics';
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
@@ -1727,6 +1741,10 @@ const cfg = {
           clusterId,
           botName: req.botName,
           instanceId: req.instanceId,
+        });
+      case 'metrics':
+        return generatePath(cfg.api.botInstance.metrics, {
+          clusterId,
         });
       default:
         req satisfies never;

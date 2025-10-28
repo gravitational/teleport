@@ -22,9 +22,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -50,20 +53,6 @@ func TestUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
 	ctx := context.Background()
 
-	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
-	updater := tools.NewUpdater(
-		toolsDir,
-		testVersions[0],
-		tools.WithBaseURL(baseURL),
-	)
-	err := updater.Update(ctx, testVersions[0])
-	require.NoError(t, err)
-
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
-	require.NoError(t, err)
-	tctlPath, err := updater.ToolPath("tctl", testVersions[0])
-	require.NoError(t, err)
-
 	// Verify that the installed version is equal to requested one.
 	cmd := exec.CommandContext(ctx, tctlPath, "version")
 	out, err := cmd.Output()
@@ -84,6 +73,59 @@ func TestUpdate(t *testing.T) {
 	matchVersion(t, string(out), testVersions[1])
 }
 
+// TestUpdateDifferentOSArch verifies the update logic for matching operating system
+// and architecture. If they differ from the current system, a new download must be
+// initiated even when the same version is already installed.
+func TestUpdateDifferentOSArch(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(types.HomeEnvVar, home)
+	ctx := context.Background()
+
+	// Execute version command with setting the new version which must trigger update and
+	// re-execution of the same command after downloading requested version.
+	cmd := exec.CommandContext(ctx, tshPath, "version")
+	cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
+	)
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	matchVersion(t, string(out), testVersions[1])
+
+	configPath := filepath.Join(home, "bin")
+
+	ctc, err := tools.GetToolsConfig(configPath)
+	require.NoError(t, err)
+	require.Len(t, ctc.Tools, 1)
+	require.Equal(t, runtime.GOOS, ctc.Tools[0].OS)
+	require.Equal(t, runtime.GOARCH, ctc.Tools[0].Arch)
+
+	// Update the architecture to a non-existing value.
+	err = tools.UpdateToolsConfig(configPath, func(ctc *tools.ClientToolsConfig) error {
+		ctc.Tools[0].Arch = "unknown"
+		return nil
+	})
+	require.NoError(t, err)
+
+	// After executing the version command, we should not match the architecture of the
+	// previously installed tool version. Since the package does not match, we must
+	// re-download the package for the required architecture and re-execute.
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
+	)
+	out, err = cmd.Output()
+	require.NoError(t, err)
+	matchVersion(t, string(out), testVersions[1])
+
+	ctc, err = tools.GetToolsConfig(configPath)
+	require.NoError(t, err)
+	// The second call to the version command installs another package with the required
+	// OS and architecture, and we should then see two packages in the list.
+	require.Len(t, ctc.Tools, 2)
+}
+
 // TestParallelUpdate launches multiple updater commands in parallel while defining a new version.
 // The first process should acquire a lock and block execution for the other processes. After the
 // first update is complete, other processes should acquire the lock one by one and re-execute
@@ -91,18 +133,6 @@ func TestUpdate(t *testing.T) {
 func TestParallelUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
 	ctx := context.Background()
-
-	// Initial fetch the updater binary un-archive and replace.
-	updater := tools.NewUpdater(
-		toolsDir,
-		testVersions[0],
-		tools.WithBaseURL(baseURL),
-	)
-	err := updater.Update(ctx, testVersions[0])
-	require.NoError(t, err)
-
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
-	require.NoError(t, err)
 
 	tCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	t.Cleanup(cancel)
@@ -120,7 +150,7 @@ func TestParallelUpdate(t *testing.T) {
 			os.Environ(),
 			fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 		)
-		err = cmd.Start()
+		err := cmd.Start()
 		require.NoError(t, err, "failed to start updater")
 
 		go func(cmd *exec.Cmd) {
@@ -152,28 +182,20 @@ func TestParallelUpdate(t *testing.T) {
 // TestUpdateInterruptSignal verifies the interrupt signal send to the process must stop downloading.
 func TestUpdateInterruptSignal(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx := context.Background()
-
-	// Initial fetch the updater binary un-archive and replace.
-	updater := tools.NewUpdater(
-		toolsDir,
-		testVersions[0],
-		tools.WithBaseURL(baseURL),
-	)
-	err := updater.Update(ctx, testVersions[0])
-	require.NoError(t, err)
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
-	require.NoError(t, err)
 
 	var output bytes.Buffer
-	cmd := exec.Command(tshPath, "version")
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	multiOut := io.MultiWriter(&output, os.Stdout)
+	cmd := newCommand(tshPath, "version")
+	cmd.Stdout = multiOut
+	cmd.Stderr = multiOut
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
-	err = cmd.Start()
+	err := cmd.Start()
+	if err != nil {
+		t.Log(output.String())
+	}
 	require.NoError(t, err, "failed to start updater")
 	pid := cmd.Process.Pid
 
@@ -196,7 +218,10 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.Fail(t, "failed to wait till the download is started")
 	case <-lock:
 		time.Sleep(100 * time.Millisecond)
-		require.NoError(t, sendInterrupt(pid))
+		t.Logf("sending signal to updater, pid: %d, test pid: %d", pid, os.Getpid())
+		err := sendInterrupt(pid)
+		require.NoError(t, err, "failed to send signal to updater")
+		time.Sleep(100 * time.Millisecond)
 		lock <- struct{}{}
 	}
 
@@ -209,6 +234,10 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Contains(t, output.String(), "Update progress:")
+
+	matches := pattern.FindStringSubmatch(output.String())
+	require.Len(t, matches, 2)
+	require.Equal(t, testVersions[0], matches[1])
 }
 
 // TestUpdateForOSSBuild verifies the update logic for AGPL editions of Teleport requires
@@ -221,17 +250,6 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	t.Setenv(updater.TestBuild, modules.BuildOSS)
 	t.Setenv(autoupdate.BaseURLEnvVar, "")
 
-	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
-	updater := tools.NewUpdater(
-		toolsDir,
-		testVersions[0],
-		tools.WithBaseURL(baseURL),
-	)
-	err := updater.Update(ctx, testVersions[0])
-	require.NoError(t, err)
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
-	require.NoError(t, err)
-
 	// Verify that requested update is ignored by OSS build and version wasn't updated.
 	cmd := exec.CommandContext(ctx, tshPath, "version")
 	cmd.Env = append(
@@ -239,6 +257,9 @@ func TestUpdateForOSSBuild(t *testing.T) {
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
 	out, err := cmd.Output()
+	if err != nil {
+		t.Log(string(out))
+	}
 	require.NoError(t, err)
 
 	matchVersion(t, string(out), testVersions[0])

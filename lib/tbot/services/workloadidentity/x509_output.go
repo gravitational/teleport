@@ -55,7 +55,7 @@ func X509OutputServiceBuilder(
 	crlCache CRLGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -68,11 +68,12 @@ func X509OutputServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			trustBundleCache:          trustBundleCache,
 			crlCache:                  crlCache,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(X509OutputServiceType, cfg.Name, buildFn)
 }
 
 // X509OutputService is a service that retrieves X.509 certificates

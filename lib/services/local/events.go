@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"strings"
@@ -272,6 +273,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRotatedKeyParser()
 		case types.KindRelayServer:
 			parser = newRelayServerParser()
+		case types.KindScopedToken:
+			parser = newScopedTokenParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -342,6 +345,10 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
+				if eo := parseEventOverrideError(nil); errors.As(err, &eo) {
+					events = append(events, eo...)
+					continue
+				}
 				errs = append(errs, trace.Wrap(err))
 				continue
 			}
@@ -401,13 +408,20 @@ func (w *watcher) Close() error {
 // resourceParser is an interface
 // for parsing resource from backend byte event stream
 type resourceParser interface {
-	// parse parses resource from the backend event
+	// parse parses resource from the backend event; if the returned error is a
+	// parseEventOverrideError then the returned resource is ignored and the
+	// events in the parseEventOverrideError will be added to the generated
+	// events instead.
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
 	match(key backend.Key) bool
 	// prefixes returns prefixes to watch
 	prefixes() []backend.Key
 }
+
+type parseEventOverrideError []types.Event
+
+func (p parseEventOverrideError) Error() string { return "parseEventOverrideError" }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).

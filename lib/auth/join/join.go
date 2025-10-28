@@ -190,6 +190,12 @@ type RegisterParams struct {
 	GitlabParams GitlabParams
 	// BoundKeypairParams contains parameters specific to bound keypair joining.
 	BoundKeypairParams *BoundKeypairParams
+	// CreateSignedSTSIdentityRequestFunc overrides the function used to
+	// generate a signed AWs sts:GetCallerIdentity request.
+	CreateSignedSTSIdentityRequestFunc func(ctx context.Context, challenge string, opts ...iam.STSIdentityRequestOption) ([]byte, error)
+	// GetInstanceIdentityDocumentFunc overrides the function used to get an
+	// EC2 Instance Identity Document for the host.
+	GetInstanceIdentityDocumentFunc func(ctx context.Context) ([]byte, error)
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -203,6 +209,14 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 
 	if err := r.verifyAuthOrProxyAddress(); err != nil {
 		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	if r.CreateSignedSTSIdentityRequestFunc == nil {
+		r.CreateSignedSTSIdentityRequestFunc = iam.CreateSignedSTSIdentityRequest
+	}
+
+	if r.GetInstanceIdentityDocumentFunc == nil {
+		r.GetInstanceIdentityDocumentFunc = awsutils.GetRawEC2IdentityDocument
 	}
 
 	return nil
@@ -261,6 +275,10 @@ type RegisterResult struct {
 // running on a different host than the auth server. This method requires a
 // provision token that will be used to authenticate as an identity that should
 // be allowed to join the cluster.
+//
+// Deprecated: this function is superceded by lib/join/joinclient.Join
+//
+// TODO(nklaassen): DELETE IN 20
 func Register(ctx context.Context, params RegisterParams) (result *RegisterResult, err error) {
 	ctx, span := tracer.Start(ctx, "Register")
 	defer func() { tracing.EndSpan(span, err) }()
@@ -285,7 +303,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = awsutils.GetRawEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = params.GetInstanceIdentityDocumentFunc(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -793,7 +811,7 @@ func registerUsingIAMMethod(
 	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
-		signedRequest, err := iam.CreateSignedSTSIdentityRequest(ctx, challenge,
+		signedRequest, err := params.CreateSignedSTSIdentityRequestFunc(ctx, challenge,
 			iam.WithFIPSEndpoint(params.FIPS),
 		)
 		if err != nil {

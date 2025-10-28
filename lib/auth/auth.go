@@ -117,7 +117,10 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/env0"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -488,7 +491,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.WorkloadIdentity = workloadIdentity
 	}
 	if cfg.Summarizer == nil {
-		summarizer, err := local.NewSummarizerService(cfg.Backend)
+		summarizer, err := local.NewSummarizerService(local.SummarizerServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(bl-nero): Relax this condition once we implement spend controls.
+			EnableBedrock: !modules.GetModules().Features().Cloud,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
 		}
@@ -569,6 +576,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.ScopedTokenService == nil {
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -635,6 +649,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		ScopedTokenService:              cfg.ScopedTokenService,
 	}
 
 	as = &Server{
@@ -791,6 +806,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if as.env0IDTokenValidator == nil {
+		validator, err := env0.NewIDTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.env0IDTokenValidator = validator
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
@@ -814,7 +838,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.botVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
+	as.BotInstanceVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
 		Clock: cfg.Clock,
 		Logger: as.logger.With(
 			teleport.ComponentKey,
@@ -826,9 +850,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Cache:      as.Cache,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := as.botVersionReporter.Run(as.CloseContext()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -906,6 +927,7 @@ type Services struct {
 	RecordingEncryptionManager
 	events.MultipartHandler
 	services.Summarizer
+	services.ScopedTokenService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1035,6 +1057,7 @@ var (
 		[]string{
 			teleport.TagUpgrader,
 			teleport.TagVersion,
+			teleport.TagUpgraderStatus,
 		},
 	)
 
@@ -1282,6 +1305,10 @@ type Server struct {
 	// challenge validators. Used to override the implementation used in tests.
 	createBoundKeypairValidator joinboundkeypair.CreateBoundKeypairValidator
 
+	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
+	// override the implementation used in tests.
+	env0IDTokenValidator join.Env0TokenValidator
+
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
@@ -1299,6 +1326,10 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// ec2ClientForEC2JoinMethod overrides the default client used for making
+	// requests to the AWS ec2 service during EC2 join attempt verification.
+	ec2ClientForEC2JoinMethod ec2join.EC2Client
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
@@ -1344,9 +1375,9 @@ type Server struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
-	// botVersionReporter is called periodically to generate a report of the
-	// number of bot instances by version and update group.
-	botVersionReporter *machineidv1.AutoUpdateVersionReporter
+	// BotInstanceVersionReporter is called periodically to generate a report of
+	// the number of bot instances by version and update group.
+	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1862,7 +1893,7 @@ func (a *Server) runPeriodicOperations() {
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
 			case autoUpdateBotInstanceReportKey:
-				go a.botVersionReporter.Report(a.closeCtx)
+				go a.BotInstanceVersionReporter.Report(a.closeCtx)
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
 			}
@@ -2174,8 +2205,9 @@ func (a *Server) updateAgentMetrics() {
 	upgraderCountsMetric.Reset()
 	for metadata, count := range imp.UpgraderCounts() {
 		upgraderCountsMetric.With(prometheus.Labels{
-			teleport.TagUpgrader: metadata.upgraderType,
-			teleport.TagVersion:  metadata.version,
+			teleport.TagUpgrader:       metadata.upgraderType,
+			teleport.TagVersion:        metadata.version,
+			teleport.TagUpgraderStatus: metadata.status,
 		}).Set(float64(count))
 	}
 }
@@ -2659,7 +2691,12 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
-	return services.GetUserOrLoginState(ctx, a, username)
+	// use Services (real backend instead of cache) to make sure that the GetUserOrLoginState function
+	// return always the up-to-date user state.
+	// During Login webhooks evaluation the user state is created an upserted into backend where next Login steps
+	// fetches the state from store and relies to have the latest version.
+	// TODO(smallinsky): Get rid of sharing user state via backend and use the proper param forwarding instead.
+	return services.GetUserOrLoginState(ctx, a.Services, username)
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
