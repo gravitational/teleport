@@ -69,7 +69,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
-          ref: 6ea1f547eee108478e4dc576cc2128f2fb0e460a 
+          ref: 6f388765b8ce993721502083c74cb9af1fc5658f 
 
       - name: Install Go
         uses: actions/setup-go@v5
