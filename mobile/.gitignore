@@ -14,3 +14,5 @@ timeline.xctimeline
 playground.xcworkspace
 
 .build/
+
+**/gen/*.xcframework/

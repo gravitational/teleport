@@ -5,6 +5,7 @@
 //  Created by Rafał Cieślak on 2025-09-11.
 //
 
+import Authn
 import os
 import SwiftUI
 
@@ -39,6 +40,18 @@ struct ContentView: View {
         .debug(
           "Got URL: \(url, privacy: .public), parsed: \(openedURL.debugDescription, privacy: .public)"
         )
+    }
+    .onAppear {
+      Task {
+        let greeter = AuthnGreeter()!
+        logger.debug("Attempting to send a ping")
+        do {
+          try greeter.ping()
+          logger.debug("Ping successful")
+        } catch {
+          logger.error("Got an error: \(error)")
+        }
+      }
     }
   }
 }

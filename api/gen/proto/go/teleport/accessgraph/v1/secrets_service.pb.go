@@ -390,6 +390,80 @@ type ReportSecretsResponse_DeviceAssertion struct {
 
 func (*ReportSecretsResponse_DeviceAssertion) isReportSecretsResponse_Payload() {}
 
+// PingRequest foo.
+type PingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PingRequest) Reset() {
+	*x = PingRequest{}
+	mi := &file_teleport_access_graph_v1_secrets_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PingRequest) ProtoMessage() {}
+
+func (x *PingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_access_graph_v1_secrets_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
+func (*PingRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{5}
+}
+
+// PingResponse foo.
+type PingResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PingResponse) Reset() {
+	*x = PingResponse{}
+	mi := &file_teleport_access_graph_v1_secrets_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PingResponse) ProtoMessage() {}
+
+func (x *PingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_access_graph_v1_secrets_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
+func (*PingResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{6}
+}
+
 var File_teleport_access_graph_v1_secrets_service_proto protoreflect.FileDescriptor
 
 const file_teleport_access_graph_v1_secrets_service_proto_rawDesc = "" +
@@ -407,14 +481,17 @@ const file_teleport_access_graph_v1_secrets_service_proto_rawDesc = "" +
 	"\x04keys\x18\x01 \x03(\v2$.teleport.access_graph.v1.PrivateKeyR\x04keys\"~\n" +
 	"\x15ReportSecretsResponse\x12Z\n" +
 	"\x10device_assertion\x18\x01 \x01(\v2-.teleport.devicetrust.v1.AssertDeviceResponseH\x00R\x0fdeviceAssertionB\t\n" +
-	"\apayload*`\n" +
+	"\apayload\"\r\n" +
+	"\vPingRequest\"\x0e\n" +
+	"\fPingResponse*`\n" +
 	"\rOperationType\x12\x1e\n" +
 	"\x1aOPERATION_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12OPERATION_TYPE_ADD\x10\x01\x12\x17\n" +
-	"\x13OPERATION_TYPE_SYNC\x10\x022\x9d\x02\n" +
+	"\x13OPERATION_TYPE_SYNC\x10\x022\xf4\x02\n" +
 	"\x15SecretsScannerService\x12\x8b\x01\n" +
 	"\x14ReportAuthorizedKeys\x125.teleport.access_graph.v1.ReportAuthorizedKeysRequest\x1a6.teleport.access_graph.v1.ReportAuthorizedKeysResponse\"\x00(\x010\x01\x12v\n" +
-	"\rReportSecrets\x12..teleport.access_graph.v1.ReportSecretsRequest\x1a/.teleport.access_graph.v1.ReportSecretsResponse\"\x00(\x010\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1;accessgraphv1b\x06proto3"
+	"\rReportSecrets\x12..teleport.access_graph.v1.ReportSecretsRequest\x1a/.teleport.access_graph.v1.ReportSecretsResponse\"\x00(\x010\x01\x12U\n" +
+	"\x04Ping\x12%.teleport.access_graph.v1.PingRequest\x1a&.teleport.access_graph.v1.PingResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1;accessgraphv1b\x06proto3"
 
 var (
 	file_teleport_access_graph_v1_secrets_service_proto_rawDescOnce sync.Once
@@ -429,7 +506,7 @@ func file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_access_graph_v1_secrets_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_access_graph_v1_secrets_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_access_graph_v1_secrets_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_access_graph_v1_secrets_service_proto_goTypes = []any{
 	(OperationType)(0),                   // 0: teleport.access_graph.v1.OperationType
 	(*ReportAuthorizedKeysRequest)(nil),  // 1: teleport.access_graph.v1.ReportAuthorizedKeysRequest
@@ -437,27 +514,31 @@ var file_teleport_access_graph_v1_secrets_service_proto_goTypes = []any{
 	(*ReportSecretsRequest)(nil),         // 3: teleport.access_graph.v1.ReportSecretsRequest
 	(*ReportPrivateKeys)(nil),            // 4: teleport.access_graph.v1.ReportPrivateKeys
 	(*ReportSecretsResponse)(nil),        // 5: teleport.access_graph.v1.ReportSecretsResponse
-	(*AuthorizedKey)(nil),                // 6: teleport.access_graph.v1.AuthorizedKey
-	(*v1.AssertDeviceRequest)(nil),       // 7: teleport.devicetrust.v1.AssertDeviceRequest
-	(*PrivateKey)(nil),                   // 8: teleport.access_graph.v1.PrivateKey
-	(*v1.AssertDeviceResponse)(nil),      // 9: teleport.devicetrust.v1.AssertDeviceResponse
+	(*PingRequest)(nil),                  // 6: teleport.access_graph.v1.PingRequest
+	(*PingResponse)(nil),                 // 7: teleport.access_graph.v1.PingResponse
+	(*AuthorizedKey)(nil),                // 8: teleport.access_graph.v1.AuthorizedKey
+	(*v1.AssertDeviceRequest)(nil),       // 9: teleport.devicetrust.v1.AssertDeviceRequest
+	(*PrivateKey)(nil),                   // 10: teleport.access_graph.v1.PrivateKey
+	(*v1.AssertDeviceResponse)(nil),      // 11: teleport.devicetrust.v1.AssertDeviceResponse
 }
 var file_teleport_access_graph_v1_secrets_service_proto_depIdxs = []int32{
-	6, // 0: teleport.access_graph.v1.ReportAuthorizedKeysRequest.keys:type_name -> teleport.access_graph.v1.AuthorizedKey
-	0, // 1: teleport.access_graph.v1.ReportAuthorizedKeysRequest.operation:type_name -> teleport.access_graph.v1.OperationType
-	7, // 2: teleport.access_graph.v1.ReportSecretsRequest.device_assertion:type_name -> teleport.devicetrust.v1.AssertDeviceRequest
-	4, // 3: teleport.access_graph.v1.ReportSecretsRequest.private_keys:type_name -> teleport.access_graph.v1.ReportPrivateKeys
-	8, // 4: teleport.access_graph.v1.ReportPrivateKeys.keys:type_name -> teleport.access_graph.v1.PrivateKey
-	9, // 5: teleport.access_graph.v1.ReportSecretsResponse.device_assertion:type_name -> teleport.devicetrust.v1.AssertDeviceResponse
-	1, // 6: teleport.access_graph.v1.SecretsScannerService.ReportAuthorizedKeys:input_type -> teleport.access_graph.v1.ReportAuthorizedKeysRequest
-	3, // 7: teleport.access_graph.v1.SecretsScannerService.ReportSecrets:input_type -> teleport.access_graph.v1.ReportSecretsRequest
-	2, // 8: teleport.access_graph.v1.SecretsScannerService.ReportAuthorizedKeys:output_type -> teleport.access_graph.v1.ReportAuthorizedKeysResponse
-	5, // 9: teleport.access_graph.v1.SecretsScannerService.ReportSecrets:output_type -> teleport.access_graph.v1.ReportSecretsResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	8,  // 0: teleport.access_graph.v1.ReportAuthorizedKeysRequest.keys:type_name -> teleport.access_graph.v1.AuthorizedKey
+	0,  // 1: teleport.access_graph.v1.ReportAuthorizedKeysRequest.operation:type_name -> teleport.access_graph.v1.OperationType
+	9,  // 2: teleport.access_graph.v1.ReportSecretsRequest.device_assertion:type_name -> teleport.devicetrust.v1.AssertDeviceRequest
+	4,  // 3: teleport.access_graph.v1.ReportSecretsRequest.private_keys:type_name -> teleport.access_graph.v1.ReportPrivateKeys
+	10, // 4: teleport.access_graph.v1.ReportPrivateKeys.keys:type_name -> teleport.access_graph.v1.PrivateKey
+	11, // 5: teleport.access_graph.v1.ReportSecretsResponse.device_assertion:type_name -> teleport.devicetrust.v1.AssertDeviceResponse
+	1,  // 6: teleport.access_graph.v1.SecretsScannerService.ReportAuthorizedKeys:input_type -> teleport.access_graph.v1.ReportAuthorizedKeysRequest
+	3,  // 7: teleport.access_graph.v1.SecretsScannerService.ReportSecrets:input_type -> teleport.access_graph.v1.ReportSecretsRequest
+	6,  // 8: teleport.access_graph.v1.SecretsScannerService.Ping:input_type -> teleport.access_graph.v1.PingRequest
+	2,  // 9: teleport.access_graph.v1.SecretsScannerService.ReportAuthorizedKeys:output_type -> teleport.access_graph.v1.ReportAuthorizedKeysResponse
+	5,  // 10: teleport.access_graph.v1.SecretsScannerService.ReportSecrets:output_type -> teleport.access_graph.v1.ReportSecretsResponse
+	7,  // 11: teleport.access_graph.v1.SecretsScannerService.Ping:output_type -> teleport.access_graph.v1.PingResponse
+	9,  // [9:12] is the sub-list for method output_type
+	6,  // [6:9] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_access_graph_v1_secrets_service_proto_init() }
@@ -480,7 +561,7 @@ func file_teleport_access_graph_v1_secrets_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_access_graph_v1_secrets_service_proto_rawDesc), len(file_teleport_access_graph_v1_secrets_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -91,6 +91,10 @@ func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerServ
 	return trace.NewAggregate(err, <-errCh)
 }
 
+func (s *Service) Ping(ctx context.Context, req *accessgraphsecretsv1pb.PingRequest) (*accessgraphsecretsv1pb.PingResponse, error) {
+	return &accessgraphsecretsv1pb.PingResponse{}, nil
+}
+
 func (s *Service) forwardClientToServer(ctx context.Context,
 	client accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer,
 	server accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) (err error) {

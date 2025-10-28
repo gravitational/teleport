@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SecretsScannerService_ReportAuthorizedKeys_FullMethodName = "/teleport.access_graph.v1.SecretsScannerService/ReportAuthorizedKeys"
 	SecretsScannerService_ReportSecrets_FullMethodName        = "/teleport.access_graph.v1.SecretsScannerService/ReportSecrets"
+	SecretsScannerService_Ping_FullMethodName                 = "/teleport.access_graph.v1.SecretsScannerService/Ping"
 )
 
 // SecretsScannerServiceClient is the client API for SecretsScannerService service.
@@ -61,6 +62,8 @@ type SecretsScannerServiceClient interface {
 	// Any failure in the assertion ceremony will result in the stream being terminated by the server. All secrets
 	// reported by the client before the assertion terminates will be ignored and result in the stream being terminated.
 	ReportSecrets(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ReportSecretsRequest, ReportSecretsResponse], error)
+	// Ping does ping.
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 }
 
 type secretsScannerServiceClient struct {
@@ -97,6 +100,16 @@ func (c *secretsScannerServiceClient) ReportSecrets(ctx context.Context, opts ..
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SecretsScannerService_ReportSecretsClient = grpc.BidiStreamingClient[ReportSecretsRequest, ReportSecretsResponse]
 
+func (c *secretsScannerServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PingResponse)
+	err := c.cc.Invoke(ctx, SecretsScannerService_Ping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SecretsScannerServiceServer is the server API for SecretsScannerService service.
 // All implementations must embed UnimplementedSecretsScannerServiceServer
 // for forward compatibility.
@@ -121,6 +134,8 @@ type SecretsScannerServiceServer interface {
 	// Any failure in the assertion ceremony will result in the stream being terminated by the server. All secrets
 	// reported by the client before the assertion terminates will be ignored and result in the stream being terminated.
 	ReportSecrets(grpc.BidiStreamingServer[ReportSecretsRequest, ReportSecretsResponse]) error
+	// Ping does ping.
+	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	mustEmbedUnimplementedSecretsScannerServiceServer()
 }
 
@@ -136,6 +151,9 @@ func (UnimplementedSecretsScannerServiceServer) ReportAuthorizedKeys(grpc.BidiSt
 }
 func (UnimplementedSecretsScannerServiceServer) ReportSecrets(grpc.BidiStreamingServer[ReportSecretsRequest, ReportSecretsResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ReportSecrets not implemented")
+}
+func (UnimplementedSecretsScannerServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedSecretsScannerServiceServer) mustEmbedUnimplementedSecretsScannerServiceServer() {}
 func (UnimplementedSecretsScannerServiceServer) testEmbeddedByValue()                               {}
@@ -172,13 +190,36 @@ func _SecretsScannerService_ReportSecrets_Handler(srv interface{}, stream grpc.S
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type SecretsScannerService_ReportSecretsServer = grpc.BidiStreamingServer[ReportSecretsRequest, ReportSecretsResponse]
 
+func _SecretsScannerService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecretsScannerServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecretsScannerService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecretsScannerServiceServer).Ping(ctx, req.(*PingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SecretsScannerService_ServiceDesc is the grpc.ServiceDesc for SecretsScannerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var SecretsScannerService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.access_graph.v1.SecretsScannerService",
 	HandlerType: (*SecretsScannerServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Ping",
+			Handler:    _SecretsScannerService_Ping_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "ReportAuthorizedKeys",

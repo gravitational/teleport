@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4573DB542EB1252D00154B92 /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 4573DB532EB1252D00154B92 /* libresolv.9.tbd */; };
 		45FFF3B52E84116F00A28C94 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF3B42E84116F00A28C94 /* Connect */; };
 		45FFF4212E842E7B00A28C94 /* ConnectNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF4202E842E7B00A28C94 /* ConnectNIO */; };
 /* End PBXBuildFile section */
@@ -29,6 +30,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4573DB532EB1252D00154B92 /* libresolv.9.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.9.tbd; path = usr/lib/libresolv.9.tbd; sourceTree = SDKROOT; };
 		45D39C852E730E8D005CB76F /* Foobar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Foobar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		45D39C922E730E8F005CB76F /* FoobarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoobarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		45D39C9C2E730E8F005CB76F /* FoobarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoobarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4573DB542EB1252D00154B92 /* libresolv.9.tbd in Frameworks */,
 				45FFF4212E842E7B00A28C94 /* ConnectNIO in Frameworks */,
 				45FFF3B52E84116F00A28C94 /* Connect in Frameworks */,
 			);
@@ -92,12 +95,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4573DB522EB1252D00154B92 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4573DB532EB1252D00154B92 /* libresolv.9.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		45D39C7C2E730E8D005CB76F = {
 			isa = PBXGroup;
 			children = (
 				45D39C872E730E8D005CB76F /* Foobar */,
 				45D39C952E730E8F005CB76F /* FoobarTests */,
 				45D39C9F2E730E8F005CB76F /* FoobarUITests */,
+				4573DB522EB1252D00154B92 /* Frameworks */,
 				45D39C862E730E8D005CB76F /* Products */,
 			);
 			sourceTree = "<group>";
