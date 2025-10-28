@@ -20,8 +20,6 @@ package srv
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,11 +34,11 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	protobuf "github.com/golang/protobuf/proto"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	sshv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1128,14 +1126,16 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 
 	log.DebugContext(ctx, "MFA required for client")
 
-	question := struct {
-		ActionID string `json:"actionId"`
-		Message  string `json:"message"`
-	}{
-		ActionID: actionID,
-		Message:  "MFA required. Complete the challenge using the provided action ID.",
+	question := &sshv1.AuthPrompt{
+		Prompt: &sshv1.AuthPrompt_MfaPrompt{
+			MfaPrompt: &sshv1.MFAPrompt{
+				ActionId: actionID,
+				Message:  "MFA required. Complete the challenge using the provided action ID.",
+			},
+		},
 	}
-	questionBytes, err := json.Marshal(question)
+
+	questionBytes, err := protojson.Marshal(question)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1153,19 +1153,17 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 
 	log.DebugContext(ctx, "Received MFA challenge response from client")
 
-	decodedBytes, err := base64.StdEncoding.DecodeString(answers[0])
-	if err != nil {
-		return nil, trace.AccessDenied("MFA answer was not valid base64 for %q and action ID %q: %v", conn.User(), actionID, err)
-	}
-
-	var resp proto.MFAAuthenticateResponse
-	if err := protobuf.Unmarshal(decodedBytes, &resp); err != nil {
+	var answer sshv1.MFAPromptAnswer
+	if err := protojson.Unmarshal([]byte(answers[0]), &answer); err != nil {
 		return nil, trace.AccessDenied("MFA answer was not valid for %q and action ID %q: %v", conn.User(), actionID, err)
 	}
 
 	log.DebugContext(ctx, "Decoded MFA challenge response from client")
 
 	// TODO(cthach): Validate the MFA response by calling the MFAService.
+	if answer.GetMfaResponse() == nil {
+		return nil, trace.AccessDenied("MFA response was not provided by user %q and action ID %q", conn.User(), actionID)
+	}
 
 	log.DebugContext(ctx, "MFA challenge completed successfully for client")
 

@@ -24,8 +24,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -54,6 +52,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -65,6 +64,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	sshv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -3333,18 +3333,19 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 				return nil, trace.BadParameter("expected at least one challenge question")
 			}
 
-			var question struct {
-				ActionID string `json:"actionId"`
-				Message  string `json:"message"`
-			}
-			if err := json.Unmarshal([]byte(questions[0]), &question); err != nil {
+			var question sshv1.AuthPrompt
+			if err := protojson.Unmarshal([]byte(questions[0]), &question); err != nil {
 				return nil, trace.Wrap(err)
+			}
+
+			if _, ok := question.GetPrompt().(*sshv1.AuthPrompt_MfaPrompt); !ok {
+				return nil, trace.BadParameter("unsupported challenge type: %T", question.GetPrompt())
 			}
 
 			fmt.Println(instruction)
 
 			mfaResponse, err := tc.NewMFACeremony().RunForAction(ctx, &mfav1.CreateChallengeForActionRequest{
-				ActionId:             question.ActionID,
+				ActionId:             question.GetMfaPrompt().GetActionId(),
 				User:                 user,
 				SsoClientRedirectUrl: "", // Will be populated by the ceremony if SSO MFA is configured.
 				ProxyAddress:         proxyAddr,
@@ -3353,15 +3354,16 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 				return nil, trace.Wrap(err)
 			}
 
-			challengeRespBytes := make([]byte, mfaResponse.Size())
-			if _, err := mfaResponse.MarshalTo(challengeRespBytes); err != nil {
+			answer := &sshv1.MFAPromptAnswer{
+				MfaResponse: mfaResponse,
+			}
+
+			answerBytes, err := protojson.Marshal(answer)
+			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			// Base64 encode so serializing proto bytes to string is safe. Will be decoded on the server side.
-			encodedChallengeResponse := base64.StdEncoding.EncodeToString(challengeRespBytes)
-
-			return []string{encodedChallengeResponse}, nil
+			return []string{string(answerBytes)}, nil
 		}),
 	)
 
