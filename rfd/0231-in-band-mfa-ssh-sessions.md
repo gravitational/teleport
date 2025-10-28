@@ -498,59 +498,24 @@ in‑band MFA flow.
 
 ### Audit Events
 
-The RPCs defined in the [MFA service](#mfa-service) will emit audit events for creating and validating MFA challenges
-tied to specific user actions. No other changes to audit events are expected as they are already covered by existing
-events (e.g., SSH access).
+The existing audit events for MFA challenge creation and validation will be updated to include the action ID field to
+provide better context about the MFA challenges being created and validated.
 
 ```proto
-// CreateMFAChallengeForAction records the creation of an MFA auth challenge.
-message CreateMFAChallengeForAction {
-  // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
+// CreateMFAAuthChallenge records the creation of an MFA auth challenge.
+message CreateMFAAuthChallenge {
+  // ... existing fields ...
 
-  // User is a common user event metadata.
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ActionID is the ID of the action requiring MFA.
-  string ActionID = 3 [(gogoproto.jsontag) = "action_id"];
+  // ActionID is the optional ID of the action requiring MFA.
+  string ActionID = 5 [(gogoproto.jsontag) = "action_id,omitempty"];
 }
 
-// ValidateMFAChallengeForAction records the validation of an MFA auth challenge response.
-message ValidateMFAChallengeForAction {
-  // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
+// ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
+message ValidateMFAAuthResponse {
+  // ... existing fields ...
 
-  // User is a common user event metadata.
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Status contains common command or operation status fields
-  Status Status = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // MFADevice is the MFA device used.
-  MFADeviceMetadata MFADevice = 4 [(gogoproto.jsontag) = "mfa_device,omitempty"];
-
-  // ActionID is the ID of the action requiring MFA.
-  string ActionID = 5 [(gogoproto.jsontag) = "action_id"];
+  // ActionID is the optional ID of the action requiring MFA.
+  string ActionID = 7 [(gogoproto.jsontag) = "action_id,omitempty"];
 }
 ```
 
@@ -604,7 +569,8 @@ The following are assumed to be completed before starting work on this RFD:
 1. Update modern agents to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
    legacy clients.
 1. Add tests to ensure both legacy and modern clients can connect to both legacy and modern agents as expected.
-1. Audit events are emitted for the new `MFAService` RPCs.
+1. Update existing audit events to include the action ID field. Clients should be updated to display the action ID if
+   available.
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
