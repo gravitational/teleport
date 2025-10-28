@@ -24,7 +24,7 @@ By the end, you'll have a working `tbot` service that issues SPIFFE-compatible c
   be named `teleport-bot-role`.
 - An AWS EC2 instance with the IAM role attached that you'll install Machine ID onto.
 
-## Step 1/10. Install `tbot`
+## Step 1/9. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -34,13 +34,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/10. Create a Bot
+## Step 2/9. Create a Bot
 
 **This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/10. Create a join token
+## Step 3/9. Create a join token
 
 **This step is completed on your local machine.**
 
@@ -79,10 +79,10 @@ Replace:
 Use `tctl` to apply this file:
 
 ```code
-$ tctl create -f bot-token.yaml
+$ tctl create bot-token.yaml
 ```
 
-## Step 4/10. Configure `tbot`
+## Step 4/9. Configure `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -90,14 +90,48 @@ Create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
+
+# Teleport proxy server address
 proxy_server: example.teleport.sh:443
+
+# Onboarding configuration
 onboarding:
-  join_method: iam
+  join_method: token
   token: example-bot
+
+# Storage configuration for tbot state
 storage:
-  type: memory
-# outputs will be filled in during the completion of an access guide.
-outputs: []
+  type: directory
+  path: /var/lib/teleport/bot
+
+# Outputs section - specifies the credentials tbot should generate
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id/identity
+
+# Services section - configures the workload-identity-api service
+services:
+  - type: workload-identity-api
+    # Path to the socket file that workloads will connect to
+    listen: unix:///opt/machine-id/workload.sock
+    
+    # Specifies which WorkloadIdentity resource will be used to issue credentials
+    selector:
+      # Replace with the actual name of your Workload Identity resource
+      name: example-workload-identity
+    
+    # Optional workload attestation configuration to restrict which processes
+    # can obtain credentials from this service
+    unix:
+      enabled: true
+      # Optional: Restrict by user IDs (numeric)
+      uid:
+        equals: [1000]
+      # Optional: Restrict by group IDs (numeric)
+      gid:
+        equals: [1000]
 ```
 
 Replace:
@@ -108,7 +142,7 @@ Replace:
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 5/10. Create a role for tbot
+## Step 5/9. Create a role for tbot
 
 To let Teleport users or services run `tbot`, you need a role that grants the required permissions for authenticating and requesting short-lived certificates.
 `tbot` uses a bot token issued by the Auth Service and operates under a bot role that defines what the bot can impersonate (e.g., roles, resources).
@@ -138,7 +172,7 @@ spec:
 **Apply the role to your cluster:**
 
 ```code
-$ tctl create -f tbot-role.yaml
+$ tctl create tbot-role.yaml
 ```
 
 <Admonition type="note">
@@ -155,7 +189,7 @@ You can replace these names with any roles that reflect your organization's use 
 to accommodate long-running bot instances, though the actual certificates `tbot` issues will still be short-lived.
 </Admonition>
 
-## Step 6/10. Assign the role to the bot
+**Assign the role to the bot:**
 
 Assign the `tbot` role to the bot created earlier.
 
@@ -163,7 +197,7 @@ Assign the `tbot` role to the bot created earlier.
 $ tctl users update example-bot --set-roles=tbot
 ```
 
-## Step 7/10. Configure Workload Identity
+## Step 6/9. Configure Workload Identity
 
 Next, we'll configure Workload Identity on the target resource you just created. 
 With your bot configured and connected to Teleport, you can now use it to issue SPIFFE-compatible 
@@ -198,7 +232,7 @@ Replace:
 - `example-workload-identity` with a name that describes your use-case.
 - `/svc/foo` with the SPIFFE ID path you have decided on issuing.
 
-Use `tctl create -f ./workload-identity.yaml` to create the Workload Identity.
+Use `tctl create ./workload-identity.yaml` to create the Workload Identity.
 
 You'll need to create a role that will grant access to the Workload Identity
 that you have just created. As with other Teleport resources, access is granted
@@ -227,7 +261,7 @@ spec:
       - read
 ```
 
-Use `tctl create -f ./workload-identity-issuer-role.yaml` to create the role.
+Use `tctl create ./workload-identity-issuer-role.yaml` to create the role.
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example-bot`
 with the name of the Bot you created in the deployment guide and
@@ -237,7 +271,7 @@ with the name of the Bot you created in the deployment guide and
 $ tctl bots update example-bot --add-roles example-workload-identity-issuer
 ```
 
-## Step 8/10. Expose a Workload API endpoint
+## Step 7/9. Expose a Workload API endpoint
 
 Configure `workload-identity-api` service in `tbot`. To issue SPIFFE credentials to workloads, `tbot` must expose a Workload API endpoint.
 You'll configure this by adding the `workload-identity-api` service to your `tbot` configuration.
@@ -263,7 +297,7 @@ Replace:
 
 Restart your `tbot` instance to apply the new configuration.
 
-## Step 9/10. Testing the Workload API with `tbot spiffe-inspect`
+## Step 9/9. Testing the Workload API with `tbot spiffe-inspect`
 
 Use `tbot spiffe-inspect` to verify that the Workload API endpoint is issuing SPIFFE credentials correctly.
 This command connects to the endpoint, requests SVIDs, and prints detailed debug information.
