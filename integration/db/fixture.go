@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -115,7 +116,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	pack.MongoService = servicecfg.Database{
 		Name:     fmt.Sprintf("%s-mongo", pack.name),
 		Protocol: defaults.ProtocolMongoDB,
-		URI:      pack.mongoAddr,
+		URI:      fmt.Sprintf("mongodb://%s/?heartbeatintervalms=500", pack.mongoAddr),
 	}
 
 	cassandaListener, pack.cassandraAddr = mustListen(t)
@@ -173,7 +174,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		AuthClient: pack.dbAuthClient,
 		Name:       pack.MongoService.Name,
 		Listener:   mongoListener,
-	})
+	}, mongodb.TestServerSetFakeUserAuthError("nonexistent", trace.NotFound("user does not exist")))
 	require.NoError(t, err)
 	go pack.mongo.Serve()
 	t.Cleanup(func() { pack.mongo.Close() })
