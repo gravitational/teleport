@@ -327,6 +327,8 @@ type Semaphores interface {
 	CancelSemaphoreLease(ctx context.Context, lease SemaphoreLease) error
 	// GetSemaphores returns a list of semaphores matching supplied filter.
 	GetSemaphores(ctx context.Context, filter SemaphoreFilter) ([]Semaphore, error)
+	// ListSemaphores returns a page of semaphores matching supplied filter.
+	ListSemaphores(ctx context.Context, limit int, start string, filter *SemaphoreFilter) ([]Semaphore, string, error)
 	// DeleteSemaphore deletes a semaphore matching supplied filter.
 	DeleteSemaphore(ctx context.Context, filter SemaphoreFilter) error
 }

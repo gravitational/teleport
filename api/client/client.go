@@ -1424,16 +1424,44 @@ func (c *Client) CancelSemaphoreLease(ctx context.Context, lease types.Semaphore
 }
 
 // GetSemaphores returns a list of all semaphores matching the supplied filter.
+// Deprecated: Prefer paginated variant such as [Client.ListSemaphores]
 func (c *Client) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]types.Semaphore, error) {
-	rsp, err := c.grpc.GetSemaphores(ctx, &filter)
+	return clientutils.CollectWithFallback(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.Semaphore, string, error) {
+			return c.ListSemaphores(ctx, pageSize, pageToken, &filter)
+		},
+		func(ctx context.Context) ([]types.Semaphore, error) {
+			//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
+			rsp, err := c.grpc.GetSemaphores(ctx, &filter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sems := make([]types.Semaphore, 0, len(rsp.Semaphores))
+			for _, s := range rsp.Semaphores {
+				sems = append(sems, s)
+			}
+			return sems, nil
+		},
+	)
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (c *Client) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	resp, err := c.grpc.ListSemaphores(ctx, &proto.ListSemaphoresRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+		Filter:    filter,
+	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
-	sems := make([]types.Semaphore, 0, len(rsp.Semaphores))
-	for _, s := range rsp.Semaphores {
+
+	sems := make([]types.Semaphore, 0, len(resp.Semaphores))
+	for _, s := range resp.Semaphores {
 		sems = append(sems, s)
 	}
-	return sems, nil
+
+	return sems, resp.NextPageToken, nil
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.

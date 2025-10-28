@@ -2033,11 +2033,18 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					sems, err := site.GetSemaphores(ctx, types.SemaphoreFilter{
+					filter := types.SemaphoreFilter{
 						SemaphoreKind: types.SemaphoreKindConnection,
-					})
+					}
+					sems, err := site.GetSemaphores(ctx, filter)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
+
+					sems, next, err := site.ListSemaphores(ctx, 0, "", &filter)
+					require.Empty(t, next)
+					require.NoError(t, err)
+					require.Len(t, sems, 1)
+
 				}, 2*time.Second, 100*time.Millisecond)
 
 				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
