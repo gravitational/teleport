@@ -312,6 +312,9 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github login
+
+# Don't open the system default browser when logging in
+$ tsh login --proxy=work.example.com --browser=none
 ```
 
 </TabItem>
@@ -335,14 +338,6 @@ system's default browser. If you wish to suppress this behavior, you can use the
 `--browser=none` flag:
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-# Don't open the system default browser when logging in
-$ tsh login --proxy=work.example.com --browser=none
-```
-
-</TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
