@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -116,7 +117,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	pack.MongoService = servicecfg.Database{
 		Name:     fmt.Sprintf("%s-mongo", pack.name),
 		Protocol: defaults.ProtocolMongoDB,
-		URI:      pack.mongoAddr,
+		URI:      fmt.Sprintf("mongodb://%s/?heartbeatintervalms=500", pack.mongoAddr),
 	}
 
 	cassandaListener, pack.cassandraAddr = mustListen(t)
@@ -174,7 +175,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		AuthClient: pack.dbAuthClient,
 		Name:       pack.MongoService.Name,
 		Listener:   mongoListener,
-	})
+	}, mongodb.TestServerSetFakeUserAuthError("nonexistent", trace.NotFound("user does not exist")))
 	require.NoError(t, err)
 	go pack.mongo.Serve()
 	t.Cleanup(func() { pack.mongo.Close() })
@@ -338,6 +339,14 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// Setup users and roles on both clusters.
 	p.setupUsersAndRoles(t)
+
+	// disable health checks to reduce log noise during tests
+	defaultHCC := services.VirtualDefaultHealthCheckConfigDB()
+	defaultHCC.GetSpec().GetMatch().Disabled = true
+	_, err = p.Root.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
+	require.NoError(t, err)
+	_, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
+	require.NoError(t, err)
 
 	// Update root's certificate authority on leaf to configure role mapping.
 	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
