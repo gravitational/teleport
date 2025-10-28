@@ -122,7 +122,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 }
 
 // Run the MFA ceremony for a specific action.
-func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest, promptOpts ...PromptOpt) (*mfav1.MFAAuthenticateResponse, error) {
+func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest, promptOpts ...PromptOpt) (*mfav1.AuthenticateResponse, error) {
 	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
 	// request to request an SSO challenge in addition to other challenges.
 	// TODO(cthach): Update SSO MFA ceremony to support mfav1 requests natively.
@@ -175,7 +175,7 @@ func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeF
 		return nil, trace.Wrap(err)
 	}
 
-	mfaResp := &mfav1.MFAAuthenticateResponse{}
+	mfaResp := &mfav1.AuthenticateResponse{}
 
 	if resp.Response == nil {
 		return nil, trace.BadParameter("received nil MFA response")
@@ -183,12 +183,12 @@ func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeF
 
 	switch resp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_Webauthn:
-		mfaResp.Response = &mfav1.MFAAuthenticateResponse_Webauthn{
+		mfaResp.Response = &mfav1.AuthenticateResponse_Webauthn{
 			Webauthn: resp.GetWebauthn(),
 		}
 
 	case *proto.MFAAuthenticateResponse_SSO:
-		mfaResp.Response = &mfav1.MFAAuthenticateResponse_Sso{
+		mfaResp.Response = &mfav1.AuthenticateResponse_Sso{
 			Sso: (*mfav1.SSOChallengeResponse)(resp.GetSSO()),
 		}
 

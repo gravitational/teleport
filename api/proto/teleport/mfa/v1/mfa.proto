@@ -111,7 +111,7 @@ message CreateChallengeForActionResponse {
   // challenge/response will be tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
   string action_id = 1;
   // mfa_challenge contains the MFA challenge that the user must respond to.
-  MFAAuthenticateChallenge mfa_challenge = 2;
+  AuthenticateChallenge mfa_challenge = 2;
 }
 
 // ValidateChallengeForActionRequest is the request message for ValidateChallengeForAction.
@@ -120,7 +120,7 @@ message ValidateChallengeForActionRequest {
   // response are tied to a specific user action. This field MUST be a UUID v4 (RFC 4122, version 4).
   string action_id = 1;
   // mfa_response contains the MFA challenge response provided by the user.
-  MFAAuthenticateResponse mfa_response = 2;
+  AuthenticateResponse mfa_response = 2;
   // user is the username of the user attempting to authenticate.
   string user = 3;
 }
@@ -136,8 +136,8 @@ message ValidateChallengeForActionResponse {
   types.MFADevice device = 3;
 }
 
-// MFAAuthenticateChallenge is a challenge for all MFA devices registered for a user.
-message MFAAuthenticateChallenge {
+// AuthenticateChallenge is a challenge for all MFA devices registered for a user.
+message AuthenticateChallenge {
   // webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
   // assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
   // Webauthn device registered by the user).
@@ -147,8 +147,8 @@ message MFAAuthenticateChallenge {
   SSOChallenge sso_challenge = 2;
 }
 
-// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one of the MFA devices registered for a user.
-message MFAAuthenticateResponse {
+// AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
+message AuthenticateResponse {
   oneof response {
     // webauthn is a response to a Webauthn challenge.
     webauthn.CredentialAssertionResponse webauthn = 1;

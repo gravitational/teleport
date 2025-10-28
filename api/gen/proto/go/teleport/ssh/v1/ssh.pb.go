@@ -159,7 +159,7 @@ func (x *MFAPrompt) GetMessage() string {
 type MFAPromptAnswer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User's response to the MFA challenge.
-	MfaResponse   *v1.MFAAuthenticateResponse `protobuf:"bytes,1,opt,name=mfa_response,json=mfaResponse,proto3" json:"mfa_response,omitempty"`
+	MfaResponse   *v1.AuthenticateResponse `protobuf:"bytes,1,opt,name=mfa_response,json=mfaResponse,proto3" json:"mfa_response,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -194,7 +194,7 @@ func (*MFAPromptAnswer) Descriptor() ([]byte, []int) {
 	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *MFAPromptAnswer) GetMfaResponse() *v1.MFAAuthenticateResponse {
+func (x *MFAPromptAnswer) GetMfaResponse() *v1.AuthenticateResponse {
 	if x != nil {
 		return x.MfaResponse
 	}
@@ -213,9 +213,9 @@ const file_teleport_ssh_v1_ssh_proto_rawDesc = "" +
 	"\x06prompt\"B\n" +
 	"\tMFAPrompt\x12\x1b\n" +
 	"\taction_id\x18\x01 \x01(\tR\bactionId\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"^\n" +
-	"\x0fMFAPromptAnswer\x12K\n" +
-	"\fmfa_response\x18\x01 \x01(\v2(.teleport.mfa.v1.MFAAuthenticateResponseR\vmfaResponseBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1;sshv1b\x06proto3"
+	"\amessage\x18\x02 \x01(\tR\amessage\"[\n" +
+	"\x0fMFAPromptAnswer\x12H\n" +
+	"\fmfa_response\x18\x01 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\vmfaResponseBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1;sshv1b\x06proto3"
 
 var (
 	file_teleport_ssh_v1_ssh_proto_rawDescOnce sync.Once
@@ -231,14 +231,14 @@ func file_teleport_ssh_v1_ssh_proto_rawDescGZIP() []byte {
 
 var file_teleport_ssh_v1_ssh_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_ssh_v1_ssh_proto_goTypes = []any{
-	(*AuthPrompt)(nil),                 // 0: teleport.ssh.v1.AuthPrompt
-	(*MFAPrompt)(nil),                  // 1: teleport.ssh.v1.MFAPrompt
-	(*MFAPromptAnswer)(nil),            // 2: teleport.ssh.v1.MFAPromptAnswer
-	(*v1.MFAAuthenticateResponse)(nil), // 3: teleport.mfa.v1.MFAAuthenticateResponse
+	(*AuthPrompt)(nil),              // 0: teleport.ssh.v1.AuthPrompt
+	(*MFAPrompt)(nil),               // 1: teleport.ssh.v1.MFAPrompt
+	(*MFAPromptAnswer)(nil),         // 2: teleport.ssh.v1.MFAPromptAnswer
+	(*v1.AuthenticateResponse)(nil), // 3: teleport.mfa.v1.AuthenticateResponse
 }
 var file_teleport_ssh_v1_ssh_proto_depIdxs = []int32{
 	1, // 0: teleport.ssh.v1.AuthPrompt.mfa_prompt:type_name -> teleport.ssh.v1.MFAPrompt
-	3, // 1: teleport.ssh.v1.MFAPromptAnswer.mfa_response:type_name -> teleport.mfa.v1.MFAAuthenticateResponse
+	3, // 1: teleport.ssh.v1.MFAPromptAnswer.mfa_response:type_name -> teleport.mfa.v1.AuthenticateResponse
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name

@@ -119,7 +119,7 @@ func (s *Service) CreateChallengeForAction(
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
 
-	mfaChal := &mfav1.MFAAuthenticateChallenge{}
+	mfaChal := &mfav1.AuthenticateChallenge{}
 	mfaChal.WebauthnChallenge = challenges.GetWebauthnChallenge()
 	mfaChal.SsoChallenge = (*mfav1.SSOChallenge)(challenges.GetSSOChallenge())
 

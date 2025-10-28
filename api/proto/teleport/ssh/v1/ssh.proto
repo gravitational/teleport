@@ -35,5 +35,5 @@ message MFAPrompt {
 // MFAPromptAnswer is the user's answer to an MFA prompt.
 message MFAPromptAnswer {
   // User's response to the MFA challenge.
-  teleport.mfa.v1.MFAAuthenticateResponse mfa_response = 1;
+  teleport.mfa.v1.AuthenticateResponse mfa_response = 1;
 }
