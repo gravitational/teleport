@@ -443,6 +443,17 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 	return conn.Client.GetCertAuthority(ctx, id, loadPrivateKeys)
 }
 
+// localReRegister wraps an [*auth.Server] and removes the scope parameter from the signature of
+// [auth.Server.GenerateHostCerts]
+type localReRegister struct {
+	*auth.Server
+}
+
+// GenerateHostCerts allows for generating host certs without providing a scope.
+func (l localReRegister) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+	return l.Server.GenerateHostCerts(ctx, req, "")
+}
+
 // reRegister receives new identity credentials for proxy, node and auth.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
@@ -458,7 +469,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	var clt auth.ReRegisterClient = conn.Client
 	var remoteAddr string
 	if srv := process.getLocalAuth(); srv != nil {
-		clt = srv
+		clt = localReRegister{srv}
 		// auth server typically extracts remote addr from conn. since we're using the local auth
 		// directly we must supply a reasonable remote addr value. preferably the advertise IP, but
 		// otherwise localhost. this behavior must be kept consistent with the equivalent behavior
