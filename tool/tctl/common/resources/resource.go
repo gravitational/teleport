@@ -48,6 +48,7 @@ func Handlers() map[string]Handler {
 		types.KindDatabase:                           databaseHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindGitServer:                          gitServerHandler(),
+		types.KindInstaller:                          installerHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindProxy:                              proxyHandler(),

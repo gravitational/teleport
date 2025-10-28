@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -138,7 +137,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
 		types.KindToken:                       rc.createToken,
-		types.KindInstaller:                   rc.createInstaller,
 		types.KindOIDCConnector:               rc.createOIDCConnector,
 		types.KindSAMLConnector:               rc.createSAMLConnector,
 		types.KindLoginRule:                   rc.createLoginRule,
@@ -996,20 +994,6 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.C
 	return nil
 }
 
-func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	inst, err := services.UnmarshalInstaller(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.SetInstaller(ctx, inst)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("installer %q has been set\n", inst.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1591,16 +1575,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			}
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindInstaller:
-		err := client.DeleteInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if rc.ref.Name == installers.InstallerScriptName {
-			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
-		} else {
-			fmt.Printf("%s has been deleted\n", rc.ref.Name)
-		}
 	case types.KindLoginRule:
 		loginRuleClient := client.LoginRuleClient()
 		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
@@ -2155,20 +2129,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
-	case types.KindInstaller:
-		if rc.ref.Name == "" {
-			// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
-			installers, err := clientutils.CollectWithFallback(ctx, client.ListInstallers, client.GetInstallers)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &installerCollection{installers: installers}, nil
-		}
-		inst, err := client.GetInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &installerCollection{installers: []types.Installer{inst}}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{
