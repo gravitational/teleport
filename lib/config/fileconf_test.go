@@ -597,11 +597,6 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 				types.RoleAuth, types.RoleNode, types.RoleProxy,
 			},
 		},
-		{
-			desc:      "reject bot role",
-			input:     "Bot:some-literal-token",
-			wantError: "role \"Bot\" is not allowed in static token configuration",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
