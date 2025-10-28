@@ -152,14 +152,20 @@ test('yields a "changed" change when cluster properties differ', async () => {
 
 test('does not yield when no cluster changes detected', async () => {
   const cluster = makeRootCluster();
-  const tshClientMock = await mockTshClient({ clusters: [cluster] });
+  const tshClientMock = await mockTshClient({
+    clusters: [
+      // Extend the cluster with properties loaded from the proxy to verify
+      // if they are properly ignored when detecting changes.
+      { ...cluster, authClusterId: 'some-id' },
+    ],
+  });
   const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
 
   const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock, {
     signal: abortController.signal,
   });
 
-  // Nothing changes.
+  // Overwrite the cluster (profile properties are unchanged).
   void tshClientMock.insertOrUpdateCluster(cluster);
 
   const race = Promise.race([
@@ -169,7 +175,7 @@ test('does not yield when no cluster changes detected', async () => {
   ]);
 
   expect(await race).toBe('timeout');
-  // Cancel the watcher with the abort signal.
+  // Cancel the watcher with the abort signal, it's blocked on `watcher.next()`.
   abortController.abort();
 });
 
