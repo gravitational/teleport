@@ -81,7 +81,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		return trace.BadParameter("Azure OIDC integration spec is required for Entra ID service when system credentials are not used")
 	}
 
-	graphClient, err := constructGraphClient(credential, process.Config.MetricsRegistry)
+	graphClient, err := constructGraphClient(credential, process.MetricsRegistry())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -122,7 +122,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
 		Clock:           process.Clock,
 		Logger:          logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
-		MetricsRegistry: process.Config.MetricsRegistry,
+		MetricsRegistry: process.MetricsRegistry(),
 		GraphClient:     graphClient,
 		UserSvc:         authServer,
 		AccessListSvc:   authServer,
@@ -210,11 +210,13 @@ func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, st
 
 // constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
 func constructGraphClient(credential msgraph.AzureTokenProvider, registerer prometheus.Registerer) (*msgraph.Client, error) {
-	r := prometheus.WrapRegistererWith(prometheus.Labels{teleport.ComponentLabel: eteleport.ComponentEntraID}, registerer)
+	if registerer != nil {
+		registerer = prometheus.WrapRegistererWith(prometheus.Labels{teleport.ComponentLabel: eteleport.ComponentEntraID}, registerer)
+	}
 
 	graphClient, err := msgraph.NewClient(msgraph.Config{
 		TokenProvider:   credential,
-		MetricsRegistry: r,
+		MetricsRegistry: registerer,
 	})
 
 	return graphClient, trace.Wrap(err)
