@@ -64,7 +64,6 @@ import { Gateway } from "./gateway_pb";
 import { CreateGatewayRequest } from "./service_pb";
 import { ListGatewaysResponse } from "./service_pb";
 import { ListGatewaysRequest } from "./service_pb";
-import { RemoveClusterRequest } from "./service_pb";
 import { Cluster } from "./cluster_pb";
 import { AddClusterRequest } from "./service_pb";
 import { ListKubernetesServersResponse } from "./service_pb";
@@ -228,12 +227,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     addCluster: grpc.handleUnaryCall<AddClusterRequest, Cluster>;
     /**
-     * RemoveCluster removes a cluster from profile
-     *
-     * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
-     */
-    removeCluster: grpc.handleUnaryCall<RemoveClusterRequest, EmptyResponse>;
-    /**
      * ListGateways lists gateways
      *
      * @generated from protobuf rpc: ListGateways(teleport.lib.teleterm.v1.ListGatewaysRequest) returns (teleport.lib.teleterm.v1.ListGatewaysResponse);
@@ -308,7 +301,9 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     loginPasswordless: grpc.handleBidiStreamingCall<LoginPasswordlessRequest, LoginPasswordlessResponse>;
     /**
-     * ClusterLogin logs out a user from cluster
+     * Logs the user out of the cluster and cleans up associated resources.
+     * Optionally removes the profile.
+     * This operation is idempotent and can be safely invoked multiple times.
      *
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
@@ -614,16 +609,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => AddClusterRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Cluster.toBinary(value)),
         requestSerialize: value => Buffer.from(AddClusterRequest.toBinary(value))
-    },
-    removeCluster: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster",
-        originalName: "RemoveCluster",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => EmptyResponse.fromBinary(bytes),
-        requestDeserialize: bytes => RemoveClusterRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(EmptyResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(RemoveClusterRequest.toBinary(value))
     },
     listGateways: {
         path: "/teleport.lib.teleterm.v1.TerminalService/ListGateways",
