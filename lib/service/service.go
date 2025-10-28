@@ -714,7 +714,7 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
 
 	// state is the process state machine tracking if the process is healthy or not.
@@ -987,6 +987,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1078,14 +1084,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
