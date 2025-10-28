@@ -1645,7 +1645,7 @@ type AccessGraphAWSSync struct {
 // AccessGraphEKSAuditLogs is the configuration for fetching audit logs from
 // clusters discovered for access graph.
 type AccessGraphEKSAuditLogs struct {
-	// Tags are AWS tags to match. Clusters that have tags that match these
+	// Tags are AWS EKS tags to match. Clusters that have tags that match these
 	// will have their audit logs fetched and sent to Access Graph.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }

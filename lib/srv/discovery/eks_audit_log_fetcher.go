@@ -79,7 +79,7 @@ func (f *eksAuditLogFetcher) Run(ctx context.Context) error {
 		}
 
 		f.log.DebugContext(ctx, "Sent KubeAuditLogEvents", "count", len(events),
-			"cursor_time", cursor.LastEventTime.AsTime().Format(time.RFC3339))
+			"cursor_time", cursor.LastEventTime.AsTime())
 	}
 	return trace.Wrap(ctx.Err())
 }
@@ -142,7 +142,7 @@ func (f *eksAuditLogFetcher) sendTAGKubeAuditLogNewStream(ctx context.Context, c
 func (f *eksAuditLogFetcher) receiveTAGKubeAuditLogResume(ctx context.Context) (*accessgraphv1alpha.KubeAuditLogCursor, error) {
 	msg, err := f.stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err, " failed to receive KubeAuditLogStream resume state")
+		return nil, trace.Wrap(err, "failed to receive KubeAuditLogStream resume state")
 	}
 
 	state := msg.GetResumeState()

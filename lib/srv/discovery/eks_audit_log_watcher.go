@@ -187,7 +187,10 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 		w.fetchers[arn] = logFetcher
 		go func() {
 			err := logFetcher.Run(ctx)
-			w.completedCh <- fetcherCompleted{logFetcher, err}
+			select {
+			case w.completedCh <- fetcherCompleted{logFetcher, err}:
+			case <-ctx.Done():
+			}
 		}()
 	}
 }
@@ -235,7 +238,7 @@ func sendTAGKubeAuditLogConfig(ctx context.Context, stream accessgraphv1alpha.Ac
 func receiveTAGKubeAuditLogConfig(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient) (*accessgraphv1alpha.KubeAuditLogConfig, error) {
 	msg, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err, " failed to receive KubeAuditLogStream config")
+		return nil, trace.Wrap(err, "failed to receive KubeAuditLogStream config")
 	}
 
 	config := msg.GetConfig()
