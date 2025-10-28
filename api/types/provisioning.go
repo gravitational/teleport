@@ -175,6 +175,11 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+
+	// GetAssignedScope always returns an empty string because a [ProvisionToken] is always
+	// unscoped
+	GetAssignedScope() string
+
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
 }
@@ -639,6 +644,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 	name = name[hiddenBefore:]
 	name = strings.Repeat("*", hiddenBefore) + name
 	return name
+}
+
+// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetAssignedScope() string {
+	return ""
 }
 
 // String returns the human readable representation of a provisioning token.
