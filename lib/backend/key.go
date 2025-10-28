@@ -46,8 +46,8 @@ func NewKey(components ...string) Key {
 	}
 	k := Key{
 		components: slices.Clone(components),
-		s:          SeparatorString + strings.Join(components, SeparatorString),
 	}
+	k.s = SeparatorString + strings.Join(k.components, SeparatorString)
 	k.exactKey = k.s[len(k.s)-1] == Separator
 	return k
 }
@@ -59,8 +59,8 @@ func NewKey(components ...string) Key {
 func ExactKey(components ...string) Key {
 	k := Key{
 		components: slices.Concat(components, []string{""}),
-		s:          SeparatorString + strings.Join(components, SeparatorString),
 	}
+	k.s = SeparatorString + strings.Join(k.components, SeparatorString)
 	k.exactKey = true
 	return k
 }
