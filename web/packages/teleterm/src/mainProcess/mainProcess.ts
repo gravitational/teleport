@@ -70,7 +70,7 @@ import {
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   ConfigService,
