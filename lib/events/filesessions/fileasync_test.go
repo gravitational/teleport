@@ -782,14 +782,12 @@ func newUploaderPack(ctx context.Context, t *testing.T, cfg uploaderPackConfig) 
 		Streamer:                           pack.protoStreamer,
 		Clock:                              pack.clock,
 		EventsC:                            pack.eventsC,
+		EncryptedRecordingUploader:         pack.memUploader,
 		EncryptedRecordingUploadTargetSize: cfg.encryptedRecordingUploadTargetSize,
 		EncryptedRecordingUploadMaxSize:    cfg.encryptedRecordingUploadMaxSize,
 	}
-	if cfg.encrypter != nil {
-		uploaderCfg.EncryptedRecordingUploader = pack.memUploader
-		if cfg.wrapEncryptedUploader != nil {
-			uploaderCfg.EncryptedRecordingUploader = cfg.wrapEncryptedUploader(pack.memUploader)
-		}
+	if cfg.wrapEncryptedUploader != nil {
+		uploaderCfg.EncryptedRecordingUploader = cfg.wrapEncryptedUploader(pack.memUploader)
 	}
 
 	pack.uploader, err = NewUploader(uploaderCfg)

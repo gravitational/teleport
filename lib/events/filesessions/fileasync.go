@@ -396,16 +396,60 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
 	}
 
+	// Parse the first upload part to check if encryption is in use or if the file is corrupted.
+	header, err := events.ParsePartHeader(in)
+	if err != nil {
+		return trace.Wrap(errSkipEncryptedUpload, "unexpected empty upload")
+	}
+
+	if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+		return trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+	}
+
 	// The upload parts in the given reader are each ~128kb. Usually these parts are consumed and reconstructed
 	// by Auth in 5MB chunks to meet the minimum upload size of upload providers like S3. Since these uploads
 	// are proxied directly to the uploader from the agent here (see link below), this agent needs to combine
 	// these upload parts into larger, aggregated upload parts.
 	//
 	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
-	partIter := func(yield func([]byte, error) bool) {
-		// buf holds aggregated upload parts that will be uploaded as a single upload part.
-		var buf bytes.Buffer
 
+	// buf holds aggregated upload parts that will be uploaded as a single upload part.
+	var buf bytes.Buffer
+	writeToBuffer := func(header events.PartHeader, in io.Reader) error {
+		// We are going to discard any padding as it isn't necessary within the individual parts.
+		originalPaddingSize := header.PaddingSize
+		header.PaddingSize = 0
+
+		if _, err := buf.Write(header.Bytes()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Copy the part into the buffer..
+		reader := io.LimitReader(in, int64(header.PartSize))
+		copied, err := io.Copy(&buf, reader)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+
+		if copied != int64(header.PartSize) {
+			return trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, int64(header.PartSize))
+		}
+
+		// Discard the padding.
+		discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(originalPaddingSize)))
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+
+		if discarded != int64(originalPaddingSize) {
+			return trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(originalPaddingSize))
+		}
+
+		return nil
+	}
+	writeToBuffer(header, in)
+
+	partIter := func(yield func([]byte, error) bool) {
 		// yield the current aggregated upload part and reset the buffer.
 		yieldCurrent := func() bool {
 			// Copy the buffer to a new []byte so that the next
@@ -443,39 +487,7 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 				}
 			}
 
-			// We are going to discard any padding as it isn't necessary within the individual parts.
-			originalPaddingSize := header.PaddingSize
-			header.PaddingSize = 0
-
-			if _, err := buf.Write(header.Bytes()); err != nil {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			// Copy the part into the buffer..
-			reader := io.LimitReader(in, int64(header.PartSize))
-			copied, err := io.Copy(&buf, reader)
-			if err != nil && !errors.Is(err, io.EOF) {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if copied != int64(header.PartSize) {
-				yield(nil, trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, int64(header.PartSize)))
-				return
-			}
-
-			// Discard the padding.
-			discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(originalPaddingSize)))
-			if err != nil && !errors.Is(err, io.EOF) {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if discarded != int64(originalPaddingSize) {
-				yield(nil, trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(originalPaddingSize)))
-				return
-			}
+			writeToBuffer(header, in)
 
 			// If we've reached the target upload size, yield the current
 			// aggregated upload part before continuing.
