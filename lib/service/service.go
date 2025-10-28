@@ -2987,7 +2987,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
-	cfg.AccessLists = services.AccessLists
+	cfg.AccessLists = services.AccessListsInternal
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Applications = services.Applications
