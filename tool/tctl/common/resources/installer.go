@@ -66,7 +66,7 @@ func installerHandler() Handler {
 		deleteHandler: deleteInstaller,
 		singleton:     false,
 		mfaRequired:   false,
-		description:   "Installer scripts used for setting up Teleport on nodes.",
+		description:   "Installer scripts used by the Discovery Service for setting up Teleport on agents.",
 	}
 }
 
