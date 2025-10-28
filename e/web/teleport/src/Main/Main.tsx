@@ -9,6 +9,7 @@ import {
   createErrorNotification,
   createSuccessNotification,
 } from 'e-teleport/InviteCollaborators/common';
+import { AccessGraphDemoProvider } from 'e-teleport/Roles/AccessGraphDemoContext';
 import useTeleport from 'e-teleport/useTeleportE';
 import { Main } from 'teleport/Main/Main';
 import { storageService } from 'teleport/services/storageService';
@@ -48,10 +49,12 @@ export function MainE() {
   };
 
   return (
-    <Main
-      features={getEnterpriseFeatures()}
-      customBanners={customBanners}
-      CustomLogo={cfg.oss.customTheme && CustomLogos[cfg.oss.customTheme]}
-    />
+    <AccessGraphDemoProvider>
+      <Main
+        features={getEnterpriseFeatures()}
+        customBanners={customBanners}
+        CustomLogo={cfg.oss.customTheme && CustomLogos[cfg.oss.customTheme]}
+      />
+    </AccessGraphDemoProvider>
   );
 }

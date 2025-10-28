@@ -7,10 +7,11 @@ import { ApiError } from 'teleport/services/api/parseError';
 import { storageService } from 'teleport/services/storageService';
 
 import {
-  usePolicyDemo,
+  AccessGraphDemoProvider,
+  useAccessGraphDemo,
   WAIT_FOR_SYNC_MAX_TRIES,
   WAIT_FOR_SYNC_TIMEOUT,
-} from './usePolicyDemo';
+} from './AccessGraphDemoContext';
 
 jest.mock('teleport/services/storageService', () => ({
   storageService: {
@@ -26,9 +27,15 @@ beforeEach(() => {
   cfg.isCloud = true;
 });
 
+const wrapper = ({ children }) => (
+  <AccessGraphDemoProvider>{children}</AccessGraphDemoProvider>
+);
+
 test('should return DISABLED state when not in cloud', () => {
   cfg.isCloud = false;
-  const { result } = renderHook(() => usePolicyDemo(cfg));
+  const { result } = renderHook(() => useAccessGraphDemo(), {
+    wrapper,
+  });
 
   expect(result.current.state).toBe(RoleDiffState.Disabled);
   expect(result.current.isCloud).toBe(false);
@@ -40,7 +47,9 @@ test('should return POLICY_ENABLED state when role tester is enabled', async () 
     true
   );
 
-  const { result } = renderHook(() => usePolicyDemo(cfg));
+  const { result } = renderHook(() => useAccessGraphDemo(), {
+    wrapper,
+  });
   await waitFor(() => {
     expect(result.current.state).toBe(RoleDiffState.PolicyEnabled);
   });
@@ -56,7 +65,9 @@ test('should return DEMO_READY state when demo mode is enabled and sync is compl
     },
   });
 
-  const { result } = renderHook(() => usePolicyDemo(cfg));
+  const { result } = renderHook(() => useAccessGraphDemo(), {
+    wrapper,
+  });
 
   await waitFor(() => {
     expect(result.current.state).toBe(RoleDiffState.DemoReady);
@@ -72,7 +83,9 @@ test('should return WAITING_FOR_SYNC state when enabling demo mode', async () =>
     },
   });
 
-  const { result } = renderHook(() => usePolicyDemo(cfg));
+  const { result } = renderHook(() => useAccessGraphDemo(), {
+    wrapper,
+  });
 
   await act(async () => {
     result.current.enableDemoMode();
@@ -93,7 +106,9 @@ test('should handle error states correctly', async () => {
     .spyOn(accessGraphService, 'getAccessGraphSettings')
     .mockRejectedValue(new ApiError(error));
 
-  const { result } = renderHook(() => usePolicyDemo(cfg));
+  const { result } = renderHook(() => useAccessGraphDemo(), {
+    wrapper,
+  });
 
   await waitFor(() => {
     expect(result.current.state).toBe(RoleDiffState.Error);
@@ -128,7 +143,9 @@ describe('waitForInitialSync', () => {
         },
       });
 
-    const { result } = renderHook(() => usePolicyDemo(cfg));
+    const { result } = renderHook(() => useAccessGraphDemo(), {
+      wrapper,
+    });
 
     await act(async () => {
       result.current.enableDemoMode();
@@ -157,7 +174,9 @@ describe('waitForInitialSync', () => {
       })
       .mockRejectedValue(error);
 
-    const { result } = renderHook(() => usePolicyDemo(cfg));
+    const { result } = renderHook(() => useAccessGraphDemo(), {
+      wrapper,
+    });
 
     await act(async () => {
       result.current.enableDemoMode();
@@ -181,7 +200,9 @@ describe('waitForInitialSync', () => {
       });
     }
 
-    const { result } = renderHook(() => usePolicyDemo(cfg));
+    const { result } = renderHook(() => useAccessGraphDemo(), {
+      wrapper,
+    });
 
     await act(async () => {
       result.current.enableDemoMode();
