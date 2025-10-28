@@ -361,15 +361,15 @@ $ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_
 ### `awsra`
 
 The `awsra` CA signs X.509 certificates which are sent to AWS in exchange for AWS temporary sessions.
-AWS must be configured to trust the `awsra` CA by adding it as Trust Anchor.
+AWS must be configured to trust the `awsra` CA by adding it as trust anchor.
 This integration allows for AWS CLI and Console access.
 
-After starting the rotation, you will need to add the new CA to the same AWS IAM Roles Anywhere Trust Anchor.
+After starting the rotation, you will need to add the new CA to the same AWS IAM Roles Anywhere trust anchor.
 
 During this period, AWS will trust both the old and the new CA.
 All new sessions will use the new CA.
 
-After the rotation is complete, make sure to remove the old CA from the AWS IAM Roles Anywhere Trust Anchor.
+After the rotation is complete, make sure to remove the old CA from the AWS IAM Roles Anywhere trust anchor.
 
 ### `bound_keypair`
 
