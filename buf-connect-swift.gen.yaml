@@ -8,12 +8,12 @@ inputs:
 # TODO: Use a local plugin?
 plugins:
   - remote: buf.build/connectrpc/swift
-    out: mobile/Foobar/Foobar/gen
+    out: mobile/Foobar/Foobar/gen/proto
     opt:
       - GenerateAsyncMethods=true
       - GenerateCallbackMethods=true
       - Visibility=Public
   - remote: buf.build/apple/swift
-    out: mobile/Foobar/Foobar/gen
+    out: mobile/Foobar/Foobar/gen/proto
     opt: Visibility=Public
     include_imports: true

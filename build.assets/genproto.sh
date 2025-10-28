@@ -34,7 +34,7 @@ main() {
   # Clean gen/proto directories before regenerating them. Legacy protos are
   # generated all over the directory tree, so they won't get cleaned up
   # automatically if the proto is deleted.
-  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto mobile/Foobar/Foobar/gen
+  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto mobile/Foobar/Foobar/gen/proto
 
   # Generate Gogo protos. Generated protos are written to
   # gogogen/github.com/gravitational/teleport/..., so we copy them to the
