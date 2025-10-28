@@ -33,7 +33,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -264,11 +263,6 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-
-	// MetricsRegistry is the test-only metrics registry configuration.
-	// This MUST NOT be used to access the process metrics registry, only to set it.
-	// You must use [service.TeleportProcess.MetricsRegistry()].
-	MetricsRegistry *prometheus.Registry
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
