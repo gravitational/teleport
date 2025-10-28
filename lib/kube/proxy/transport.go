@@ -64,8 +64,8 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 	// to dial the next hop directly and never cache the transport.
 	if sess.kubeAPICreds != nil {
 		// If agent is running in agent mode, get the transport from the configured cluster
-		// credentials.
-		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
+		// credentials. Use retryableTransport to retry on HTTP/2 GOAWAY errors.
+		return &retryableTransport{sess.kubeAPICreds.getTransport()}, sess.kubeAPICreds.getTLSConfig(), nil
 	}
 
 	// If the cluster is remote, the key is the teleport cluster name.
@@ -177,9 +177,10 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Use retryableTransport to retry on HTTP/2 GOAWAY errors.
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		internal.NewImpersonatorRoundTripper(h2Transport),
+		&retryableTransport{internal.NewImpersonatorRoundTripper(h2Transport)},
 	), tlsConfig.Clone(), nil
 }
 
@@ -278,9 +279,10 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Use retryableTransport to retry on HTTP/2 GOAWAY errors.
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		internal.NewImpersonatorRoundTripper(h2Transport),
+		&retryableTransport{internal.NewImpersonatorRoundTripper(h2Transport)},
 	), tlsConfig.Clone(), nil
 }
 
