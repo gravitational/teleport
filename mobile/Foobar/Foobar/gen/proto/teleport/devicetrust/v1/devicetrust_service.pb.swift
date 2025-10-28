@@ -998,6 +998,7 @@ public struct Teleport_Devicetrust_V1_AuthenticateDeviceInit: Sendable {
   /// IP of the client submitting the init request. It is used during the mobile device auth where
   /// the proxy service forwards the requests to the auth server and uses its own auth service
   /// client, so we cannot read the client address from the context as usual.
+  /// Used internally by the Device Trust system.
   public var clientIp: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
