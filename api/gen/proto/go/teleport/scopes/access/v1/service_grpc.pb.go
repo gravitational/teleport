@@ -58,7 +58,9 @@ type ScopedAccessServiceClient interface {
 	CreateScopedRole(ctx context.Context, in *CreateScopedRoleRequest, opts ...grpc.CallOption) (*CreateScopedRoleResponse, error)
 	// UpdateScopedRole updates a scoped role.
 	UpdateScopedRole(ctx context.Context, in *UpdateScopedRoleRequest, opts ...grpc.CallOption) (*UpdateScopedRoleResponse, error)
-	// DeleteScopedRole deletes a scoped role.
+	// DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
+	// conditional. Scoped roles cannot be deleted if referenced by any existing assignment
+	// and deletes may fail due to concurrent modification.
 	DeleteScopedRole(ctx context.Context, in *DeleteScopedRoleRequest, opts ...grpc.CallOption) (*DeleteScopedRoleResponse, error)
 	// GetScopedRoleAssignment gets a scoped role assignment by name.
 	GetScopedRoleAssignment(ctx context.Context, in *GetScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*GetScopedRoleAssignmentResponse, error)
@@ -182,7 +184,9 @@ type ScopedAccessServiceServer interface {
 	CreateScopedRole(context.Context, *CreateScopedRoleRequest) (*CreateScopedRoleResponse, error)
 	// UpdateScopedRole updates a scoped role.
 	UpdateScopedRole(context.Context, *UpdateScopedRoleRequest) (*UpdateScopedRoleResponse, error)
-	// DeleteScopedRole deletes a scoped role.
+	// DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
+	// conditional. Scoped roles cannot be deleted if referenced by any existing assignment
+	// and deletes may fail due to concurrent modification.
 	DeleteScopedRole(context.Context, *DeleteScopedRoleRequest) (*DeleteScopedRoleResponse, error)
 	// GetScopedRoleAssignment gets a scoped role assignment by name.
 	GetScopedRoleAssignment(context.Context, *GetScopedRoleAssignmentRequest) (*GetScopedRoleAssignmentResponse, error)
