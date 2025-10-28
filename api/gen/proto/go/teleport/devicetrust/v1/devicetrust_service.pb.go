@@ -2041,6 +2041,7 @@ type AuthenticateDeviceInit struct {
 	// IP of the client submitting the init request. It is used during the mobile device auth where
 	// the proxy service forwards the requests to the auth server and uses its own auth service
 	// client, so we cannot read the client address from the context as usual.
+	// Used internally by the Device Trust system.
 	ClientIp      string `protobuf:"bytes,5,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
