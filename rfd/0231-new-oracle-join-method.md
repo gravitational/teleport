@@ -7,9 +7,9 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @rosstimothy && TODO
-* Security: TODO
-* Product: No product changes
+* Engineering: @rosstimothy && @strideynet
+* Security: @rob-picard-teleport
+* Product: @klizhentas
 
 ## What
 
