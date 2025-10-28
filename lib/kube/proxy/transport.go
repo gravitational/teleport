@@ -63,8 +63,19 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 	// a Kubernetes API server. In this case, we can use the provided credentials
 	// to dial the next hop directly and never cache the transport.
 	if sess.kubeAPICreds != nil {
-		// If agent is running in agent mode, get the transport from the configured cluster
-		// credentials.
+		// If agent is running in agent mode, get the transport from the configured cluster credentials.
+
+		// Use retryableTransport to retry on HTTP/2 GOAWAY errors.
+		// Nil retryBufferSemaphore indicates the retry buffer is disabled.
+		if f.retryBufferSemaphore != nil {
+			return newRetryableTransport(
+				sess.kubeAPICreds.getTransport(),
+				f.log,
+				f.retryBufferSemaphore,
+				f.cfg.RetryBufferPerRequest,
+			), sess.kubeAPICreds.getTLSConfig(), nil
+		}
+
 		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
 	}
 

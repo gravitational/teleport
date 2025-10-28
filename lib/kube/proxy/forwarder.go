@@ -43,6 +43,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/semaphore"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -180,6 +181,21 @@ type ForwarderConfig struct {
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
+
+	// RetryBufferTotal is the maximum total memory in bytes for buffering
+	// Kubernetes request bodies across all concurrent requests. Buffering
+	// exists to enable automatic retries during HTTP/2 GOAWAY load balancing,
+	// while avoiding OOM errors at scale. Setting RetryBufferTotal to zero
+	// disables the retry buffer entirely.
+	// Defaults to 500 MiB.
+	// Environment: TELEPORT_UNSTABLE_KUBE_RETRY_BUFFER_TOTAL
+	RetryBufferTotal int64
+	// RetryBufferPerRequest is the maximum memory in bytes for buffering a
+	// single Kubernetes request body. Requests exceeding this limit cannot
+	// be retried on HTTP/2 GOAWAY.
+	// Defaults to 50 MiB.
+	// Environment: TELEPORT_UNSTABLE_KUBE_RETRY_BUFFER_PER_REQ
+	RetryBufferPerRequest int64
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -276,6 +292,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.log == nil {
 		f.log = slog.Default()
 	}
+
 	return nil
 }
 
@@ -301,6 +318,12 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Rertry buffer may be disabled.
+	var retryBufferSemaphore *semaphore.Weighted
+	if cfg.RetryBufferTotal > 0 {
+		retryBufferSemaphore = semaphore.NewWeighted(cfg.RetryBufferTotal)
+	}
+
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
 		log:            cfg.log,
@@ -313,8 +336,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		clusterDetails:  make(map[string]*kubeDetails),
-		cachedTransport: transportClients,
+		clusterDetails:       make(map[string]*kubeDetails),
+		cachedTransport:      transportClients,
+		retryBufferSemaphore: retryBufferSemaphore,
 	}
 
 	router := httprouter.New()
@@ -398,6 +422,11 @@ type Forwarder struct {
 	// connect to Teleport services.
 	// TODO(tigrato): Implement a cache eviction policy using watchers.
 	cachedTransport *utils.FnCache
+	// retryBufferSemaphore limits memory for buffering Kubernetes request bodies
+	// across all concurrent requests. Buffering exists to enable automatic
+	// retries during HTTP/2 GOAWAY load balancing, while avoiding OOM errors
+	// at scale.
+	retryBufferSemaphore *semaphore.Weighted
 }
 
 // cachedTransportEntry is a cached transport entry used to connect to

@@ -221,6 +221,12 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		return trace.Wrap(err)
 	}
 
+	// Get retry buffer configuration values.
+	retryBufferTotal, retryBufferPerRequest, err := kubeproxy.GetRetryBufferValues()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var publicAddr string
 	if len(cfg.Kube.PublicAddrs) > 0 {
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
@@ -246,6 +252,8 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 			ClusterFeatures:               process.GetClusterFeatures,
+			RetryBufferTotal:              retryBufferTotal,
+			RetryBufferPerRequest:         retryBufferPerRequest,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
