@@ -143,7 +143,7 @@ func (s *Service) Run(ctx context.Context) error {
 	// forking scenarios). To guarantee there won't be errors like "address
 	// already in use", delete the file before starting the listener.
 	if s.diagNetwork == "unix" {
-		s.log.DebugContext(ctx, "Deleting socket file", "path", s.diagAddr)
+		s.log.DebugContext(ctx, "Cleaning up socket file", "path", s.diagAddr)
 		if err := trace.ConvertSystemError(os.Remove(s.diagAddr)); err != nil && !trace.IsNotFound(err) {
 			s.log.WarnContext(ctx, "Failed to cleanup existing socket file", "error", err)
 		}
