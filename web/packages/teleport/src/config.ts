@@ -258,7 +258,9 @@ const cfg = {
     clustersPath: '/v1/webapi/sites',
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
+    // TODO (avatus): Delete in v21.0.0
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
+    clusterEventsPathV2: `/v2/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?&search=:search?&order=:order?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
@@ -584,7 +586,7 @@ const cfg = {
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
-    return generatePath(cfg.api.clusterEventsPath, {
+    return generatePath(cfg.api.clusterEventsPathV2, {
       clusterId,
       ...params,
     });
@@ -1863,6 +1865,8 @@ export interface UrlClusterEventsParams {
   limit?: number;
   include?: string;
   startKey?: string;
+  search?: string;
+  order?: string;
 }
 
 export interface UrlLauncherParams {
