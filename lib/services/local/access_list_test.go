@@ -671,11 +671,8 @@ func testAddAndRemoveAccessListMembers(t *testing.T, service *AccessListService,
 			cmpopts.EquateEmpty(),
 		}
 
-		// GIVEN an existing Access List (note that we're deliberately
-		// using UpsertAccessListWithMembers rather than fnUnderTest,
-		// because this is part of the test setup rather than the test
-		// action itself.)
-		acl, _, err := service.UpsertAccessListWithMembers(ctx, newAccessList(t, listName, clock), nil)
+		// GIVEN an existing Access List
+		acl, err := service.UpsertAccessList(ctx, newAccessList(t, listName, clock))
 		require.NoError(t, err)
 
 		var expectedMemberNames []string
