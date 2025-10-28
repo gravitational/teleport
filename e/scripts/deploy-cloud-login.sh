@@ -13,6 +13,7 @@ AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
 AWS_PROFILE=${AWS_PROFILE:-tc-stage-ecr}
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
 TC_PATH=${TC_PATH:-../../cloud/tc/cmd/tc}
+TELEPORT_HOME=${TELEPORT_HOME:-"$HOME/.tsh_platform"}
 
 function echo_color() {
     local color='\033[0;'$1'm'
@@ -63,11 +64,11 @@ docker login --username AWS --password-stdin ${TARGET_IMAGE_REPO} <<< $ecr_token
 fail_on_exit_code "Docker login failed."
 
 echo "Logging into kube clusters on \"$TELEPORT_PROXY\"..."
-tsh kube login --proxy=$TELEPORT_PROXY --all
+TELEPORT_HOME=$TELEPORT_HOME tsh kube login --proxy=$TELEPORT_PROXY --all
 fail_on_exit_code "Failed to login to kubernetes cluster on $TELEPORT_PROXY"
 
 echo "Logging into app \"$CLOUD_API_APP\" on \"$TELEPORT_PROXY\"..."
-tsh app login --proxy=$TELEPORT_PROXY $CLOUD_API_APP
+TELEPORT_HOME=$TELEPORT_HOME tsh app login --proxy=$TELEPORT_PROXY $CLOUD_API_APP
 fail_on_exit_code "Failed to login to app \"$CLOUD_API_APP\" on $TELEPORT_PROXY"
 
 echo "Checking for tooling to patch tenant..."
@@ -77,7 +78,7 @@ if ! (command -v tc); then
         cd "$TC_PATH" && go run . "$@"
     }
 fi
-tenant=$(tc tenant --app-name="$CLOUD_API_APP" list | head -n 1)
+tenant=$(TELEPORT_HOME=$TELEPORT_HOME tc tenant --app-name="$CLOUD_API_APP" list | head -n 1)
 fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the \`tc\` executable is available in the path or the source from \"cloud\" repo is found at path \"$TC_PATH\". Override env var \"TC_PATH\" to point to the source folder if necessary. \nRefer to https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md#tc for more information on setting up \`tc\`."
 
 ns="cloud-gravitational-io-$tenant"

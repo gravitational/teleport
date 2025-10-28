@@ -28,6 +28,7 @@ function fail_on_exit_code() {
 TENANT=${TENANT:-}
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
 TC_PATH=${TC_PATH:-../../cloud/tc/cmd/tc}
+TELEPORT_HOME=${TELEPORT_HOME:-"$HOME/.tsh_platform"}
 
 echo "-> Deleting tenant \"$TENANT\""
 if ! (command -v tc); then
@@ -38,6 +39,6 @@ if ! (command -v tc); then
 fi
 
 
-(tc tenant delete --app-name="$CLOUD_API_APP" --name="$TENANT")
+(TELEPORT_HOME=$TELEPORT_HOME tc tenant delete --app-name="$CLOUD_API_APP" --name="$TENANT")
 fail_on_exit_code "Unable to delete tenant \"$TENANT\""
 echo "-> Deleted tenant \"$TENANT\""

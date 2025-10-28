@@ -62,6 +62,7 @@ KUBE_AUTH_CLUSTER=${KUBE_AUTH_CLUSTER:-tc-staging-cs-01-usw2}
 KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
 TC_PATH=${TC_PATH:-../../cloud/tc/cmd/tc}
+TELEPORT_HOME=${TELEPORT_HOME:-"$HOME/.tsh_platform"}
 
 if [[ -z "$CLOUD_SKIP_DEPLOY" ]]; then
     [ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
@@ -119,10 +120,10 @@ if ! (command -v tc); then
         cd "$TC_PATH" && go run . "$@"
     }
 fi
-if (tc tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
-    (tc tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
+if (TELEPORT_HOME=$TELEPORT_HOME tc tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
+    (TELEPORT_HOME=$TELEPORT_HOME tc tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
     if [[ -z "$CLOUD_SKIP_AGENT_IMMEDIATE_UPDATE" ]]; then
-      (tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"clientServices": [{"type":"Agent", "version":"$target_image_tag", "lastVersion":"$target_image_tag", "updateSchedule":"Immediate"}]}')
+      (TELEPORT_HOME=$TELEPORT_HOME tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"clientServices": [{"type":"Agent", "version":"$target_image_tag", "lastVersion":"$target_image_tag", "updateSchedule":"Immediate"}]}')
     fi
 else
 	echo "Failed to patch tenant \"$TENANT\" using tc..."

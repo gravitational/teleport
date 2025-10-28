@@ -32,6 +32,7 @@ CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
 TC_PATH=${TC_PATH:-../../cloud/tc/cmd/tc}
 BUILDDIR=${BUILDDIR:-build}
 REGION=${REGION:-us-west-2}
+TELEPORT_HOME=${TELEPORT_HOME:-"$HOME/.tsh_platform"}
 
 if ! (command -v tc); then
     echo "Using \`tc\` from source in folder \"$TC_PATH\"..."
@@ -74,11 +75,11 @@ else
 fi
 
 
-(tc tenant onboard --app-name="$CLOUD_API_APP" --name="$TENANT" --image-repository="$TARGET_IMAGE_REPO" --version="$target_image_tag" --tier="Internal" --region="$REGION")
+(TELEPORT_HOME=$TELEPORT_HOME tc tenant onboard --app-name="$CLOUD_API_APP" --name="$TENANT" --image-repository="$TARGET_IMAGE_REPO" --version="$target_image_tag" --tier="Internal" --region="$REGION")
 fail_on_exit_code "Unable to create tenant \"$TENANT\""
 
 # Reduce clientReadySeconds so that future image updates are instantaneous.
-(tc tenant patch merge --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"proxyTunnel":{"clientReadySeconds": 0}}')
+(TELEPORT_HOME=$TELEPORT_HOME tc tenant patch merge -f --app-name="$CLOUD_API_APP" --name="$TENANT" --json '{"proxyTunnel":{"clientReadySeconds": 0}}')
 fail_on_exit_code "Unable to create tenant \"$TENANT\""
 
 echo "-> Created tenant \"$TENANT\""
