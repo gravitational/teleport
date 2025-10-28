@@ -356,8 +356,8 @@ const auth = {
     abortController?: AbortController
   ) {
     // try to center the screen
-    const width = 1045;
-    const height = 550;
+    const width = 1024;
+    const height = 768;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
 
