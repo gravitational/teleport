@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 	libtestutils "github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -545,6 +546,11 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 							},
 						},
 					},
+					Attestors: workloadattest.Config{
+						Unix: workloadattest.UnixAttestorConfig{
+							BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
+						},
+					},
 				},
 				trustBundleCache,
 				bot.DefaultCredentialLifetime,
@@ -758,6 +764,11 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 									},
 								},
 							},
+						},
+					},
+					Attestors: workloadattest.Config{
+						Unix: workloadattest.UnixAttestorConfig{
+							BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
 						},
 					},
 				},
