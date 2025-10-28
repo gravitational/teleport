@@ -74,28 +74,16 @@ service will then check if MFA is required for the session by examining the perm
 
 If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
 
-If MFA _is required_, the SSH service will send a JSON-encoded question containing the action ID via the SSH
-[keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. An
-action ID is a unique identifier (UUID v4) that [ties the MFA challenge to a specific user
-action](#associating-mfa-challenges-with-user-actions) (in this case, SSH session establishment). In the future, action
-IDs could be used for other Teleport features beyond SSH access.
-
-The MFA keyboard-interactive question will follow this schema:
-
-```json
-{
-  // Unique identifier for the MFA action (UUID v4).
-  "action_id": "121c49ab-8bc1-414a-b11c-5311bc54eceb",
-  // Human-readable message to display to the user.
-  "message": "MFA required. Complete the challenge using the provided action ID."
-}
-```
+If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt` message](#ssh-keyboard-interactive-messages) via
+the SSH [keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed.
+The message will include an action ID, which is a unique session identifier (UUID v4) that [ties the MFA challenge to a
+specific user action](#associating-mfa-challenges-with-user-actions) (in this case, SSH session establishment). In the
+future, action IDs could be used for other Teleport features beyond SSH access.
 
 The client must then invoke the `CreateChallengeForAction` RPC of the MFA service, providing the action ID along with
 any relevant request metadata. The MFA service will respond to the client with a challenge that must be solved. The
-client must solve the MFA challenge and send a base64 encoded `MFAAuthenticateResponse` Protobuf message to the SSH
-service via the keyboard-interactive channel. The Protobuf message must be base64 encoded to ensure they can be safely
-transmitted over the SSH keyboard-interactive channel.
+client must solve the MFA challenge and send a Protobuf [`MFAPromptAnswer` message](#ssh-keyboard-interactive-messages)
+back to the SSH service via the keyboard-interactive channel.
 
 Once the MFA challenge response is received, the SSH service will invoke the `ValidateChallengeForAction` RPC with the
 action ID, the client's MFA challenge response, and any other relevant metadata. If the MFA response is valid and the
@@ -169,8 +157,8 @@ Mitigations:
    will be rejected.
 1. Only Teleport instances are authorized to call the `ValidateChallengeForAction` RPC, requests from other sources will
    be rejected.
-1. Ensure that the MFA service validates the `MFAAuthenticateResponse` and action ID before processing the request to
-   avoid unnecessary processing of invalid requests.
+1. Ensure that the MFA service validates the `AuthenticateResponse` and action ID before processing the request to avoid
+   unnecessary processing of invalid requests.
 
 ### Privacy
 
@@ -204,6 +192,40 @@ enum PreconditionKind {
   PRECONDITION_KIND_UNSPECIFIED = 0;
   // PreconditionKindPerSessionMFA requires per-session MFA to be completed.
   PRECONDITION_KIND_PER_SESSION_MFA = 1;
+}
+```
+
+#### SSH Keyboard-Interactive Authentication
+
+An additional authentication layer will be built on top of the SSH keyboard-interactive authentication channel to
+facilitate MFA prompts and responses. Later this can be extended to support other types of prompts or checks.
+
+The [keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) requires UTF-8 encoded strings for prompts
+and responses. Because of such, these Protobuf messages will be JSON encoded prior to being sent over the
+keyboard-interactive channel using [protojson](https://pkg.go.dev/google.golang.org/protobuf/encoding/protojson).
+
+```proto
+// AuthPrompt is shown to the user during SSH keyboard-interactive authentication.
+// Currently, only MFA prompts are supported, but this message is designed to be extensible
+// for additional prompt types or checks in the future.
+message AuthPrompt {
+  oneof prompt {
+    MFAPrompt mfa_prompt = 1;
+  }
+}
+
+  // Action ID is a unique identifier (UUID v4) associated with the SSH session for MFA.
+message MFAPrompt {
+  // Action ID for the MFA action derived from the SSH session ID.
+  string action_id = 1;
+  // Message to display to the user.
+  string message = 2;
+}
+
+// MFAPromptAnswer is the user's answer to an MFA prompt.
+message MFAPromptAnswer {
+  // User's response to the MFA challenge.
+  teleport.mfa.v1.AuthenticateResponse mfa_response = 1;
 }
 ```
 
@@ -252,7 +274,7 @@ message CreateChallengeForActionResponse {
   // challenge/response will be tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
   string action_id = 1;
   // mfa_challenge contains the MFA challenge that the user must respond to.
-  MFAAuthenticateChallenge mfa_challenge = 2;
+  AuthenticateChallenge mfa_challenge = 2;
 }
 
 // ValidateChallengeForActionRequest is the request message for ValidateChallengeForAction.
@@ -261,7 +283,7 @@ message ValidateChallengeForActionRequest {
   // response are tied to a specific user action. This field MUST be a UUID v4 (RFC 4122, version 4).
   string action_id = 1;
   // mfa_response contains the MFA challenge response provided by the user.
-  MFAAuthenticateResponse mfa_response = 2;
+  AuthenticateResponse mfa_response = 2;
   // user is the Teleport username of the user attempting to authenticate.
   string user = 3;
 }
@@ -277,8 +299,8 @@ message ValidateChallengeForActionResponse {
   types.MFADevice device = 3;
 }
 
-// MFAAuthenticateChallenge is a challenge for all MFA devices registered for a user.
-message MFAAuthenticateChallenge {
+// AuthenticateChallenge is a challenge for all MFA devices registered for a user.
+message AuthenticateChallenge {
   // webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
   // assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
   // Webauthn device registered by the user).
@@ -288,8 +310,8 @@ message MFAAuthenticateChallenge {
   SSOChallenge sso_challenge = 2;
 }
 
-// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one of the MFA devices registered for a user.
-message MFAAuthenticateResponse {
+// AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
+message AuthenticateResponse {
   oneof response {
     // webauthn is a response to a Webauthn challenge.
     webauthn.CredentialAssertionResponse webauthn = 1;
