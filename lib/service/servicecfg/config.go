@@ -741,6 +741,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Logger = slog.Default()
 	}
 
+	if cfg.MetricsRegistry == nil {
+		cfg.MetricsRegistry = prometheus.NewRegistry()
+	}
+
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
 	}
