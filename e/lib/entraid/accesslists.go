@@ -32,6 +32,27 @@ type accessListWithMembers struct {
 	Members []*accesslist.AccessListMember
 }
 
+func (a *accessListWithMembers) isEqual(other *accessListWithMembers) bool {
+	// Skip cloning during comparison since reconciliation inputs are ephemeral and
+	// recreated on each run. This optimization avoids unnecessary allocations by
+	// allowing in-place mutations that would be discarded after reconciliation anyway.
+	if !accesslist.EqualAccessLists(a.AccessList, other.AccessList,
+		accesslist.WithSkipClone(),
+		accesslist.WithIgnoreEphemeralFields()) {
+		return false
+	}
+	if len(a.Members) != len(other.Members) {
+		return false
+	}
+	// Members are sorted before reconciliation, so we can compare them in order.
+	for i := range a.Members {
+		if !a.Members[i].IsEqual(other.Members[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // GetKind returns a fake resource kind printed in the [services.Reconciler] logs.
 func (a *accessListWithMembers) GetKind() string {
 	return types.KindAccessList + "+" + types.KindAccessListMember
@@ -72,6 +93,7 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	}
 
 	alReconciler, err := services.NewReconciler(services.ReconcilerConfig[*accessListWithMembers]{
+		CompareResources:    func(a, b *accessListWithMembers) int { return services.EqualFromBool(a.isEqual(b)) },
 		Matcher:             func(a *accessListWithMembers) bool { return matchByLabel(a.AccessList) },
 		GetCurrentResources: func() map[string]*accessListWithMembers { return teleportAccessListsWithMembersMap },
 		GetNewResources:     func() map[string]*accessListWithMembers { return entraAccessListWithMembersMap },

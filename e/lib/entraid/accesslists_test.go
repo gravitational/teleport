@@ -1,11 +1,18 @@
 package entraid
 
 import (
+	"fmt"
 	"sort"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
@@ -269,5 +276,69 @@ func Test_accessListName(t *testing.T) {
 			got := accessListName(tt.args.displayName, tt.args.id)
 			require.Equal(t, tt.want, got)
 		})
+	}
+}
+
+// createAccessListWithMembers creates a test accessListWithMembers with the given number of members
+func createAccessListWithMembers(name string, numMembers int) *accessListWithMembers {
+	al, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.Spec{
+			Title: fmt.Sprintf("Access List %s", name),
+			Owners: []accesslist.Owner{
+				{
+					Name: "owner-user",
+				},
+			},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	members := make([]*accesslist.AccessListMember, numMembers)
+	for i := 0; i < numMembers; i++ {
+		member, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: fmt.Sprintf("user-%d", i),
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList:     name,
+				Name:           fmt.Sprintf("user-%d", i),
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+			},
+		)
+		if err != nil {
+			panic(err)
+		}
+		members[i] = member
+	}
+
+	return &accessListWithMembers{
+		AccessList: al,
+		Members:    members,
+	}
+}
+
+func BenchmarkAccessListWithMembersIsEqual(b *testing.B) {
+	const (
+		numAccessLists    = 50000
+		avgMembersPerList = 100
+	)
+
+	accessLists := make([]*accessListWithMembers, numAccessLists)
+	for i := 0; i < numAccessLists; i++ {
+		name := uuid.New().String()
+		accessLists[i] = createAccessListWithMembers(name, avgMembersPerList)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < numAccessLists; i++ {
+		_ = accessLists[i].isEqual(accessLists[i])
 	}
 }
