@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -105,7 +106,7 @@ func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc 
 
 func eventWithHeader(r *http.Request) eventOptionFunc {
 	return func(o *eventOptions) {
-		o.header = redactSecretsFromHeader(r.Header)
+		o.header = headersForAudit(r.Header)
 	}
 }
 
@@ -331,11 +332,23 @@ func (a *sessionAuditor) makeUserMetadata() apievents.UserMetadata {
 	return a.sessionCtx.Identity.GetUserMetadata()
 }
 
-func redactSecretsFromHeader(h http.Header) http.Header {
-	if len(h.Values("Authorization")) == 0 {
-		return h
+var headersWithSecret = []string{
+	"Authorization",
+	"X-API-Key",
+}
+
+func headersForAudit(h http.Header) http.Header {
+	if h == nil {
+		return nil
 	}
 	ret := h.Clone()
-	ret.Set("Authorization", "<REDACTED>")
+	for _, key := range appcommon.ReservedHeaders {
+		ret.Del(key)
+	}
+	for _, key := range headersWithSecret {
+		if len(ret.Values(key)) > 0 {
+			ret.Set(key, "<REDACTED>")
+		}
+	}
 	return ret
 }

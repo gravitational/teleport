@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_redactSecretsFromHeader(t *testing.T) {
+func Test_headersForAudit(t *testing.T) {
 	tests := []struct {
 		name  string
 		input http.Header
@@ -37,10 +37,11 @@ func Test_redactSecretsFromHeader(t *testing.T) {
 			want:  nil,
 		},
 		{
-			name: "no secrets",
+			name: "remove reserved header",
 			input: http.Header{
-				"Foo":   []string{"bar"},
-				"Alice": []string{"bob", "charlie"},
+				"X-Forwarded-For": []string{"hello"},
+				"Foo":             []string{"bar"},
+				"Alice":           []string{"bob", "charlie"},
 			},
 			want: http.Header{
 				"Foo":   []string{"bar"},
@@ -51,17 +52,19 @@ func Test_redactSecretsFromHeader(t *testing.T) {
 			name: "redact secrets",
 			input: http.Header{
 				"Authorization": []string{"Bearer secret"},
+				"X-Api-Key":     []string{"api-key"},
 				"Alice":         []string{"bob", "charlie"},
 			},
 			want: http.Header{
 				"Authorization": []string{"<REDACTED>"},
+				"X-Api-Key":     []string{"<REDACTED>"},
 				"Alice":         []string{"bob", "charlie"},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, redactSecretsFromHeader(tt.input))
+			require.Equal(t, tt.want, headersForAudit(tt.input))
 		})
 	}
 }
