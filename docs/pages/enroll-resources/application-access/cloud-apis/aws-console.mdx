@@ -370,7 +370,8 @@ In this step, you will define a Teleport role that confers access to the
    role.
 
    <Admonition type="important" title="AWS roles and App labels">
-   Both `aws_role_arns` and `app_labels` are required for AWS access to work.
+   Role needs permissions for `aws_role_arns` and `app_labels` for AWS access to work.
+
    If a role has `aws_role_arns` defined but not `app_labels`, attempting to access the AWS Console will result in a `Not Found` error.
    </Admonition>
 
