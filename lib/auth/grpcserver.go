@@ -4523,7 +4523,7 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 }
 
 // CreateChallengeForAction is implemented by AuthService.CreateChallengeForAction.
-func (g *GRPCServer) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+func (g *GRPCServer) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeRequest) (*mfav1.CreateChallengeResponse, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4538,7 +4538,7 @@ func (g *GRPCServer) CreateChallengeForAction(ctx context.Context, req *mfav1.Cr
 }
 
 // ValidateChallegeForAction is implemented by AuthService.ValidateChallegeForAction.
-func (g *GRPCServer) ValidateChallegeForAction(ctx context.Context, req *mfav1.ValidateChallengeForActionRequest) (*mfav1.ValidateChallengeForActionResponse, error) {
+func (g *GRPCServer) ValidateChallegeForAction(ctx context.Context, req *mfav1.ValidateChallengeRequest) (*mfav1.ValidateChallengeResponse, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

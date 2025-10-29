@@ -7117,7 +7117,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 }
 
 // CreateAuthenticateChallenge is implemented by AuthService.mfa.CreateChallengeForAction.
-func (a *ServerWithRoles) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+func (a *ServerWithRoles) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeRequest) (*mfav1.CreateChallengeResponse, error) {
 	if !authz.IsLocalOrRemoteUser(a.context) {
 		return nil, trace.BadParameter("only end users are allowed to issue authentication challenges")
 	}
@@ -7131,7 +7131,7 @@ func (a *ServerWithRoles) CreateChallengeForAction(ctx context.Context, req *mfa
 }
 
 // ValidateChallengeForAction is implemented by AuthService.mfa.ValidateChallengeForAction.
-func (a *ServerWithRoles) ValidateChallengeForAction(ctx context.Context, req *mfav1.ValidateChallengeForActionRequest) (*mfav1.ValidateChallengeForActionResponse, error) {
+func (a *ServerWithRoles) ValidateChallengeForAction(ctx context.Context, req *mfav1.ValidateChallengeRequest) (*mfav1.ValidateChallengeForActionResponse, error) {
 	if authz.IsLocalOrRemoteUser(a.context) {
 		return nil, trace.BadParameter("only Teleport instances are allowed to validate authentication challenges")
 	}

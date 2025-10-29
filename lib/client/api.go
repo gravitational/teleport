@@ -53,6 +53,7 @@ import (
 	"golang.org/x/term"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
+	protobuf_proto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -3325,46 +3326,57 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	hostKeyCallback := tc.HostKeyCallback
 	authMethods := slices.Clone(tc.Config.AuthMethods)
 
+	kbMethod := ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+		if len(questions) == 0 {
+			return nil, trace.BadParameter("expected at least one challenge question")
+		}
+
+		var question sshv1.AuthPrompt
+		if err := protojson.Unmarshal([]byte(questions[0]), &question); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, ok := question.GetPrompt().(*sshv1.AuthPrompt_MfaPrompt); !ok {
+			return nil, trace.BadParameter("unsupported challenge type: %T", question.GetPrompt())
+		}
+
+		fmt.Println(instruction)
+
+		payload := &sshv1.SessionPayload{
+			Version:   "v1",           // XXX: hardcoded for now.
+			SessionId: []byte("TODO"), // TODO: Get SSH connection state session ID.
+
+		}
+		payloadBytes, err := protobuf_proto.Marshal(payload)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		mfaResponse, err := tc.NewMFACeremony().RunForAction(ctx, &mfav1.CreateChallengeRequest{
+			Payload:              payloadBytes,
+			SsoClientRedirectUrl: "", // Will be populated by the ceremony if SSO MFA is configured.
+			ProxyAddress:         proxyAddr,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		answer := &sshv1.MFAPromptAnswer{
+			MfaResponse: mfaResponse,
+		}
+
+		answerBytes, err := protojson.Marshal(answer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return []string{string(answerBytes)}, nil
+	})
+
 	// Add MFA challenge handler.
 	authMethods = append(
 		authMethods,
-		ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) { //nolint: contextcheck
-			if len(questions) == 0 {
-				return nil, trace.BadParameter("expected at least one challenge question")
-			}
-
-			var question sshv1.AuthPrompt
-			if err := protojson.Unmarshal([]byte(questions[0]), &question); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if _, ok := question.GetPrompt().(*sshv1.AuthPrompt_MfaPrompt); !ok {
-				return nil, trace.BadParameter("unsupported challenge type: %T", question.GetPrompt())
-			}
-
-			fmt.Println(instruction)
-
-			mfaResponse, err := tc.NewMFACeremony().RunForAction(ctx, &mfav1.CreateChallengeForActionRequest{
-				ActionId:             question.GetMfaPrompt().GetActionId(),
-				User:                 user,
-				SsoClientRedirectUrl: "", // Will be populated by the ceremony if SSO MFA is configured.
-				ProxyAddress:         proxyAddr,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			answer := &sshv1.MFAPromptAnswer{
-				MfaResponse: mfaResponse,
-			}
-
-			answerBytes, err := protojson.Marshal(answer)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return []string{string(answerBytes)}, nil
-		}),
+		kbMethod,
 	)
 
 	clusterName := func() string { return tc.SiteName }

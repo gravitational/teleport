@@ -1393,9 +1393,6 @@ message CreateMFAChallengeForAction {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // ActionID is the ID of the action requiring MFA.
-  string ActionID = 3 [(gogoproto.jsontag) = "action_id"];
 }
 
 // ValidateMFAChallengeForAction records the validation of an MFA auth challenge response.
@@ -1423,9 +1420,6 @@ message ValidateMFAChallengeForAction {
 
   // MFADevice is the MFA device used.
   MFADeviceMetadata MFADevice = 4 [(gogoproto.jsontag) = "mfa_device,omitempty"];
-
-  // ActionID is the ID of the action requiring MFA.
-  string ActionID = 5 [(gogoproto.jsontag) = "action_id"];
 }
 
 // ResourceMetadata is a common resource metadata

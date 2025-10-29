@@ -54,7 +54,7 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 }
 
 // createChallengeForAction creates and returns an MFA challenge for a specific action.
-func (tc *TeleportClient) createChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+func (tc *TeleportClient) createChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeRequest) (*mfav1.CreateChallengeResponse, error) {
 	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

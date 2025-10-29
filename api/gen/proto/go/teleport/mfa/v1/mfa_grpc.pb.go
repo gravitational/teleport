@@ -30,8 +30,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MFAService_CreateChallengeForAction_FullMethodName   = "/teleport.mfa.v1.MFAService/CreateChallengeForAction"
-	MFAService_ValidateChallengeForAction_FullMethodName = "/teleport.mfa.v1.MFAService/ValidateChallengeForAction"
+	MFAService_CreateChallenge_FullMethodName   = "/teleport.mfa.v1.MFAService/CreateChallenge"
+	MFAService_ValidateChallenge_FullMethodName = "/teleport.mfa.v1.MFAService/ValidateChallenge"
 )
 
 // MFAServiceClient is the client API for MFAService service.
@@ -41,12 +41,11 @@ const (
 // MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
 // of the AuthService.
 type MFAServiceClient interface {
-	// CreateChallengeForAction creates an MFA challenge that is tied to a specific user action. The action_id is required
-	// and the created challenge will be correlated to that action.
-	CreateChallengeForAction(ctx context.Context, in *CreateChallengeForActionRequest, opts ...grpc.CallOption) (*CreateChallengeForActionResponse, error)
-	// ValidateChallengeForAction validates the MFA challenge response provided by the user for a specific user action.
-	// The action_id is required and must match the action the challenge was created for.
-	ValidateChallengeForAction(ctx context.Context, in *ValidateChallengeForActionRequest, opts ...grpc.CallOption) (*ValidateChallengeForActionResponse, error)
+	// CreateChallenge creates an MFA challenge that is tied to a user session.
+	CreateChallenge(ctx context.Context, in *CreateChallengeRequest, opts ...grpc.CallOption) (*CreateChallengeResponse, error)
+	// ValidateChallenge validates the MFA challenge response for a user session. The client must verify the returned
+	// payload matches the expected payload to ensure the response is tied to the correct session.
+	ValidateChallenge(ctx context.Context, in *ValidateChallengeRequest, opts ...grpc.CallOption) (*ValidateChallengeResponse, error)
 }
 
 type mFAServiceClient struct {
@@ -57,20 +56,20 @@ func NewMFAServiceClient(cc grpc.ClientConnInterface) MFAServiceClient {
 	return &mFAServiceClient{cc}
 }
 
-func (c *mFAServiceClient) CreateChallengeForAction(ctx context.Context, in *CreateChallengeForActionRequest, opts ...grpc.CallOption) (*CreateChallengeForActionResponse, error) {
+func (c *mFAServiceClient) CreateChallenge(ctx context.Context, in *CreateChallengeRequest, opts ...grpc.CallOption) (*CreateChallengeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateChallengeForActionResponse)
-	err := c.cc.Invoke(ctx, MFAService_CreateChallengeForAction_FullMethodName, in, out, cOpts...)
+	out := new(CreateChallengeResponse)
+	err := c.cc.Invoke(ctx, MFAService_CreateChallenge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *mFAServiceClient) ValidateChallengeForAction(ctx context.Context, in *ValidateChallengeForActionRequest, opts ...grpc.CallOption) (*ValidateChallengeForActionResponse, error) {
+func (c *mFAServiceClient) ValidateChallenge(ctx context.Context, in *ValidateChallengeRequest, opts ...grpc.CallOption) (*ValidateChallengeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ValidateChallengeForActionResponse)
-	err := c.cc.Invoke(ctx, MFAService_ValidateChallengeForAction_FullMethodName, in, out, cOpts...)
+	out := new(ValidateChallengeResponse)
+	err := c.cc.Invoke(ctx, MFAService_ValidateChallenge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,12 +83,11 @@ func (c *mFAServiceClient) ValidateChallengeForAction(ctx context.Context, in *V
 // MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
 // of the AuthService.
 type MFAServiceServer interface {
-	// CreateChallengeForAction creates an MFA challenge that is tied to a specific user action. The action_id is required
-	// and the created challenge will be correlated to that action.
-	CreateChallengeForAction(context.Context, *CreateChallengeForActionRequest) (*CreateChallengeForActionResponse, error)
-	// ValidateChallengeForAction validates the MFA challenge response provided by the user for a specific user action.
-	// The action_id is required and must match the action the challenge was created for.
-	ValidateChallengeForAction(context.Context, *ValidateChallengeForActionRequest) (*ValidateChallengeForActionResponse, error)
+	// CreateChallenge creates an MFA challenge that is tied to a user session.
+	CreateChallenge(context.Context, *CreateChallengeRequest) (*CreateChallengeResponse, error)
+	// ValidateChallenge validates the MFA challenge response for a user session. The client must verify the returned
+	// payload matches the expected payload to ensure the response is tied to the correct session.
+	ValidateChallenge(context.Context, *ValidateChallengeRequest) (*ValidateChallengeResponse, error)
 }
 
 // UnimplementedMFAServiceServer should be embedded to have
@@ -99,11 +97,11 @@ type MFAServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMFAServiceServer struct{}
 
-func (UnimplementedMFAServiceServer) CreateChallengeForAction(context.Context, *CreateChallengeForActionRequest) (*CreateChallengeForActionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateChallengeForAction not implemented")
+func (UnimplementedMFAServiceServer) CreateChallenge(context.Context, *CreateChallengeRequest) (*CreateChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateChallenge not implemented")
 }
-func (UnimplementedMFAServiceServer) ValidateChallengeForAction(context.Context, *ValidateChallengeForActionRequest) (*ValidateChallengeForActionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ValidateChallengeForAction not implemented")
+func (UnimplementedMFAServiceServer) ValidateChallenge(context.Context, *ValidateChallengeRequest) (*ValidateChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateChallenge not implemented")
 }
 func (UnimplementedMFAServiceServer) testEmbeddedByValue() {}
 
@@ -125,38 +123,38 @@ func RegisterMFAServiceServer(s grpc.ServiceRegistrar, srv MFAServiceServer) {
 	s.RegisterService(&MFAService_ServiceDesc, srv)
 }
 
-func _MFAService_CreateChallengeForAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateChallengeForActionRequest)
+func _MFAService_CreateChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateChallengeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MFAServiceServer).CreateChallengeForAction(ctx, in)
+		return srv.(MFAServiceServer).CreateChallenge(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MFAService_CreateChallengeForAction_FullMethodName,
+		FullMethod: MFAService_CreateChallenge_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).CreateChallengeForAction(ctx, req.(*CreateChallengeForActionRequest))
+		return srv.(MFAServiceServer).CreateChallenge(ctx, req.(*CreateChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _MFAService_ValidateChallengeForAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ValidateChallengeForActionRequest)
+func _MFAService_ValidateChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateChallengeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(MFAServiceServer).ValidateChallengeForAction(ctx, in)
+		return srv.(MFAServiceServer).ValidateChallenge(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: MFAService_ValidateChallengeForAction_FullMethodName,
+		FullMethod: MFAService_ValidateChallenge_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).ValidateChallengeForAction(ctx, req.(*ValidateChallengeForActionRequest))
+		return srv.(MFAServiceServer).ValidateChallenge(ctx, req.(*ValidateChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -169,12 +167,12 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*MFAServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateChallengeForAction",
-			Handler:    _MFAService_CreateChallengeForAction_Handler,
+			MethodName: "CreateChallenge",
+			Handler:    _MFAService_CreateChallenge_Handler,
 		},
 		{
-			MethodName: "ValidateChallengeForAction",
-			Handler:    _MFAService_ValidateChallengeForAction_Handler,
+			MethodName: "ValidateChallenge",
+			Handler:    _MFAService_ValidateChallenge_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

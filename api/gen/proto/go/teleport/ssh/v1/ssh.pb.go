@@ -103,10 +103,8 @@ func (*AuthPrompt_MfaPrompt) isAuthPrompt_Prompt() {}
 // MFAPrompt indicates MFA is required for SSH keyboard-interactive authentication.
 type MFAPrompt struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Action ID for the MFA action derived from the SSH session ID.
-	ActionId string `protobuf:"bytes,1,opt,name=action_id,json=actionId,proto3" json:"action_id,omitempty"`
 	// Message to display to the user.
-	Message       string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Message       string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -139,13 +137,6 @@ func (x *MFAPrompt) ProtoReflect() protoreflect.Message {
 // Deprecated: Use MFAPrompt.ProtoReflect.Descriptor instead.
 func (*MFAPrompt) Descriptor() ([]byte, []int) {
 	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *MFAPrompt) GetActionId() string {
-	if x != nil {
-		return x.ActionId
-	}
-	return ""
 }
 
 func (x *MFAPrompt) GetMessage() string {
@@ -201,6 +192,63 @@ func (x *MFAPromptAnswer) GetMfaResponse() *v1.AuthenticateResponse {
 	return nil
 }
 
+// SessionPayload contains identification information about an SSH session.
+type SessionPayload struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// version is the version of the payload structure. Currently supports "v1". To extend, add new fields and bump the
+	// version.
+	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	// session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value from
+	// crypto/ssh#ConnMetadata.SessionID().
+	SessionId     []byte `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionPayload) Reset() {
+	*x = SessionPayload{}
+	mi := &file_teleport_ssh_v1_ssh_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionPayload) ProtoMessage() {}
+
+func (x *SessionPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_ssh_v1_ssh_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionPayload.ProtoReflect.Descriptor instead.
+func (*SessionPayload) Descriptor() ([]byte, []int) {
+	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SessionPayload) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *SessionPayload) GetSessionId() []byte {
+	if x != nil {
+		return x.SessionId
+	}
+	return nil
+}
+
 var File_teleport_ssh_v1_ssh_proto protoreflect.FileDescriptor
 
 const file_teleport_ssh_v1_ssh_proto_rawDesc = "" +
@@ -210,12 +258,15 @@ const file_teleport_ssh_v1_ssh_proto_rawDesc = "" +
 	"AuthPrompt\x12;\n" +
 	"\n" +
 	"mfa_prompt\x18\x01 \x01(\v2\x1a.teleport.ssh.v1.MFAPromptH\x00R\tmfaPromptB\b\n" +
-	"\x06prompt\"B\n" +
-	"\tMFAPrompt\x12\x1b\n" +
-	"\taction_id\x18\x01 \x01(\tR\bactionId\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"[\n" +
+	"\x06prompt\"%\n" +
+	"\tMFAPrompt\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"[\n" +
 	"\x0fMFAPromptAnswer\x12H\n" +
-	"\fmfa_response\x18\x01 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\vmfaResponseBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1;sshv1b\x06proto3"
+	"\fmfa_response\x18\x01 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\vmfaResponse\"I\n" +
+	"\x0eSessionPayload\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\fR\tsessionIdBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1;sshv1b\x06proto3"
 
 var (
 	file_teleport_ssh_v1_ssh_proto_rawDescOnce sync.Once
@@ -229,16 +280,17 @@ func file_teleport_ssh_v1_ssh_proto_rawDescGZIP() []byte {
 	return file_teleport_ssh_v1_ssh_proto_rawDescData
 }
 
-var file_teleport_ssh_v1_ssh_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_ssh_v1_ssh_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_ssh_v1_ssh_proto_goTypes = []any{
 	(*AuthPrompt)(nil),              // 0: teleport.ssh.v1.AuthPrompt
 	(*MFAPrompt)(nil),               // 1: teleport.ssh.v1.MFAPrompt
 	(*MFAPromptAnswer)(nil),         // 2: teleport.ssh.v1.MFAPromptAnswer
-	(*v1.AuthenticateResponse)(nil), // 3: teleport.mfa.v1.AuthenticateResponse
+	(*SessionPayload)(nil),          // 3: teleport.ssh.v1.SessionPayload
+	(*v1.AuthenticateResponse)(nil), // 4: teleport.mfa.v1.AuthenticateResponse
 }
 var file_teleport_ssh_v1_ssh_proto_depIdxs = []int32{
 	1, // 0: teleport.ssh.v1.AuthPrompt.mfa_prompt:type_name -> teleport.ssh.v1.MFAPrompt
-	3, // 1: teleport.ssh.v1.MFAPromptAnswer.mfa_response:type_name -> teleport.mfa.v1.AuthenticateResponse
+	4, // 1: teleport.ssh.v1.MFAPromptAnswer.mfa_response:type_name -> teleport.mfa.v1.AuthenticateResponse
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -260,7 +312,7 @@ func file_teleport_ssh_v1_ssh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_ssh_v1_ssh_proto_rawDesc), len(file_teleport_ssh_v1_ssh_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

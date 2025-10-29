@@ -97,8 +97,8 @@ func NewService(cfg Config) (*Service, error) {
 // and the created challenge will be correlated to that action.
 func (s *Service) CreateChallengeForAction(
 	ctx context.Context,
-	req *mfav1.CreateChallengeForActionRequest,
-) (*mfav1.CreateChallengeForActionResponse, error) {
+	req *mfav1.CreateChallengeRequest,
+) (*mfav1.CreateChallengeResponse, error) {
 	switch {
 	case req.GetActionId() == "":
 		return nil, trace.BadParameter("action_id is required")
@@ -130,7 +130,7 @@ func (s *Service) CreateChallengeForAction(
 	slog.Debug("Created MFA challenge for action", slog.String("action_id", req.GetActionId()))
 
 	// Convert to the response type.
-	return &mfav1.CreateChallengeForActionResponse{
+	return &mfav1.CreateChallengeResponse{
 		ActionId:     req.GetActionId(),
 		MfaChallenge: mfaChal,
 	}, nil
@@ -270,8 +270,8 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // The action_id is required and must match the action the challenge was created for.
 func (s *Service) ValidateChallengeForAction(
 	ctx context.Context,
-	req *mfav1.ValidateChallengeForActionRequest,
-) (*mfav1.ValidateChallengeForActionResponse, error) {
+	req *mfav1.ValidateChallengeRequest,
+) (*mfav1.ValidateChallengeResponse, error) {
 	switch {
 	case req.GetActionId() == "":
 		return nil, trace.BadParameter("action_id is required")

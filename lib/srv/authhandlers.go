@@ -1121,7 +1121,6 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 	log := h.log.With(
 		"user", conn.User(),
 		"permissions", perms,
-		"action_id", actionID,
 	)
 
 	log.DebugContext(ctx, "MFA required for client")
@@ -1129,8 +1128,7 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 	question := &sshv1.AuthPrompt{
 		Prompt: &sshv1.AuthPrompt_MfaPrompt{
 			MfaPrompt: &sshv1.MFAPrompt{
-				ActionId: actionID,
-				Message:  "MFA required. Complete the challenge using the provided action ID.",
+				Message: "MFA required", // This is what has been historically been shown to users.
 			},
 		},
 	}
@@ -1165,8 +1163,12 @@ func (h *AuthHandlers) mfaChallengeHandlerFunc(ctx context.Context, perms *ssh.P
 		return nil, trace.AccessDenied("MFA response was not provided by user %q and action ID %q", conn.User(), actionID)
 	}
 
+	// TODO(cthach): Verify the session ID in the payload received matches the expected session ID from the validate response.
+	var _ sshv1.SessionPayload
+	log.DebugContext(ctx, "Session ID: %q", conn.SessionID())
+
 	log.DebugContext(ctx, "MFA challenge completed successfully for client")
 
-	// Return the original permissions on success granting access.
+	// Return the original permissions granting access.
 	return perms, nil
 }

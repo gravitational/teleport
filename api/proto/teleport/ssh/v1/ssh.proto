@@ -26,14 +26,22 @@ message AuthPrompt {
 
 // MFAPrompt indicates MFA is required for SSH keyboard-interactive authentication.
 message MFAPrompt {
-  // Action ID for the MFA action derived from the SSH session ID.
-  string action_id = 1;
   // Message to display to the user.
-  string message = 2;
+  string message = 1;
 }
 
 // MFAPromptAnswer is the user's answer to an MFA prompt.
 message MFAPromptAnswer {
   // User's response to the MFA challenge.
   teleport.mfa.v1.AuthenticateResponse mfa_response = 1;
+}
+
+// SessionPayload contains identification information about an SSH session.
+message SessionPayload {
+  // version is the version of the payload structure. Currently supports "v1". To extend, add new fields and bump the
+  // version.
+  string version = 1;
+  // session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value from
+  // crypto/ssh#ConnMetadata.SessionID().
+  bytes session_id = 2;
 }

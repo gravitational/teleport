@@ -65,7 +65,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // CreateChallengeForAction creates and returns an MFA challenge for a specific action.
-func (s *Service) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
+func (s *Service) CreateChallengeForAction(ctx context.Context, req *mfav1.CreateChallengeRequest) (*mfav1.CreateChallengeResponse, error) {
 	authzContext, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,7 +80,7 @@ func (s *Service) CreateChallengeForAction(ctx context.Context, req *mfav1.Creat
 }
 
 // ValidateChallengeForAction validates the MFA challenge response provided by the user for a specific user action.
-func (s *Service) ValidateChallengeForAction(ctx context.Context, req *mfav1.ValidateChallengeForActionRequest) (*mfav1.ValidateChallengeForActionResponse, error) {
+func (s *Service) ValidateChallengeForAction(ctx context.Context, req *mfav1.ValidateChallengeRequest) (*mfav1.ValidateChallengeResponse, error) {
 	authzContext, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

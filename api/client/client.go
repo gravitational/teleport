@@ -4049,8 +4049,8 @@ func (c *Client) CreateAuthenticateChallenge(ctx context.Context, in *proto.Crea
 }
 
 // CreateChallengeForAction creates and returns an MFA challenge for a specific user action.
-func (c *Client) CreateChallengeForAction(ctx context.Context, in *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error) {
-	resp, err := c.grpc.CreateChallengeForAction(ctx, in)
+func (c *Client) CreateChallengeForAction(ctx context.Context, in *mfav1.CreateChallengeRequest) (*mfav1.CreateChallengeResponse, error) {
+	resp, err := c.grpc.CreateChallenge(ctx, in)
 	return resp, trace.Wrap(err)
 }
 

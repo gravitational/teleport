@@ -55,7 +55,7 @@ type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 // CreateChallengeForActionFunc is a function that creates an authentication challenge for a specific action.
-type CreateChallengeForActionFunc func(ctx context.Context, req *mfav1.CreateChallengeForActionRequest) (*mfav1.CreateChallengeForActionResponse, error)
+type CreateChallengeForActionFunc func(ctx context.Context, req *mfav1.CreateChallengeRequest) (*mfav1.CreateChallengeResponse, error)
 
 // Run the MFA ceremony.
 //
@@ -122,7 +122,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 }
 
 // Run the MFA ceremony for a specific action.
-func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeForActionRequest, promptOpts ...PromptOpt) (*mfav1.AuthenticateResponse, error) {
+func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeRequest, promptOpts ...PromptOpt) (*mfav1.AuthenticateResponse, error) {
 	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
 	// request to request an SSO challenge in addition to other challenges.
 	// TODO(cthach): Update SSO MFA ceremony to support mfav1 requests natively.
@@ -139,7 +139,7 @@ func (c *Ceremony) RunForAction(ctx context.Context, req *mfav1.CreateChallengeF
 			// its own req or uses a different e.g. login. We should still provide the sso client
 			// redirect URL in case the custom CreateAuthenticateChallenge handles it.
 			if req == nil {
-				req = new(mfav1.CreateChallengeForActionRequest)
+				req = new(mfav1.CreateChallengeRequest)
 			}
 
 			req.SsoClientRedirectUrl = ssoMFACeremony.GetClientCallbackURL()
