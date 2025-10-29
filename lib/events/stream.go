@@ -68,8 +68,14 @@ const (
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
 
-	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
-	// Amazon S3.
+	// MinUploadPartSizeBytes is the minimum upload part size when uploading session recordings
+	// through a [MultipartUploader]. All uploaded parts are expected to meet this minimum size.
+	// The actual minimum enforced by th external audit storage depends on the provider:
+	// - S3 (AWS):    5MiB
+	// - GCloud:      5MiB
+	// - Azure:       None
+	// - File:        None
+	// - Mem (tests): Configurable
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
 
 	// ProtoStreamV1 is a version of the binary protocol

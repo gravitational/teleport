@@ -673,18 +673,9 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		}
 
 		// If the upload part is not at least the minimum upload part size, and this isn't
-		// the last part, append an empty part to pad up to the minimum upload size.
+		// the last part, add padding to meet the minimum upload size.
 		if hasNext && len(part) < MinUploadPartSizeBytes {
-			paddingBytes := max(MinUploadPartSizeBytes-len(part), ProtoStreamV2PartHeaderSize)
-			paddedPart := make([]byte, paddingBytes)
-
-			paddedPartHeader := PartHeader{
-				ProtoVersion: ProtoStreamV2,
-				PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
-				PartSize:     0,
-			}
-			copy(paddedPart, paddedPartHeader.Bytes())
-			part = append(part, paddedPart...)
+			part = PadUploadPart(part, MinUploadPartSizeBytes)
 		}
 
 		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
@@ -819,4 +810,21 @@ func sessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback,
 	}
 
 	return cb, nil
+}
+
+// PadUploadPart adds padding to the given upload part to reach the minimum size.
+func PadUploadPart(uploadPart []byte, minSize int) []byte {
+	// Create padding to reach the target size. Note that the padding cannot
+	// be shorter than the header size.
+	paddingBytes := max(minSize-len(uploadPart), ProtoStreamV2PartHeaderSize)
+	paddedPart := make([]byte, paddingBytes)
+
+	paddedPartHeader := PartHeader{
+		ProtoVersion: ProtoStreamV2,
+		PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
+		PartSize:     0,
+	}
+	copy(paddedPart, paddedPartHeader.Bytes())
+
+	return append(uploadPart, paddedPart...)
 }

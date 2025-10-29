@@ -19,6 +19,7 @@
 package events_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -379,4 +380,52 @@ func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {
 	require.NoError(t, err)
 
 	return alog
+}
+
+func TestPadUploadPart(t *testing.T) {
+	partData := bytes.Repeat([]byte{1, 2, 3}, 10)
+	header := events.PartHeader{
+		ProtoVersion: events.V2,
+		PartSize:     uint64(len(partData)),
+		PaddingSize:  0,
+	}
+	headerBytes := header.Bytes()
+	part := append(headerBytes, partData...)
+
+	// Pad the upload part to double the size.
+	minSize := len(part) * 2
+	paddedPart := events.PadUploadPart(part, minSize)
+	require.Len(t, paddedPart, minSize)
+
+	// Padding the upload part again with the same minimum should add a single header in size.
+	paddedPart = events.PadUploadPart(paddedPart, minSize)
+	require.Len(t, paddedPart, minSize+events.ProtoStreamV2PartHeaderSize)
+
+	// Ensure we can read out each part.
+	r := bytes.NewReader(paddedPart)
+	h1, err := events.ParsePartHeader(r)
+	require.NoError(t, err)
+	require.Equal(t, h1, header)
+	gotData, err := io.ReadAll(io.LimitReader(r, int64(h1.PartSize)))
+	require.NoError(t, err)
+	require.Equal(t, partData, gotData)
+	io.Copy(io.Discard, io.LimitReader(r, int64(h1.PaddingSize)))
+
+	h2, err := events.ParsePartHeader(r)
+	require.NoError(t, err)
+	require.Equal(t, h2, events.PartHeader{
+		ProtoVersion: events.V2,
+		PaddingSize:  uint64(len(part) - events.ProtoStreamV2PartHeaderSize),
+	})
+	io.Copy(io.Discard, io.LimitReader(r, int64(h2.PaddingSize)))
+
+	h3, err := events.ParsePartHeader(r)
+	require.NoError(t, err)
+	require.Equal(t, h3, events.PartHeader{
+		ProtoVersion: events.V2,
+		PaddingSize:  0,
+	})
+
+	_, err = r.Read(nil)
+	require.ErrorIs(t, err, io.EOF)
 }

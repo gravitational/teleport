@@ -450,16 +450,7 @@ func (m *MemoryUploader) UploadEncryptedRecording(ctx context.Context, sessionID
 		// If the upload part is not at least the minimum upload part size, and this isn't
 		// the last part, append an empty part to pad up to the minimum upload size.
 		if hasNext && len(part) < m.cfg.MinimumUploadBytes {
-			paddingBytes := max(m.cfg.MinimumUploadBytes-len(part), events.ProtoStreamV2PartHeaderSize)
-			paddedPart := make([]byte, paddingBytes)
-
-			paddedPartHeader := events.PartHeader{
-				ProtoVersion: events.ProtoStreamV2,
-				PaddingSize:  uint64(paddingBytes - events.ProtoStreamV2PartHeaderSize),
-				PartSize:     0,
-			}
-			copy(paddedPart, paddedPartHeader.Bytes())
-			part = append(part, paddedPart...)
+			part = events.PadUploadPart(part, m.cfg.MinimumUploadBytes)
 		}
 
 		streamPart, err := m.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))

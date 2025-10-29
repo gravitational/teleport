@@ -160,16 +160,7 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 	// to pad up to the minimum upload size.
 	part := req.Part
 	if !req.IsLast && len(part) < events.MinUploadPartSizeBytes {
-		paddingBytes := max(events.MinUploadPartSizeBytes-len(part), events.ProtoStreamV2PartHeaderSize)
-		paddedPart := make([]byte, paddingBytes)
-
-		paddedPartHeader := events.PartHeader{
-			ProtoVersion: events.ProtoStreamV2,
-			PaddingSize:  uint64(paddingBytes - events.ProtoStreamV2PartHeaderSize),
-			PartSize:     0,
-		}
-		copy(paddedPart, paddedPartHeader.Bytes())
-		part = append(part, paddedPart...)
+		part = events.PadUploadPart(part, events.MinUploadPartSizeBytes)
 	}
 
 	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))
