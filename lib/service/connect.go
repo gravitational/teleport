@@ -390,6 +390,12 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 	if lostRoles := currentSystemRoles.Clone().Subtract(newSystemRoles); len(lostRoles) > 0 {
 		return nil, trace.Errorf("new Instance identity is missing the following system roles from the current identity (this is a bug): %v", lostRoles.Elements())
 	}
+	// Sanity check the host ID didn't change.
+	if currentIdentity.ID.HostID() != newIdentity.ID.HostID() {
+		return nil, trace.Errorf("new Instance host ID %s does not match current host ID %s (this is a bug)",
+			newIdentity.ID.HostID(),
+			currentIdentity.ID.HostID())
+	}
 
 	gainedSystemRoles := newSystemRoles.Clone().Subtract(currentSystemRoles)
 	if len(gainedSystemRoles) == 0 {

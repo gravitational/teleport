@@ -64,12 +64,13 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if trace.IsNotImplemented(err) || errors.As(err, new(*connectionError)) {
 		// Fall back to joining via legacy service.
 		slog.InfoContext(ctx, "Falling back to joining via the legacy join service", "error", err)
-		// Non-bots must generate their own host UUID when joining via legacy service.
-		if params.ID.Role != types.RoleBot {
+		// Non-bots must provide their own host UUID when joining via legacy service.
+		if params.ID.HostUUID == "" && params.ID.Role != types.RoleBot {
 			hostID, err := hostid.Generate(ctx, params.JoinMethod)
 			if err != nil {
 				return nil, trace.Wrap(err, "generating host ID")
 			}
+			slog.InfoContext(ctx, "Generated host UUID for legacy join attempt", "host_uuid", hostID)
 			params.ID.HostUUID = hostID
 		}
 		result, err := LegacyJoin(ctx, params)
