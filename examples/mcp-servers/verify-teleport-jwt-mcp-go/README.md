@@ -3,7 +3,7 @@
 Teleport sends a JWT token signed with Teleport's authority with each request
 to a target MCP server over the streamable HTTP or SSE transport.
 
-This example demonstrates a MCP server built with `mcp-go` that verifies the
+This example demonstrates an MCP server built with `mcp-go` that verifies the
 JWT issued by Teleport and extracts the Teleport's identity information.
 
 To start the server:
