@@ -344,6 +344,108 @@ func TestAction(t *testing.T) {
 	}
 }
 
+func TestEmitClientIPRestrictionstAuditEvent(t *testing.T) {
+	suite := newCloudSuite(t)
+	ctx := t.Context()
+
+	tt := []struct {
+		name    string
+		resp    *cloudv1.PutClientIPRestrictionsResponse
+		respErr error
+		assert  func(t *testing.T, event events.AuditEvent, err error)
+	}{
+		{
+			name: "success with multiple cidrs",
+			resp: &cloudv1.PutClientIPRestrictionsResponse{
+				ClientIpRestrictions: []*cloudv1.CIDR{
+					{Cidr: "10.0.0.0/24"},
+					{Cidr: "192.168.1.0/24"},
+					{Cidr: "2001:db8::/32"},
+				},
+			},
+			assert: func(t *testing.T, event events.AuditEvent, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, event)
+
+				ev, ok := event.(*events.ClientIPRestrictionsUpdate)
+				require.True(t, ok, "wrong event type")
+				require.Equal(t, libevents.ClientIPRestrictionsUpdateCode, ev.Metadata.Code)
+				require.True(t, ev.Status.Success)
+				require.Empty(t, ev.Status.Error)
+				require.Empty(t, ev.Status.UserMessage)
+
+				require.ElementsMatch(t, []string{
+					"10.0.0.0/24", "192.168.1.0/24", "2001:db8::/32",
+				}, ev.ClientIPRestrictions)
+
+				require.Equal(t, types.KindClientIPRestriction, ev.ResourceMetadata.Name)
+			},
+		},
+		{
+			name: "success with empty response",
+			resp: nil,
+			assert: func(t *testing.T, event events.AuditEvent, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, event)
+
+				ev, ok := event.(*events.ClientIPRestrictionsUpdate)
+				require.True(t, ok)
+				require.True(t, ev.Status.Success)
+				require.Empty(t, ev.ClientIPRestrictions)
+			},
+		},
+		{
+			name: "error does not log input even if resp present",
+			resp: &cloudv1.PutClientIPRestrictionsResponse{
+				ClientIpRestrictions: []*cloudv1.CIDR{
+					{Cidr: "1.1.1.0/24"},
+					{Cidr: "2.2.2.0/24"},
+					{Cidr: "3.3.3.0/24"},
+				},
+			},
+			respErr: trace.Wrap(trace.BadParameter("invalid CIDR payload")),
+			assert: func(t *testing.T, event events.AuditEvent, err error) {
+				// Should not error when emitting an error event
+				require.NoError(t, err)
+				require.NotNil(t, event)
+
+				ev, ok := event.(*events.ClientIPRestrictionsUpdate)
+				require.True(t, ok)
+				require.False(t, ev.Status.Success)
+
+				require.Contains(t, ev.Status.Error, "invalid CIDR payload")
+				require.Contains(t, ev.Status.UserMessage, "invalid CIDR payload")
+
+				require.Empty(t, ev.ClientIPRestrictions, "must not log client IP restrictions on error")
+			},
+		},
+		{
+			name:    "error nil resp emits event without cidrs",
+			resp:    nil,
+			respErr: trace.AccessDenied("no permission"),
+			assert: func(t *testing.T, event events.AuditEvent, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, event)
+
+				ev, ok := event.(*events.ClientIPRestrictionsUpdate)
+				require.True(t, ok)
+				require.False(t, ev.Status.Success)
+				require.Empty(t, ev.ClientIPRestrictions)
+
+				require.Contains(t, ev.Status.UserMessage, "no permission")
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			ac := suite.cloudWithRoles
+			err := ac.emitClientIPRestrictionstAuditEvent(ctx, tc.resp, tc.respErr)
+			tc.assert(t, suite.emitter.in, err)
+		})
+	}
+}
+
 func newUser(t *testing.T, name string, userType types.UserType, roles ...string) types.User {
 	t.Helper()
 

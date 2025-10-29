@@ -233,7 +233,6 @@ func (ac *cloudWithRoles) GetClientIPRestrictions(ctx context.Context, in *v1.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(mcbattirola): audit events
 	return ac.plugin.cloudClient.GetClientIPRestrictions(ctx, in)
 }
 
@@ -242,8 +241,13 @@ func (ac *cloudWithRoles) PutClientIPRestrictions(ctx context.Context, in *v1.Pu
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(mcbattirola): audit events
-	return ac.plugin.cloudClient.PutClientIPRestrictions(ctx, in)
+	resp, err := ac.plugin.cloudClient.PutClientIPRestrictions(ctx, in)
+
+	if err := ac.emitClientIPRestrictionstAuditEvent(ctx, resp, err); err != nil {
+		slog.WarnContext(ctx, "failed to emit client ip restriction update event", "error", err)
+	}
+
+	return resp, err
 }
 
 func (ac *cloudWithRoles) action(ctx context.Context, resource string, actions ...string) error {
@@ -336,4 +340,45 @@ func (ac *cloudWithRoles) emitContactAuditEvent(ctx context.Context, event conta
 	default:
 		return trace.BadParameter("unknown contact audit event type %d", event)
 	}
+}
+
+func (ac *cloudWithRoles) emitClientIPRestrictionstAuditEvent(ctx context.Context, resp *v1.PutClientIPRestrictionsResponse, respErr error) error {
+	authCtx, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return err
+	}
+	resourceMetadata := apievents.ResourceMetadata{
+		Name:      types.KindClientIPRestriction,
+		UpdatedBy: authCtx.Identity.GetIdentity().Username,
+	}
+
+	var cirStr []string
+
+	status := apievents.Status{
+		Success: respErr == nil,
+	}
+	if respErr != nil {
+		status.Error = trace.Unwrap(respErr).Error()
+		status.UserMessage = respErr.Error()
+	} else {
+		// only populate the cidr blocks on success to avoid
+		// clogging the logs with invalid blocks
+		if resp != nil {
+			for _, item := range resp.ClientIpRestrictions {
+				cirStr = append(cirStr, item.Cidr)
+			}
+		}
+	}
+
+	return ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, &apievents.ClientIPRestrictionsUpdate{
+		Metadata: apievents.Metadata{
+			Type: libevents.ClientIPRestrictionsUpdateEvent,
+			Code: libevents.ClientIPRestrictionsUpdateCode,
+		},
+		UserMetadata:         authCtx.GetUserMetadata(),
+		ConnectionMetadata:   authz.ConnectionMetadata(ctx),
+		Status:               status,
+		ResourceMetadata:     resourceMetadata,
+		ClientIPRestrictions: cirStr,
+	})
 }
