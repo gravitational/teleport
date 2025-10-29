@@ -27,7 +27,7 @@ things like identify instances still running old versions of Teleport and need t
 
 The first version of this feature will primarily focus on adding the existing `tctl inventory` and `tctl bots instances` functionality
 to the Web UI and use most of the same underlying backend API. Both teleport and bot instances will be stored in a sorted cache ordered alphabetically
-by name.
+by name. The `name` in this context for instances will be `<hostname>/<instance id>` (or just `instance id` if there is no `hostname`), and `<bot name>/<instance id>` for bot instances.
 
 #### Web Endpoint
 
@@ -154,7 +154,7 @@ message UnifiedInstanceItem {
     // teleport_instance is the canonical teleport instance type from the Instance heartbeat system.
     types.InstanceV1 teleport_instance = 1;
     // bot_instance is the canonical bot instance type.
-    machineidv1.BotInstance bot_instance = 2;
+    teleport.machineidv1.BotInstance bot_instance = 2;
   }
 }
 ```
@@ -224,3 +224,9 @@ a disclaimer at the top of the page will inform the user of this and why.
 
 The proposed changes don't introduce any new potential vulnerabilities, and cluster administrators should be sure to only
 allow intended users to have `read` and `list` permissions for `instance` and `bot_instance` resources.
+
+## Stretch goal/future plans
+
+In the future, this unified listing can be exposed to the CLI via a `tsh instances ls` command. This is a stretch goal and not required in V1 of this
+feature as all the functionality is already accessible in the CLI via the existing `tctl` commands, with the only notable difference being that you
+have to run two separate commands to get `instance`s and `bot_instance`s.
