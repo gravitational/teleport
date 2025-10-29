@@ -71,6 +71,8 @@ type DatabaseServer interface {
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets target health status
 	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -302,6 +304,11 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *DatabaseServerV3) GetScope() string {
+	return s.Scope
 }
 
 // CloneResource returns a copy of this database server object.
