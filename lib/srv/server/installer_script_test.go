@@ -159,6 +159,20 @@ func TestInstallerScript(t *testing.T) {
 			errCheck:       require.NoError,
 			expectedScript: `curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName%5C$%5C%28sh%5C%29 | bash -s my-token`,
 		},
+		{
+			name: "with HTTP Proxy settings set",
+			req: func() *types.InstallerParams {
+				req := basicParams()
+				req.HTTPProxySettings = &types.HTTPProxySettings{
+					HTTPSProxy: "http://local-squid:3128",
+					HTTPProxy:  "http://local-squid:3128",
+					NoProxy:    "http://intranet.local",
+				}
+				return req
+			},
+			errCheck:       require.NoError,
+			expectedScript: "export HTTP_PROXY=http://local-squid:3128 HTTPS_PROXY=http://local-squid:3128 NO_PROXY=http://intranet.local; curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			script, err := installerScript(t.Context(), tt.req(), tt.withOptions...)
