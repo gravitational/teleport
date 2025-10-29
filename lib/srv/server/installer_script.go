@@ -113,9 +113,11 @@ func installerScript(ctx context.Context, params *types.InstallerParams, opts ..
 		RawQuery: scriptURLQuery.Encode(),
 	}
 
+	safeScriptURL := shsprintf.EscapeDefaultContext(scriptURL.String())
+	safeJoinToken := shsprintf.EscapeDefaultContext(params.JoinToken)
 	installationScript := fmt.Sprintf("curl -s -L %s | bash -s %s",
-		scriptURL.String(),
-		params.JoinToken,
+		safeScriptURL,
+		safeJoinToken,
 	)
 
 	envVars := envVarsFromInstallerParams(params)
