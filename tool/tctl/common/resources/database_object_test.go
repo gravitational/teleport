@@ -26,22 +26,23 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 )
 
-func TestDatabaseObjectCollection_writeText(t *testing.T) {
-	mkObj := func(name string) *dbobjectv1.DatabaseObject {
-		r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
-			Name:                name,
-			Protocol:            "postgres",
-			DatabaseServiceName: "pg",
-			ObjectKind:          "table",
-		})
-		require.NoError(t, err)
-		return r
-	}
+func makeDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
+	t.Helper()
+	r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+		Name:                name,
+		Protocol:            "postgres",
+		DatabaseServiceName: "pg",
+		ObjectKind:          "table",
+	})
+	require.NoError(t, err)
+	return r
+}
 
+func TestDatabaseObjectCollection_writeText(t *testing.T) {
 	items := []*dbobjectv1.DatabaseObject{
-		mkObj("object_1"),
-		mkObj("object_2"),
-		mkObj("object_3"),
+		makeDatabaseObject(t, "object_1"),
+		makeDatabaseObject(t, "object_2"),
+		makeDatabaseObject(t, "object_3"),
 	}
 
 	table := asciitable.MakeTable(
