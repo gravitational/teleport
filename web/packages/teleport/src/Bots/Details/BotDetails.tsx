@@ -522,7 +522,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
 
         {isSuccess ? (
           <>
-            {data.items.length ? (
+            {data.items?.length ? (
               <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
