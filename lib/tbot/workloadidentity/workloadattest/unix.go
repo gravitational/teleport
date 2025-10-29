@@ -162,10 +162,18 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 		att.BinaryPath = &path
 	}
 
-	exe, err := a.os.OpenExe(ctx, p)
+	if hash := a.hashBinary(ctx, p); hash != "" {
+		att.BinaryHash = &hash
+	}
+
+	return att, nil
+}
+
+func (a *UnixAttestor) hashBinary(ctx context.Context, proc *process.Process) string {
+	exe, err := a.os.OpenExe(ctx, proc)
 	if err != nil {
 		a.log.ErrorContext(ctx, "Failed to open workload executable for hashing", "error", err)
-		return att, nil
+		return ""
 	}
 	defer func() { _ = exe.Close() }()
 
@@ -189,17 +197,16 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 
 	select {
 	case res := <-resCh:
-		if res.err == nil {
-			att.BinaryHash = &res.sum
-		} else {
+		if res.err != nil {
 			a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", err)
 		}
+		return res.sum
 	case <-time.After(BinaryHashReadTimeout):
 		a.log.ErrorContext(ctx, "Timeout reading workload executable. If this happens frequently, it could be due to the workload executable being on a network or overlay filesystem, you may also consider lowering `attestors.unix.binary_hash_max_size_bytes`.")
 	case <-ctx.Done():
 	}
 
-	return att, nil
+	return ""
 }
 
 // copyAtMost copies at most n bytes from src to dst. If src contains more than
