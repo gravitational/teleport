@@ -38,8 +38,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/services"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -156,7 +158,7 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 	return &iid, nil
 }
 
-func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken, clock clockwork.Clock) error {
+func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken provision.Token, clock clockwork.Clock) error {
 	timeSinceInstanceStart := clock.Since(iid.PendingTime)
 	// Sanity check IID is not from the future. Allow 1 minute of clock drift.
 	if timeSinceInstanceStart < -1*time.Minute {
@@ -207,6 +209,19 @@ func kubeExists(ctx context.Context, presence services.Presence, hostID string) 
 	return false, nil
 }
 
+func dbExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	dbs, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseService,
+		PredicateExpression: fmt.Sprintf("resource.metadata.name == %q", hostID),
+		Limit:               1,
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return len(dbs.Resources) > 0, nil
+}
+
 func appExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
 	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
@@ -214,22 +229,7 @@ func appExists(ctx context.Context, presence services.Presence, hostID string) (
 	}
 
 	for _, app := range apps {
-		if app.GetName() == hostID {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func dbExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	dbs, err := presence.GetDatabaseServers(ctx, defaults.Namespace)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	for _, db := range dbs {
-		if db.GetName() == hostID {
+		if app.GetHostID() == hostID && app.Origin() != types.OriginOkta {
 			return true, nil
 		}
 	}
@@ -242,8 +242,9 @@ func oktaExists(ctx context.Context, presence services.Presence, hostID string) 
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+
 	for _, app := range apps {
-		if app.GetName() == hostID && app.Origin() == types.OriginOkta {
+		if app.GetHostID() == hostID && app.Origin() == types.OriginOkta {
 			return true, nil
 		}
 	}
@@ -342,7 +343,7 @@ func tryToDetectIdentityReuse(ctx context.Context, params *CheckEC2RequestParams
 // CheckEC2RequestParams holds parameters for checking an EC2-method join request.
 type CheckEC2RequestParams struct {
 	// ProvisionToken is the provision token being used.
-	ProvisionToken types.ProvisionToken
+	ProvisionToken provision.Token
 	// Role is the system role being requested.
 	Role types.SystemRole
 	// Document is a signed EC2 Instance Identity Document.

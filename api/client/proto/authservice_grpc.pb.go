@@ -91,6 +91,7 @@ const (
 	AuthService_KeepAliveSemaphoreLease_FullMethodName             = "/proto.AuthService/KeepAliveSemaphoreLease"
 	AuthService_CancelSemaphoreLease_FullMethodName                = "/proto.AuthService/CancelSemaphoreLease"
 	AuthService_GetSemaphores_FullMethodName                       = "/proto.AuthService/GetSemaphores"
+	AuthService_ListSemaphores_FullMethodName                      = "/proto.AuthService/ListSemaphores"
 	AuthService_DeleteSemaphore_FullMethodName                     = "/proto.AuthService/DeleteSemaphore"
 	AuthService_EmitAuditEvent_FullMethodName                      = "/proto.AuthService/EmitAuditEvent"
 	AuthService_CreateAuditStream_FullMethodName                   = "/proto.AuthService/CreateAuditStream"
@@ -176,6 +177,7 @@ const (
 	AuthService_GetSAMLAuthRequest_FullMethodName                  = "/proto.AuthService/GetSAMLAuthRequest"
 	AuthService_GetGithubConnector_FullMethodName                  = "/proto.AuthService/GetGithubConnector"
 	AuthService_GetGithubConnectors_FullMethodName                 = "/proto.AuthService/GetGithubConnectors"
+	AuthService_ListGithubConnectors_FullMethodName                = "/proto.AuthService/ListGithubConnectors"
 	AuthService_CreateGithubConnector_FullMethodName               = "/proto.AuthService/CreateGithubConnector"
 	AuthService_UpdateGithubConnector_FullMethodName               = "/proto.AuthService/UpdateGithubConnector"
 	AuthService_UpsertGithubConnector_FullMethodName               = "/proto.AuthService/UpsertGithubConnector"
@@ -455,8 +457,11 @@ type AuthServiceClient interface {
 	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
 	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -696,8 +701,13 @@ type AuthServiceClient interface {
 	GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
+	//
+	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(ctx context.Context, in *CreateGithubConnectorRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -1692,10 +1702,21 @@ func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Semaphores)
 	err := c.cc.Invoke(ctx, AuthService_GetSemaphores_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSemaphoresResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSemaphores_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2576,10 +2597,21 @@ func (c *authServiceClient) GetGithubConnector(ctx context.Context, in *types.Re
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.GithubConnectorV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetGithubConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGithubConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListGithubConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4095,8 +4127,11 @@ type AuthServiceServer interface {
 	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
 	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -4336,8 +4371,13 @@ type AuthServiceServer interface {
 	GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
+	//
+	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -4874,6 +4914,9 @@ func (UnimplementedAuthServiceServer) CancelSemaphoreLease(context.Context, *typ
 func (UnimplementedAuthServiceServer) GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSemaphores not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSemaphores not implemented")
+}
 func (UnimplementedAuthServiceServer) DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSemaphore not implemented")
 }
@@ -5128,6 +5171,9 @@ func (UnimplementedAuthServiceServer) GetGithubConnector(context.Context, *types
 }
 func (UnimplementedAuthServiceServer) GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGithubConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGithubConnector not implemented")
@@ -6438,6 +6484,24 @@ func _AuthService_GetSemaphores_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetSemaphores(ctx, req.(*types.SemaphoreFilter))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListSemaphores_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSemaphoresRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSemaphores_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, req.(*ListSemaphoresRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7928,6 +7992,24 @@ func _AuthService_GetGithubConnectors_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetGithubConnectors(ctx, req.(*types.ResourcesWithSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListGithubConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGithubConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListGithubConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, req.(*ListGithubConnectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10471,6 +10553,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSemaphores_Handler,
 		},
 		{
+			MethodName: "ListSemaphores",
+			Handler:    _AuthService_ListSemaphores_Handler,
+		},
+		{
 			MethodName: "DeleteSemaphore",
 			Handler:    _AuthService_DeleteSemaphore_Handler,
 		},
@@ -10793,6 +10879,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGithubConnectors",
 			Handler:    _AuthService_GetGithubConnectors_Handler,
+		},
+		{
+			MethodName: "ListGithubConnectors",
+			Handler:    _AuthService_ListGithubConnectors_Handler,
 		},
 		{
 			MethodName: "CreateGithubConnector",

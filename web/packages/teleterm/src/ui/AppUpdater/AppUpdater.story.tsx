@@ -312,9 +312,6 @@ function WidgetAndDetails(storyProps: StoryProps) {
         <WidgetView
           platform={storyProps.platform}
           updateEvent={state}
-          clusterGetter={{
-            findCluster: () => undefined,
-          }}
           onMore={() => {}}
           onDownload={() => {}}
           onInstall={() => {}}
@@ -332,9 +329,6 @@ function WidgetAndDetails(storyProps: StoryProps) {
         <DetailsView
           platform={storyProps.platform}
           updateEvent={state}
-          clusterGetter={{
-            findCluster: () => undefined,
-          }}
           changeManagingCluster={() => {}}
           onCheckForUpdates={() => {}}
           onDownload={() => {}}

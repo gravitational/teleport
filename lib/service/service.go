@@ -59,7 +59,6 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -181,6 +180,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -714,7 +714,7 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
 
 	// state is the process state machine tracking if the process is healthy or not.
@@ -987,6 +987,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1078,14 +1084,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1646,7 +1648,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
+		if err := procutils.CreateLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
 	}
@@ -2985,7 +2987,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
-	cfg.AccessLists = services.AccessLists
+	cfg.AccessLists = services.AccessListsInternal
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Applications = services.Applications
@@ -7377,36 +7379,4 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	}
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
-}
-
-// createLockedPIDFile creates a PID file in the path specified by pidFile
-// containing the current PID, atomically swapping it in the final place and
-// leaving it with an exclusive advisory lock that will get released when the
-// process ends, for the benefit of "pkill -L".
-func createLockedPIDFile(pidFile string) error {
-	pending, err := renameio.NewPendingFile(pidFile, renameio.WithPermissions(0o644))
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer pending.Cleanup()
-	if _, err := fmt.Fprintf(pending, "%v\n", os.Getpid()); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	const minimumDupFD = 3 // skip stdio
-	locker, err := unix.FcntlInt(pending.Fd(), unix.F_DUPFD_CLOEXEC, minimumDupFD)
-	runtime.KeepAlive(pending)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	if err := unix.Flock(locker, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		_ = unix.Close(locker)
-		return trace.ConvertSystemError(err)
-	}
-	// deliberately leak the fd to hold the lock until the process dies
-
-	if err := pending.CloseAtomicallyReplace(); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
 }
