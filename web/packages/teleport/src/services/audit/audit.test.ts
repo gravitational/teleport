@@ -19,6 +19,7 @@
 import api from 'teleport/services/api';
 
 import AuditService from './audit';
+import { EventQuery } from './types';
 
 test('fetch events', async () => {
   const audit = new AuditService();
@@ -88,9 +89,10 @@ test('fetch events', async () => {
   expect(response.events[0].message).toBe('Unknown');
 });
 
-const params = {
+const params: EventQuery = {
   from: new Date(0),
   to: new Date(0),
+  order: 'DESC',
 };
 
 const normalJson = {
