@@ -473,8 +473,8 @@ func (c *ScopedAccessChecker) SessionRecordingMode(service constants.SessionReco
 }
 
 // CheckAccessToSSHServer checks access to an SSH server with optional role matchers. Note that this function
-// is a thin wrapper around the standard [AccessChecker.CheckAccess] method. The purpose of this methd is to
-// provide a more constrained access-checking API since the majority of access-chckable resources are not
+// is a thin wrapper around the standard [AccessChecker.CheckAccess] method. The purpose of this method is to
+// provide a more constrained access-checking API since the majority of access-checkable resources are not
 // supported by scopes yet.
 func (c *ScopedAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
 	return c.checker.CheckAccess(
@@ -482,6 +482,15 @@ func (c *ScopedAccessChecker) CheckAccessToSSHServer(target types.Server, state 
 		state,
 		NewLoginMatcher(osUser),
 	)
+}
+
+// CanAccessSSHServer is a helper method that checkes whether access to the specified SSH server is possible.
+// This method is used to determine read access to SSH servers, and does not take into account elements like
+// MFA state or os login. This helper is based on the behavior of auth.resourceChecker.CanAccess. The purpose
+// of this method is to provide a more constrained access-checking API since the majority of access-checkable
+// resources are not supported by scopes yet.
+func (c *ScopedAccessChecker) CanAccessSSHServer(target types.Server) error {
+	return c.checker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
 // fetchAndConvertScopedRoles fetches scoped roles by name and converts them to classic roles.

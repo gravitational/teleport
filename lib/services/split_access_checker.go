@@ -61,6 +61,7 @@ type CommonAccessChecker interface {
 	AdjustDisconnectExpiredCert(disconnect bool) bool
 	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
 	CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error
+	CanAccessSSHServer(target types.Server) error
 }
 
 // ScopedAccessCheckerSubset defines the methods that are specific to scoped access checkers.
@@ -143,8 +144,8 @@ func (c *accessCheckerShim) CheckMaybeHasAccessToRules(ctx RuleContext, resource
 }
 
 // CheckAccessToSSHServer checks access to an SSH server with optional role matchers. Note that this function
-// is a thin wrapper around the standard [AccessChecker.CheckAccess] method. The purpose of this methd is to
-// provide a more constrained access-checking API since the majority of access-chckable resources are not
+// is a thin wrapper around the standard [AccessChecker.CheckAccess] method. The purpose of this method is to
+// provide a more constrained access-checking API since the majority of access-checkable resources are not
 // supported by scopes yet.
 func (c *accessCheckerShim) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
 	return c.AccessChecker.CheckAccess(
@@ -152,6 +153,15 @@ func (c *accessCheckerShim) CheckAccessToSSHServer(target types.Server, state Ac
 		state,
 		NewLoginMatcher(osUser),
 	)
+}
+
+// CanAccessSSHServer is a helper method that checkes whether access to the specified SSH server is possible.
+// This method is used to determine read access to SSH servers, and does not take into account elements like
+// MFA state or os login. This helper is based on the behavior of auth.resourceChecker.CanAccess. The purpose
+// of this method is to provide a more constrained access-checking API since the majority of access-checkable
+// resources are not supported by scopes yet.
+func (c *accessCheckerShim) CanAccessSSHServer(target types.Server) error {
+	return c.AccessChecker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
 func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
