@@ -114,6 +114,11 @@ It will be set in the JSON response as follows:
 }
 ```
 
+This configuration supports adding additional load balancer policies in the future.
+Agents should prefer to use the first known policy listed in the loadBalancingConfig
+array. Currently the `teleport_pick_healthy` configuration is an empty json object but
+fields could be added in the future.
+
 This can be configured on a Proxy server by setting the environment variable
 `TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY`. When not specified clients will continue
 using the default `pick_first` policy. This will allow us to opt-in to this new
