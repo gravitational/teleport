@@ -56,11 +56,12 @@ message ListUnifiedInstancesFilter {
   string advanced_search = 2;
   // kinds is the kinds of instances to return. If omitted, both instances and bot instances will be returned.
   repeated string kinds = 3;
-  // services is the list of services to filter instances by. Not applicable to bot instances.
+  // services is the list of services (system roles) to filter instances by. This filter will never match any bot instances as we do not support
+  // filtering bot instances by services.
   repeated string services = 4;
-  // updater_groups is the list of updater groups to filter instances by. Not applicable to bot instances.
+  // updater_groups is the list of updater groups to filter instances by.
   repeated string updater_groups = 5;
-  // upgraders is the list of upgraders to filter instances by. Not applicable to bot instances.
+  // upgraders is the list of upgraders to filter instances by.
   repeated string upgraders = 6;
 }
 

@@ -20,13 +20,11 @@ import (
 	"context"
 	"log/slog"
 	"math"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
@@ -62,41 +60,41 @@ const (
 	inventoryIDIndex inventoryIndex = "id"
 )
 
-// unifiedInstance is a wrapper for either a teleport instance or a bot instance.
-type unifiedInstance struct {
+// inventoryInstance is a wrapper for either a teleport instance or a bot instance.
+type inventoryInstance struct {
 	instance *types.InstanceV1
 	bot      *machineidv1.BotInstance
 }
 
 // isInstance returns true if this wrapper contains a teleport instance (not a bot instance).
-func (u *unifiedInstance) isInstance() bool {
+func (u *inventoryInstance) isInstance() bool {
 	return u.instance != nil
 }
 
 // getInstanceID returns the ID of this instance.
-func (u *unifiedInstance) getInstanceID() string {
+func (u *inventoryInstance) getInstanceID() string {
 	if u.isInstance() {
 		return u.instance.GetName()
 	}
-	return u.bot.Metadata.Name
+	return u.bot.GetMetadata().GetName()
 }
 
 // getHostnameOrBotName returns the friendly name of this instance.
 // For instances, this is the hostname (or instance ID if there is no hostname).
 // For bot instances, this is the bot name.
-func (u *unifiedInstance) getHostnameOrBotName() string {
+func (u *inventoryInstance) getHostnameOrBotName() string {
 	if u.isInstance() {
-		if u.instance.Spec.Hostname != "" {
-			return u.instance.Spec.Hostname
+		if u.instance.GetHostname() != "" {
+			return u.instance.GetHostname()
 		}
 		// If no hostname, fall back to the instance ID
 		return u.instance.GetName()
 	}
-	return u.bot.Spec.BotName
+	return u.bot.GetSpec().GetBotName()
 }
 
 // getKind returns the resource kind for this instance.
-func (u *unifiedInstance) getKind() string {
+func (u *inventoryInstance) getKind() string {
 	if u.isInstance() {
 		return types.KindInstance
 	}
@@ -105,29 +103,29 @@ func (u *unifiedInstance) getKind() string {
 
 // getAlphabeticalKey returns the composite key for alphabetical sorting.
 // Format: <bot name or hostname>/<instance id>/<kind>
-func (u *unifiedInstance) getAlphabeticalKey() string {
+func (u *inventoryInstance) getAlphabeticalKey() string {
 	return u.getHostnameOrBotName() + "/" + u.getInstanceID() + "/" + u.getKind()
 }
 
 // getTypeKey returns the composite key for sorting by type.
 // Format: <kind>/<bot name or hostname>/<instance id>
-func (u *unifiedInstance) getTypeKey() string {
+func (u *inventoryInstance) getTypeKey() string {
 	return u.getKind() + "/" + u.getHostnameOrBotName() + "/" + u.getInstanceID()
 }
 
 // getIDKey returns the key for lookup by instance ID.
 // Format: <instance id>
-func (u *unifiedInstance) getIDKey() string {
+func (u *inventoryInstance) getIDKey() string {
 	return u.getInstanceID()
 }
 
 // clone returns a deep copy of the unified instance.
-func (u *unifiedInstance) clone() *unifiedInstance {
+func (u *inventoryInstance) clone() *inventoryInstance {
 	if u.isInstance() {
 		copied := *u.instance
-		return &unifiedInstance{instance: &copied}
+		return &inventoryInstance{instance: &copied}
 	}
-	return &unifiedInstance{bot: proto.Clone(u.bot).(*machineidv1.BotInstance)}
+	return &inventoryInstance{bot: proto.Clone(u.bot).(*machineidv1.BotInstance)}
 }
 
 // InventoryCacheConfig holds the configuration parameters for the InventoryCache.
@@ -146,7 +144,6 @@ type InventoryCacheConfig struct {
 	// TargetVersion is the target Teleport version for the cluster.
 	TargetVersion string
 
-	Clock  clockwork.Clock
 	Logger *slog.Logger
 }
 
@@ -164,9 +161,6 @@ func (c *InventoryCacheConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing BotInstanceCache")
 	}
 
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()
 	}
@@ -188,7 +182,7 @@ type InventoryCache struct {
 	cancel context.CancelFunc
 
 	// store is the unified sortcache that holds both teleport and bot instances.
-	store *store[*unifiedInstance, inventoryIndex]
+	store *store[*inventoryInstance, inventoryIndex]
 }
 
 func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
@@ -204,17 +198,17 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 		// Create the sortcache
 		store: newStore(
 			"unified_instance",
-			func(u *unifiedInstance) *unifiedInstance {
+			func(u *inventoryInstance) *inventoryInstance {
 				return u.clone()
 			},
-			map[inventoryIndex]func(*unifiedInstance) string{
-				inventoryAlphabeticalIndex: func(u *unifiedInstance) string {
+			map[inventoryIndex]func(*inventoryInstance) string{
+				inventoryAlphabeticalIndex: func(u *inventoryInstance) string {
 					return u.getAlphabeticalKey()
 				},
-				inventoryTypeIndex: func(u *unifiedInstance) string {
+				inventoryTypeIndex: func(u *inventoryInstance) string {
 					return u.getTypeKey()
 				},
-				inventoryIDIndex: func(u *unifiedInstance) string {
+				inventoryIDIndex: func(u *inventoryInstance) string {
 					return u.getIDKey()
 				},
 			},
@@ -227,7 +221,7 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 		cancel: cancel,
 	}
 
-	go ic.initialize()
+	go ic.initializeAndWatch(ctx)
 
 	return ic, nil
 }
@@ -271,27 +265,27 @@ func calculateReadsPerSecond(clusterSize int) int {
 	return minimumComponent + linearComponent + subLinearComponent
 }
 
-// initialize initializes the inventory cache.
-func (ic *InventoryCache) initialize() {
+// initializeAndWatch initializes the inventory cache and begins watching for instance and bot_instance backend events.
+func (ic *InventoryCache) initializeAndWatch(ctx context.Context) {
 	defer close(ic.initDone)
 
 	// Wait for primary cache to be ready.
-	if err := ic.waitForPrimaryCacheInit(); err != nil {
-		ic.cfg.Logger.ErrorContext(ic.ctx, "Failed to wait for primary cache initialization", "error", err)
+	if err := ic.waitForPrimaryCacheInit(ctx); err != nil {
+		ic.cfg.Logger.ErrorContext(ctx, "Failed to wait for primary cache initialization", "error", err)
 		return
 	}
 
 	// Setup the backend watcher.
-	watcher, err := ic.setupWatcher()
+	watcher, err := ic.setupWatcher(ctx)
 	if err != nil {
-		ic.cfg.Logger.ErrorContext(ic.ctx, "Failed to set up backend watcher", "error", err)
+		ic.cfg.Logger.ErrorContext(ctx, "Failed to set up backend watcher", "error", err)
 		return
 	}
 	defer watcher.Close()
 
 	// Wait for the watcher to be ready.
-	if err := ic.waitForWatcherInit(watcher); err != nil {
-		ic.cfg.Logger.ErrorContext(ic.ctx, "Failed to wait for watcher init", "error", err)
+	if err := ic.waitForWatcherInit(ctx, watcher); err != nil {
+		ic.cfg.Logger.ErrorContext(ctx, "Failed to wait for watcher init", "error", err)
 		return
 	}
 
@@ -300,28 +294,28 @@ func (ic *InventoryCache) initialize() {
 	readsPerSecond := calculateReadsPerSecond(primaryCacheSize)
 
 	// Populate the cache with teleport instance and bot instances.
-	if err := ic.populateCache(readsPerSecond); err != nil {
-		ic.cfg.Logger.ErrorContext(ic.ctx, "Failed to populate cache", "error", err)
+	if err := ic.populateCache(ctx, readsPerSecond); err != nil {
+		ic.cfg.Logger.ErrorContext(ctx, "Failed to populate cache", "error", err)
 		return
 	}
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
 
-	ic.processEvents(watcher)
+	ic.processEvents(ctx, watcher)
 }
 
 // waitForPrimaryCacheInit waits for the primary cache to be initialized.
-func (ic *InventoryCache) waitForPrimaryCacheInit() error {
-	ticker := ic.cfg.Clock.NewTicker(100 * time.Millisecond)
+func (ic *InventoryCache) waitForPrimaryCacheInit(ctx context.Context) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ic.ctx.Done():
-			return trace.Wrap(ic.ctx.Err())
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 
-		case <-ticker.Chan():
+		case <-ticker.C:
 			ic.cfg.PrimaryCache.rw.RLock()
 			ok := ic.cfg.PrimaryCache.ok
 			ic.cfg.PrimaryCache.rw.RUnlock()
@@ -334,8 +328,8 @@ func (ic *InventoryCache) waitForPrimaryCacheInit() error {
 }
 
 // setupWatcher sets up a backend watcher for instance and bot_instance events.
-func (ic *InventoryCache) setupWatcher() (backend.Watcher, error) {
-	watcher, err := ic.cfg.Backend.NewWatcher(ic.ctx, backend.Watch{
+func (ic *InventoryCache) setupWatcher(ctx context.Context) (backend.Watcher, error) {
+	watcher, err := ic.cfg.Backend.NewWatcher(ctx, backend.Watch{
 		Name: "inventory_cache",
 		Prefixes: []backend.Key{
 			backend.NewKey(instancePrefix),
@@ -349,11 +343,11 @@ func (ic *InventoryCache) setupWatcher() (backend.Watcher, error) {
 }
 
 // waitForWatcherInit waits for the watcher to finish initializing.
-func (ic *InventoryCache) waitForWatcherInit(watcher backend.Watcher) error {
+func (ic *InventoryCache) waitForWatcherInit(ctx context.Context, watcher backend.Watcher) error {
 	select {
-	case <-ic.ctx.Done():
+	case <-ctx.Done():
 		// Context was cancelled
-		return trace.Wrap(ic.ctx.Err())
+		return trace.Wrap(ctx.Err())
 
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
@@ -381,18 +375,19 @@ func (ic *InventoryCache) getPrimaryCacheSize() int {
 	if ic.cfg.PrimaryCache.collections.windowsDesktops != nil {
 		count += ic.cfg.PrimaryCache.collections.windowsDesktops.store.len()
 	}
+
 	return count
 }
 
 // populateCache reads teleport and bot instances and populates the cache with rate limiting.
-func (ic *InventoryCache) populateCache(readsPerSecond int) error {
+func (ic *InventoryCache) populateCache(ctx context.Context, readsPerSecond int) error {
 	limiter := rate.NewLimiter(rate.Limit(readsPerSecond), readsPerSecond)
 
-	if err := ic.populateInstances(limiter); err != nil {
+	if err := ic.populateInstances(ctx, limiter); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := ic.populateBotInstances(limiter); err != nil {
+	if err := ic.populateBotInstances(ctx, limiter); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -400,11 +395,11 @@ func (ic *InventoryCache) populateCache(readsPerSecond int) error {
 }
 
 // populateInstances reads teleport instances from the inventory service with rate limiting.
-func (ic *InventoryCache) populateInstances(limiter *rate.Limiter) error {
-	instanceStream := ic.cfg.Inventory.GetInstances(ic.ctx, types.InstanceFilter{})
+func (ic *InventoryCache) populateInstances(ctx context.Context, limiter *rate.Limiter) error {
+	instanceStream := ic.cfg.Inventory.GetInstances(ctx, types.InstanceFilter{})
 
 	for instanceStream.Next() {
-		if err := limiter.Wait(ic.ctx); err != nil {
+		if err := limiter.Wait(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -412,14 +407,14 @@ func (ic *InventoryCache) populateInstances(limiter *rate.Limiter) error {
 
 		instanceV1, ok := instance.(*types.InstanceV1)
 		if !ok {
-			ic.cfg.Logger.WarnContext(ic.ctx, "Instance is not InstanceV1", "instance", instance.GetName())
+			ic.cfg.Logger.WarnContext(ctx, "Instance is not InstanceV1", "instance", instance.GetName())
 			continue
 		}
 
 		// Add it to the cache
-		ui := &unifiedInstance{instance: instanceV1}
+		ui := &inventoryInstance{instance: instanceV1}
 		if err := ic.store.put(ui); err != nil {
-			ic.cfg.Logger.WarnContext(ic.ctx, "Failed to add instance to cache", "instance", instanceV1.GetName(), "error", err)
+			ic.cfg.Logger.WarnContext(ctx, "Failed to add instance to cache", "instance", instanceV1.GetName(), "error", err)
 			continue
 		}
 	}
@@ -428,16 +423,16 @@ func (ic *InventoryCache) populateInstances(limiter *rate.Limiter) error {
 }
 
 // populateBotInstances reads bot instances from the bot instance service with rate limiting.
-func (ic *InventoryCache) populateBotInstances(limiter *rate.Limiter) error {
+func (ic *InventoryCache) populateBotInstances(ctx context.Context, limiter *rate.Limiter) error {
 	var pageToken string
 
 	for {
-		if err := limiter.Wait(ic.ctx); err != nil {
+		if err := limiter.Wait(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
 		botInstances, nextToken, err := ic.cfg.BotInstanceCache.ListBotInstances(
-			ic.ctx,
+			ctx,
 			defaults.DefaultChunkSize,
 			pageToken,
 			nil,
@@ -448,9 +443,9 @@ func (ic *InventoryCache) populateBotInstances(limiter *rate.Limiter) error {
 
 		for _, botInstance := range botInstances {
 			// Add it to the cache
-			ui := &unifiedInstance{bot: botInstance}
+			ui := &inventoryInstance{bot: botInstance}
 			if err := ic.store.put(ui); err != nil {
-				ic.cfg.Logger.WarnContext(ic.ctx, "Failed to add bot instance to cache", "bot_instance", botInstance.Metadata.Name, "error", err)
+				ic.cfg.Logger.WarnContext(ctx, "Failed to add bot instance to cache", "bot_instance", botInstance.Metadata.Name, "error", err)
 				continue
 			}
 		}
@@ -466,15 +461,15 @@ func (ic *InventoryCache) populateBotInstances(limiter *rate.Limiter) error {
 }
 
 // processEvents processes events from the backend watcher.
-func (ic *InventoryCache) processEvents(watcher backend.Watcher) {
+func (ic *InventoryCache) processEvents(ctx context.Context, watcher backend.Watcher) {
 	for {
 		select {
-		case <-ic.ctx.Done():
+		case <-ctx.Done():
 			return
 
 		case event := <-watcher.Events():
 			if err := ic.processEvent(event); err != nil {
-				ic.cfg.Logger.WarnContext(ic.ctx, "Failed to process event", "error", err)
+				ic.cfg.Logger.WarnContext(ctx, "Failed to process event", "error", err)
 			}
 		}
 	}
@@ -495,32 +490,32 @@ func (ic *InventoryCache) processEvent(event backend.Event) error {
 
 // processPutEvent processes an OpPut event.
 func (ic *InventoryCache) processPutEvent(event backend.Event) error {
-	instanceKeyPrefix := backend.NewKey(instancePrefix).String()
-	botInstanceKeyPrefix := backend.NewKey(botInstancePrefix).String()
+	instanceKeyPrefix := backend.NewKey(instancePrefix)
+	botInstanceKeyPrefix := backend.NewKey(botInstancePrefix)
 
 	// If this is a teleport instance
-	if strings.HasPrefix(event.Item.Key.String(), instanceKeyPrefix) {
+	if event.Item.Key.HasPrefix(instanceKeyPrefix) {
 		instance := &types.InstanceV1{}
 		if err := instance.Unmarshal(event.Item.Value); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Add/update it in the cache
-		ui := &unifiedInstance{instance: instance}
+		ui := &inventoryInstance{instance: instance}
 		if err := ic.store.put(ui); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// If this is a bot instance
-	if strings.HasPrefix(event.Item.Key.String(), botInstanceKeyPrefix) {
+	if event.Item.Key.HasPrefix(botInstanceKeyPrefix) {
 		botInstance := &machineidv1.BotInstance{}
 		if err := proto.Unmarshal(event.Item.Value, botInstance); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Add/update it in the cache
-		ui := &unifiedInstance{bot: botInstance}
+		ui := &inventoryInstance{bot: botInstance}
 		if err := ic.store.put(ui); err != nil {
 			return trace.Wrap(err)
 		}
@@ -531,13 +526,13 @@ func (ic *InventoryCache) processPutEvent(event backend.Event) error {
 
 // processDeleteEvent handles OpDelete events.
 func (ic *InventoryCache) processDeleteEvent(event backend.Event) error {
-	instanceKeyPrefix := backend.NewKey(instancePrefix).String()
-	botInstanceKeyPrefix := backend.NewKey(botInstancePrefix).String()
+	instanceKeyPrefix := backend.NewKey(instancePrefix)
+	botInstanceKeyPrefix := backend.NewKey(botInstancePrefix)
 
 	// If this is a teleport instance
-	if strings.HasPrefix(event.Item.Key.String(), instanceKeyPrefix) {
+	if event.Item.Key.HasPrefix(instanceKeyPrefix) {
 		// Extract the instance id from the key
-		keyParts := strings.Split(event.Item.Key.String(), "/")
+		keyParts := event.Item.Key.Components()
 		if len(keyParts) == 0 {
 			return trace.BadParameter("invalid instance key: %s", event.Item.Key)
 		}
@@ -550,9 +545,9 @@ func (ic *InventoryCache) processDeleteEvent(event backend.Event) error {
 	}
 
 	// If this is a bot instance.
-	if strings.HasPrefix(event.Item.Key.String(), botInstanceKeyPrefix) {
+	if event.Item.Key.HasPrefix(botInstanceKeyPrefix) {
 		// Extract the instance id from the key
-		keyParts := strings.Split(event.Item.Key.String(), "/")
+		keyParts := event.Item.Key.Components()
 		if len(keyParts) == 0 {
 			return trace.BadParameter("invalid bot instance key: %s", event.Item.Key)
 		}
@@ -630,13 +625,13 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 }
 
 // matchesFilter checks if a unified instance matches the filter criteria.
-func (ic *InventoryCache) matchesFilter(_ *unifiedInstance, _ *inventoryv1.ListUnifiedInstancesFilter) bool {
+func (ic *InventoryCache) matchesFilter(_ *inventoryInstance, _ *inventoryv1.ListUnifiedInstancesFilter) bool {
 	// TODO(rudream): implement filtering for listing instances.
 	return true
 }
 
 // unifiedInstanceToProto converts a unified instance to a proto UnifiedInstanceItem.
-func (ic *InventoryCache) unifiedInstanceToProto(ui *unifiedInstance) *inventoryv1.UnifiedInstanceItem {
+func (ic *InventoryCache) unifiedInstanceToProto(ui *inventoryInstance) *inventoryv1.UnifiedInstanceItem {
 	if ui.isInstance() {
 		return &inventoryv1.UnifiedInstanceItem{
 			Item: &inventoryv1.UnifiedInstanceItem_Instance{

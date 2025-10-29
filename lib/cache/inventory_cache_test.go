@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,11 +38,9 @@ import (
 // TestInventoryCache tests the initialization and use of the inventory cache.
 func TestInventoryCache(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
-		Clock:   clock,
 	})
 	require.NoError(t, err)
 	defer bk.Close()
@@ -250,19 +247,15 @@ func TestInventoryCache(t *testing.T) {
 		Inventory:        mockInventory,
 		BotInstanceCache: mockBotCache,
 		TargetVersion:    "18.2.0",
-		Clock:            clock,
 	})
 	require.NoError(t, err)
 	defer inventoryCache.Close()
 
-	// The inventory cache should not be healthy immediately because it needs to wait for `waitForPrimaryCacheInit`,
-	// which polls the primary cache every 100ms to see if it's healthy, and it won't do so until we advance the fake clock by 100ms.
+	// The inventory cache should not be healthy immediately because it needs to wait for `waitForPrimaryCacheInit`.
 	require.False(t, inventoryCache.IsHealthy())
 
 	// Wait for the inventory cache to initialize
 	require.Eventually(t, func() bool {
-		// Advance the clock to trigger the ticker in waitForPrimaryCacheInit
-		clock.Advance(100 * time.Millisecond)
 		return inventoryCache.IsHealthy()
 	}, 5*time.Second, 50*time.Millisecond)
 
@@ -355,11 +348,9 @@ func TestInventoryCache(t *testing.T) {
 // TestInventoryCacheWatcher tests the inventory cache watcher.
 func TestInventoryCacheWatcher(t *testing.T) {
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
-		Clock:   clock,
 	})
 	require.NoError(t, err)
 	defer bk.Close()
@@ -453,15 +444,12 @@ func TestInventoryCacheWatcher(t *testing.T) {
 		Backend:          bk,
 		PrimaryCache:     p.cache,
 		TargetVersion:    "18.2.0",
-		Clock:            clock,
 	})
 	require.NoError(t, err)
 	defer inventoryCache.Close()
 
 	// Wait for the inventory cache to initialize
 	require.Eventually(t, func() bool {
-		// Advance the clock to trigger the ticker in waitForPrimaryCacheInit
-		clock.Advance(100 * time.Millisecond)
 		return inventoryCache.IsHealthy()
 	}, 5*time.Second, 50*time.Millisecond)
 

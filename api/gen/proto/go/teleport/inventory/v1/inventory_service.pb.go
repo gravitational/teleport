@@ -167,11 +167,12 @@ type ListUnifiedInstancesFilter struct {
 	AdvancedSearch string `protobuf:"bytes,2,opt,name=advanced_search,json=advancedSearch,proto3" json:"advanced_search,omitempty"`
 	// kinds is the kinds of instances to return. If omitted, both instances and bot instances will be returned.
 	Kinds []string `protobuf:"bytes,3,rep,name=kinds,proto3" json:"kinds,omitempty"`
-	// services is the list of services to filter instances by. Not applicable to bot instances.
+	// services is the list of services (system roles) to filter instances by. This filter will never match any bot instances as we do not support
+	// filtering bot instances by services.
 	Services []string `protobuf:"bytes,4,rep,name=services,proto3" json:"services,omitempty"`
-	// updater_groups is the list of updater groups to filter instances by. Not applicable to bot instances.
+	// updater_groups is the list of updater groups to filter instances by.
 	UpdaterGroups []string `protobuf:"bytes,5,rep,name=updater_groups,json=updaterGroups,proto3" json:"updater_groups,omitempty"`
-	// upgraders is the list of upgraders to filter instances by. Not applicable to bot instances.
+	// upgraders is the list of upgraders to filter instances by.
 	Upgraders     []string `protobuf:"bytes,6,rep,name=upgraders,proto3" json:"upgraders,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

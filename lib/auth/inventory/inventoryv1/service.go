@@ -18,6 +18,7 @@ package inventoryv1
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -99,6 +100,11 @@ func (s *Service) ListUnifiedInstances(ctx context.Context, req *inventoryv1.Lis
 	// This is a last line of defense because the client should already prevent the user from requesting
 	// kinds they don't have access to (eg. the UI should grey out those options).
 	if req.Filter != nil && len(req.Filter.Kinds) > 0 {
+
+		// Deduplicate
+		slices.Sort(req.Filter.Kinds)
+		req.Filter.Kinds = slices.Compact(req.Filter.Kinds)
+
 		var allowedKinds []string
 		for _, kind := range req.Filter.Kinds {
 			if (kind == types.KindInstance) && includeInstances {
