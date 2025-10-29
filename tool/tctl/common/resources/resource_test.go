@@ -26,11 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -88,27 +85,20 @@ func TestHandlers(t *testing.T) {
 			checkMFARequired: require.False,
 		},
 		{
+			kind: types.KindDatabaseObject,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				resource := makeDatabaseObject(t, name)
+				return types.ProtoResource153ToLegacy(resource)
+			},
+			checkMFARequired: require.False,
+			updateResource:   updateResourceWithLabels,
+		},
+		{
 			kind: types.KindDatabaseObjectImportRule,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				resource, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					Priority: 123,
-					DatabaseLabels: label.FromMap(map[string][]string{
-						"foo":   {"bar"},
-						"beast": {"dragon", "phoenix"},
-					}),
-					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
-								TableNames: []string{"dummy"},
-							},
-							AddLabels: map[string]string{
-								"dummy_table": "true",
-								"another":     "label"},
-						},
-					},
-				})
-				require.NoError(t, err)
+				resource := makeDatabaseObjectImportRule(t, name, 100)
 				return types.ProtoResource153ToLegacy(resource)
 			},
 			checkMFARequired: require.False,

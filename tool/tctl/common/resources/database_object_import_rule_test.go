@@ -27,33 +27,35 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
-func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
-	mkRule := func(name string, priority int) *dbobjectimportrulev1.DatabaseObjectImportRule {
-		r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-			Priority: int32(priority),
-			DatabaseLabels: label.FromMap(map[string][]string{
-				"foo":   {"bar"},
-				"beast": {"dragon", "phoenix"},
-			}),
-			Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				{
-					Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
-						TableNames: []string{"dummy"},
-					},
-					AddLabels: map[string]string{
-						"dummy_table": "true",
-						"another":     "label"},
-				},
-			},
-		})
-		require.NoError(t, err)
-		return r
-	}
+func makeDatabaseObjectImportRule(t *testing.T, name string, priority int) *dbobjectimportrulev1.DatabaseObjectImportRule {
+	t.Helper()
 
+	r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+		Priority: int32(priority),
+		DatabaseLabels: label.FromMap(map[string][]string{
+			"foo":   {"bar"},
+			"beast": {"dragon", "phoenix"},
+		}),
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
+			{
+				Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames: []string{"dummy"},
+				},
+				AddLabels: map[string]string{
+					"dummy_table": "true",
+					"another":     "label"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 	rules := []*dbobjectimportrulev1.DatabaseObjectImportRule{
-		mkRule("rule_1", 11),
-		mkRule("rule_2", 22),
-		mkRule("rule_3", 33),
+		makeDatabaseObjectImportRule(t, "rule_1", 11),
+		makeDatabaseObjectImportRule(t, "rule_2", 22),
+		makeDatabaseObjectImportRule(t, "rule_3", 33),
 	}
 
 	table := asciitable.MakeTable(
