@@ -1,4 +1,4 @@
-//go:build !darwin && !linux && !windows
+//go:build !(darwin && !ios) && !linux && !windows
 
 /*
  * Teleport

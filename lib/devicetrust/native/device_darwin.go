@@ -1,3 +1,5 @@
+//go:build darwin && !ios
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
