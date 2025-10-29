@@ -504,13 +504,13 @@ func TestMinimumUpload(t *testing.T) {
 	// imprecise, so we give a full 200% of the minimum as overhead.
 	//
 	// Usually, we use 128KB for file parts and 5KB for final upload parts.
-	var minFileBytes int64 = 8192
-	var maxFileBytes int64 = 2 * minFileBytes
+	minFileBytes := 8192
+	maxFileBytes := 2 * minFileBytes
 	minUploadBytes := 33768
 	maxUploadBytes := 2 * minUploadBytes
 
 	p := newUploaderPack(ctx, t, uploaderPackConfig{
-		minimumFileUploadBytes: minFileBytes,
+		minimumFileUploadBytes: int64(minFileBytes),
 		minimumUploadBytes:     int64(minUploadBytes),
 	})
 
@@ -549,8 +549,9 @@ func TestMinimumUpload(t *testing.T) {
 	})
 
 	for i, partFile := range partFiles {
-		partSize := partFile.Size()
-		require.True(t, partSize >= minFileBytes && partSize <= maxFileBytes, "expected upload part %v to be between %v and %v bytes, but was %v bytes", i, minFileBytes, maxFileBytes, partSize)
+		partSize := int(partFile.Size())
+		require.GreaterOrEqual(t, partSize, minFileBytes, "expected upload part %v to be between %v and %v bytes, but was %v bytes", i, minFileBytes, maxFileBytes, partSize)
+		require.LessOrEqual(t, partSize, maxFileBytes, "expected upload part %v to be between %v and %v bytes, but was %v bytes", i, minFileBytes, maxFileBytes, partSize)
 	}
 
 	// Complete the file stream and advance the clock to unblock the uploader scanner.
@@ -578,15 +579,16 @@ func TestMinimumUpload(t *testing.T) {
 	for i, part := range uploadParts {
 		if i == len(uploadParts)-1 {
 			// The last part is not required to meet the minimum size.
-			require.True(t, len(part) <= maxUploadBytes, "expected last upload part to be smaller than %v bytes, but was %v bytes", maxUploadBytes, len(part))
+			require.LessOrEqual(t, len(part), maxUploadBytes, "expected last upload part to be smaller than %v bytes, but was %v bytes", maxUploadBytes, len(part))
 		} else {
-			require.True(t, len(part) >= minUploadBytes && len(part) <= maxUploadBytes, "expected upload part %v to be between %v and %v bytes, but was %v bytes", i, minUploadBytes, maxUploadBytes, len(part))
+			require.GreaterOrEqual(t, len(part), minUploadBytes, "expected upload part %v to be between %v and %v bytes, but was %v bytes", i, minUploadBytes, maxUploadBytes, len(part))
+			require.LessOrEqual(t, len(part), maxUploadBytes, "expected upload part %v to be between %v and %v bytes, but was %v bytes", i, minUploadBytes, maxUploadBytes, len(part))
 		}
 	}
 
 	// There should be at least 1 final upload part for every 4 file upload parts.
-	minFactor := minUploadBytes / int(minFileBytes)
-	require.True(t, len(partFiles)/minFactor <= len(uploadParts), "expected there to be 1 final upload part for every 4 transient file parts, but got %v and %v respectively", len(uploadParts), len(partFiles))
+	minFactor := minUploadBytes / minFileBytes
+	require.LessOrEqual(t, len(partFiles)/minFactor, len(uploadParts), "expected there to be 1 final upload part for every 4 transient file parts, but got %v and %v respectively", len(uploadParts), len(partFiles))
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
@@ -699,10 +701,11 @@ func TestUploadEncryptedRecording(t *testing.T) {
 						}
 
 						if hasNext {
-							require.True(t, len(part) >= expectEncryptedSizeFloor && len(part) <= expectEncryptedSizeCeil, "expected encrypted upload to be between %v and %v bytes, but was %v bytes", expectEncryptedSizeFloor, expectEncryptedSizeCeil, len(part))
+							require.GreaterOrEqual(t, len(part), expectEncryptedSizeFloor, "expected encrypted upload to be between %v and %v bytes, but was %v bytes", expectEncryptedSizeFloor, expectEncryptedSizeCeil, len(part))
+							require.LessOrEqual(t, len(part), expectEncryptedSizeCeil, "expected encrypted upload to be between %v and %v bytes, but was %v bytes", expectEncryptedSizeFloor, expectEncryptedSizeCeil, len(part))
 						} else {
 							// The last part is not expected to meet the target size.
-							require.True(t, len(part) <= expectEncryptedSizeCeil, "expected last encrypted upload to be smaller than %v bytes, but was %v bytes", expectEncryptedSizeCeil, len(part))
+							require.LessOrEqual(t, len(part), expectEncryptedSizeCeil, "expected last encrypted upload to be smaller than %v bytes, but was %v bytes", expectEncryptedSizeCeil, len(part))
 						}
 
 						part = nextPart
@@ -773,15 +776,15 @@ func TestUploadEncryptedRecording(t *testing.T) {
 			for i, part := range uploadParts {
 				if i == len(uploadParts)-1 {
 					// The last part is not required to meet the minimum size, so it shouldn't exceed the original encrypted recording size.
-					require.True(t, len(part) <= expectEncryptedSizeCeil, "expected last upload to be smaller than %v bytes, but was %v bytes", expectEncryptedSizeCeil, len(part))
+					require.LessOrEqual(t, len(part), expectEncryptedSizeCeil, "expected last upload to be smaller than %v bytes, but was %v bytes", expectEncryptedSizeCeil, len(part))
 				} else {
-					require.True(t, len(part) >= expectFinalSizeFloor && len(part) <= expectFinalSizeCeil, "expected upload to be between %v and %v bytes, but was %v bytes", expectFinalSizeFloor, expectFinalSizeCeil, len(part))
+					require.GreaterOrEqual(t, len(part), expectFinalSizeFloor, "expected upload to be between %v and %v bytes, but was %v bytes", expectFinalSizeFloor, expectFinalSizeCeil, len(part))
+					require.LessOrEqual(t, len(part), expectFinalSizeCeil, "expected upload to be between %v and %v bytes, but was %v bytes", expectFinalSizeFloor, expectFinalSizeCeil, len(part))
 				}
 			}
 
 			// There should be one final upload for each upload part from the encrypted uploader.
-			require.Equal(t, len(recollectParts), len(uploadParts), "expected there to be an equal amount of final upload parts and transient upload parts, but got %v and %v respectively", len(uploadParts), len(recollectParts))
-
+			require.Len(t, recollectParts, len(uploadParts), "expected there to be an equal amount of final upload parts and transient upload parts, but got %v and %v respectively", len(uploadParts), len(recollectParts))
 		})
 	}
 }

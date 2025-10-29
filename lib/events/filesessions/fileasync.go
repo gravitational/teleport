@@ -420,7 +420,7 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 	// buf holds aggregated upload parts that will be uploaded as a single upload part.
 	var buf bytes.Buffer
 
-	readPartHeader := func(in io.Reader) (events.PartHeader, error) {
+	readNextPartHeader := func() (events.PartHeader, error) {
 		header, err := events.ParsePartHeader(in)
 		if err != nil {
 			return events.PartHeader{}, trace.Wrap(err)
@@ -440,7 +440,7 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 		return header, nil
 	}
 
-	writePartToBuffer := func(in io.Reader, header events.PartHeader, buf bytes.Buffer) error {
+	writePartToBuffer := func(header events.PartHeader) error {
 		// We are going to discard any padding as it isn't necessary within the individual parts.
 		originalPaddingSize := header.PaddingSize
 		header.PaddingSize = 0
@@ -485,7 +485,7 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 		}
 
 		for {
-			partHeader, err := readPartHeader(in)
+			partHeader, err := readNextPartHeader()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					// No parts remaining, yield the current part and return.
@@ -506,7 +506,7 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 				}
 			}
 
-			writePartToBuffer(in, partHeader, buf)
+			writePartToBuffer(partHeader)
 
 			// If we've reached the target upload size, yield the current
 			// aggregated upload part before continuing.
