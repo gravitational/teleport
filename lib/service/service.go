@@ -2749,6 +2749,7 @@ func (process *TeleportProcess) initAuthService() error {
 		for {
 			select {
 			case e := <-eventCh:
+				// TODO: only invoke SetServingStatus if status has actually changed
 				switch e.Name {
 				case TeleportDegradedEvent:
 					logger.InfoContext(process.ExitContext(), "setting health status to not serving")
