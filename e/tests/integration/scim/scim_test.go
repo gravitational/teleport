@@ -23,7 +23,7 @@ func TestSCIMGeneric(t *testing.T) {
 		common.WithUser(t, "alice-admin", "editor"),
 	)
 	authClient := sut.Teleport.Process.GetAuthServer()
-	aclClient := authClient.AccessLists
+	aclClient := authClient.AccessListsInternal
 
 	scimToken := createGenericSCIMPlugin(t, sut)
 	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")

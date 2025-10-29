@@ -129,7 +129,7 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 		accessListMembers = append(accessListMembers, NewAccessListMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
 	}
 
-	_, _, err = sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListWithMembers(t.Context(), accessList, accessListMembers)
+	_, _, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.UpsertAccessListWithMembers(t.Context(), accessList, accessListMembers)
 	require.NoError(t, err)
 
 	return accessList
@@ -161,7 +161,7 @@ func CreateAccessListMember(t *testing.T, sut *SUT, aclName, memberName string, 
 	ctx := t.Context()
 
 	member := NewAccessListMember(t, aclName, memberName, memberType)
-	member, err := sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListMember(ctx, member)
+	member, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.UpsertAccessListMember(ctx, member)
 	require.NoError(t, err)
 	return member
 }

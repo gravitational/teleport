@@ -153,13 +153,13 @@ func TestNestedAclAssignment(t *testing.T) {
 	teleportList2 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-2", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"reviewer"}}, []string{oktaInfra.Users[6].login()})
 
 	// teleport list 1 and 2 are nested within teleport list 0
-	nestedTeleportList1, err := authServer.AccessLists.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList1.GetName(), accesslist.MembershipKindList))
+	nestedTeleportList1, err := authServer.AccessListsInternal.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList1.GetName(), accesslist.MembershipKindList))
 	require.NoError(t, err)
-	nestedTeleportList2, err := authServer.AccessLists.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList2.GetName(), accesslist.MembershipKindList))
+	nestedTeleportList2, err := authServer.AccessListsInternal.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList2.GetName(), accesslist.MembershipKindList))
 	require.NoError(t, err)
 
 	// teleport list 0 is nested within okta-created list
-	nestedTeleportList0, err := authServer.AccessLists.UpsertAccessListMember(ctx, mustCreateMember(t, oktaSyncedList.GetName(), teleportList0.GetName(), accesslist.MembershipKindList))
+	nestedTeleportList0, err := authServer.AccessListsInternal.UpsertAccessListMember(ctx, mustCreateMember(t, oktaSyncedList.GetName(), teleportList0.GetName(), accesslist.MembershipKindList))
 	require.NoError(t, err)
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100))
@@ -356,7 +356,7 @@ func createAccessListWithMembers(t *testing.T, ctx context.Context, sut *common.
 		accessListMembers = append(accessListMembers, mustCreateMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
 	}
 
-	_, _, err = sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListWithMembers(ctx, accessList, accessListMembers)
+	_, _, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.UpsertAccessListWithMembers(ctx, accessList, accessListMembers)
 	require.NoError(t, err)
 
 	return accessList
@@ -516,16 +516,16 @@ func selectUserGroupByName(groups []types.UserGroup, name string) types.UserGrou
 func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName string) {
 	acl, err := sut.Teleport.Process.GetAuthServer().GetAccessList(t.Context(), aclName)
 	require.NoError(t, err)
-	members, _, err := sut.Teleport.Process.GetAuthServer().AccessLists.ListAccessListMembers(t.Context(), aclName, 0, "")
+	members, _, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.ListAccessListMembers(t.Context(), aclName, 0, "")
 	require.NoError(t, err)
 	members = append(members, mustCreateMember(t, aclName, memberName, accesslist.MembershipKindUser))
-	_, _, err = sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListWithMembers(t.Context(), acl, members)
+	_, _, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.UpsertAccessListWithMembers(t.Context(), acl, members)
 	require.NoError(t, err)
 }
 
 func assertUserIsNotAccessListMember(ctx context.Context, t require.TestingT, sut *common.SUT, acl, user string) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(ctx, acl, user)
+		_, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
 		require.True(t, trace.IsNotFound(err))
 	}, 3*time.Second, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
 }
@@ -534,7 +534,7 @@ func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *
 	var member *accesslist.AccessListMember
 	var err error
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		member, err = sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(ctx, acl, user)
+		member, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.GetAccessListMember(ctx, acl, user)
 		require.NoError(t, err)
 	}, 3*time.Second, 200*time.Millisecond)
 	return member

@@ -30,7 +30,7 @@ func TestIdentityCenterResourceCleanup(t *testing.T) {
 		ProvisioningStateService: suite.svc.authServer.ProvisioningStates,
 		SAMLIdPService:           suite.svc.authServer.SAMLIdPServiceProviders,
 		IntegrationService:       suite.svc.authServer.Integrations,
-		AccessListService:        suite.svc.authServer.AccessLists,
+		AccessListService:        suite.svc.authServer.AccessListsInternal,
 		RoleService:              suite.svc.authServer.Access,
 	}
 	testData := ictestenv.NewDeletionData()

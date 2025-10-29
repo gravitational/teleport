@@ -465,7 +465,7 @@ func TestProcessEvent(t *testing.T) {
 			updates: []updateFn{
 				func(t *testing.T, as *auth.Server) types.Event {
 					accessList := newAccessList(t, "access-list1", []string{"role2", "role3", "role4"})
-					_, err := as.AccessLists.UpsertAccessList(context.Background(), accessList)
+					_, err := as.AccessListsInternal.UpsertAccessList(context.Background(), accessList)
 					require.NoError(t, err)
 					return types.Event{
 						Resource: accessList,
@@ -671,7 +671,7 @@ func newUser(t *testing.T, name string, userType types.UserType, roles ...string
 func addAccessList(t *testing.T, as *auth.Server, name string, roleGrants []string, members ...string) {
 	t.Helper()
 
-	_, err := as.AccessLists.UpsertAccessList(context.Background(), newAccessList(t, name, roleGrants))
+	_, err := as.AccessListsInternal.UpsertAccessList(context.Background(), newAccessList(t, name, roleGrants))
 	require.NoError(t, err)
 
 	for _, member := range members {
@@ -711,7 +711,7 @@ func newAccessList(t *testing.T, name string, roleGrants []string) *accesslist.A
 func addAccessListMember(t *testing.T, as *auth.Server, accessList, name string) {
 	t.Helper()
 
-	_, err := as.AccessLists.UpsertAccessListMember(context.Background(), newAccessListMember(t, accessList, name))
+	_, err := as.AccessListsInternal.UpsertAccessListMember(context.Background(), newAccessListMember(t, accessList, name))
 	require.NoError(t, err)
 }
 

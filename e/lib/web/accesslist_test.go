@@ -169,7 +169,7 @@ func TestUpdateAccessList(t *testing.T) {
 	t.Run("can update a regular access list", func(t *testing.T) {
 		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default, accesslist.SCIM} {
 			t.Run(string(typ), func(t *testing.T) {
-				svc := s.testAuthServer.AuthServer.AuthServer.AccessLists
+				svc := s.testAuthServer.AuthServer.AuthServer.AccessListsInternal
 
 				accessList, err := svc.UpsertAccessList(ctx, newAccessList(t,
 					"test_"+string(typ),
@@ -206,7 +206,7 @@ func TestUpdateAccessList(t *testing.T) {
 	t.Run("cannot update  UI RO access list", func(t *testing.T) {
 		for _, typ := range []accesslist.Type{accesslist.Static} {
 			t.Run(string(typ), func(t *testing.T) {
-				svc := s.testAuthServer.AuthServer.AuthServer.AccessLists
+				svc := s.testAuthServer.AuthServer.AuthServer.AccessListsInternal
 
 				accessList, err := svc.UpsertAccessList(ctx, newAccessList(t,
 					"test_"+string(typ),

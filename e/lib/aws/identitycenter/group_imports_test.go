@@ -379,7 +379,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 			err := svc.importAndEmitStatus(ctx)
 			require.NoError(t, err)
 
-			compareAccessLists(t, ctx, tc.expectedList, fixture.Auth.AccessLists)
+			compareAccessLists(t, ctx, tc.expectedList, fixture.Auth.AccessListsInternal)
 
 			require.Eventually(t, func() bool {
 				return statusSink.Get() != nil
@@ -590,7 +590,7 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 	requireEventually(t, downstreamGroupsMatch(ctx, fixture.ICClient, allGroups...))
 
 	// WHEN I explicitly delete an IC-sourced access list
-	err := fixture.Auth.AccessLists.DeleteAccessList(ctx, "delta")
+	err := fixture.Auth.AccessListsInternal.DeleteAccessList(ctx, "delta")
 	require.NoError(t, err, "test requires deletion to succeed")
 
 	// Expect that the downstream group is deleted actually deleted

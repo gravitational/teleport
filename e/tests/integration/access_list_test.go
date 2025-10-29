@@ -32,7 +32,7 @@ func TestNestedAccessListCycleValidation(t *testing.T) {
 
 	sut := common.InitSUT(t, common.WithUser(t, user, "editor"))
 
-	client := sut.Teleport.Process.GetAuthServer().AccessLists
+	client := sut.Teleport.Process.GetAuthServer().AccessListsInternal
 
 	// delete the lists if they already exist
 	for _, list := range []string{listA, listB} {
@@ -133,7 +133,7 @@ func TestAccessListMaxDepthValidation(t *testing.T) {
 
 	sut := common.InitSUT(t, common.WithUser(t, user, "editor"))
 
-	client := sut.Teleport.Process.GetAuthServer().AccessLists
+	client := sut.Teleport.Process.GetAuthServer().AccessListsInternal
 
 	// Helper function to create a hierarchy of nested access lists.
 	createHierarchy := func(prefix string) []string {
@@ -338,7 +338,7 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 	}
 
 	authServer := sut.Teleport.Process.GetAuthServer()
-	_, _, err = authServer.AccessLists.UpsertAccessListWithMembers(ctx, testAccessList, aclMember)
+	_, _, err = authServer.AccessListsInternal.UpsertAccessListWithMembers(ctx, testAccessList, aclMember)
 	require.NoError(t, err)
 
 	aliceTC := sut.GetClusterClientForUser(t, "alice")

@@ -396,7 +396,7 @@ func (u *UserMonitor) processRoleChange(ctx context.Context, roleName string) er
 	for {
 		var accessLists []*accesslist.AccessList
 		var err error
-		accessLists, nextToken, err = u.authServer.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		accessLists, nextToken, err = u.authServer.AccessListsInternal.ListAccessLists(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			allErrs = append(allErrs, err)
 			break
@@ -462,7 +462,7 @@ func (u *UserMonitor) processAccessListChange(ctx context.Context, accessList *a
 	for {
 		var members []*accesslist.AccessListMember
 		var err error
-		members, nextToken, err = u.authServer.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+		members, nextToken, err = u.authServer.AccessListsInternal.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
 		if err != nil {
 			return trace.BadParameter("error while getting access list members for access list %s", accessList.GetName())
 		}

@@ -36,7 +36,7 @@ func (s *Service) identityCenterNeedsCleanup(ctx context.Context) ([]*types.Reso
 	}
 	out = append(out, icResources...)
 
-	icCreatedAccessLists, err := identitycenter.ListICOriginatedAccessLists(ctx, s.authServer.AccessLists)
+	icCreatedAccessLists, err := identitycenter.ListICOriginatedAccessLists(ctx, s.authServer.AccessListsInternal)
 	if err != nil {
 		return nil, active, trace.Wrap(err)
 	}
@@ -95,7 +95,7 @@ func (s *Service) cleanupAWSIdentityCenter(ctx context.Context, deletedPlugin *t
 	}
 
 	// delete access list and its members imported by the plugin.
-	if err := deleteIdentityCenterOriginatedAccessLists(ctx, s.authServer.AccessLists); err != nil {
+	if err := deleteIdentityCenterOriginatedAccessLists(ctx, s.authServer.AccessListsInternal); err != nil {
 		errs = append(errs, err)
 	}
 

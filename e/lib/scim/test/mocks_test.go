@@ -288,6 +288,14 @@ func (m *mockAccessListService) UpsertAccessListWithMembers(ctx context.Context,
 	return getResultAs[*accesslist.AccessList](result, 0), getResultAs[[]*accesslist.AccessListMember](result, 1), result.Error(2)
 }
 
+func (m *mockAccessListService) UpdateAccessListAndOverwriteMembers(ctx context.Context, al *accesslist.AccessList, ms []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	result := m.Called(ctx, al, ms)
+	if fn, ok := result.Get(0).(func(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)); ok {
+		return fn(ctx, al, ms)
+	}
+	return getResultAs[*accesslist.AccessList](result, 0), getResultAs[[]*accesslist.AccessListMember](result, 1), result.Error(2)
+}
+
 func (m *mockAccessListService) UpsertAccessListMember(ctx context.Context, alm *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	result := m.Called(ctx, alm)
 	if fn, ok := result.Get(0).(func(context.Context, *accesslist.AccessListMember) (*accesslist.AccessListMember, error)); ok {

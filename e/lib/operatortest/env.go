@@ -53,11 +53,12 @@ func startAuthServer(t *testing.T) *client.Client {
 
 	server, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
-			PluginRegistry: registry,
-			AuthServer:     authServer.AuthServer,
-			Authorizer:     authServer.Authorizer,
-			AuditLog:       authServer.AuditLog,
-			Emitter:        authServer.AuditLog,
+			PluginRegistry:   registry,
+			AuthServer:       authServer.AuthServer,
+			Authorizer:       authServer.Authorizer,
+			AuditLog:         authServer.AuditLog,
+			Emitter:          authServer.AuditLog,
+			ScopedAuthorizer: authServer.ScopedAuthorizer,
 		},
 		AuthServer:    authServer,
 		AcceptedUsage: authServer.AcceptedUsage,
