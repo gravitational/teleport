@@ -42,6 +42,7 @@ import {
 import { IconProps } from 'design/Icon/Icon';
 import { rotate360 } from 'design/keyframes';
 import Text from 'design/Text';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import cfg from 'teleport/config';
 import {
@@ -162,7 +163,7 @@ export function RecordingItem({
             <ArrowRight size="small" color="text.slightlyMuted" />
 
             <ItemSpan>
-              <Server size="small" color="sessionRecording.resource" />
+              <Icon size="small" color="sessionRecording.resource" />
 
               <Text>{recording.hostname}</Text>
             </ItemSpan>
@@ -172,7 +173,9 @@ export function RecordingItem({
             <Text color="text.slightlyMuted" fontSize="12px" fontFamily="mono">
               {recording.sid}
             </Text>
-
+            <Box flex="1">
+              <CopyButton value={recording.sid} ml={2} />
+            </Box>
             {actions}
           </Flex>
         </RecordingDetails>
@@ -187,8 +190,9 @@ const RecordingItemContainer = styled(Link).withConfig({
     !['viewMode', 'density', 'playable'].includes(prop),
 })<Pick<RecordingItemProps, 'viewMode' | 'density'> & { playable: boolean }>(
   p => css`
-    border: 1px solid ${p.theme.colors.spotBackground[1]};
-    border-radius: calc(${p.theme.radii[3]}px + ${p.theme.radii[2]}px);
+    border: ${p.theme.borders[2]} ${p.theme.colors.interactive.tonal.neutral[0]};
+    border-radius: ${p.theme.radii[3]}px;
+    overflow: hidden; // Needed to keep the rectangular contents from bleeding out of the round corners.
     display: flex;
     flex-grow: 0;
     cursor: pointer;
@@ -197,7 +201,9 @@ const RecordingItemContainer = styled(Link).withConfig({
     pointer-events: ${p.playable ? 'all' : 'none'};
 
     &:hover {
-      background: ${p.theme.colors.spotBackground[0]};
+      background: ${p.theme.colors.levels.surface};
+      border-color: transparent;
+      box-shadow: ${props => props.theme.boxShadow[3]};
     }
 
     ${p.viewMode === ViewMode.List
@@ -210,6 +216,7 @@ const RecordingItemContainer = styled(Link).withConfig({
       : css`
           flex-direction: column;
         `}
+    transition: background-color 150ms, border-color 150ms, box-shadow 150ms;
   `
 );
 
@@ -219,29 +226,27 @@ const ThumbnailContainer = styled.div<
   p => css`
     flex-shrink: 0;
     position: relative;
-    border-top-left-radius: ${p.theme.radii[3]}px;
-    border-top-right-radius: ${p.theme.radii[3]}px;
     overflow: hidden;
 
     ${p.viewMode === ViewMode.List
       ? css`
-          border: 1px solid ${p.theme.colors.spotBackground[1]};
-          border-radius: ${p.theme.radii[3]}px;
+          border: 1px solid ${p.theme.colors.interactive.tonal.neutral[0]};
+          border-radius: ${p.theme.radii[2]}px;
           height: 100%;
           width: ${p.density === Density.Compact ? '256px' : '320px'};
         `
       : css`
-          border-bottom: 1px solid ${p.theme.colors.spotBackground[1]};
-          border-top-left-radius: calc(
-            ${p.theme.radii[3]}px + ${p.theme.radii[2]}px
-          );
-          border-top-right-radius: calc(
-            ${p.theme.radii[3]}px + ${p.theme.radii[2]}px
-          );
+          border-bottom: 1px solid
+            ${p.theme.colors.interactive.tonal.neutral[0]};
           flex: 1;
           height: ${p.density === Density.Compact ? '90px' : '120px'};
           width: 100%;
         `}
+
+    ${RecordingItemContainer}:hover & {
+      border-color: transparent;
+      transition: border-color 150ms;
+    }
   `
 );
 
@@ -331,7 +336,7 @@ function ThumbnailError({ children }: PropsWithChildren) {
   );
 }
 
-function getRecordingTypeInfo(type: RecordingType): {
+export function getRecordingTypeInfo(type: RecordingType): {
   icon: ComponentType<IconProps>;
   label: string;
 } {

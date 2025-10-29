@@ -38,6 +38,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -196,6 +197,9 @@ type ReadProxyAccessPoint interface {
 	// GetUIConfig returns configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context) (types.UIConfig, error)
 
+	// GetToken finds and returns token by ID
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
@@ -297,6 +301,10 @@ type ReadProxyAccessPoint interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -323,6 +331,14 @@ type ReadProxyAccessPoint interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+
+	// ListIntegrations returns a paginated list of all integration resources.
+	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -341,6 +357,33 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+}
+
+// ReadRelayAccessPoint is a read only API interface to be used by a Relay
+// service.
+//
+// NOTE: This interface must be a subset of the [*cache.Cache] methods usable in the
+// cache configured by [cache.ForRelay].
+type ReadRelayAccessPoint interface {
+	io.Closer
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 }
 
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -487,6 +530,10 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
@@ -732,6 +779,10 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
@@ -1063,6 +1114,15 @@ type Cache interface {
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 
+	// GetSnowflakeSessions returns all Snowflake session resources.
+	GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error)
+
+	// ListSnowflakeSessions returns a page of Snowflake session resources.
+	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
+
+	// RangeSnowflakeSessions returns Snowflake session resources within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
+
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
 
@@ -1155,9 +1215,17 @@ type Cache interface {
 
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error)
+	// RangeInstallers returns installer script resources within the range [start, end).
+	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -1239,6 +1307,9 @@ type Cache interface {
 	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
 
+	// GetAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport from the backend.
+	GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1284,6 +1355,11 @@ type Cache interface {
 	// resources.
 	services.HealthCheckConfigReader
 
+	// GetRelayServer returns the relay server heartbeat with a given name.
+	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
+	// ListRelayServers returns a paginated list of relay server heartbeats.
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
+
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
@@ -1295,6 +1371,9 @@ type Cache interface {
 
 	// UserLoginStatesGetter defines methods for fetching user login states.
 	services.UserLoginStatesGetter
+
+	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
+	services.DiscoveryConfigsGetter
 }
 
 type NodeWrapper struct {

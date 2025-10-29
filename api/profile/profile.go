@@ -68,6 +68,14 @@ type Profile struct {
 	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
 	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
 
+	// RelayAddr is the relay in use specified at login time, or "none" if use
+	// of a relay is explicitly disabled.
+	RelayAddr string `yaml:"relay_addr,omitempty"`
+
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if RelayAddr is unspecified. Set at login time.
+	DefaultRelayAddr string `yaml:"default_relay_addr,omitempty"`
+
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 

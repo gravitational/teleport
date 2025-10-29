@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
@@ -203,6 +204,11 @@ type Server struct {
 
 	// connectedProxyGetter gets the proxies teleport is connected to.
 	connectedProxyGetter *reversetunnel.ConnectedProxyGetter
+
+	// relayInfoGetter gets the Relay group and Relay host IDs that this
+	// Teleport instance is connected to. The returned data must be owned by the
+	// caller (i.e. it should be a copy).
+	relayInfoGetter relaytunnel.GetRelayInfoFunc
 
 	// createHostUser configures whether a host should allow host user
 	// creation
@@ -683,6 +689,15 @@ func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerO
 	}
 }
 
+// SetRelayInfoGetter sets the function used to get the relay tunnel client info
+// to fill in the server heartbeat.
+func SetRelayInfoGetter(getter relaytunnel.GetRelayInfoFunc) ServerOption {
+	return func(s *Server) error {
+		s.relayInfoGetter = getter
+		return nil
+	}
+}
+
 // SetInventoryControlHandle sets the server's downstream inventory control
 // handle.
 func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
@@ -1098,6 +1113,13 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		addr = s.AdvertiseAddr()
 	}
 
+	var relayGroup string
+	var relayIDs []string
+	if s.relayInfoGetter != nil {
+		// relayInfoGetter returns a copy of the slice, so we can move it in the
+		// protobuf message
+		relayGroup, relayIDs = s.relayInfoGetter()
+	}
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -1107,12 +1129,14 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			CmdLabels: s.getDynamicLabels(),
-			Addr:      addr,
-			Hostname:  s.hostname,
-			UseTunnel: s.useTunnel,
-			Version:   teleport.Version,
-			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
+			CmdLabels:  s.getDynamicLabels(),
+			Addr:       addr,
+			Hostname:   s.hostname,
+			UseTunnel:  s.useTunnel,
+			Version:    teleport.Version,
+			ProxyIDs:   s.connectedProxyGetter.GetProxyIDs(),
+			RelayGroup: relayGroup,
+			RelayIds:   relayIDs,
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
@@ -1616,21 +1640,6 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	})
 
 	for {
-		// update scx with the session ID:
-		if !s.proxyMode {
-			err := scx.CreateOrJoinSession(ctx, s.reg)
-			if err != nil {
-				scx.Logger.ErrorContext(ctx, "Unable to update context", "error", err)
-
-				// write the error to channel and close it
-				s.writeStderr(ctx, trackingChan, fmt.Sprintf("unable to update context: %v", err))
-				_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-				if err != nil {
-					scx.Logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-				}
-				return
-			}
-		}
 		select {
 		case creq := <-scx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
@@ -1741,10 +1750,16 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest, tracessh.EnvsRequest:
-		case constants.FileTransferDecision:
-			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
+		case constants.InitiateFileTransfer:
+			_, mode := serverContext.GetJoinParams()
+			if mode != types.SessionPeerMode {
+				return trace.AccessDenied("attempted file transfer in %s mode", mode)
+			}
+			return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
+		case constants.FileTransferDecision:
+			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.AgentForwardRequest:

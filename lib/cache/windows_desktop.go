@@ -200,33 +200,25 @@ func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.Watc
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WindowsDesktop, error) {
-			var start string
-			var desktops []types.WindowsDesktop
-			for {
-				req := types.ListWindowsDesktopsRequest{
-					// A non zero limit is required by older versions.
-					Limit:    defaults.DefaultChunkSize,
-					StartKey: start,
-				}
-
-				resp, err := upstream.ListWindowsDesktops(ctx, req)
-				if err != nil {
-					// TODO(tross): DELETE in V21.0.0
-					if trace.IsNotImplemented(err) {
-						return upstream.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+			// TODO(tross): DELETE in V21.0.0  replace by regular clientutils.Resources
+			out, err := clientutils.CollectWithFallback(
+				ctx,
+				func(ctx context.Context, limit int, start string) ([]types.WindowsDesktop, string, error) {
+					resp, err := upstream.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+						Limit:    limit,
+						StartKey: start,
+					})
+					if err != nil {
+						return nil, "", trace.Wrap(err)
 					}
+					return resp.Desktops, resp.NextKey, nil
+				},
+				func(ctx context.Context) ([]types.WindowsDesktop, error) {
+					return upstream.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+				},
+			)
 
-					return nil, trace.Wrap(err)
-				}
-
-				desktops = append(desktops, resp.Desktops...)
-				start = resp.NextKey
-				if resp.NextKey == "" {
-					break
-				}
-			}
-
-			return desktops, nil
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WindowsDesktop {
 			return &types.WindowsDesktopV3{

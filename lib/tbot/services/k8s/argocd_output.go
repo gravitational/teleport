@@ -348,8 +348,17 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 		return nil, trace.Wrap(err, "marshaling cluster credentials")
 	}
 
+	name, err := kubeconfig.ContextNameFromTemplate(
+		s.cfg.ClusterNameTemplate,
+		cluster.teleportClusterName,
+		cluster.kubeClusterName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "templating cluster name")
+	}
+
 	data := map[string][]byte{
-		"name":   []byte(kubeconfig.ContextName(cluster.teleportClusterName, cluster.kubeClusterName)),
+		"name":   []byte(name),
 		"server": []byte(cluster.addr),
 		"config": configJSON,
 	}

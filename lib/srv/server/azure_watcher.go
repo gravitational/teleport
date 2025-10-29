@@ -49,6 +49,14 @@ type AzureInstances struct {
 	// ScriptName is the name of the script to execute on the instances to
 	// install Teleport.
 	ScriptName string
+	// InstallSuffix indicates the installation suffix for the teleport installation.
+	// Set this value if you want multiple installations of Teleport.
+	// See --install-suffix flag in teleport-update program.
+	InstallSuffix string
+	// UpdateGroup indicates the update group for the teleport installation.
+	// This value is used to group installations in order to update them in batches.
+	// See --group flag in teleport-update program.
+	UpdateGroup string
 	// PublicProxyAddr is the address of the proxy the discovered node should use
 	// to connect to the cluster.
 	PublicProxyAddr string
@@ -141,6 +149,8 @@ type azureInstanceFetcher struct {
 	DiscoveryConfigName string
 	Integration         string
 	Logger              *slog.Logger
+	InstallSuffix       string
+	UpdateGroup         string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -156,6 +166,8 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	}
 
 	if cfg.Matcher.Params != nil {
+		ret.InstallSuffix = cfg.Matcher.Params.Suffix
+		ret.UpdateGroup = cfg.Matcher.Params.UpdateGroup
 		ret.Parameters = map[string]string{
 			"token":           cfg.Matcher.Params.JoinToken,
 			"scriptName":      cfg.Matcher.Params.ScriptName,
@@ -254,6 +266,8 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 			PublicProxyAddr: f.Parameters["publicProxyAddr"],
 			Parameters:      []string{f.Parameters["token"]},
 			ClientID:        f.ClientID,
+			InstallSuffix:   f.InstallSuffix,
+			UpdateGroup:     f.UpdateGroup,
 		}})
 	}
 

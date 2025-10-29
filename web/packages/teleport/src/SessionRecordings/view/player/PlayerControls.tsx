@@ -41,6 +41,8 @@ import { HoverTooltip } from 'design/Tooltip';
 
 import { PlayerState } from 'teleport/SessionRecordings/view/stream/SessionStream';
 
+import { PlayerSpeed } from './PlayerSpeed';
+
 export interface PlayerControlsHandle {
   setTime: (time: number) => void;
 }
@@ -50,6 +52,8 @@ interface PlayerControlsProps {
   onPlay: () => void;
   onPause: () => void;
   onSeek: (time: number) => void;
+  speed: number;
+  onSpeedChange: (speed: number) => void;
   state: PlayerState;
   ref: RefObject<PlayerControlsHandle>;
   onToggleFullscreen?: () => void;
@@ -65,6 +69,8 @@ export function PlayerControls({
   onPlay,
   onPause,
   onSeek,
+  speed,
+  onSpeedChange,
   fullscreen,
   onToggleFullscreen,
   onToggleTimeline,
@@ -215,6 +221,12 @@ export function PlayerControls({
           <ProgressBar ref={progressBarRef} />
         </ProgressBarContainer>
       </ProgressBarArea>
+
+      <PlayerSpeed
+        speed={speed}
+        onSpeedChange={onSpeedChange}
+        portalRoot={containerRef.current}
+      />
 
       {onToggleTimeline && (
         <HoverTooltip

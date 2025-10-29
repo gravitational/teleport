@@ -59,6 +59,12 @@ type Cache interface {
 	// IntegrationsGetter defines methods to access Integration resources.
 	services.IntegrationsGetter
 
+	// DiscoveryConfigsGetter defines methods to access DiscoveryConfig resources.
+	services.DiscoveryConfigsGetter
+
+	// AppServersGetter defines methods to access application servers.
+	services.AppServersGetter
+
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 }
@@ -82,6 +88,8 @@ type Backend interface {
 	services.Integrations
 	services.PluginStaticCredentials
 	services.GitServers
+	services.DiscoveryConfigs
+	services.Presence
 }
 
 // ServiceConfig holds configuration options for
@@ -495,6 +503,8 @@ func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig type
 
 func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
 	switch ig.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, authCtx, ig))
 	case types.IntegrationSubKindGitHub:
 		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
 	default:

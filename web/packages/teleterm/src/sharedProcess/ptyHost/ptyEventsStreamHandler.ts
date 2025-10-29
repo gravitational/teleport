@@ -90,12 +90,12 @@ export class PtyEventsStreamHandler {
         })
       )
     );
-    this.ptyProcess.onExit(({ exitCode, signal }) =>
+    this.ptyProcess.onExit(payload =>
       this.stream.write(
         PtyServerEvent.create({
           event: {
             oneofKind: 'exit',
-            exit: PtyEventExit.create({ exitCode, signal }),
+            exit: PtyEventExit.create(payload),
           },
         })
       )

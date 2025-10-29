@@ -21,6 +21,8 @@ package services
 import (
 	"context"
 	"slices"
+	"time"
+	_ "time/tzdata"
 
 	"github.com/gravitational/trace"
 
@@ -93,6 +95,10 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		return trace.BadParameter("accessMonitoringRule condition is missing")
 	}
 
+	if err := validateSchedules(accessMonitoringRule.GetSpec().GetSchedules()); err != nil {
+		return trace.Wrap(err, "validating spec.schedules")
+	}
+
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
@@ -134,6 +140,57 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 			types.KindAccessRequest)
 	}
 
+	return nil
+}
+
+func validateSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule) error {
+	for name, schedule := range schedules {
+		if schedule.GetTime() == nil {
+			return trace.BadParameter("spec.schedules[%s].time is required", name)
+		}
+
+		if err := validateTimeSchedule(schedule.GetTime()); err != nil {
+			return trace.Wrap(err, "validating spec.schedules[%s].time", name)
+		}
+	}
+	return nil
+}
+
+func validateTimeSchedule(schedule *accessmonitoringrulesv1.TimeSchedule) error {
+	if _, err := time.LoadLocation(schedule.GetTimezone()); err != nil {
+		return trace.Wrap(err, "invalid timezone: refer to the IANA Time Zone Database for valid options")
+	}
+
+	if len(schedule.GetShifts()) == 0 {
+		return trace.BadParameter("at least one shift is required")
+	}
+
+	for _, shift := range schedule.GetShifts() {
+		if err := validateShift(shift); err != nil {
+			return trace.Wrap(err, "shift is invalid")
+		}
+	}
+	return nil
+}
+
+func validateShift(shift *accessmonitoringrulesv1.TimeSchedule_Shift) error {
+	if _, ok := types.ParseWeekday(shift.GetWeekday()); !ok {
+		return trace.BadParameter("failed to parse weekday: %v", shift.GetWeekday())
+	}
+
+	start, err := accessmonitoring.ClockTime(time.Time{}, shift.GetStart())
+	if err != nil {
+		return trace.Wrap(err, "invalid start time")
+	}
+
+	end, err := accessmonitoring.ClockTime(time.Time{}, shift.GetEnd())
+	if err != nil {
+		return trace.Wrap(err, "invalid end time")
+	}
+
+	if !start.Before(end) {
+		return trace.BadParameter("start time must be before end time")
+	}
 	return nil
 }
 

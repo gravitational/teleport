@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -88,6 +89,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)

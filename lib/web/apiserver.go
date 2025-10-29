@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -82,6 +83,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -138,10 +140,6 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
-	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
-	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
-	// cluster configuration changes.
-	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -185,8 +183,7 @@ type Handler struct {
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
 
-	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
-	clusterMaintenanceConfigCache *utils.FnCache
+	autoUpdateResolver *autoupdatelookup.Resolver
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -342,6 +339,10 @@ func (c *Config) SetDefaults() {
 		c.PresenceChecker = client.RunPresenceTask
 	}
 
+	if c.AutomaticUpgradesChannels == nil {
+		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
@@ -492,18 +493,21 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 	h.findEndpointCache = findCache
 
-	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
-	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         cmcCacheTTL,
-		Clock:       h.clock,
-		Context:     cfg.Context,
-		ReloadOnErr: false,
-	})
+	autoUpdateResolver, err := autoupdatelookup.NewResolver(
+		autoupdatelookup.Config{
+			RolloutGetter: cfg.AccessPoint,
+			CMCGetter:     cfg.ProxyClient,
+			Channels:      h.cfg.AutomaticUpgradesChannels,
+			Log:           h.logger,
+			Clock:         h.clock,
+			Context:       h.cfg.Context,
+		})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
+		return nil, trace.Wrap(err, "creating autoupdate resolver")
 	}
-	h.clusterMaintenanceConfigCache = cmcCache
+	h.autoUpdateResolver = autoUpdateResolver
 
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
 		sessionLingeringThreshold = *cfg.CachedSessionLingeringThreshold
@@ -883,7 +887,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Returns the CA Certs
 	// Deprecated, use the `webapi/auth/export` endpoint.
-	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
+	// Returning other clusters (trusted cluster) CA certs would leak whether the TrustedCluster exists or not.
 	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
@@ -1153,9 +1157,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// PUT Machine ID bot by name
 	// TODO(nicholasmarais1158) DELETE IN v20.0.0
 	// Replaced by `PUT /v2/webapi/sites/:site/machine-id/bot/:name` which allows editing more than just roles.
-	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
+	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV1))
 	// PUT Machine ID bot by name
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `PUT /v3/webapi/sites/:site/machine-id/bot/:name` which allows editing description.
 	h.PUT("/v2/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
+	// PUT Machine ID bot by name
+	h.PUT("/v3/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV3))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
@@ -1494,7 +1502,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 			as = oidcSettings(oidcConnector, authPreference)
 		} else {
-			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
+			// TODO(okraport): DELETE IN v21.0.0, remove GetOIDCConnectors
+			oidcConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
+					return authClient.ListOIDCConnectors(ctx, limit, start, false)
+				},
+				func(ctx context.Context) ([]types.OIDCConnector, error) {
+					return authClient.GetOIDCConnectors(ctx, false)
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1513,7 +1529,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
+			// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectorsWithValidationOptions
+			samlConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.SAMLConnector, string, error) {
+					return authClient.ListSAMLConnectorsWithOptions(ctx, limit, start, false, types.SAMLConnectorValidationFollowURLs(false))
+				},
+				func(ctx context.Context) ([]types.SAMLConnector, error) {
+					return authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1531,7 +1555,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 			}
 			as = githubSettings(githubConnector, authPreference)
 		} else {
-			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
+			// TODO(okraport): DELETE IN v21.0.0, remove GetGithubConnectors
+			githubConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+					return authClient.ListGithubConnectors(ctx, limit, start, false)
+				},
+				func(ctx context.Context) ([]types.GithubConnector, error) {
+					return authClient.GetGithubConnectors(ctx, false)
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1913,7 +1945,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		const group, updaterUUID = "", ""
-		agentVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		agentVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
 		} else {
@@ -2406,6 +2438,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		FIPS:              h.cfg.FIPS,
+		ClientOptions:     response.ClientOptions,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
@@ -2451,7 +2484,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	const group, agentUUD = "", ""
-	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
+	targetVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
 		targetVersion = teleport.SemVer()
@@ -2518,6 +2551,9 @@ type AuthParams struct {
 	FIPS bool
 	// MFAToken is an SSO MFA token.
 	MFAToken string
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions authclient.ClientOptions
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -2528,11 +2564,12 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 	consoleResponse := authclient.SSHLoginResponse{
-		Username:    response.Username,
-		Cert:        response.Cert,
-		TLSCert:     response.TLSCert,
-		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
-		MFAToken:    response.MFAToken,
+		Username:      response.Username,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		HostSigners:   authclient.AuthoritiesToTrustedCerts(response.HostSigners),
+		MFAToken:      response.MFAToken,
+		ClientOptions: response.ClientOptions,
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
@@ -5294,6 +5331,7 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
+		AddKeysToAgent:    client.AddKeysToAgentNo,
 	}
 
 	return config, nil

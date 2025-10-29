@@ -72,11 +72,11 @@ with the name of the role you just created:
 $ tctl bots update example --add-roles example-role
 ```
 
-## Step 2/3. Configure `tbot` output
+## Step 2/3. Configure `tbot` output service
 
-Now, `tbot` needs to be configured with an output that will produce the
+Now, `tbot` needs to be configured with a service that will produce the
 credentials needed by `tctl`. As `tctl` will be accessing the Teleport API, the
-correct output type to use is `identity`.
+correct service type to use is `identity`.
 
 For this guide, the `directory` destination will be used. This will write these
 credentials to a specified directory on disk. Ensure that this directory can
@@ -86,13 +86,13 @@ the Linux user that `tctl` will run as.
 Modify your `tbot` configuration to add an `identity` output:
 
 ```yaml
-outputs:
+services:
 - type: identity
   destination:
     type: directory
     # For this guide, /opt/machine-id is used as the destination directory.
-    # You may wish to customize this. Multiple outputs cannot share the same
-    # destination.
+    # You may wish to customize this. Multiple output services cannot share the
+    # same destination.
     path: /opt/machine-id
 ```
 
@@ -104,7 +104,7 @@ You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by `tctl` to
 authenticate with the Teleport Auth Service.
 
-## Step 3/3. Use `tctl` with the identity output
+## Step 3/3. Use `tctl` with the identity output service
 
 As an example, `tctl` will be used to apply a directory of YAML files that
 define Teleport roles. If these were stored in version control (e.g., `git`) and

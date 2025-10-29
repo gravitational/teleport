@@ -195,6 +195,10 @@ type Config struct {
 	// (for example, using command-line flags).
 	ExplicitUsername bool
 
+	// Scope is the target scope, used during authentication/login to request certificates
+	// that are limited (pinned) to a given target scope.
+	Scope string
+
 	// Remote host to connect
 	Host string
 
@@ -239,6 +243,18 @@ type Config struct {
 
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
+
+	// RelayAddr is the user-specified address of the relay in use.
+	RelayAddr string
+
+	// ProfileRelayAddr is the relay address specified at login time, or "none"
+	// if use of a relay is explicitly disabled.
+	ProfileRelayAddr string
+
+	// ProfileDefaultRelayAddr is the cluster-specified address of the relay, to
+	// be used if no explicit override is specified by the user. Set at login
+	// time.
+	ProfileDefaultRelayAddr string
 
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
@@ -519,24 +535,6 @@ type CachePolicy struct {
 	CacheTTL time.Duration
 	// NeverExpire never expires local cache information
 	NeverExpires bool
-}
-
-// MakeDefaultConfig returns default client config.
-// If store is not provided, it will default to in-memory storage without
-// hardware key support. This should only be used with static auth methods
-// (TLS and AuthMethods fields).
-func MakeDefaultConfig(store *Store) *Config {
-	if store == nil {
-		store = NewMemClientStore()
-	}
-	return &Config{
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
-		Stdin:          os.Stdin,
-		AddKeysToAgent: AddKeysToAgentAuto,
-		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
-		ClientStore:    store,
-	}
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -929,6 +927,8 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.PostgresProxyAddr = profile.PostgresProxyAddr
 	c.MySQLProxyAddr = profile.MySQLProxyAddr
 	c.MongoProxyAddr = profile.MongoProxyAddr
+	c.ProfileRelayAddr = profile.RelayAddr
+	c.ProfileDefaultRelayAddr = profile.DefaultRelayAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
 	c.AuthConnector = profile.AuthConnector
@@ -957,6 +957,16 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 		"web_proxy_addr", c.WebProxyAddr,
 		"upgrade_required", c.TLSRoutingConnUpgradeRequired,
 	)
+
+	switch profile.RelayAddr {
+	case "":
+		c.RelayAddr = profile.DefaultRelayAddr
+	case "none":
+		c.RelayAddr = ""
+	default:
+		c.RelayAddr = profile.RelayAddr
+	}
+
 	return nil
 }
 
@@ -983,6 +993,8 @@ func (c *Config) Profile() *profile.Profile {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
+		RelayAddr:                     c.ProfileRelayAddr,
+		DefaultRelayAddr:              c.ProfileDefaultRelayAddr,
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
@@ -1259,10 +1271,6 @@ type TeleportClient struct {
 	statusMu   sync.Mutex
 
 	localAgent *LocalKeyAgent
-
-	// OnChannelRequest gets called when SSH channel requests are
-	// received. It's safe to keep it nil.
-	OnChannelRequest tracessh.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -2259,7 +2267,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
@@ -2413,7 +2421,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2553,6 +2561,10 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
+	if err := player.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -2581,8 +2593,8 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 	)
 	defer span.End()
 
-	isDownload := strings.ContainsRune(source[0], ':')
-	isUpload := strings.ContainsRune(destination, ':')
+	isDownload := sftp.IsRemotePath(source[0])
+	isUpload := sftp.IsRemotePath(destination)
 
 	if !isUpload && !isDownload {
 		return trace.BadParameter("no remote destination specified")
@@ -3175,6 +3187,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
 		ProxyAddress:      cfg.proxyAddress,
+		RelayAddress:      tc.RelayAddr,
 		TLSRoutingEnabled: tc.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			if cluster == "" {
@@ -3995,6 +4008,24 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		tc.SiteName = rootClusterName
 	}
 
+	// update the default relay addr from the latest response, which will later
+	// be persisted in the profile
+	tc.ProfileDefaultRelayAddr = response.ClientOptions.DefaultRelayAddr
+
+	tlsCert, err := tlsca.ParseCertificatePEM(response.TLSCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ident, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.ScopePin != nil {
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+	}
+
 	return keyRing, nil
 }
 
@@ -4118,6 +4149,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 		TTL:                     tc.KeyTTL,
 		Insecure:                tc.InsecureSkipVerify,
 		Pool:                    loopbackPool(tc.WebProxyAddr),
+		Scope:                   tc.Scope,
 		Compatibility:           tc.CertificateFormat,
 		RouteToCluster:          tc.SiteName,
 		KubernetesCluster:       tc.KubernetesCluster,
@@ -5504,72 +5536,6 @@ func (tc *TeleportClient) DialALPN(ctx context.Context, clientCert tls.Certifica
 	return tlsConn, nil
 }
 
-// DialMCPServer makes a connection to the remote MCP server.
-func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (net.Conn, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/DialMCPServer",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("app", appName),
-		),
-	)
-	defer span.End()
-
-	apps, err := tc.ListApps(ctx, &proto.ListResourcesRequest{
-		ResourceType:        types.KindAppServer,
-		Namespace:           apidefaults.Namespace,
-		PredicateExpression: fmt.Sprintf("name == %q", strings.TrimSpace(appName)),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch len(apps) {
-	case 0:
-		return nil, trace.NotFound("no MCP servers found")
-	case 1:
-	default:
-		log.WarnContext(ctx, "multiple apps found, using the first one")
-	}
-	if !apps[0].IsMCP() {
-		return nil, trace.BadParameter("app %q is not a MCP server", appName)
-	}
-
-	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tc.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
-}
-
-func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer types.Application) (tls.Certificate, error) {
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	appCertParams := ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToApp: proto.RouteToApp{
-			Name:        mcpServer.GetName(),
-			PublicAddr:  mcpServer.GetPublicAddr(),
-			ClusterName: tc.SiteName,
-			URI:         mcpServer.GetURI(),
-		},
-		AccessRequests: profile.ActiveRequests,
-	}
-
-	// Do NOT write the keyring to avoid race condition when AI clients run
-	// multiple tsh at the same time.
-	keyRing, err := tc.IssueUserCertsWithMFA(ctx, appCertParams)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
-	return cert, trace.Wrap(err)
-}
-
 // DialDatabase makes a remote connection to the database.
 //
 // TODO(gabrielcorado): support acccess requests connections.
@@ -5607,6 +5573,11 @@ func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToD
 	}
 
 	return tc.DialALPN(ctx, cert, alpnProtocol)
+}
+
+// GetSiteName returns the cluster name this client instance is targeting.
+func (tc *TeleportClient) GetSiteName() string {
+	return tc.SiteName
 }
 
 // CalculateSSHLogins returns the subset of the allowedLogins that exist in

@@ -166,7 +166,7 @@ func (a *App) CheckAndSetDefaults() error {
 		case a.Cloud != "":
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
 		case a.MCP != nil && a.MCP.Command != "":
-			a.URI = types.SchemaMCPStdio
+			a.URI = types.SchemeMCPStdio + "://"
 		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}

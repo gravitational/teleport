@@ -196,6 +196,10 @@ export interface PtyEventExit {
      * @generated from protobuf field: optional uint32 signal = 2;
      */
     signal?: number;
+    /**
+     * @generated from protobuf field: string last_input = 3;
+     */
+    lastInput: string;
 }
 /**
  * @generated from protobuf message PtyEventStartError
@@ -695,12 +699,14 @@ class PtyEventExit$Type extends MessageType<PtyEventExit> {
     constructor() {
         super("PtyEventExit", [
             { no: 1, name: "exit_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 2, name: "signal", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "signal", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "last_input", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PtyEventExit>): PtyEventExit {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.exitCode = 0;
+        message.lastInput = "";
         if (value !== undefined)
             reflectionMergePartial<PtyEventExit>(this, message, value);
         return message;
@@ -715,6 +721,9 @@ class PtyEventExit$Type extends MessageType<PtyEventExit> {
                     break;
                 case /* optional uint32 signal */ 2:
                     message.signal = reader.uint32();
+                    break;
+                case /* string last_input */ 3:
+                    message.lastInput = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -734,6 +743,9 @@ class PtyEventExit$Type extends MessageType<PtyEventExit> {
         /* optional uint32 signal = 2; */
         if (message.signal !== undefined)
             writer.tag(2, WireType.Varint).uint32(message.signal);
+        /* string last_input = 3; */
+        if (message.lastInput !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.lastInput);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

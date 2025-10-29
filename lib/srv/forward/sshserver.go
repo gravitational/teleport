@@ -268,14 +268,17 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.TargetServer == nil {
 		return trace.BadParameter("target server is required")
 	}
-	if s.TargetServer.IsOpenSSHNode() {
+	switch s.TargetServer.GetSubKind() {
+	case types.SubKindTeleportNode:
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes (agentless)")
+		}
+	case types.SubKindOpenSSHNode:
 		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	} else {
-		if s.UserAgent == nil {
-			return trace.BadParameter("user agent required for teleport nodes")
-		}
+	case types.SubKindOpenSSHEICENode:
+		// agentless signer is set once the forwarding server is started.
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -785,7 +788,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := tracessh.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := tracessh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1187,20 +1190,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 
 	for {
-		// Update the context with the session ID.
-		err := scx.CreateOrJoinSession(ctx, s.sessionRegistry)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "unable create or join session", "error", err)
-
-			// Write the error to channel and close it.
-			s.stderrWrite(ctx, ch, fmt.Sprintf("unable to update context: %v", err))
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-			}
-			return
-		}
-
 		select {
 		case result := <-scx.SubsystemResultCh:
 			// Subsystem has finished executing, close the channel and session.

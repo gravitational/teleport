@@ -40,8 +40,10 @@ import (
 	"github.com/julienschmidt/httprouter"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -486,6 +489,26 @@ func (h *Handler) dbConnect(
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ServiceName),
+		Limit:               1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var db types.Database
+	if len(databases) > 0 {
+		db = databases[0].GetDatabase()
+		adjusted, newUsername := gcp.AdjustDatabaseUsername(req.DatabaseUser, db)
+		if adjusted {
+			log.DebugContext(ctx, "Adding default project suffix for IAM principal", "original", req.DatabaseUser, "updated", newUsername)
+			req.DatabaseUser = newUsername
+		}
 	}
 
 	sess, err := newDatabaseInteractiveSession(ctx, databaseInteractiveSessionConfig{

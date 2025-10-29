@@ -20,11 +20,10 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 
@@ -42,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -64,34 +65,9 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 		return nil, trace.AccessDenied("%q can not join the cluster with role %q, %s", req.NodeName, req.Role, msg)
 	}
 
-	// instance certs can be requested by any agent that has at least one local service role (e.g. proxy, node, etc).
-	if req.Role == types.RoleInstance {
-		hasLocalServiceRole := false
-		for _, role := range provisionToken.GetRoles() {
-			if role.IsLocalService() {
-				hasLocalServiceRole = true
-				break
-			}
-		}
-		if !hasLocalServiceRole {
-			a.logger.WarnContext(ctx, "cannot requisition instance certs (token contains no local service roles)",
-				"node_name", req.NodeName,
-				"host_id", req.HostID,
-			)
-			return nil, trace.AccessDenied("%s [%v] cannot requisition instance certs (token contains no local service roles)", req.NodeName, req.HostID)
-		}
+	if err := join.ProvisionTokenAllowsRole(provisionToken, req.Role); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	// make sure the caller is requesting a role allowed by the token
-	if !provisionToken.GetRoles().Include(req.Role) && req.Role != types.RoleInstance {
-		a.logger.WarnContext(ctx, "token does not allow role to join the cluster",
-			"node_name", req.NodeName,
-			"host_id", req.HostID,
-			"role", req.Role,
-		)
-		return nil, trace.BadParameter("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
-	}
-
 	return provisionToken, nil
 }
 
@@ -115,7 +91,7 @@ func (a *Server) handleJoinFailure(
 	}
 
 	// Fetch and encode rawJoinAttrs if they are available.
-	attributesStruct, err := rawJoinAttrsToStruct(rawJoinAttrs)
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(rawJoinAttrs)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
@@ -195,6 +171,8 @@ func (a *Server) handleJoinFailure(
 //
 // If the token includes a specific join method, the rules for that join method
 // will be checked.
+//
+// This method is being phased out in favor of [join.Server.Join].
 func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (certs *proto.Certs, err error) {
 	attrs := &workloadidentityv1pb.JoinAttrs{}
 	var rawClaims any
@@ -327,25 +305,46 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, _, err = a.generateCertsBot(
-			ctx,
-			provisionToken,
-			req,
-			rawClaims,
-			attrs,
-		)
-		return certs, trace.Wrap(err)
+		certs, _, err = a.GenerateBotCertsForJoin(ctx, provisionToken, makeBotCertsParams(req, rawClaims, attrs))
+	} else {
+		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, makeHostCertsParams(req, rawClaims))
 	}
-	certs, err = a.generateCerts(ctx, provisionToken, req, rawClaims)
 	return certs, trace.Wrap(err)
 }
 
-func (a *Server) generateCertsBot(
+func makeHostCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any) *join.HostCertsParams {
+	return &join.HostCertsParams{
+		HostID:               req.HostID,
+		HostName:             req.NodeName,
+		SystemRole:           req.Role,
+		PublicTLSKey:         req.PublicTLSKey,
+		PublicSSHKey:         req.PublicSSHKey,
+		AdditionalPrincipals: req.AdditionalPrincipals,
+		DNSNames:             req.DNSNames,
+		RemoteAddr:           req.RemoteAddr,
+		RawJoinClaims:        rawClaims,
+	}
+}
+
+func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, attrs *workloadidentityv1pb.JoinAttrs) *join.BotCertsParams {
+	return &join.BotCertsParams{
+		PublicTLSKey:  req.PublicTLSKey,
+		PublicSSHKey:  req.PublicSSHKey,
+		BotInstanceID: req.BotInstanceID,
+		BotGeneration: req.BotGeneration,
+		Expires:       req.Expires,
+		RemoteAddr:    req.RemoteAddr,
+		RawJoinClaims: rawClaims,
+		Attrs:         attrs,
+	}
+}
+
+// GenerateBotCertsForJoin generates and returns bot certificates as the result
+// of a cluster join attempt.
+func (a *Server) GenerateBotCertsForJoin(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	req *types.RegisterUsingTokenRequest,
-	rawJoinClaims any,
-	attrs *workloadidentityv1pb.JoinAttrs,
+	params *join.BotCertsParams,
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
@@ -372,8 +371,8 @@ func (a *Server) generateCertsBot(
 	}
 
 	expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
-	if req.Expires != nil {
-		expires = *req.Expires
+	if params.Expires != nil {
+		expires = *params.Expires
 	}
 
 	// Construct a Join event to be sent later.
@@ -390,11 +389,11 @@ func (a *Server) generateCertsBot(
 		TokenName: provisionToken.GetSafeName(),
 		UserName:  machineidv1.BotResourceName(botName),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
+			RemoteAddr: params.RemoteAddr,
 		},
 	}
 	var err error
-	joinEvent.Attributes, err = rawJoinAttrsToStruct(rawJoinClaims)
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(
 			ctx,
@@ -405,14 +404,14 @@ func (a *Server) generateCertsBot(
 
 	// Prepare join attributes for encoding into the X509 cert and for inclusion
 	// in audit logs.
-	if attrs == nil {
-		attrs = &workloadidentityv1pb.JoinAttrs{}
+	if params.Attrs == nil {
+		params.Attrs = &workloadidentityv1pb.JoinAttrs{}
 	}
-	attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
+	params.Attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
 		JoinMethod: string(joinMethod),
 	}
 	if joinMethod != types.JoinMethodToken {
-		attrs.Meta.JoinTokenName = provisionToken.GetName()
+		params.Attrs.Meta.JoinTokenName = provisionToken.GetName()
 	}
 
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
@@ -422,14 +421,12 @@ func (a *Server) generateCertsBot(
 		// secrets. Should we hash it?
 		JoinToken:  provisionToken.GetSafeName(),
 		JoinMethod: string(provisionToken.GetJoinMethod()),
-		// TODO(nklaassen): consider logging the SSH public key as well, for now
-		// the SSH and TLS public keys are still identical for tbot.
-		PublicKey: req.PublicTLSKey,
-		JoinAttrs: attrs,
+		PublicKey:  params.PublicTLSKey,
+		JoinAttrs:  params.Attrs,
 	}
 
 	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
-	auth.Metadata, err = rawJoinAttrsToGoogleStruct(rawJoinClaims)
+	auth.Metadata, err = rawJoinAttrsToGoogleStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
 	}
@@ -438,16 +435,16 @@ func (a *Server) generateCertsBot(
 		ctx,
 		botName,
 		machineidv1.BotResourceName(botName),
-		req.RemoteAddr,
-		req.PublicSSHKey,
-		req.PublicTLSKey,
+		params.RemoteAddr,
+		params.PublicSSHKey,
+		params.PublicTLSKey,
 		expires,
 		renewable,
 		auth,
-		req.BotInstanceID,
-		req.PreviousBotInstanceID,
-		req.BotGeneration,
-		attrs,
+		params.BotInstanceID,
+		params.PreviousBotInstanceID,
+		params.BotGeneration,
+		params.Attrs,
 	)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -475,40 +472,46 @@ func (a *Server) generateCertsBot(
 	return certs, botInstanceID, nil
 }
 
-func (a *Server) generateCerts(
+// GenerateHostCertsForJoin generates and returns host certificates as the
+// result of a cluster join attempt.
+func (a *Server) GenerateHostCertsForJoin(
 	ctx context.Context,
 	provisionToken types.ProvisionToken,
-	req *types.RegisterUsingTokenRequest,
-	rawJoinClaims any,
+	params *join.HostCertsParams,
 ) (*proto.Certs, error) {
-	if req.Expires != nil {
-		return nil, trace.BadParameter("'expires' cannot be set on join for non-bot certificates")
-	}
-
 	// instance certs include an additional field that specifies the list of
 	// all services authorized by the token.
-	var systemRoles []types.SystemRole
-	if req.Role == types.RoleInstance {
+	var systemRoles types.SystemRoles
+	if params.SystemRole == types.RoleInstance {
+		systemRolesSet := make(map[types.SystemRole]struct{})
 		for _, r := range provisionToken.GetRoles() {
 			if r.IsLocalService() {
-				systemRoles = append(systemRoles, r)
+				systemRolesSet[r] = struct{}{}
 			} else {
 				a.logger.WarnContext(ctx, "Omitting non-service system role from instance cert", "system_role", string(r))
 			}
 		}
+		for _, r := range params.AuthenticatedSystemRoles {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			} else {
+				a.logger.WarnContext(ctx, "Omitting non-service system role from instance cert", "system_role", string(r))
+			}
+		}
+		systemRoles = types.SystemRoles(slices.Collect(maps.Keys(systemRolesSet)))
 	}
 
 	// generate and return host certificate and keys
 	certs, err := a.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
-			HostID:               req.HostID,
-			NodeName:             req.NodeName,
-			Role:                 req.Role,
-			AdditionalPrincipals: req.AdditionalPrincipals,
-			PublicTLSKey:         req.PublicTLSKey,
-			PublicSSHKey:         req.PublicSSHKey,
-			RemoteAddr:           req.RemoteAddr,
-			DNSNames:             req.DNSNames,
+			HostID:               params.HostID,
+			NodeName:             params.HostName,
+			Role:                 params.SystemRole,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			RemoteAddr:           params.RemoteAddr,
+			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
 		})
 	if err != nil {
@@ -516,18 +519,18 @@ func (a *Server) generateCerts(
 	}
 
 	// Emit audit event
-	if req.Role == types.RoleInstance {
+	if params.SystemRole == types.RoleInstance {
 		a.logger.InfoContext(ctx, "Instance has joined the cluster",
-			"node_name", req.NodeName,
-			"host_id", req.HostID,
-			"role", req.Role,
+			"node_name", params.HostName,
+			"host_id", params.HostID,
+			"role", params.SystemRole,
 			"system_roles", systemRoles,
 		)
 	} else {
 		a.logger.InfoContext(ctx, "Instance has joined the cluster",
-			"node_name", req.NodeName,
-			"host_id", req.HostID,
-			"role", req.Role,
+			"node_name", params.HostName,
+			"host_id", params.HostID,
+			"role", params.SystemRole,
 		)
 	}
 	joinEvent := &apievents.InstanceJoin{
@@ -538,17 +541,17 @@ func (a *Server) generateCerts(
 		Status: apievents.Status{
 			Success: true,
 		},
-		NodeName:     req.NodeName,
-		Role:         string(req.Role),
+		NodeName:     params.HostName,
+		Role:         string(params.SystemRole),
 		Method:       string(provisionToken.GetJoinMethod()),
 		TokenName:    provisionToken.GetSafeName(),
 		TokenExpires: provisionToken.Expiry(),
-		HostID:       req.HostID,
+		HostID:       params.HostID,
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.RemoteAddr,
+			RemoteAddr: params.RemoteAddr,
 		},
 	}
-	joinEvent.Attributes, err = rawJoinAttrsToStruct(rawJoinClaims)
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
@@ -556,21 +559,6 @@ func (a *Server) generateCerts(
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
 	return certs, nil
-}
-
-func rawJoinAttrsToStruct(in any) (*apievents.Struct, error) {
-	if in == nil {
-		return nil, nil
-	}
-	attrBytes, err := json.Marshal(in)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling join attributes")
-	}
-	out := &apievents.Struct{}
-	if err := out.UnmarshalJSON(attrBytes); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling join attributes")
-	}
-	return out, nil
 }
 
 func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
@@ -586,15 +574,4 @@ func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
 		return nil, trace.Wrap(err, "unmarshaling join attributes")
 	}
 	return out, nil
-}
-
-func generateChallenge(encoding *base64.Encoding, length int) (string, error) {
-	// read crypto-random bytes to generate the challenge
-	challengeRawBytes := make([]byte, length)
-	if _, err := rand.Read(challengeRawBytes); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// encode the challenge to base64 so it can be sent over HTTP
-	return encoding.EncodeToString(challengeRawBytes), nil
 }

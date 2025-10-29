@@ -644,6 +644,43 @@ func botIdentityFromAuth(
 	return newIdentity, nil
 }
 
+func initBoundKeypairClientState(
+	ctx context.Context,
+	log *slog.Logger,
+	cfg Config,
+	joinSecret string,
+) (boundkeypair.ClientState, error) {
+	staticKey, err := cfg.Onboarding.BoundKeypair.StaticPrivateKeyBytes()
+	if err != nil {
+		log.WarnContext(
+			ctx,
+			"Could not load the configured bound keypair static key, will attempt to fall back to a standard filesystem keypair",
+			"error", err,
+		)
+	} else if staticKey != nil {
+		log.InfoContext(ctx, "A static keypair was configured and will be used instead of mutable internal key storage")
+		return boundkeypair.NewStaticClientState(staticKey), nil
+	}
+
+	adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
+	state, err := boundkeypair.LoadClientState(ctx, adapter)
+	if trace.IsNotFound(err) && joinSecret != "" {
+		log.InfoContext(ctx, "No existing client state found, will attempt "+
+			"to join with provided registration secret")
+		state = boundkeypair.NewEmptyFSClientState(adapter)
+	} else if err != nil {
+		log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
+			"no local credentials are available and no registration secret "+
+			"was provided. To continue, either generate a keypair with "+
+			"`tbot keypair create` and register it with Teleport, or "+
+			"generate a registration secret in Teleport and provide it with "+
+			"the `--registration-secret` flag.")
+		return nil, trace.Wrap(err, "loading bound keypair client state")
+	}
+
+	return state, nil
+}
+
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
 //
@@ -710,7 +747,7 @@ func botIdentityFromToken(
 	}
 
 	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairState *boundkeypair.ClientState
+	var boundKeypairState boundkeypair.ClientState
 
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
@@ -724,25 +761,19 @@ func botIdentityFromToken(
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
-		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
-
-		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
-		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
-		if trace.IsNotFound(err) && joinSecret != "" {
-			log.InfoContext(ctx, "No existing client state found, will attempt "+
-				"to join with provided registration secret")
-			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
-		} else if err != nil {
-			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
-				"no local credentials are available and no registration secret "+
-				"was provided. To continue, either generate a keypair with "+
-				"`tbot keypair create` and register it with Teleport, or "+
-				"generate a registration secret on Teleport and provide it with"+
-				"the `--registration-secret` flag.")
-			return nil, trace.Wrap(err, "loading bound keypair client state")
+		joinSecret, err := cfg.Onboarding.BoundKeypair.RegistrationSecret()
+		if err != nil {
+			return nil, trace.Wrap(err, "loading registration secret from disk")
 		}
 
-		params.BoundKeypairParams = boundKeypairState.ToJoinParams(joinSecret)
+		boundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		}
+
+		params.BoundKeypairParams = boundKeypairState.ToJoinParams(boundkeypair.ClientParams{
+			RegistrationSecret: joinSecret,
+		})
 	}
 
 	result, err := join.Register(ctx, params)

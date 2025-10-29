@@ -34,6 +34,12 @@ default Teleport install script. (For other Linux distributions, you can
 install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
+All EC2 instances that are to be added to the Teleport cluster by the Discovery
+Service must include the `AmazonSSMManagedInstanceCore` IAM policy in order to
+receive commands from the Discovery Service. For a list of permissions included
+in the policy, see the [AWS
+documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
+
 ## Step 1/7. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
@@ -64,42 +70,6 @@ the Discovery Service:
 }
 ```
 
-<Details>
-
-All EC2 instances that are to be added to the Teleport cluster by the
-Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
-in order to receive commands from the Discovery Service.
-
-This policy includes the following permissions:
-
-- `ssm:DescribeAssociation`
-- `ssm:GetDeployablePatchSnapshotForInstance`
-- `ssm:GetDocument`
-- `ssm:DescribeDocument`
-- `ssm:GetManifest`
-- `ssm:GetParameter`
-- `ssm:GetParameters`
-- `ssm:ListAssociations`
-- `ssm:ListInstanceAssociations`
-- `ssm:PutInventory`
-- `ssm:PutComplianceItems`
-- `ssm:PutConfigurePackageResult`
-- `ssm:UpdateAssociationStatus`
-- `ssm:UpdateInstanceAssociationStatus`
-- `ssm:UpdateInstanceInformation`
-- `ssmmessages:CreateControlChannel`
-- `ssmmessages:CreateDataChannel`
-- `ssmmessages:OpenControlChannel`
-- `ssmmessages:OpenDataChannel`
-- `ec2messages:AcknowledgeMessage`
-- `ec2messages:DeleteMessage`
-- `ec2messages:FailMessage`
-- `ec2messages:GetEndpoint`
-- `ec2messages:GetMessages`
-- `ec2messages:SendReply`
-
-</Details>
-
 ## Step 3/7. Create SSM Documents
 
 In each region you plan to discover instances in, create the following SSM document
@@ -115,6 +85,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -128,7 +102,7 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+      - export {{ env }}; /bin/sh /tmp/installTeleport.sh "{{ token }}"
 ```
 
 ## Step 4/7. Install Teleport on the Discovery Node
@@ -198,8 +172,10 @@ following IAM policy and attach it to the new role:
     ]
 }
 ```
+
 Edit the trust policy of the new role to allow the Discovery Service
-to assume it:
+to assume it, including the <Var name="Discovery Service role's ARN" />:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -207,15 +183,17 @@ to assume it:
         {
             "Effect": "Allow",
             "Principal": {
-                "AWS": "<Var name="discovery service role's ARN" />"
+                "AWS": "<Var name="Discovery Service role's ARN" />"
             },
             "Action": "sts:AssumeRole"
         }
     ]
 }
 ```
+
 Create the following policy in the Discovery Service's account and attach it
-to the Discovery Service's role:
+to the Discovery Service's role, adding the <Var name="new role ARN" />:
+
 ```json
 {
     "Version": "2012-10-17",
@@ -244,6 +222,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -257,7 +239,7 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+      -  export {{ env }}; /bin/sh /tmp/installTeleport.sh "{{ token }}"
 ```
 
 ### Step 4/5. Update Teleport configuration

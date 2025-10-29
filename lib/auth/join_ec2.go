@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -281,7 +281,7 @@ func desktopServiceExists(ctx context.Context, presence services.Presence, hostI
 // clearly shows the combination in use since teleport maintains no long-term per-instance state.
 func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.RegisterUsingTokenRequest, iid *imds.InstanceIdentityDocument) error {
 	requestedHostID := req.HostID
-	expectedHostID := utils.NodeIDFromIID(iid)
+	expectedHostID := awsutils.NodeIDFromIID(iid)
 	if requestedHostID != expectedHostID {
 		return trace.AccessDenied("invalid host ID %q, expected %q", requestedHostID, expectedHostID)
 	}

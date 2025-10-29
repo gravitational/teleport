@@ -2,6 +2,7 @@
 title: OAuth2 and OIDC authentication
 description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
 tags:
+ - sso
  - how-to
  - zero-trust
  - privileged-access
@@ -298,6 +299,58 @@ spec:
   # Use the `preferred_username` claim as the user's Teleport username.
   username_claim: preferred_username
 ```
+
+### Optional: Request object mode
+
+Teleport supports the ability to send authorization request parameters in a
+JSON Web Token (JWT), referred to as "request objects", following RFC 9101.
+Presently, Teleport only supports signed request objects sent by value. This
+option necessitates that the IdP be provided with, or configured to discover,
+Teleport's JSON Web Key Sets (JWKS) used for OIDC IdP integration in order to
+verify request object signatures. This JWKS can be found at the `/.well-known/jwks-oidc`
+path of the Web API.
+
+Additionally, the public key to be used for verifying request object signatures can
+be found via `tctl`.
+
+```code
+$ tctl get cert_authority/oidc_idp/$CLUSTER_NAME --format=json | jq -r .[].spec.active_keys.jwt[].public_key
+```
+
+By default, `request_object_mode` is unset, meaning authorization request parameters
+will be sent in the query string of the authorization endpoint.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  # Use signed request objects when making authorization requests to the IdP.
+  request_object_mode: signed
+```
+
+Request objects are also supported for MFA checks. If `request_object_mode` is not
+explicitly set on the MFA client, the login client's request object mode will be used
+by default. If desired, you can explicitly configure the MFA client to use a separate
+request object mode.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  client_id: teleport_login
+  client_secret: abc123...
+  request_object_mode: none
+  mfa:
+    client_id: teleport_mfa
+    client_secret: mfa123...
+    request_object_mode: signed
+```
+
+Note: Support for request objects is available in Teleport Enterprise versions `17.7.2` or later and `18.1.6` or later.
 
 ## Enable default OIDC authentication
 

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -57,6 +58,16 @@ type OutputV2Config struct {
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
+
+	// ContextNameTemplate determines the format of context names in the
+	// generated kubeconfig. It is a "text/template" string that supports the
+	// following variables:
+	//
+	//   - {{.ClusterName}} - Name of the Teleport cluster
+	//   - {{.KubeName}} - Name of the Kubernetes cluster resource
+	//
+	// By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
+	ContextNameTemplate string `yaml:"context_name_template,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -79,6 +90,14 @@ func (o *OutputV2Config) CheckAndSetDefaults() error {
 	for _, s := range o.Selectors {
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	if o.ContextNameTemplate == "" {
+		o.ContextNameTemplate = defaultContextNameTemplate
+	} else {
+		if _, err := kubeconfig.ContextNameFromTemplate(o.ContextNameTemplate, "", ""); err != nil {
+			return trace.BadParameter("context_name_template is invalid: %v", err)
 		}
 	}
 

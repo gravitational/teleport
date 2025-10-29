@@ -29,21 +29,20 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func newTestBackend(t *testing.T, ctx context.Context, clock clockwork.Clock) backend.Backend {
 	t.Helper()
-	sqliteBackend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bk, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, sqliteBackend.Close())
+		require.NoError(t, bk.Close())
 	})
-	return sqliteBackend
+	return bk
 }
 
 func TestIdentityCenterResourceCRUD(t *testing.T) {

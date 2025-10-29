@@ -6,14 +6,14 @@
 # Plugin specific options
 #
 teleport:
-  address: "teleport.example.com:443"
-  identitySecretName: teleport-plugin-msteams-identity
-  identitySecretPath: identity
+  address: ""            # e.g., teleport.example.com:443
+  identitySecretName: "" # e.g., teleport-plugin-msteams-identity
+  identitySecretPath: "" # e.g., identity
 
 msTeams:
-  appID: "APP_ID"
-  tenantID: "TENANT_ID"
-  teamsAppID: "TEAMS_APP_ID"
+  appID: ""
+  tenantID: ""
+  teamsAppID: ""
 
 roleToRecipients: {}
   # "*": "admin@example.com"

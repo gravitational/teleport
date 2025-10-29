@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -523,7 +524,7 @@ type UpstreamHandle interface {
 // when using this struct to inject control log entries, said entries won't be included until the next
 // normal instance heartbeat (though this may be triggered early via UpstreamHandle.HeartbeatInstance()).
 // The primary intended usage pattern is for periodic operations to append entries to the QualifiedPendingControlLog,
-// and then observe wether or not said entries end up being included on subsequent iterations. This
+// and then observe whether or not said entries end up being included on subsequent iterations. This
 // patterns lets us achieve a kind of lazy "locking", whereby complex coordination can occur without
 // large spikes in backend load. See the QualifiedPendingControlLog field for an example of this pattern.
 type instanceStateTracker struct {
@@ -708,6 +709,14 @@ type upstreamHandle struct {
 
 	// kubernetesServers track kubernetesServers server details.
 	kubernetesServers map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3]
+
+	// relayServer, if set, is the current relay heartbeat.
+	relayServer *presencev1.RelayServer
+
+	// relayServerErrorCount counts how many times in a row we have failed to
+	// keepalive the relay server heartbeat, or, if negative, signals that we
+	// have failed to upsert a new resource.
+	relayServerErrorCount int
 
 	// appKeepAliveDelay is a multi-delay that controls the cadence of app server keepalive
 	// operations. Note that this is not created automatically by newUpstreamHandle.

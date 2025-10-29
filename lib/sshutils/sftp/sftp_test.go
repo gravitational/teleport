@@ -633,6 +633,102 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	checkTransfer(t, false, dstPath, linkPath)
 }
 
+type mockFile struct {
+	File
+	altDataSource io.Reader
+}
+
+func (m *mockFile) Read(p []byte) (int, error) {
+	return m.altDataSource.Read(p)
+}
+
+type mockFS struct {
+	localFS
+	fileAccesses map[string]int
+	altData      io.Reader
+}
+
+func (m *mockFS) Open(path string) (File, error) {
+	if m.fileAccesses == nil {
+		m.fileAccesses = make(map[string]int)
+	}
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m.fileAccesses[realPath]++
+	file, err := m.localFS.Open(path)
+	if err != nil || m.altData == nil {
+		return file, err
+	}
+	return &mockFile{
+		File:          file,
+		altDataSource: m.altData,
+	}, nil
+}
+
+func TestRecursiveSymlinks(t *testing.T) {
+	// Create files and symlinks.
+	root := t.TempDir()
+	t.Chdir(root)
+	srcDir := filepath.Join(root, "a")
+	createDir(t, filepath.Join(srcDir, "b/c"))
+	fileA := "a/a.txt"
+	fileB := "a/b/b.txt"
+	fileC := "a/b/c/c.txt"
+	for _, file := range []string{fileA, fileB, fileC} {
+		createFile(t, filepath.Join(root, file))
+	}
+	require.NoError(t, os.Symlink(srcDir, filepath.Join(srcDir, "abs_link")))
+	require.NoError(t, os.Symlink("..", filepath.Join(srcDir, "b/rel_link")))
+
+	tests := []struct {
+		name   string
+		srcDir string
+	}{
+		{
+			name:   "absolute",
+			srcDir: srcDir,
+		},
+		{
+			name:   "relative",
+			srcDir: filepath.Base(srcDir),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Perform the transfer.
+			dstDir := filepath.Join(root, "dst")
+			t.Cleanup(func() { os.RemoveAll(dstDir) })
+
+			cfg, err := CreateDownloadConfig(tc.srcDir, dstDir, Options{Recursive: true})
+			require.NoError(t, err)
+			// use all local filesystems to avoid SSH overhead
+			srcFS := &mockFS{fileAccesses: make(map[string]int)}
+			cfg.srcFS = srcFS
+			require.NoError(t, cfg.initFS(nil))
+			require.NoError(t, cfg.transfer(t.Context()))
+
+			// Check results. Don't use checkTransfer() as the directories will not have
+			// matching sizes (the symlinks that aren't copied over).
+			for _, file := range []string{fileA, fileB, fileC} {
+				srcFile, err := filepath.EvalSymlinks(filepath.Join(filepath.Dir(tc.srcDir), file))
+				require.NoError(t, err)
+				srcInfo, err := os.Stat(srcFile)
+				require.NoError(t, err)
+				dstFile, err := filepath.EvalSymlinks(filepath.Join(dstDir, file))
+				require.NoError(t, err)
+				dstInfo, err := os.Stat(dstFile)
+				require.NoError(t, err)
+				compareFiles(t, false, dstInfo, srcInfo, dstFile, srcFile)
+				// Check that the file was only opened once.
+				accesses := srcFS.fileAccesses[srcFile]
+				require.Equal(t, 1, accesses, "file %q was opened %d times", srcFile, accesses)
+			}
+		})
+	}
+}
+
 func TestHTTPUpload(t *testing.T) {
 	t.Parallel()
 
@@ -712,6 +808,32 @@ func TestHTTPDownload(t *testing.T) {
 	require.Empty(t, cmp.Diff(contentLengthStr, w.Header().Get("Content-Length")))
 	require.Empty(t, cmp.Diff("application/octet-stream", w.Header().Get("Content-Type")))
 	require.Empty(t, cmp.Diff(`attachment;filename="robots.txt"`, w.Header().Get("Content-Disposition")))
+}
+
+func TestTransferUnexpectedLargerFile(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	srcFile := filepath.Join(tempDir, "in")
+	require.NoError(t, os.WriteFile(srcFile, []byte("original file data\n"), 0o755))
+	dstFile := filepath.Join(tempDir, "out")
+	srcFileReader, err := os.Open(srcFile)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srcFileReader.Close()) })
+
+	cfg, err := CreateDownloadConfig(srcFile, dstFile, Options{
+		// Ensure progress bar is created.
+		ProgressWriter: io.Discard,
+	})
+	require.NoError(t, err)
+	srcFS := &mockFS{altData: io.MultiReader(srcFileReader, strings.NewReader("extra data\n"))}
+	cfg.srcFS = srcFS
+	require.NoError(t, cfg.initFS(nil))
+	require.NoError(t, cfg.transfer(t.Context()))
+
+	require.FileExists(t, dstFile)
+	dstFileData, err := os.ReadFile(dstFile)
+	require.NoError(t, err)
+	require.Equal(t, "original file data\nextra data\n", string(dstFileData))
 }
 
 func createFile(t *testing.T, path string) {

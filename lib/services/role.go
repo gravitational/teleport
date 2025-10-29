@@ -709,7 +709,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs, constants.TraitMCPTools:
+				constants.TraitGitHubOrgs, constants.TraitMCPTools,
+				constants.TraitDefaultRelayAddr:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -3666,6 +3667,13 @@ const (
 	// provides access to the session in question.
 	MFARequiredPerRole MFARequired = "per-role"
 )
+
+// UserSessionRoleNotFoundErrorMsg is added to "role not found" errors when they occur
+// during user session roles validation. This allows the Web UI to distinguish between
+// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
+// failures.
+// Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
+const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {

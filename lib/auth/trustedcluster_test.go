@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -370,7 +371,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 			CAs:   []types.CertAuthority{leafClusterCA},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "already registered")
+		require.Contains(t, err.Error(), "conflicts with an existing cluster or ca")
 	})
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
@@ -439,6 +440,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)

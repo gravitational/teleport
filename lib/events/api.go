@@ -927,6 +927,12 @@ const (
 	// MCPSessionNotificationEvent is emitted when a notification is sent by
 	// client during a MCP session.
 	MCPSessionNotificationEvent = "mcp.session.notification"
+	// MCPSessionListenSSEStream is emitted when the client sends a GET request for
+	// listening server notifications via an SSE stream.
+	MCPSessionListenSSEStream = "mcp.session.listen_sse_stream"
+	// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we
+	// do not understand (usually out of MCP spec).
+	MCPSessionInvalidHTTPRequest = "mcp.session.invalid_http_request"
 
 	// BoundKeypairRecovery is emitted when a bound keypair token is used to
 	// perform a recovery.
@@ -936,6 +942,26 @@ const (
 	// BoundKeypairJoinStateVerificationFailed is emitted when join state
 	// document verification fails.
 	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
+
+	// SCIMListingEvent is emitted when a SCIM client lists resources managed by
+	// the SCIM service.
+	SCIMListingEvent = "scim.list"
+
+	// SCIMCreateEvent is emitted when a client attempts to fetch a specific SCIM
+	// resource.
+	SCIMGetEvent = "scim.get"
+
+	// SCIMCreateEvent is emitted when a new resource is created by the
+	// SCIM service in response to a request. This includes taking ownership of
+	// existing users.
+	SCIMCreateEvent = "scim.create"
+
+	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
+	// service. Includes "deactivating" resources (per Okta).
+	SCIMUpdateEvent = "scim.update"
+
+	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
+	SCIMDeleteEvent = "scim.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

@@ -31,14 +31,17 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -49,11 +52,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -155,11 +158,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -238,10 +241,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 func TestNodeCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
-	presence := NewPresenceService(lite)
+	presence := NewPresenceService(backend)
 
 	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
 	require.NoError(t, err)
@@ -618,11 +622,11 @@ func TestListResources(t *testing.T) {
 		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			backend, err := lite.NewWithConfig(ctx, lite.Config{
-				Path:  t.TempDir(),
+			backend, err := memory.New(memory.Config{
 				Clock: clock,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { _ = backend.Close() })
 
 			presence := NewPresenceService(backend)
 
@@ -755,11 +759,11 @@ func TestListResources_Helpers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	tests := []struct {
@@ -942,11 +946,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
@@ -1071,9 +1075,9 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	maxLeases := 5
@@ -1135,11 +1139,11 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -1260,10 +1264,9 @@ func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	serverInfoA, err := types.NewServerInfo(types.Metadata{
@@ -1413,4 +1416,89 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(got, fetched))
+}
+
+func TestPresenceService_RelayServer(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	var p *PresenceService
+	require.NotPanics(t, func() {
+		p = NewPresenceService(bk)
+	})
+
+	_, err = p.UpsertRelayServer(ctx, nil)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	relayA := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "a",
+		},
+	}
+
+	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	require.NotNil(t, upsertedA.GetMetadata())
+
+	diffOpts := []cmp.Option{
+		protocmp.Transform(),
+		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
+	}
+
+	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
+
+	gottenA, err := p.GetRelayServer(ctx, "a")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
+
+	_, err = p.GetRelayServer(ctx, "b")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	err = p.DeleteRelayServer(ctx, "a")
+	require.NoError(t, err)
+
+	_, err = p.GetRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	err = p.DeleteRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	relayB := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "b",
+		},
+	}
+
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
+	require.NoError(t, err)
+
+	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, listedRelays, 2)
+	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
+	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
+
+	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, "b", nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
+
+	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
 }

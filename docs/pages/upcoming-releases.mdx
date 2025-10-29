@@ -15,83 +15,65 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                      |
-|---------|---------------------------|
-| 18.2.0  | Week of September 1, 2025 |
-| 18.2.1  | Week of September 8, 2025 |
+| Version | Date                       |
+|---------|----------------------------|
+| 18.3.0  | Week of October 27, 2025   |
+| 18.4.0  | Week of November 10, 2025  |
 
 We continue to support the following major versions of Teleport:
 
-| Release | Release Date      | EOL            | Minimum `tsh` version |
-|---------|-------------------|----------------|-----------------------|
-| v18.x   | July 3, 2025      | August 2026    | v17.0.0               |
-| v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
-| v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
+| Release | Release Date      | EOL              | Minimum `tsh` version |
+|---------|-------------------|------------------|-----------------------|
+| v18.x   | July 3, 2025      | August 2027      | v17.0.0               |
+| v17.x   | November 16, 2024 | August 2026      | v16.0.0               |
+| v16.x   | June 14, 2024     | October 31 2025  | v15.0.0               |
 
-### 18.2.0
+### 18.3.0
 
-#### Encrypted session recordings
+#### Web UI Workload ID
 
-Teleport will provide the ability to integrate with Hardware Security Modules
-(HSMs) in order to encrypt session recordings prior to uploading them to storage.
+Teleport's web UI will list all workload identity resources registered in the cluster.
 
-#### AI session summaries
+#### Relay Service
 
-Teleport Identity Security users will be able to view AI-generated summaries
-for SSH, Kubernetes and database sessions.
+Teleport will ship with a new relay service that acts as a lightweight proxy service,
+receiving connections from both SSH clients and agents.
 
-#### Updated session recordings page
+The relay service can be used to avoid routing SSH connections through the broader Teleport
+control plane, providing the ability to optimize network flows in large or complex deployments.
 
-Session recordings page in Teleport web UI will be updated with a new design
-that will include session thumbnails and ability to view session summaries
-for Identity Security users.
+#### Multi-cluster Discovery
 
-#### Teleport Connect Managed Updates
+Teleport EC2 auto-discovery will support a use-case in which multiple Teleport clusters
+discover the same EC2 instances without interfering with each other.
 
-Teleport Connect will be able to detect when application updates are available and
-automatically apply them on the next restart.
+#### Kubernetes Health Checks
 
-#### Teleport Device Trust Intune Support
+The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
+Health status will be reported in the Teleport web UI and reflected in kube_server resources.
+Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
 
-Teleport will include a new hosted plugin for Microsoft's Intune suite, allowing
-trusted devices to be synchronized from the Intune inventory.
+#### ElastiCache Serverless
 
-#### Terraform support for Access List members
+Teleport Database Access will support connecting to ElastiCache Serverless databases.
 
-Users will be able to provision Access Lists and their members (including other
-nested Access Lists) with terraform.
+### 18.4.0
 
-#### Long-term access requests UX
+#### Streamable-HTTP and SSE support for MCP Zero-Trust Access
 
-Teleport access requests creation dialog in web UI will better differentiate between
-short and long-term access requests.
+MCP Zero-Trust Access users will be able to secure and audit connections to MCP
+servers that use HTTP-based transport protocols in addition to stdio.
 
-#### Database web terminal for MySQL
+#### Improved Bot Instances Dashboard
 
-Teleport web UI will provide terminal interface for MySQL database access.
+The Bot Instances dashboard will now provide a more intuitive interface
+for managing a fleet of Machine & Workload Identity bot instances. This will
+include improved filtering, sorting and searching capabilities, and a high-level
+overview of the versions of all bot instances in the cluster.
 
-#### Database access for AlloyDB
+#### Kubernetes support for Relay Service
 
-Teleport will support database access for GCP AlloyDB databases.
-
-### 18.2.1
-
-#### Updated session player in web UI
-
-Web UI session player will receive a massive design overhaul with ability to
-view AI generated session summary as well as enhanced timeline view and
-scrubbing capabilities.
-
-#### Improved Access Lists performance
-
-Teleport will be able to handle large numbers (on the order of 50K) of Access Lists 
-without significant impact to the cluster's operations or web UI performance.
-
-#### AWS IAM Roles Anywhere integration
-
-Teleport will integrate with AWS IAM Roles Anywhere which will provide agentless
-AWS Console and CLI access governance with full compatibility with external AWS
-tooling (e.g. terraform).
+The relay service will be extended to facilitate Kubernetes connections.
 
 ## Teleport Cloud
 
@@ -99,8 +81,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| September 08, 2025 | Teleport 18.2 will begin rollout on Cloud.                   |
-| September 08, 2025 | Teleport 18.2 agents will begin rollout to eligible tenants. |
+| October 20, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
+| October 20, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

@@ -832,7 +832,7 @@ highAvailability:
 # This CRD is managed by the prometheus-operator and allows workload to
 # get monitored. To use this value, you need to run a `prometheus-operator`
 # in the cluster for this value to take effect.
-# See https://prometheus-operator.dev/docs/prologue/introduction/
+# See https://prometheus-operator.dev/docs/getting-started/introduction/
 podMonitor:
   # podMonitor.enabled(bool) -- controls if the chart deploys a PodMonitor.
   # This is disabled by default as it requires the PodMonitor CRD to be installed.

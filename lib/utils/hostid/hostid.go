@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
@@ -87,7 +88,7 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		}
 		return rawID.String(), nil
 	case types.JoinMethodEC2:
-		hostUUID, err := utils.GetEC2NodeID(ctx)
+		hostUUID, err := aws.GetEC2NodeID(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

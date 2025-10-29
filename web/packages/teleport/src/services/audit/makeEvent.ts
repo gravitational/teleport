@@ -236,26 +236,26 @@ export const formatters: Formatters = {
     type: 'exec',
     desc: 'Command Execution',
     format: event => {
-      const { proto, kubernetes_cluster, user = '' } = event;
+      const { proto, kubernetes_cluster, user = '', sid } = event;
       if (proto === 'kube') {
         if (!kubernetes_cluster) {
-          return `User [${user}] executed a Kubernetes command`;
+          return `User [${user}] executed a Kubernetes command within session [${sid}]`;
         }
-        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}]`;
+        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}] within session [${sid}]`;
       }
 
       return `User [${user}] executed a command on node ${
         event['server_hostname'] || event['addr.local']
-      }`;
+      } within session [${sid}]`;
     },
   },
   [eventCodes.EXEC_FAILURE]: {
     type: 'exec',
     desc: 'Command Execution Failed',
-    format: ({ user, exitError, ...rest }) =>
+    format: ({ user, exitError, sid, ...rest }) =>
       `User [${user}] command execution on node ${
         rest['server_hostname'] || rest['addr.local']
-      } failed [${exitError}]`,
+      } failed [${exitError}] within session [${sid}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
@@ -2253,6 +2253,14 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from MCP server [${app_name}]`;
     },
   },
+  [eventCodes.MCP_SESSION_END_FAILURE]: {
+    type: 'mcp.session.end',
+    desc: 'MCP Session End Failure',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] failed to disconnect from MCP server [${app_name}]`;
+    },
+  },
   [eventCodes.MCP_SESSION_REQUEST]: {
     type: 'mcp.session.request',
     desc: 'MCP Session Request',
@@ -2268,9 +2276,9 @@ export const formatters: Formatters = {
     desc: 'MCP Session Request Failure',
     format: ({ user, app_name, message }) => {
       if (message.params?.name) {
-        return `User [${user}] was denied access to an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+        return `User [${user}] failed to send an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
       }
-      return `User [${user}] was denied access to an MCP request [${message.method}] to MCP server [${app_name}]`;
+      return `User [${user}] failed to send an MCP request [${message.method}] to MCP server [${app_name}]`;
     },
   },
   [eventCodes.MCP_SESSION_NOTIFICATION]: {
@@ -2278,6 +2286,34 @@ export const formatters: Formatters = {
     desc: 'MCP Session Notification',
     format: ({ user, app_name, message }) => {
       return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: {
+    type: 'mcp.session.notification',
+    desc: 'MCP Session Notification Failure',
+    format: ({ user, app_name, message }) => {
+      return `User [${user}] failed to send an MCP notification [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: {
+    type: 'mcp.session.listen_sse_stream',
+    desc: 'MCP Session Listen',
+    format: ({ user, app_name }) => {
+      return `User [${user}] has started listening events from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: {
+    type: 'mcp.session.listen_sse_stream',
+    desc: 'MCP Session Listen Failure',
+    format: ({ user, app_name }) => {
+      return `User [${user}] failed to listen events from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: {
+    type: 'mcp.session.invalid_http_request',
+    desc: 'MCP Session Invalid Request',
+    format: ({ user, app_name }) => {
+      return `User [${user}] attempted to send an invalid request to MCP server [${app_name}]`;
     },
   },
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
@@ -2304,6 +2340,66 @@ export const formatters: Formatters = {
     format: ({ token_name, error }) => {
       return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
     },
+  },
+  [eventCodes.SCIM_RESOURCE_LIST]: {
+    type: 'scim.list',
+    desc: 'SCIM Resource Listing Succeeded',
+    format: ({ integration, resource_type }) =>
+      `[${integration}] [${resource_type}] listing succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: {
+    type: 'scim.list',
+    desc: 'SCIM Resource Listing Failed',
+    format: ({ integration, resource_type }) =>
+      `[${integration}] [${resource_type}] listing failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_GET]: {
+    type: 'scim.get',
+    desc: 'SCIM Resource Fetch Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: {
+    type: 'scim.get',
+    desc: 'SCIM Resource Fetch Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_CREATE]: {
+    type: 'scim.create',
+    desc: 'SCIM Resource Creation Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: {
+    type: 'scim.create',
+    desc: 'SCIM Resource Creation Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
 };
 

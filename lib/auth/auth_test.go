@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -81,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -136,6 +138,7 @@ func newTestPack(
 		// This uses lower bcrypt costs for faster tests.
 		Identity:               identityService,
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	p.a, err = auth.NewServer(authConfig, opts...)
 	if err != nil {
@@ -1229,6 +1232,7 @@ func TestUpdateConfig(t *testing.T) {
 		VersionStorage:         s.versionStorage,
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -4093,17 +4097,33 @@ func TestInstallerCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newContents, newInst.GetScript())
 
-	instcoll, err := s.a.GetInstallers(ctx)
-	require.NoError(t, err)
-	var instScripts []string
-	for _, inst := range instcoll {
-		instScripts = append(instScripts, inst.GetScript())
-	}
+	t.Run("GetInstallers", func(t *testing.T) {
+		instcoll, err := s.a.GetInstallers(ctx)
+		require.NoError(t, err)
+		var instScripts []string
+		for _, inst := range instcoll {
+			instScripts = append(instScripts, inst.GetScript())
+		}
 
-	require.ElementsMatch(t,
-		[]string{inst.GetScript(), newInst.GetScript()},
-		instScripts,
-	)
+		require.ElementsMatch(t,
+			[]string{inst.GetScript(), newInst.GetScript()},
+			instScripts,
+		)
+	})
+
+	t.Run("ListInstallers", func(t *testing.T) {
+		instcoll, err := stream.Collect(clientutils.Resources(ctx, s.a.ListInstallers))
+		require.NoError(t, err)
+		var instScripts []string
+		for _, inst := range instcoll {
+			instScripts = append(instScripts, inst.GetScript())
+		}
+
+		require.ElementsMatch(t,
+			[]string{inst.GetScript(), newInst.GetScript()},
+			instScripts,
+		)
+	})
 
 	err = s.a.DeleteInstaller(ctx, installers.InstallerScriptName)
 	require.NoError(t, err)
@@ -5132,6 +5152,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				Emitter:                &eventstest.MockRecorderEmitter{},
 				ClusterConfiguration:   clusterConfigService,
 				SkipPeriodicOperations: true,
+				HostUUID:               uuid.NewString(),
 			})
 			require.NoError(t, err)
 

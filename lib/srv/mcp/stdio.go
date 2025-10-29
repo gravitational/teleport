@@ -48,16 +48,15 @@ func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, au
 	errMsg := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.INTERNAL_ERROR, authErr.Error(), nil)
 	writer := mcputils.NewStdioMessageWriter(clientConn)
 	reader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
-		Transport:     mcputils.NewStdioReader(clientConn),
-		Logger:        logger,
-		ParentContext: s.cfg.ParentContext,
+		Transport: mcputils.NewStdioReader(clientConn),
+		Logger:    logger,
 		OnRequest: func(ctx context.Context, req *mcputils.JSONRPCRequest) error {
 			// Use request ID when available. Return auth error after writing
 			// back to client to stop the reader.
 			errMsg.ID = req.ID
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
-		OnParseError: func(ctx context.Context, _ *mcp.JSONRPCError) error {
+		OnParseError: func(ctx context.Context, _ mcp.RequestId, _ error) error {
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
 		OnNotification: func(ctx context.Context, _ *mcputils.JSONRPCNotification) error {
@@ -77,7 +76,7 @@ func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, au
 // handleStdio handles a stdio connection.
 // makeMCPServer defaults to makeExecServerRunner to launch a command but can be
 // mocked for testing.
-func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeServerRunner makeStdioServerRunnerFunc) error {
+func (s *Server) handleStdio(ctx context.Context, sessionCtx *SessionCtx, makeServerRunner makeStdioServerRunnerFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -86,8 +85,8 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 		return trace.Wrap(err)
 	}
 
-	session.logger.DebugContext(s.cfg.ParentContext, "Started handling stdio session")
-	defer session.logger.DebugContext(s.cfg.ParentContext, "Completed handling stdio session")
+	session.logger.InfoContext(ctx, "Started handling stdio session")
+	defer session.logger.InfoContext(ctx, "Completed handling stdio session")
 
 	serverRunner, err := makeServerRunner(ctx, session)
 	if err != nil {
@@ -108,9 +107,8 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 	serverRequestWriter := mcputils.NewSyncStdioMessageWriter(writeToServer)
 
 	clientRequestReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
-		Transport:     mcputils.NewStdioReader(sessionCtx.ClientConn),
-		Logger:        session.logger.With("stdio", "stdin"),
-		ParentContext: s.cfg.ParentContext,
+		Transport: mcputils.NewStdioReader(sessionCtx.ClientConn),
+		Logger:    session.logger.With("stdio", "stdin"),
 		// make sure launched process is getting shut down when client is closed.
 		OnClose:        serverRunner.close,
 		OnParseError:   mcputils.ReplyParseError(clientResponseWriter),
@@ -125,7 +123,6 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 	serverResponseReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
 		Transport:      mcputils.NewStdioReader(readFromServer),
 		Logger:         stdoutLogger,
-		ParentContext:  s.cfg.ParentContext,
 		OnClose:        serverRunner.close,
 		OnParseError:   mcputils.LogAndIgnoreParseError(stdoutLogger),
 		OnNotification: session.onServerNotification(clientResponseWriter),
@@ -138,7 +135,7 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx SessionCtx, makeSer
 	// TODO(greedy52) capture client info then emit start event with client
 	// information.
 	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext)
+	defer session.emitEndEvent(s.cfg.ParentContext, nil)
 
 	go clientRequestReader.Run(ctx)
 	go serverResponseReader.Run(ctx)
@@ -179,6 +176,7 @@ func (s *execServer) getStdinPipe() (io.WriteCloser, error) {
 
 func (s *execServer) run(context.Context) error {
 	if err := s.cmd.Start(); err != nil {
+		setupErrors.WithLabelValues(s.session.transport).Inc()
 		return trace.Wrap(err)
 	}
 
@@ -217,21 +215,31 @@ func makeExecServerRunner(ctx context.Context, session *sessionHandler) (stdioSe
 	// WaitDelay forces a SIGKILL if the process fails to exit 10 seconds after
 	// cmd.Cancel is called. See the WaitDelay doc for details.
 	cmd.WaitDelay = 10 * time.Second
+
 	// We put all shutdown procedures in cmd.Cancel because we are too lazy to
 	// make a separate function. Since cmd.Cancel can be called outside here by
 	// the server handler, we make sure 'cmdCancel' is called to cancel the
 	// command in that case.
-	cmd.Cancel = sync.OnceValue(func() error {
+	//
+	// There is also a race where cmd.Cancel may be called before cmd.Process is
+	// available. To make sure the signal is sent, do not use sync.Once on the
+	// entire "cmd.Cancel". Instead, use sync.Once after cmd.Process non-nil
+	// check so we have a better chance to clean up.
+	signalOnce := sync.OnceValue(func() error {
+		// Use SIGINT for graceful shutdown since stdio servers are
+		// "interactive".
+		logger.DebugContext(ctx, "Sending SIGINT to command")
+		return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
+	})
+	cmd.Cancel = func() error {
+		logger.DebugContext(ctx, "Canceling command", "has_process", cmd.Process == nil)
 		cmdCancel()
 
 		if cmd.Process != nil {
-			// Use SIGINT for graceful shutdown since stdio servers are
-			// "interactive".
-			logger.DebugContext(ctx, "Sending SIGINT to command")
-			return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
+			return trace.Wrap(signalOnce())
 		}
 		return nil
-	})
+	}
 
 	// Set host user.
 	hostUser, err := user.Lookup(mcpSpec.RunAsHostUser)

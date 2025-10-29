@@ -24,6 +24,7 @@
 package proto
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -921,8 +922,10 @@ type InventoryHeartbeat struct {
 	DatabaseServer *types.DatabaseServerV3 `protobuf:"bytes,3,opt,name=DatabaseServer,proto3" json:"DatabaseServer,omitempty"`
 	// KubeServer is a complete kube server spec to be heartbeated.
 	KubernetesServer *types.KubernetesServerV3 `protobuf:"bytes,4,opt,name=KubernetesServer,proto3" json:"KubernetesServer,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// A relay_server to be heartbeated.
+	RelayServer   *v1.RelayServer `protobuf:"bytes,5,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *InventoryHeartbeat) Reset() {
@@ -979,6 +982,13 @@ func (x *InventoryHeartbeat) GetDatabaseServer() *types.DatabaseServerV3 {
 func (x *InventoryHeartbeat) GetKubernetesServer() *types.KubernetesServerV3 {
 	if x != nil {
 		return x.KubernetesServer
+	}
+	return nil
+}
+
+func (x *InventoryHeartbeat) GetRelayServer() *v1.RelayServer {
+	if x != nil {
+		return x.RelayServer
 	}
 	return nil
 }
@@ -1268,6 +1278,8 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 	KubernetesHeartbeats bool `protobuf:"varint,17,opt,name=KubernetesHeartbeats,proto3" json:"KubernetesHeartbeats,omitempty"`
 	// KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
 	KubernetesCleanup bool `protobuf:"varint,18,opt,name=KubernetesCleanup,proto3" json:"KubernetesCleanup,omitempty"`
+	// Indicates that the ICS supports heartbeating relay_server entries as well as deleting them on disconnect if UpstreamInventoryGoodbye.DeleteResources is set.
+	RelayServerHeartbeatsCleanup bool `protobuf:"varint,19,opt,name=relay_server_heartbeats_cleanup,json=relayServerHeartbeatsCleanup,proto3" json:"relay_server_heartbeats_cleanup,omitempty"`
 	// DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
 	DatabaseHeartbeatGracefulStop bool `protobuf:"varint,20,opt,name=database_heartbeat_graceful_stop,json=databaseHeartbeatGracefulStop,proto3" json:"database_heartbeat_graceful_stop,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
@@ -1430,6 +1442,13 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) GetKubernetesCleanup() 
 	return false
 }
 
+func (x *DownstreamInventoryHello_SupportedCapabilities) GetRelayServerHeartbeatsCleanup() bool {
+	if x != nil {
+		return x.RelayServerHeartbeatsCleanup
+	}
+	return false
+}
+
 func (x *DownstreamInventoryHello_SupportedCapabilities) GetDatabaseHeartbeatGracefulStop() bool {
 	if x != nil {
 		return x.DatabaseHeartbeatGracefulStop
@@ -1441,7 +1460,7 @@ var File_teleport_legacy_client_proto_inventory_proto protoreflect.FileDescripto
 
 const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\n" +
-	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"\xa1\x03\n" +
+	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\"\xa1\x03\n" +
 	"\x16UpstreamInventoryOneOf\x125\n" +
 	"\x05Hello\x18\x01 \x01(\v2\x1d.proto.UpstreamInventoryHelloH\x00R\x05Hello\x129\n" +
 	"\tHeartbeat\x18\x02 \x01(\v2\x19.proto.InventoryHeartbeatH\x00R\tHeartbeat\x122\n" +
@@ -1476,11 +1495,11 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x0eInstallMethods\x18\x05 \x03(\tR\x0eInstallMethods\x12*\n" +
 	"\x10ContainerRuntime\x18\x06 \x01(\tR\x10ContainerRuntime\x124\n" +
 	"\x15ContainerOrchestrator\x18\a \x01(\tR\x15ContainerOrchestrator\x12*\n" +
-	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\xe8\b\n" +
+	"\x10CloudEnvironment\x18\b \x01(\tR\x10CloudEnvironment\"\xaf\t\n" +
 	"\x18DownstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12Y\n" +
-	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\xba\a\n" +
+	"\fCapabilities\x18\x03 \x01(\v25.proto.DownstreamInventoryHello.SupportedCapabilitiesR\fCapabilities\x1a\x81\b\n" +
 	"\x15SupportedCapabilities\x12(\n" +
 	"\x0fProxyHeartbeats\x18\x01 \x01(\bR\x0fProxyHeartbeats\x12\"\n" +
 	"\fProxyCleanup\x18\x02 \x01(\bR\fProxyCleanup\x12&\n" +
@@ -1502,7 +1521,8 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x1fWindowsDesktopServiceHeartbeats\x18\x0f \x01(\bR\x1fWindowsDesktopServiceHeartbeats\x12B\n" +
 	"\x1cWindowsDesktopServiceCleanup\x18\x10 \x01(\bR\x1cWindowsDesktopServiceCleanup\x122\n" +
 	"\x14KubernetesHeartbeats\x18\x11 \x01(\bR\x14KubernetesHeartbeats\x12,\n" +
-	"\x11KubernetesCleanup\x18\x12 \x01(\bR\x11KubernetesCleanup\x12G\n" +
+	"\x11KubernetesCleanup\x18\x12 \x01(\bR\x11KubernetesCleanup\x12E\n" +
+	"\x1frelay_server_heartbeats_cleanup\x18\x13 \x01(\bR\x1crelayServerHeartbeatsCleanup\x12G\n" +
 	" database_heartbeat_graceful_stop\x18\x14 \x01(\bR\x1ddatabaseHeartbeatGracefulStop\"\xea\x01\n" +
 	"\x1cInventoryUpdateLabelsRequest\x12\x1a\n" +
 	"\bServerID\x18\x01 \x01(\tR\bServerID\x12*\n" +
@@ -1516,12 +1536,13 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x06Labels\x18\x02 \x03(\v22.proto.DownstreamInventoryUpdateLabels.LabelsEntryR\x06Labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfd\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc3\x02\n" +
 	"\x12InventoryHeartbeat\x12-\n" +
 	"\tSSHServer\x18\x01 \x01(\v2\x0f.types.ServerV2R\tSSHServer\x120\n" +
 	"\tAppServer\x18\x02 \x01(\v2\x12.types.AppServerV3R\tAppServer\x12?\n" +
 	"\x0eDatabaseServer\x18\x03 \x01(\v2\x17.types.DatabaseServerV3R\x0eDatabaseServer\x12E\n" +
-	"\x10KubernetesServer\x18\x04 \x01(\v2\x19.types.KubernetesServerV3R\x10KubernetesServer\"d\n" +
+	"\x10KubernetesServer\x18\x04 \x01(\v2\x19.types.KubernetesServerV3R\x10KubernetesServer\x12D\n" +
+	"\frelay_server\x18\x05 \x01(\v2!.teleport.presence.v1.RelayServerR\vrelayServer\"d\n" +
 	"\x18UpstreamInventoryGoodbye\x12(\n" +
 	"\x0fDeleteResources\x18\x01 \x01(\bR\x0fDeleteResources\x12\x1e\n" +
 	"\n" +
@@ -1597,6 +1618,7 @@ var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(*types.AppServerV3)(nil),        // 25: types.AppServerV3
 	(*types.DatabaseServerV3)(nil),   // 26: types.DatabaseServerV3
 	(*types.KubernetesServerV3)(nil), // 27: types.KubernetesServerV3
+	(*v1.RelayServer)(nil),           // 28: teleport.presence.v1.RelayServer
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
@@ -1619,16 +1641,17 @@ var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	25, // 17: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
 	26, // 18: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
 	27, // 19: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
-	6,  // 20: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	19, // 21: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	20, // 22: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	21, // 23: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	1,  // 24: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	28, // 20: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
+	6,  // 21: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	19, // 22: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	20, // 23: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	21, // 24: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 25: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }

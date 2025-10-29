@@ -32,6 +32,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // RegisterUsingOracleMethod registers the caller using the Oracle join method and
@@ -83,28 +84,19 @@ func (a *Server) registerUsingOracleMethod(
 	}
 
 	if tokenReq.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			provisionToken,
-			tokenReq,
-			claims,
-			&workloadidentityv1pb.JoinAttrs{
-				Oracle: claims.JoinAttrs(),
-			},
-		)
-		return certs, trace.Wrap(err)
+		params := makeBotCertsParams(tokenReq, claims, &workloadidentityv1pb.JoinAttrs{
+			Oracle: claims.JoinAttrs(),
+		})
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		return certs, trace.Wrap(err, "generating bot certs")
 	}
-	certs, err = a.generateCerts(
-		ctx,
-		provisionToken,
-		tokenReq,
-		claims,
-	)
-	return certs, trace.Wrap(err)
+	params := makeHostCertsParams(tokenReq, claims)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+	return certs, trace.Wrap(err, "generating certs")
 }
 
 func generateOracleChallenge() (string, error) {
-	challenge, err := generateChallenge(base64.StdEncoding, 32)
+	challenge, err := joinutils.GenerateChallenge(base64.StdEncoding, 32)
 	return challenge, trace.Wrap(err)
 }
 

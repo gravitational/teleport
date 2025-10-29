@@ -21,6 +21,7 @@ import * as url from 'node:url';
 
 import {
   app,
+  autoUpdater,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -137,10 +138,23 @@ export class WindowsManager {
       },
     });
 
+    // Flag to track if the app tries to quit.
+    // When true, the window should close rather than enter the background mode,
+    // as that would block the quit process.
     let isAppQuitting = false;
-    // Triggered when the app itself initiates shutdown (e.g., via app.quit()),
-    // not when the user manually closes the window.
+    // Fired when the app initiates shutdown explicitly, via app.quit().
     app.on('before-quit', () => {
+      isAppQuitting = true;
+    });
+    // Fired when the app initiates shutdown due to an update.
+    //
+    // When using electron-updater's quitAndInstall, the windows close first,
+    // and then 'before-quit' is emitted. This sequence differs from the normal
+    // quit flow.
+    //
+    // Note: Although we use electron-updater (not Electron's native autoUpdater),
+    // this event is available because electron-updater emulates it.
+    autoUpdater.on('before-quit-for-update', () => {
       isAppQuitting = true;
     });
 

@@ -275,6 +275,13 @@ discovery_service:
       labels:
         "env": "prod" # Match virtual machines where label:env=prod
       install:
+        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
+        # Requires managed updates to be enabled.
+        # Supported characters are alphanumeric characters and `-`.
+        suffix: "<suffix>"
+        # Optional: when using managed updates, set the update group of the installation.
+        # Supported characters are alphanumeric characters and `-`.
+        update_group: "<update-group>"
         public_proxy_addr: "<Var name="teleport.example.com" />:443"
 ```
 
@@ -283,6 +290,11 @@ discovery_service:
 - Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
+- Set the `install.suffix` key to install teleport in a non-global location, allowing
+  for multiple, simultaneously installations from different clusters.
+  Requires [agent managed updates](../../../upgrading/agent-managed-updates.mdx).
+- When using [agent managed updates](../../../upgrading/agent-managed-updates.mdx), you can
+  configure the update group by setting the `install.update_group` key.
 
 ### GCP credentials
 

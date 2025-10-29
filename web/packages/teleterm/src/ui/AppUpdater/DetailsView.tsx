@@ -39,7 +39,6 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { AutoUpdatesManagement } from './AutoUpdatesManagement';
 import {
-  ClusterGetter,
   formatMB,
   iconMac,
   iconWinLinux,
@@ -55,7 +54,6 @@ import {
  */
 export function DetailsView({
   changeManagingCluster,
-  clusterGetter,
   updateEvent,
   platform,
   onCheckForUpdates,
@@ -65,7 +63,6 @@ export function DetailsView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
-  clusterGetter: ClusterGetter;
   onCheckForUpdates(): void;
   onInstall(): void;
   onDownload(): void;
@@ -76,7 +73,6 @@ export function DetailsView({
     <Stack gap={3} width="100%">
       {updateEvent.autoUpdatesStatus && (
         <AutoUpdatesManagement
-          clusterGetter={clusterGetter}
           status={updateEvent.autoUpdatesStatus}
           updateEventKind={updateEvent.kind}
           onCheckForUpdates={onCheckForUpdates}
@@ -224,7 +220,11 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
 
   return (
     <Stack>
-      <Text>A new version is available.</Text>
+      <Text>
+        {props.update.updateKind === 'upgrade'
+          ? 'A new version is available.'
+          : 'The app needs to be downgraded to match the required version.'}
+      </Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
           <img alt="App icon" height="50px" src={iconMac} />

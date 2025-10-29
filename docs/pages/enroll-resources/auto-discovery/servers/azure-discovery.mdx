@@ -267,6 +267,13 @@ discovery_service:
       tags:
         "env": "prod" # Match virtual machines where tag:env=prod
       install:
+        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
+        # Requires managed updates to be enabled.
+        # Supported characters are alphanumeric characters and `-`.
+        suffix: "<suffix>"
+        # Optional: when using managed updates, set the update group of the installation.
+        # Supported characters are alphanumeric characters and `-`.
+        update_group: "<update-group>"
         azure:
           # Optional: If the VMs to discover have more than one managed
           # identity assigned to them, set the client ID here to the client
@@ -279,6 +286,11 @@ discovery_service:
 - Adjust the keys under `discovery_service.azure` to match your Azure environment,
   specifically the regions and tags you want to associate with the Discovery
   Service.
+- Set the `install.suffix` key to install teleport in a non-global location, allowing
+  for multiple, simultaneously installations from different clusters.
+  Requires [agent managed updates](../../../upgrading/agent-managed-updates.mdx).
+- When using [agent managed updates](../../../upgrading/agent-managed-updates.mdx), you can
+  configure the update group by setting the `install.update_group` key.
 
 ## Step 6/6. [Optional] Customize the default installer script
 

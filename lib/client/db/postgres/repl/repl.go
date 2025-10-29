@@ -17,12 +17,14 @@
 package repl
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/asciitable"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -41,9 +42,12 @@ type REPL struct {
 
 	connConfig *pgconn.Config
 	client     io.ReadWriteCloser
-	serverConn net.Conn
 	route      clientproto.RouteToDatabase
 	commands   map[string]*command
+
+	// teleportVersion is used in golden tests to fake the current Teleport
+	// version and prevent test failures when the real version is incremented.
+	teleportVersion string
 }
 
 func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
@@ -74,12 +78,12 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 	}
 
 	return &REPL{
-		Terminal:   term.NewTerminal(cfg.Client, ""),
-		connConfig: config,
-		client:     cfg.Client,
-		serverConn: cfg.ServerConn,
-		route:      cfg.Route,
-		commands:   initCommands(),
+		Terminal:        term.NewTerminal(cfg.Client, ""),
+		connConfig:      config,
+		client:          cfg.Client,
+		route:           cfg.Route,
+		commands:        initCommands(),
+		teleportVersion: teleport.Version,
 	}, nil
 }
 
@@ -101,15 +105,9 @@ func (r *REPL) Run(ctx context.Context) error {
 	// our case r.client). On this goroutine we only watch for context
 	// cancelation and close the connection. This will unblocks all terminal
 	// reads/writes.
-	ctxCancelCh := make(chan struct{})
-	defer close(ctxCancelCh)
-	go func() {
-		select {
-		case <-ctx.Done():
-			_ = r.client.Close()
-		case <-ctxCancelCh:
-		}
-	}()
+	defer context.AfterFunc(ctx, func() {
+		_ = r.client.Close()
+	})()
 
 	if err := r.presentBanner(); err != nil {
 		return trace.Wrap(err)
@@ -122,25 +120,36 @@ func (r *REPL) Run(ctx context.Context) error {
 
 	lead := lineLeading(r.route)
 	leadSpacing := strings.Repeat(" ", len(lead))
-	r.Terminal.SetPrompt(lineBreak + lead)
 
 	for {
+		if readingMultiline {
+			r.Terminal.SetPrompt(leadSpacing)
+		} else {
+			r.Terminal.SetPrompt(lead)
+		}
 		line, err := r.Terminal.ReadLine()
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
 			return trace.Wrap(formatTermError(ctx, err))
 		}
 
 		// ReadLine should always return the line without trailing line breaks,
 		// but we still require to remove trailing and leading spaces.
 		line = strings.TrimSpace(line)
+		if !readingMultiline && (len(line) == 0 || strings.HasPrefix(line, commentPrefix)) {
+			continue
+		}
 
-		var reply string
 		switch {
 		case strings.HasPrefix(line, commandPrefix) && !readingMultiline:
-			var exit bool
-			reply, exit = r.processCommand(line)
+			reply, exit := r.processCommand(line)
 			if exit {
 				return nil
+			}
+			if _, err := r.Terminal.Write([]byte(reply + lineBreak)); err != nil {
+				return trace.Wrap(formatTermError(ctx, err))
 			}
 		case strings.HasSuffix(line, executionRequestSuffix):
 			var query string
@@ -154,9 +163,14 @@ func (r *REPL) Run(ctx context.Context) error {
 			// Reset multiline state.
 			multilineAcc.Reset()
 			readingMultiline = false
-			r.Terminal.SetPrompt(lineBreak + lead)
 
-			reply = formatResult(pgConn.Exec(ctx, query).ReadAll()) + lineBreak
+			resReader := pgConn.Exec(ctx, query)
+			if err := streamResults(resReader, newTabWriter(r.Terminal)); err != nil {
+				return trace.Wrap(formatTermError(ctx, err))
+			}
+			if _, err := r.Terminal.Write([]byte(lineBreak + lineBreak)); err != nil {
+				return trace.Wrap(formatTermError(ctx, err))
+			}
 		default:
 			// If there wasn't a specific execution, we assume the input is
 			// multi-line. In this case, we need to accumulate the contents.
@@ -169,15 +183,6 @@ func (r *REPL) Run(ctx context.Context) error {
 
 			readingMultiline = true
 			multilineAcc.WriteString(line)
-			r.Terminal.SetPrompt(leadSpacing)
-		}
-
-		if reply == "" {
-			continue
-		}
-
-		if _, err := r.Terminal.Write([]byte(reply)); err != nil {
-			return trace.Wrap(formatTermError(ctx, err))
 		}
 	}
 }
@@ -198,57 +203,105 @@ func (r *REPL) presentBanner() error {
 		r.Terminal,
 		`Teleport PostgreSQL interactive shell (v%s)
 Connected to %q instance as %q user.
-Type \? for help.`,
-		teleport.Version,
+Type \? for help.
+
+`,
+		r.teleportVersion,
 		r.route.GetServiceName(),
 		r.route.GetUsername())
 	return trace.Wrap(err)
 }
 
-// formatResult formats a pgconn.Exec result.
-func formatResult(results []*pgconn.Result, err error) string {
-	if err != nil {
-		return errorReplyPrefix + err.Error()
-	}
+func newTabWriter(w io.Writer) *tabwriter.Writer {
+	return tabwriter.NewWriter(w, 1, 0, 1, ' ', 0)
+}
 
-	var (
-		sb         strings.Builder
-		resultsLen = len(results)
-	)
-	for i, res := range results {
-		if !res.CommandTag.Select() {
-			return res.CommandTag.String()
-		}
+// bufferedWriter buffers all Write calls until Flush is called.
+// Clients must call Flush when done writing.
+type bufferedWriter interface {
+	io.Writer
+	Flush() error
+}
 
-		// build columns
-		var columns []string
-		for _, fd := range res.FieldDescriptions {
-			columns = append(columns, string(fd.Name))
-		}
+func streamResults(mrr *pgconn.MultiResultReader, writer bufferedWriter) error {
+	defer mrr.Close()
+	defer writer.Flush()
 
-		table := asciitable.MakeTable(columns)
-		for _, row := range res.Rows {
-			rowData := make([]string, len(columns))
-			for i, data := range row {
-				// The PostgreSQL package is responsible for transforming the
-				// row data into a readable format.
-				rowData[i] = string(data)
+	var resultCount int
+	for mrr.NextResult() {
+		resultCount++
+		if resultCount > 1 {
+			// add an extra line break to separate multiple results
+			if _, err := writer.Write([]byte(lineBreak + lineBreak)); err != nil {
+				return trace.Wrap(err)
 			}
-
-			table.AddRow(rowData)
 		}
+		if err := streamResult(mrr.ResultReader(), writer); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := mrr.Close(); err != nil {
+		errReply := errorReplyPrefix + err.Error()
+		if _, err := writer.Write([]byte(errReply)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
 
-		table.AsBuffer().WriteTo(&sb)
-		sb.WriteString(rowsText(len(res.Rows)))
+func streamResult(rr *pgconn.ResultReader, writer bufferedWriter) error {
+	const (
+		columnSep       = "\t|\t"
+		maxBufferedRows = 100
+	)
+	defer rr.Close()
+	defer writer.Flush()
 
-		// Add line breaks to separate results. Except the last result, which
-		// will have line breaks added later in the reply.
-		if i != resultsLen-1 {
-			sb.WriteString(lineBreak + lineBreak)
+	if len(rr.FieldDescriptions()) == 0 {
+		// ignore the error, it will bubble up to the multi result reader Close
+		cmdTag, _ := rr.Close()
+		if _, err := writer.Write([]byte(cmdTag.String())); err != nil {
+			return trace.Wrap(err)
+		}
+		// zero field descriptions implies zero rows will be returned
+		// https://www.postgresql.org/docs/current/protocol-flow.html
+		return nil
+	}
+
+	columns := make([]string, 0, len(rr.FieldDescriptions()))
+	dashes := make([]string, 0, cap(columns))
+	for _, fd := range rr.FieldDescriptions() {
+		columns = append(columns, string(fd.Name))
+		dashes = append(dashes, strings.Repeat("-", max(len(fd.Name))))
+	}
+
+	headerLine := strings.Join(columns, columnSep) + lineBreak
+	sepLine := strings.Join(dashes, columnSep) + lineBreak
+	if _, err := writer.Write([]byte(headerLine + sepLine)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var rowCount int
+	for rr.NextRow() {
+		rowCount++
+		row := bytes.Join(rr.Values(), []byte(columnSep))
+		if _, err := writer.Write(row); err != nil {
+			return trace.Wrap(err)
+		}
+		if rowCount%maxBufferedRows == 0 {
+			if err := writer.Flush(); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if _, err := writer.Write([]byte(lineBreak)); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	return sb.String()
+	if _, err := writer.Write([]byte(rowsText(rowCount))); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func lineLeading(route clientproto.RouteToDatabase) string {
@@ -271,7 +324,7 @@ const (
 	// requirement.
 	hostnamePlaceholder = "repl"
 	// lineBreak represents a line break on the REPL.
-	lineBreak = "\r\n"
+	lineBreak = "\n"
 	// commandPrefix is the prefix that identifies a REPL command.
 	commandPrefix = "\\"
 	// executionRequestSuffix is the suffix that indicates the input must be
@@ -279,6 +332,8 @@ const (
 	executionRequestSuffix = ";"
 	// errorReplyPrefix is the prefix presented when there is a execution error.
 	errorReplyPrefix = "ERR "
+	// commentPrefix is the prefix for a single line comment
+	commentPrefix = "--"
 )
 
 const (
@@ -306,4 +361,6 @@ See https://www.postgresql.org/docs/17/protocol-flow.html#PROTOCOL-FLOW-TERMINAT
 	//
 	// This shortcut filtered out by the WebUI key handler.
 	"Pressing CTRL-C will have no effect in this shell.",
+	"All escaped delimiters (semicolons) must appear on the same line as the unescaped query delimiter.",
+	"Commands cannot be used in the middle of a query.",
 }

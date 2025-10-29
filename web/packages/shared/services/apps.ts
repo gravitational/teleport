@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { AppProtocol } from 'shared/services/types';
 
 export type AwsRole = {
   name: string;
@@ -22,3 +23,25 @@ export type AwsRole = {
   display: string;
   accountId: string;
 };
+
+/**
+ * getAppProtocol returns the protocol of the application. Equivalent to
+ * types.Application.GetProtocol.
+ */
+export function getAppProtocol(appURI: string): AppProtocol {
+  if (appURI.startsWith('tcp://')) {
+    return 'TCP';
+  }
+  if (appURI.startsWith('mcp+')) {
+    return 'MCP';
+  }
+  return 'HTTP';
+}
+
+/**
+ * getAppUriScheme extracts the scheme from the app URI.
+ */
+export function getAppUriScheme(appURI: string): string {
+  const sepIdx = appURI.indexOf('://');
+  return sepIdx > 0 ? appURI.slice(0, sepIdx) : '';
+}

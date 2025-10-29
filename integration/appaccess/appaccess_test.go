@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -35,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -51,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -59,7 +62,27 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	pack := Setup(t)
+	// Enable MCP test servers.
+	sseServerURL := mcptest.MustStartSSETestServer(t)
+	streamableHTTPServer := mcpserver.NewTestStreamableHTTPServer(mcptest.NewServer())
+	streamableHTTPServerURL := fmt.Sprintf("mcp+%s/mcp", streamableHTTPServer.URL)
+	t.Cleanup(streamableHTTPServer.Close)
+
+	extraApps := []servicecfg.App{
+		{
+			Name: "test-sse",
+			URI:  "mcp+sse+" + sseServerURL,
+		},
+		{
+			Name: "test-http",
+			URI:  streamableHTTPServerURL,
+		},
+	}
+
+	// Reusing the pack as much as we can.
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraRootApps: extraApps,
+	})
 
 	t.Run("Forward", bind(pack, testForward))
 	t.Run("Websockets", bind(pack, testWebsockets))
@@ -73,6 +96,7 @@ func TestAppAccess(t *testing.T) {
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
 
+	// MCP access tests.
 	t.Run("MCP", bind(pack, testMCP))
 
 	// This test should go last because it stops/starts app servers.
@@ -579,7 +603,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	require.Contains(t, body, p.rootMessage)
 
 	// session start event
-	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionStart{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionStartEvent,
@@ -593,16 +617,16 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			},
 			PublicAddr: p.rootAppPublicAddr,
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
-		))
+		)) == 0
 	})
 
 	// session chunk event
-	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionChunk{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionChunkEvent,
@@ -615,13 +639,13 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppName:       p.rootAppName,
 			},
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-		))
+		)) == 0
 	})
 }
 

@@ -81,6 +81,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -152,8 +153,8 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc AuthServiceClient
-	// JoinServiceClient is a client for the JoinService, which runs on both the
-	// auth and proxy.
+	// JoinServiceClient is a client for the legacy JoinService, which
+	// runs on both the auth and proxy.
 	*JoinServiceClient
 	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
@@ -929,6 +930,11 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
 
+// JoinV1Client returns an unadorned gRPC client for the new Join service.
+func (c *Client) JoinV1Client() joinv1.JoinServiceClient {
+	return joinv1.NewJoinServiceClient(c.conn)
+}
+
 // SummarizerServiceClient returns an unadorned client for the session
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
@@ -1566,6 +1572,27 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 	return out, nil
 }
 
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (c *Client) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSnowflakeSessions(ctx, &proto.ListSnowflakeSessionsRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	sessions := make([]types.WebSession, len(resp.Sessions))
+	for i := range resp.Sessions {
+		sessions[i] = resp.Sessions[i]
+	}
+	return sessions, resp.NextPageToken, nil
+}
+
+// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+func (c *Client) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListSnowflakeSessions, types.WebSession.GetName)
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1928,6 +1955,39 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	return oidcConnectors, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	resp, err := c.grpc.ListOIDCConnectors(ctx, &proto.ListOIDCConnectorsRequest{
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	oidcConnectors := make([]types.OIDCConnector, len(resp.Connectors))
+	for i, oidcConnector := range resp.Connectors {
+		oidcConnectors[i] = oidcConnector
+	}
+	return oidcConnectors, resp.NextPageToken, nil
+}
+
+// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (c *Client) RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
+			return c.ListOIDCConnectors(ctx, limit, start, withSecrets)
+		},
+		types.OIDCConnector.GetName,
+	)
+}
+
 // CreateOIDCConnector creates an OIDC connector.
 func (c *Client) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	oidcConnector, ok := connector.(*types.OIDCConnectorV3)
@@ -2041,6 +2101,43 @@ func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, wit
 	return samlConnectors, nil
 }
 
+// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	resp, err := c.grpc.ListSAMLConnectors(ctx, &proto.ListSAMLConnectorsRequest{
+		PageSize:     int32(limit),
+		PageToken:    start,
+		WithSecrets:  withSecrets,
+		NoFollowUrls: options.NoFollowURLs,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	samlConnectors := make([]types.SAMLConnector, len(resp.Connectors))
+	for i, samlConnector := range resp.Connectors {
+		samlConnectors[i] = samlConnector
+	}
+	return samlConnectors, resp.NextPageToken, nil
+}
+
+// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (c *Client) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLConnector, string, error) {
+			return c.ListSAMLConnectorsWithOptions(ctx, pageSize, pageToken, withSecrets, opts...)
+		},
+		types.SAMLConnector.GetName)
+}
+
 // CreateSAMLConnector creates a SAML connector.
 func (c *Client) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	samlConnectorV2, ok := connector.(*types.SAMLConnectorV2)
@@ -2125,6 +2222,39 @@ func (c *Client) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]t
 		githubConnectors[i] = githubConnector
 	}
 	return githubConnectors, nil
+}
+
+// ListGithubConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (c *Client) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	resp, err := c.grpc.ListGithubConnectors(ctx, &proto.ListGithubConnectorsRequest{
+		PageSize:    int32(limit),
+		PageToken:   start,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	githubConnectors := make([]types.GithubConnector, 0, len(resp.Connectors))
+	for _, githubConnector := range resp.Connectors {
+		githubConnectors = append(githubConnectors, githubConnector)
+	}
+	return githubConnectors, resp.NextPageToken, nil
+}
+
+// RangeGithubConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (c *Client) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+			return c.ListGithubConnectors(ctx, limit, start, withSecrets)
+		},
+		types.GithubConnector.GetName,
+	)
 }
 
 // CreateGithubConnector creates a Github connector.
@@ -2282,6 +2412,27 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 		trustedClusters[i] = trustedCluster
 	}
 	return trustedClusters, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	resp, err := c.TrustClient().ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	tcs := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i := range resp.TrustedClusters {
+		tcs[i] = resp.TrustedClusters[i]
+	}
+	return tcs, resp.NextPageToken, nil
+}
+
+// RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
+func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
@@ -3126,6 +3277,23 @@ func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoup
 	return resp, nil
 }
 
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (c *Client) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotInstanceReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.GetAutoUpdateBotInstanceReportRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+func (c *Client) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.DeleteAutoUpdateBotInstanceReportRequest{})
+	return trace.Wrap(err)
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -3146,6 +3314,29 @@ func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 		installers[i] = inst
 	}
 	return installers, nil
+}
+
+// ListInstallers returns a page of installer script resources.
+func (c *Client) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	resp, err := c.grpc.ListInstallers(ctx, &proto.ListInstallersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	installers := make([]types.Installer, len(resp.Installers))
+	for i, inst := range resp.Installers {
+		installers[i] = inst
+	}
+
+	return installers, resp.NextPageToken, nil
+}
+
+// RangeInstallers returns installer script resources within the range [start, end).
+func (c *Client) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListInstallers, types.Installer.GetName)
 }
 
 // GetUIConfig gets the configuration for the UI served by the proxy service
@@ -3449,6 +3640,27 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 	return clusters, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
+	for i := range resp.KubernetesClusters {
+		kubeClusters[i] = resp.KubernetesClusters[i]
+	}
+	return kubeClusters, resp.NextPageToken, nil
+}
+
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListKubernetesClusters, types.KubeCluster.GetName)
+}
+
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
@@ -3590,31 +3802,7 @@ func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]
 
 // RangeDatabases returns database resources within the range [start, end).
 func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	return func(yield func(types.Database, error) bool) {
-		for {
-			databases, next, err := c.ListDatabases(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, db := range databases {
-				if end != "" && db.GetName() >= end {
-					return
-				}
-
-				if !yield(db, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListDatabases, types.Database.GetName)
 }
 
 // DeleteDatabase deletes specified database resource.
@@ -3801,6 +3989,42 @@ func (c *Client) DeleteAllWindowsDesktopServices(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetRelayServer returns the relay server heartbeat with a given name.
+func (c *Client) GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error) {
+	req := &presencepb.GetRelayServerRequest{
+		Name: name,
+	}
+	resp, err := c.PresenceServiceClient().GetRelayServer(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetRelayServer(), nil
+}
+
+// ListRelayServers returns a paginated list of relay server heartbeats.
+func (c *Client) ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error) {
+	req := &presencepb.ListRelayServersRequest{
+		PageSize:  int64(pageSize),
+		PageToken: pageToken,
+	}
+
+	resp, err := c.PresenceServiceClient().ListRelayServers(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.GetRelays(), resp.GetNextPageToken(), nil
+}
+
+// DeleteRelayServer deletes a relay server heartbeat by name.
+func (c *Client) DeleteRelayServer(ctx context.Context, name string) error {
+	req := &presencepb.DeleteRelayServerRequest{
+		Name: name,
+	}
+	_, err := c.PresenceServiceClient().DeleteRelayServer(ctx, req)
+	return trace.Wrap(err)
 }
 
 func (c *Client) GetDesktopBootstrapScript(ctx context.Context) (string, error) {

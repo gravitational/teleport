@@ -1,22 +1,22 @@
 teleport:
   # Teleport Proxy Service domain name and HTTPS port. If you are using Teleport
   # Enterprise Cloud, this should be in the form "your-account.teleport.sh:443"
-  address: "teleport.example.com:443"
-  # Secret containing a Teleport identity document
-  identityFromSecret: teleport-plugin-jira-identity
+  address: ""
+  # Secret containing a Teleport identity document, e.g., teleport-plugin-jira-identity
+  identityFromSecret: ""
   # Path within the secret containing the identity file.
-  identitySecretPath: identity
+  identitySecretPath: ""
 
 jira:
-  url: "https://[my-jira].atlassian.net"      # URL of the Jira instance
-  username: bot@example.com                   # Email of the bot user
-  apiToken: token                             # Token of the bot user
-  project: TAR                                # Project where issues will be created
+  url: ""       # URL of the Jira instance
+  username: ""  # Email of the bot user
+  apiToken: ""  # Token of the bot user
+  project: ""   # Project where issues will be created
 
 http:
-  publicAddress: https://jira-teleport.example.com/ 
-  # Secret containing the TLS certificate
-  tlsFromSecret: teleport-plugin-jira-tls            
+  publicAddress: "" 
+  # Secret containing the TLS certificate, e.g., teleport-plugin-jira-tls
+  tlsFromSecret: ""
   # tlsKeySecretPath:  tls.key                # Name of the key inside the secret
   # tlsCertSecretPath: tls.crt                # Name of the certificate inside the secret
 

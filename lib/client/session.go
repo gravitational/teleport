@@ -56,9 +56,6 @@ const (
 )
 
 type NodeSession struct {
-	// id is the Teleport session ID
-	id session.ID
-
 	// env is the environment variables that need to be created
 	// on the server for this session
 	env map[string]string
@@ -141,8 +138,6 @@ func newSession(ctx context.Context,
 			return nil, trace.Wrap(err)
 		}
 
-		ns.id = session.ID(sessionID)
-
 		if ns.terminal.IsAttached() {
 			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
 			if err != nil {
@@ -151,7 +146,7 @@ func newSession(ctx context.Context,
 
 		}
 
-		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		ns.env[sshutils.SessionEnvVar] = sessionID
 	}
 
 	// Close the Terminal when finished.
@@ -176,7 +171,7 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback tracessh.ChannelRequestCallback, sessionCallback func(s *tracessh.Session) error) error {
+func (ns *NodeSession) regularSession(ctx context.Context, sessionCallback func(s *tracessh.Session) error) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/regularSession",
@@ -184,7 +179,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback trace
 	)
 	defer span.End()
 
-	session, err := ns.createServerSession(ctx, chanReqCallback)
+	session, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,7 +191,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback trace
 
 type interactiveCallback func(serverSession *tracessh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback tracessh.ChannelRequestCallback) (*tracessh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Session, error) {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/createServerSession",
@@ -204,7 +199,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 	)
 	defer span.End()
 
-	sess, err := ns.nodeClient.Client.NewSessionWithRequestCallback(ctx, chanReqCallback)
+	sess, err := ns.nodeClient.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,7 +267,7 @@ func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGett
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, sessionCallback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, sessionCallback interactiveCallback) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/interactiveSession",
@@ -286,7 +281,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 		termType = teleport.SafeTerminalType
 	}
 	// create the server-side session:
-	sess, err := ns.createServerSession(ctx, chanReqCallback)
+	sess, err := ns.createServerSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -516,8 +511,8 @@ func (s *sessionWriter) Write(p []byte) (int, error) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
-	return ns.interactiveSession(ctx, mode, chanReqCallback, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
+	return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
 		w := &sessionWriter{
 			tshOut:  ns.nodeClient.TC.Stdout,
 			session: s,
@@ -545,7 +540,7 @@ func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipa
 
 // runCommand executes a "exec" request either in interactive mode (with a
 // TTY attached) or non-intractive mode (no TTY).
-func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, chanReqCallback tracessh.ChannelRequestCallback, shellCallback ShellCreatedCallback, interactive bool) error {
+func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, shellCallback ShellCreatedCallback, interactive bool) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/runCommand",
@@ -559,7 +554,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(ctx, mode, chanReqCallback, func(s *tracessh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(ctx, strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
@@ -586,7 +581,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// Unfortunately at the moment the Go SSH library Teleport uses does not
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
-	return ns.regularSession(ctx, chanReqCallback, func(s *tracessh.Session) error {
+	return ns.regularSession(ctx, func(s *tracessh.Session) error {
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- s.Run(ctx, strings.Join(cmd, " "))

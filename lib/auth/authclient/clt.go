@@ -21,6 +21,7 @@ package authclient
 import (
 	"context"
 	"errors"
+	"iter"
 	"net"
 	"net/url"
 	"time"
@@ -850,6 +851,9 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -897,6 +901,9 @@ type SAMLAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -936,6 +943,9 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -975,6 +985,12 @@ type IdentityService interface {
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets valid OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
+	// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error]
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
@@ -998,6 +1014,13 @@ type IdentityService interface {
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
 	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
+	// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error]
+
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
@@ -1015,6 +1038,12 @@ type IdentityService interface {
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// GetGithubConnectors returns valid Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
@@ -1272,6 +1301,11 @@ type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
 
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string `json:"scope,omitempty"`
+
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
 	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
@@ -1385,6 +1419,17 @@ type SSHLoginResponse struct {
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
+}
+
+// ClientOptions contains options passed from the control plane to the client at
+// login time.
+type ClientOptions struct {
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if the client does not otherwise specify a relay.
+	DefaultRelayAddr string `json:"default_relay_addr"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1462,7 +1507,7 @@ type ClientI interface {
 	types.Events
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
 
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)

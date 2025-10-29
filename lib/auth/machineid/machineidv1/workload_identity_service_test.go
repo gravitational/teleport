@@ -136,7 +136,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 				require.NoError(t, err)
 
 				// Check TTL
-				require.WithinDuration(t, time.Now().Add(30*time.Minute), cert.NotAfter, 5*time.Second)
+				require.WithinDuration(t, srv.Clock().Now().Add(30*time.Minute), cert.NotAfter, 5*time.Second)
 
 				// Check included public key matches
 				require.Equal(t, privateKey.Public(), cert.PublicKey)
@@ -347,8 +347,8 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 				require.Equal(t, svid.Jti, claims.ID)
 				require.Equal(t, "example.com", claims.Audience[0])
 				require.Equal(t, wantIssuer, claims.Issuer)
-				require.WithinDuration(t, time.Now().Add(30*time.Minute), claims.Expiry.Time(), 5*time.Second)
-				require.WithinDuration(t, time.Now(), claims.IssuedAt.Time(), 5*time.Second)
+				require.WithinDuration(t, srv.Clock().Now().Add(30*time.Minute), claims.Expiry.Time(), 5*time.Second)
+				require.WithinDuration(t, srv.Clock().Now(), claims.IssuedAt.Time(), 5*time.Second)
 			},
 		},
 		{
