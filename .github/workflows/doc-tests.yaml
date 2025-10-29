@@ -86,6 +86,7 @@ jobs:
         with:
           node-version: 22
           cache: 'yarn'
+          cache-dependency-path: '${{ github.workspace }}/docs/yarn.lock'
 
       - name: Install docs site dependencies
         working-directory: docs
