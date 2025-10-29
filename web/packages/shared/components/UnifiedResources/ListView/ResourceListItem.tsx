@@ -50,6 +50,7 @@ export function ResourceListItem({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
+  hideCheckboxInput,
 }: ResourceItemProps) {
   const {
     name,
@@ -102,29 +103,34 @@ export function ResourceListItem({
         selected={selected}
         shouldDisplayWarning={shouldDisplayStatusWarning}
         showingStatusInfo={showingStatusInfo}
+        hideCheckboxInput={hideCheckboxInput}
       >
         {/* checkbox */}
-        <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            css={`
-              grid-area: checkbox;
-            `}
-          />
-        </HoverTooltip>
+        {!hideCheckboxInput && (
+          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
+            <CheckboxInput
+              checked={selected}
+              onChange={selectResource}
+              css={`
+                grid-area: checkbox;
+              `}
+            />
+          </HoverTooltip>
+        )}
 
         {/* pin button */}
-        <PinButton
-          setPinned={pinResource}
-          pinned={pinned}
-          pinningSupport={pinningSupport}
-          hovered={hovered}
-          css={`
-            grid-area: pin;
-            place-self: center center;
-          `}
-        />
+        {!hideCheckboxInput && (
+          <PinButton
+            setPinned={pinResource}
+            pinned={pinned}
+            pinningSupport={pinningSupport}
+            hovered={hovered}
+            css={`
+              grid-area: pin;
+              place-self: center center;
+            `}
+          />
+        )}
 
         {/* icon */}
         <ResourceIcon
@@ -362,6 +368,13 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   grid-template-areas:
     'checkbox pin icon name type address labels-btn warning-icon button'
     '. . labels labels labels labels labels labels labels';
+
+  ${p =>
+    p.hideCheckboxInput &&
+    `grid-template-columns: 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'icon name type address labels-btn warning-icon button'
+    'labels labels labels labels labels labels labels';`}
   align-items: center;
   height: 100%;
   min-width: 100%;

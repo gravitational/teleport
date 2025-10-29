@@ -25,6 +25,7 @@ export interface BackgroundColorProps {
   theme: Theme;
   shouldDisplayWarning: boolean;
   showingStatusInfo: boolean;
+  hideCheckboxInput: boolean;
 }
 
 export const getBackgroundColor = (props: BackgroundColorProps) => {

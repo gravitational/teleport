@@ -78,6 +78,8 @@ type App struct {
 	// SAMLAppLaunchURLs contains service provider specific authentication
 	// endpoints where user should be launched to start SAML authentication.
 	SAMLAppLaunchURLs []SAMLAppLaunchURL `json:"samlAppLaunchUrls,omitempty"`
+	// CloudInstance describes what kind of cloud instance this app is e.g: Azure, GCP, AWS
+	CloudInstance string `json:"cloudInstance"`
 
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
@@ -187,6 +189,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
+		CloudInstance:         app.GetCloudInstance(),
 	}
 
 	if app.IsAWSConsole() {

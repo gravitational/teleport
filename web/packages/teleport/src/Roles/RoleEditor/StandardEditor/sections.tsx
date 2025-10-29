@@ -30,7 +30,25 @@ import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
 import { useValidation } from 'shared/components/Validation';
 import { ValidationResult } from 'shared/components/Validation/rules';
 
+import {
+  ApplicationResourceAccess,
+  DatabaseResourceAccess,
+  GitHubResourceAccess,
+  KubernetesResourceAccess,
+  ServerResourceAccess,
+  WindowsDesktopResourceAccess,
+} from 'teleport/services/resources';
+
 import { StandardModelDispatcher } from './useStandardModel';
+
+export type InputFieldCfg = {
+  appAccess: ApplicationResourceAccess;
+  dbAccess: DatabaseResourceAccess;
+  githubAccess: GitHubResourceAccess;
+  kubeAccess: KubernetesResourceAccess;
+  serverAccess: ServerResourceAccess;
+  desktopAccess: WindowsDesktopResourceAccess;
+};
 
 /** Properties of a section that uses plain callbacks to change the model. */
 export type SectionProps<Model, ValidationResult> = {
@@ -38,6 +56,26 @@ export type SectionProps<Model, ValidationResult> = {
   isProcessing: boolean;
   validation?: ValidationResult;
   onChange(value: Model): void;
+  readOnly?: boolean;
+  /**
+   * Provides a way to customize which user input fields
+   * gets rendered for each resource section. Null or undefined
+   * values are interpreted as "not render". Any other value is
+   * interpreted as "render".
+   *
+   * Some features using these sections might not want the user
+   * to define all user input fields. If a user input field
+   * is not necessary, it is best to hide them to remove the
+   * noise for the user.
+   *
+   * For example:
+   * In access list feature, some creation flows asks the user
+   * to fill out parts of the role spec using these sections
+   * and later an access graph is rendered. These resource
+   * section is also used to render the "read-only" version
+   * of some parts of the role spec.
+   */
+  inputFieldCfg?: InputFieldCfg;
 };
 
 /** Properties of a section that uses a dispatcher to change the model. */

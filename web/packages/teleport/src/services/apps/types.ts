@@ -22,6 +22,14 @@ import { AwsRole } from 'shared/services/apps';
 import { ResourceLabel } from 'teleport/services/agents';
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
+/**
+ * Values are the expected
+ */
+export enum CloudInstance {
+  Azure = 'Azure',
+  Gcp = 'GCP',
+}
+
 export interface App {
   kind: 'app';
   id: string;
@@ -38,6 +46,7 @@ export interface App {
   awsConsole: boolean;
   requiresRequest?: boolean;
   isTcp?: boolean;
+  cloudInstance?: CloudInstance;
   isCloud?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri

@@ -93,7 +93,7 @@ export function RoleEditorVisualizer({
   }
 
   return (
-    <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
+    <Flex flex="1" justifyContent="center" margin="auto">
       <PolicyPlaceholder
         canUpdateAccessGraphSettings={canUpdateAccessGraphSettings}
         roleDiffProps={roleDiffProps}

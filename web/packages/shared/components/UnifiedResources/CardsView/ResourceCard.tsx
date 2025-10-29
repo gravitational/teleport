@@ -66,6 +66,7 @@ export function ResourceCard({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
+  hideCheckboxInput,
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
   const {
     name,
@@ -76,6 +77,8 @@ export function ResourceCard({
     labels,
     requiresRequest,
     status,
+    muteWithTooltip,
+    noLabelClick,
   } = viewItem;
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
@@ -171,12 +174,18 @@ export function ResourceCard({
 
   const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
+  console.log('--- mutewith ; ', muteWithTooltip);
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       showingStatusInfo={showingStatusInfo}
     >
+      {muteWithTooltip && (
+        <HoverTooltip tipContent={muteWithTooltip}>
+          <MutedOverlay />
+        </HoverTooltip>
+      )}
       <CardOuterContainer
         showAllLabels={showAllLabels}
         shouldDisplayWarning={shouldDisplayStatusWarning}
@@ -186,7 +195,7 @@ export function ResourceCard({
           p={3}
           // we set padding left a bit larger so we can have space to absolutely
           // position the pin/checkbox buttons
-          pl={6}
+          pl={hideCheckboxInput ? 2 : 6}
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
@@ -199,18 +208,20 @@ export function ResourceCard({
           {...(shouldDisplayStatusWarning && !showAllLabels && { pr: '35px' })}
           {...(shouldDisplayStatusWarning && showAllLabels && { pr: '7px' })}
         >
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            style={{ position: 'absolute', top: '16px', left: '16px' }}
-          />
+          {!hideCheckboxInput && (
+            <CheckboxInput
+              checked={selected}
+              onChange={selectResource}
+              style={{ position: 'absolute', top: '16px', left: '16px' }}
+            />
+          )}
           <Box
             css={`
               position: absolute;
               // we position far from the top so the layout of the pin doesn't change if we expand the card
               top: ${props => props.theme.space[9]}px;
               transition: none;
-              left: 16px;
+              // left: 16px;
             `}
           >
             <PinButton
@@ -283,9 +294,12 @@ export function ResourceCard({
                     <StyledLabel
                       key={i}
                       title={labelText}
-                      onClick={() => onLabelClick?.(label)}
+                      onClick={
+                        noLabelClick ? undefined : () => onLabelClick?.(label)
+                      }
                       kind="secondary"
                       data-is-label=""
+                      noLabelClick={noLabelClick}
                     >
                       {labelText}
                     </StyledLabel>
@@ -409,6 +423,18 @@ const CardOuterContainer = styled(Box)<{
   }
 `;
 
+const MutedOverlay = styled(Box)`
+  background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: ${props => props.theme.radii[3]}px;
+
+  &:hover {
+    background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  }
+`;
+
 /**
  * The inner container that normally holds a regular layout of the card, and is
  * fully contained inside the outer container.  Once the user clicks the "more"
@@ -470,13 +496,13 @@ const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
   overflow: hidden;
 `;
 
-const StyledLabel = styled(Label)`
+const StyledLabel = styled(Label)<{ noLabelClick: boolean }>`
   height: ${labelHeight}px;
   margin: 1px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
+  cursor: ${p => (p.noLabelClick ? 'default' : 'pointer')};
   line-height: ${labelHeight - labelVerticalMargin}px;
 `;
 
