@@ -38,7 +38,7 @@ import (
 type SessionParams struct {
 	// PrintEvents sets up print events count. Ignored if PrintData is set.
 	// The size of the resulting event stream varies due to compression, but with
-	// a sufficiently large number of events results in approximately 64 Bytes per event.
+	// a sufficiently large number of events results in approximately 64 bytes per event.
 	PrintEvents int64
 	// PrintData is optional data to use for print events. Each element of the
 	// slice represents data for one print event.

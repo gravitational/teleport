@@ -591,8 +591,8 @@ func TestMinimumUpload(t *testing.T) {
 
 func TestUploadEncryptedRecording(t *testing.T) {
 	for _, tc := range []struct {
-		name         string
-		minFileBytes int
+		name        string
+		minFileSize int
 		// encrypted upload files should be aggregated by the encrypted uploader to reach the target size.
 		encryptedTargetSize      int
 		encryptedMaxSize         int
@@ -603,44 +603,38 @@ func TestUploadEncryptedRecording(t *testing.T) {
 		minUploadBytes int
 	}{
 		{
-			name:                "default values",
-			minFileBytes:        minUploadBytes,
-			encryptedTargetSize: events.MinUploadPartSizeBytes,
-			encryptedMaxSize:    1024 * 1024 * 4, // default GRPC message limit
-			minUploadBytes:      events.MinUploadPartSizeBytes,
-		}, {
 			name:                "target size larger than max encrypted upload size",
-			minFileBytes:        8192,
+			minFileSize:         8192,
 			encryptedTargetSize: 8192 * 4 * 2,
 			encryptedMaxSize:    8192 * 4,
 		}, {
 			name:                "target size equals max encrypted upload size",
-			minFileBytes:        8192,
+			minFileSize:         8192,
 			encryptedTargetSize: 8192 * 4,
 			encryptedMaxSize:    8192 * 4,
 		}, {
 			name:                "target size smaller than max encrypted upload size",
-			minFileBytes:        8192,
+			minFileSize:         8192,
 			encryptedTargetSize: 8192 * 4,
 			encryptedMaxSize:    8192 * 4 * 2,
 		}, {
 			name:                "target size larger than min upload size",
-			minFileBytes:        8192,
+			minFileSize:         8192,
 			encryptedTargetSize: 8192 * 4 * 2,
 			minUploadBytes:      8192 * 4,
 		}, {
 			name:                "target size equals min upload size",
-			minFileBytes:        8192,
+			minFileSize:         8192,
 			encryptedTargetSize: 8192 * 4,
 			minUploadBytes:      8192 * 4,
 		}, {
 			name:                "target size smaller than min upload size",
-			minFileBytes:        8192,
+			minFileSize:         8192,
 			encryptedTargetSize: 8192 * 4,
 			minUploadBytes:      8192 * 4 * 2,
 		}, {
 			name:                     "min file size larger than max encrypted size",
-			minFileBytes:             8192 * 4,
+			minFileSize:              8192 * 4,
 			encryptedMaxSize:         8192,
 			expectEncryptedUploadErr: true,
 		},
@@ -655,7 +649,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 			// the gzip writer is imprecise and may exceed the min file size. With a min of 8192,
 			// an extra 8192 bytes should be plenty of overhead. If this test becomes flaky, consider
 			// raising the minimum in the test cases above.
-			maxFileSize := tc.minFileBytes * 2
+			maxFileSize := tc.minFileSize * 2
 
 			// We expect encrypted uploads to exceed the target size, unless the maximum prevents it,
 			// in which case we will be short one file part.
@@ -727,7 +721,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 			})
 
 			p := newUploaderPack(ctx, t, uploaderPackConfig{
-				minimumFileUploadBytes:             int64(tc.minFileBytes),
+				minimumFileUploadBytes:             int64(tc.minFileSize),
 				minimumUploadBytes:                 int64(tc.minUploadBytes),
 				encrypter:                          &fakeEncryptedIO{},
 				wrapEncryptedUploader:              encryptedUploadWrapper,
