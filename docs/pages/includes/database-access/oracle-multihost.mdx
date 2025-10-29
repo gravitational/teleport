@@ -1,5 +1,3 @@
-## (Optional) Configure additional hostnames
-
 In some deployments the same logical database is reachable via multiple hostnames with different characteristics, for example:
 
 * replicated databases
@@ -18,10 +16,12 @@ This setup supports failover and basic load-balancing for new connections: enabl
 ```yaml
 - name: oracle
   protocol: oracle
-  uri: host1:2484,host2:2484,host3:2484  # Multiple hosts; dials in sequence and wraps (host1 → host2 → host3 → host1 ...)
+  uri: host1:2484,host2:2484,host3:2484  # Multiple hosts; dials in sequence and wraps (host1 → host2 → host3 → host1 ...). Dialing sequence can be randomized with `shuffle_hostnames`.
   static_labels:
     env: dev
   oracle:
-    shuffle_hostnames: true             # Randomize host order per connection attempt to spread load
-    retry_count: 5                      # Retries per host on network errors only; non-network errors stop (default: 2)
+    # Randomize host order per connection attempt to spread load. Optional.
+    shuffle_hostnames: true
+    # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
+    retry_count: 5            
 ```
