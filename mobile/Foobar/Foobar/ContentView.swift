@@ -41,26 +41,6 @@ struct ContentView: View {
           "Got URL: \(url, privacy: .public), parsed: \(openedURL.debugDescription, privacy: .public)"
         )
     }
-    .onAppear {
-      Task {
-        let nc = DeviceAuthCeremony()
-        let ac = AuthnCeremony(nc)!
-        do {
-          try ac.runWeb()
-          logger.debug("Call to Go finished successfully")
-        } catch {
-          logger.error("Got an error: \(error)")
-        }
-        let greeter = AuthnGreeter()!
-        logger.debug("Attempting to send a ping")
-        do {
-          try greeter.ping()
-          logger.debug("Ping successful")
-        } catch {
-          logger.error("Got an error: \(error)")
-        }
-      }
-    }
   }
 }
 
@@ -410,17 +390,16 @@ struct ScannedURLView: View {
               }
               authAttempt = .loading
               Task {
-                let confirmToken: Teleport_Devicetrust_V1_DeviceConfirmationToken
+                let clientConfig = AuthnClientConfig()
+                clientConfig.proxyServer = "\(deepURL.url.hostname):\(deepURL.url.port ?? 443)"
+                let devicesClient = AuthnDevicesClient(clientConfig)
+                let ceremony = AuthnCeremony(DeviceAuthCeremony())!
+                let confirmToken: AuthnDeviceConfirmationToken
+                let webToken = AuthnDeviceWebToken()
+                webToken.tokenID = deepURL.id
+                webToken.token = deepURL.token
                 do {
-                  confirmToken = try await deviceTrust.authenticateWebDevice(
-                    hostname: deepURL.url.hostname,
-                    port: deepURL.url.port,
-                    user: deepURL.url.user,
-                    deviceWebToken: Teleport_Devicetrust_V1_DeviceWebToken
-                      .with { $0.id = deepURL.id
-                        $0.token = deepURL.token
-                      }
-                  )
+                  confirmToken = try ceremony.runWeb(devicesClient, webToken: webToken)
                 } catch {
                   authAttempt = .failure(.unknownError(error))
                   return
@@ -433,7 +412,7 @@ struct ScannedURLView: View {
                 parts.port = deepURL.url.port
                 parts.path = "/webapi/devices/webconfirm"
                 parts.queryItems = [
-                  URLQueryItem(name: "id", value: confirmToken.id),
+                  URLQueryItem(name: "id", value: confirmToken.tokenID),
                   URLQueryItem(name: "token", value: confirmToken.token),
                 ]
                 if deepURL.redirectURI != "" {
