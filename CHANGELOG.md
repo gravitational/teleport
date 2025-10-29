@@ -1,5 +1,49 @@
 # Changelog
 
+## 18.3.0 (10/28/25)
+
+### Web UI Workload ID
+
+Teleport's Web UI now lists all workload identity resources registered in the cluster.
+
+### Relay Service
+
+Teleport now includes a new relay service that acts as a lightweight proxy service. This new service can receive connections from both SSH clients and agents.
+
+The relay service can be used to avoid routing SSH connections through the broader Teleport control plane, providing the ability to optimize network flows in large or complex deployments.
+
+### Multi-cluster Discovery
+
+Multiple Teleport clusters can now discover the same EC2 instances simultaneously through auto-discovery, with each cluster operating independently without interference.
+
+### Kubernetes Health Checks
+
+Teleport now continuously monitors the health of your registered Kubernetes clusters and displays their status directly in the web UI. When connecting to Kubernetes clusters, Teleport automatically routes you to healthy services, ensuring reliable access to your infrastructure.
+
+### ElastiCache Serverless
+
+Teleport Database Access now supports connecting to ElastiCache Serverless databases.
+
+### Other fixes and improvements
+
+* The browser window for SSO MFA is slightly taller in order to accommodate larger elements like QR codes. [#60703](https://github.com/gravitational/teleport/pull/60703)
+* Slack access plugin no longer crashes in the event access list is unsupported. [#60671](https://github.com/gravitational/teleport/pull/60671)
+* Okta-managed apps are now pinned correctly in the web UI. [#60667](https://github.com/gravitational/teleport/pull/60667)
+* Create and edit GitLab join tokens from the Web UI. [#60649](https://github.com/gravitational/teleport/pull/60649)
+* Teleport Connect now displays the profile name (instead of the cluster name) in the UI when referring to the profile; this affects only clusters where the cluster name was specifically set to something else than the proxy hostname during setup. [#60615](https://github.com/gravitational/teleport/pull/60615)
+* Fixed tsh scp failing on files that grow during transfer. [#60607](https://github.com/gravitational/teleport/pull/60607)
+* Allowed moderated session peers to perform file transfers. [#60604](https://github.com/gravitational/teleport/pull/60604)
+* Added support for regular expression conditions for AccessMonitoringRule. [#60598](https://github.com/gravitational/teleport/pull/60598)
+* Added support for SSE and streamable-HTTP MCP servers. [#60519](https://github.com/gravitational/teleport/pull/60519)
+* Added health checks for enrolled Kubernetes clusters. [#60492](https://github.com/gravitational/teleport/pull/60492)
+* MWI: `tbot`'s auto-generated service names are now simpler and easier to use in the `/readyz` endpoint. [#60458](https://github.com/gravitational/teleport/pull/60458)
+* Client tools managed updates stores OS and ARCH in the configuration. This ensures compatibility when `TELEPORT_HOME` directory is shared with a virtual instance running a different OS or architecture. [#60414](https://github.com/gravitational/teleport/pull/60414)
+* Added a Workload Identities page to the web UI to list workload identities. [#59479](https://github.com/gravitational/teleport/pull/59479)
+
+Enterprise:
+* Enabled Access Automation Rule schedule configuration within the WebUI.
+* Updated Entra ID plugin installation UI to support group filter configuration.
+
 ## 18.2.10 (10/23/25)
 
 * Fixed a bug where listing members of an access list results in listing members of access lists which have names prefixed with the original access list name. This may lead to RBAC escalations. [#60587](https://github.com/gravitational/teleport/pull/60587)
