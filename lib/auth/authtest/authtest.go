@@ -218,14 +218,6 @@ func (a *Server) Shutdown(ctx context.Context) error {
 	)
 }
 
-// WithClock is a functional server option that sets the server's clock
-func WithClock(clock clockwork.Clock) auth.ServerOption {
-	return func(s *auth.Server) error {
-		s.SetClock(clock)
-		return nil
-	}
-}
-
 // WithBcryptCost is a functional server option that sets the server's bcrypt cost.
 func WithBcryptCost(cost int) auth.ServerOption {
 	return func(s *auth.Server) error {
@@ -339,7 +331,6 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		MultipartHandler:          cfg.UploadHandler,
 		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
 	},
-		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
 	)

@@ -36,7 +36,7 @@ import (
 
 func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	var (
 		validIDToken  = "valid-token"
 		validOrg      = "valid-org"
@@ -60,7 +60,11 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		})
 		return nil
 	}
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir:    t.TempDir(),
+		MutateAuth: withTokenValidator,
+	})
 	require.NoError(t, err)
 	auth := p.a
 

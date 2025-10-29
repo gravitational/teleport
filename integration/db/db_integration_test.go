@@ -460,7 +460,7 @@ func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
 func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClock()
 	pack := SetupDatabaseTest(t, WithClock(clock))
 	pack.WaitForLeaf(t)
 
@@ -472,9 +472,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 		idleTimeout = time.Minute
 	)
-
-	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
-	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 
 	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
 		// Connect to the database service in leaf cluster via root cluster.
