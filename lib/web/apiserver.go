@@ -2742,7 +2742,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
-	clientMeta.ProxyPublicAddr = h.cfg.PublicProxyAddr
 
 	var webSession types.WebSession
 	switch {
@@ -2782,8 +2781,9 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
 	return &authclient.ForwardedClientMetadata{
-		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
+		UserAgent:    r.UserAgent(),
+		RemoteAddr:   r.RemoteAddr,
+		ProxyGroupID: os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"),
 	}
 }
 
@@ -3128,7 +3128,6 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
-	clientMeta.ProxyPublicAddr = h.cfg.PublicProxyAddr
 
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
@@ -3154,7 +3153,6 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
-	clientMeta.ProxyPublicAddr = h.cfg.PublicProxyAddr
 
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
@@ -4684,7 +4682,6 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 
 	authClient := h.cfg.ProxyClient
 	clientMeta := clientMetaFromReq(r)
-	clientMeta.ProxyPublicAddr = h.cfg.PublicProxyAddr
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{

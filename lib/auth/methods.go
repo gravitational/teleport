@@ -696,21 +696,21 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var loginIP, userAgent, proxyPublicAddr string
+	var loginIP, userAgent, proxyGroupID string
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userAgent = cm.UserAgent
-		proxyPublicAddr = cm.ProxyPublicAddr
+		proxyGroupID = cm.ProxyGroupID
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:                 user.GetName(),
 		LoginIP:              loginIP,
 		LoginUserAgent:       userAgent,
-		LoginProxyPublicAddr: proxyPublicAddr,
+		ProxyGroupID:         proxyGroupID,
 		Roles:                user.GetRoles(),
 		Traits:               user.GetTraits(),
 		LoginTime:            a.clock.Now().UTC(),
@@ -816,14 +816,14 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var userAgent, proxyPublicAddr string
+	var userAgent, proxyGroupID string
 	if req.ClientMetadata != nil {
 		userAgent = req.ClientMetadata.UserAgent
-		proxyPublicAddr = req.ClientMetadata.ProxyPublicAddr
+		proxyGroupID = req.ClientMetadata.ProxyGroupID
 	}
 	UserLoginCount.With(prometheus.Labels{
 		teleport.TagUserAgent: userAgent,
-		teleport.TagProxy:     proxyPublicAddr,
+		teleport.TagProxy:     proxyGroupID,
 	}).Inc()
 
 	var clientOptions authclient.ClientOptions
