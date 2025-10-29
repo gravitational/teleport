@@ -19,11 +19,7 @@
 package scopes
 
 import (
-	"os"
-
 	"github.com/gravitational/trace"
-
-	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 const (
@@ -33,8 +29,9 @@ const (
 
 // FeatureEnabled checks if the scopes feature is enabled.
 func FeatureEnabled() bool {
-	enabled, err := apiutils.ParseBool(os.Getenv(featureVarName))
-	return enabled && err == nil
+	//enabled, err := apiutils.ParseBool(os.Getenv(featureVarName))
+	//return enabled && err == nil
+	return true /* dev build purposes */
 }
 
 // AssertFeatureEnabled checks if the scopes feature is enabled, and returns a helpful
