@@ -1357,6 +1357,45 @@ func TestPresets(t *testing.T) {
 	})
 }
 
+func TestDashboardMode(t *testing.T) {
+	// dashboard mode is determined via cloud and recovery codes
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Cloud:         false,
+			RecoveryCodes: true,
+		},
+	})
+
+	conf := setupConfig(t)
+	ctx := context.Background()
+	authServer, err := auth.Init(ctx, conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = authServer.Close()
+		require.NoError(t, err)
+	})
+
+	// verify auth server is functional
+	_, err = authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+
+	// verify that preset roles were NOT created in dashboard mode
+	presetRoles := auth.GetPresetRoles()
+
+	for _, role := range presetRoles {
+		_, err := authServer.GetRole(ctx, role.GetName())
+		require.True(t, trace.IsNotFound(err), "expected preset role %q to not exist in dashboard mode", role.GetName())
+	}
+
+	// verify preset users were NOT created in dashboard mode
+	presetUsers := auth.GetPresetUsers()
+
+	for _, user := range presetUsers {
+		_, err := authServer.GetUser(ctx, user.GetName(), false)
+		require.True(t, trace.IsNotFound(err), "expected preset user %q to not exist in dashboard mode", user.GetName())
+	}
+}
+
 func TestGetPresetUsers(t *testing.T) {
 	// no preset users for OSS
 	modulestest.SetTestModules(t, modulestest.Modules{
