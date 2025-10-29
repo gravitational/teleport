@@ -152,7 +152,7 @@ to reduce the time to detect unhealthy instances.
 
 This will decrease the time it takes to detect an unhealthy Proxy or Auth server.
 
-We will also add an `ExpiryDuration` field to Proxy discovery requests. Agents can
+We will also add a `TTL` field to Proxy discovery requests. Agents can
 than use this field in favor of the `DefaultProxyExpiry` when its present.
 
 ```
@@ -164,15 +164,15 @@ type Proxy struct {
 
 	ProxyGroupID         string        `json:"gid,omitempty"`
 	ProxyGroupGeneration uint64        `json:"ggen,omitempty"`
-	ExpiryDuration       time.Duration `json:"exp,omitempty"`
+    TTL                  time.Duration `json:"ttl,omitempty"`
 }
 ```
 
-The `ExpiryDuration` for each server will be set based on the heartbeat interval
+The `TTL` for each server will be set based on the heartbeat interval
 configured at each proxy. This will be stored in the backend `Server` resource
 as `Server.Spec.TTL`. This allows different values to exist on different services
 without running into expiry issues. For example if you are decreasing the heartbeat
-interval and the proxy bases the `ExpiryDuration` off of its local heartbeat interval
+interval and the proxy bases the `TTL` off of its local heartbeat interval
 proxy services on the longer heartbeat inerval could appear to expire.
 
 Lowering the heartbeat interval for Proxy servers has the negative effect of
