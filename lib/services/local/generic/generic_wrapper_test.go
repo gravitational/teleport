@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -165,10 +166,42 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.Equal(t, 2, numPages)
 	require.Equal(t, []*testResource153{r1, r2}, paginatedOut)
 
+	// Retrieve all resources from the stream
+	var streamedResources []*testResource153
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+
+	// Retrieve all resources from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r1.GetMetadata().GetName(), r2.GetMetadata().GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r2.GetMetadata().GetName(), "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource153{r2}, streamedResources, protocmp.Transform()))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, "", r1.GetMetadata().GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
+
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, r2, r)
+	require.Empty(t, cmp.Diff(r2, r, protocmp.Transform()))
 
 	// Try to fetch a resource that doesn't exist.
 	_, err = service.GetResource(ctx, "doesnotexist")
@@ -207,7 +240,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Equal(t, []*testResource153{r2}, out)
+	require.Empty(t, cmp.Diff([]*testResource153{r2}, out, protocmp.Transform()))
 
 	// Upsert a resource (create).
 	r1, err = service.UpsertResource(ctx, r1)
