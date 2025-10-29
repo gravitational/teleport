@@ -157,9 +157,9 @@ type Proxy struct {
 		Name string `json:"name"`
 	} `json:"metadata"`
 
-	ProxyGroupID         string         `json:"gid,omitempty"`
-	ProxyGroupGeneration uint64         `json:"ggen,omitempty"`
-	ExpiryDuration       *time.Duration `json:"exp,omitempty"`
+	ProxyGroupID         string        `json:"gid,omitempty"`
+	ProxyGroupGeneration uint64        `json:"ggen,omitempty"`
+	ExpiryDuration       time.Duration `json:"exp,omitempty"`
 }
 ```
 
