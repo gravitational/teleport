@@ -72,6 +72,8 @@ type KubeServer interface {
 	// GetRelayIDs returns the list of Relay host IDs that the kube server is
 	// connected to.
 	GetRelayIDs() []string
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -386,6 +388,11 @@ func (s *KubernetesServerStatusV3) GetTargetHealth() *TargetHealth {
 		return nil
 	}
 	return s.TargetHealth
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *KubernetesServerV3) GetScope() string {
+	return s.Scope
 }
 
 // KubeServers represents a list of kube servers.
