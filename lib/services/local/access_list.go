@@ -1130,3 +1130,8 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 		new.Metadata.Labels = old.GetAllLabels()
 	}
 }
+
+// ListUserAccessLists is not implemented in the local service.
+func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
+}
