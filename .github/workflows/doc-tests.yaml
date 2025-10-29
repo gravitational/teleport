@@ -83,7 +83,6 @@ jobs:
         run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
 
       - name: Install Node.js
-        id: setup-node
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: 22
@@ -92,7 +91,6 @@ jobs:
 
       - name: Install docs site dependencies
         working-directory: docs
-        if: ${{ steps.setup-node.outputs.cache-hit != 'true' }}
         # Prevent occasional `yarn install` executions that run indefinitely
         timeout-minutes: 10
         run: yarn install
