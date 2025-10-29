@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -875,6 +876,49 @@ type OIDCAuthResponse struct {
 	ClientOptions ClientOptions `json:"client_options"`
 }
 
+// OIDCConnectorConfigRequest is a request to get OIDC connector configuration
+// for direct PKCE flow.
+type OIDCConnectorConfigRequest struct {
+	ConnectorID   string
+	RedirectURL   string
+	ClientLoginIP string
+	ClientVersion string
+}
+
+// OIDCConnectorConfigResponse contains OIDC connector configuration
+// information needed by the client to build the authorization URL directly.
+type OIDCConnectorConfigResponse struct {
+	IssuerURL             string   `json:"issuer_url"`
+	ClientID              string   `json:"client_id"`
+	RedirectURL           string   `json:"redirect_url"`
+	Scopes                []string `json:"scopes"`
+	AuthorizationEndpoint string   `json:"authorization_endpoint"`
+	ACRValues             string   `json:"acr_values,omitempty"`
+	Prompt                string   `json:"prompt,omitempty"`
+	MaxAge                int64    `json:"max_age,omitempty"`
+	StateToken            string   `json:"state_token"`
+}
+
+// OIDCAuthCodeRequest is a request to validate an OIDC authorization code
+// received directly from the IdP in the direct PKCE flow.
+type OIDCAuthCodeRequest struct {
+	StateToken              string
+	Code                    string
+	CodeVerifier            string
+	ConnectorID             string
+	SSHPubKey               []byte
+	TLSPubKey               []byte
+	SSHAttestationStatement *attestationv1.AttestationStatement
+	TLSAttestationStatement *attestationv1.AttestationStatement
+	CertTTL                 time.Duration
+	Compatibility           string
+	RouteToCluster          string
+	KubernetesCluster       string
+	ClientLoginIP           string
+	ClientUserAgent         string
+	ClientVersion           string
+}
+
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
 type OIDCAuthRequest struct {
 	// ConnectorID is ID of OIDC connector this request uses
@@ -1018,6 +1062,10 @@ type IdentityService interface {
 	GetOIDCAuthRequest(ctx context.Context, id string) (*types.OIDCAuthRequest, error)
 	// ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
+	// GetOIDCConnectorConfig returns OIDC connector configuration for direct PKCE flow
+	GetOIDCConnectorConfig(ctx context.Context, req OIDCConnectorConfigRequest) (*OIDCConnectorConfigResponse, error)
+	// ValidateOIDCAuthCode validates OIDC authorization code in direct PKCE flow
+	ValidateOIDCAuthCode(ctx context.Context, req OIDCAuthCodeRequest) (*SSHLoginResponse, error)
 
 	// CreateSAMLConnector creates a new SAML connector.
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)

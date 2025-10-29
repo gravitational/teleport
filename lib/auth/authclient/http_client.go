@@ -644,6 +644,32 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 	return &response, nil
 }
 
+// GetOIDCConnectorConfig returns OIDC connector configuration for direct PKCE flow.
+func (c *HTTPClient) GetOIDCConnectorConfig(ctx context.Context, req OIDCConnectorConfigRequest) (*OIDCConnectorConfigResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "connector", "config"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response OIDCConnectorConfigResponse
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
+}
+
+// ValidateOIDCAuthCode validates OIDC authorization code in the direct PKCE flow.
+func (c *HTTPClient) ValidateOIDCAuthCode(ctx context.Context, req OIDCAuthCodeRequest) (*SSHLoginResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "code", "validate"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var response SSHLoginResponse
+	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &response, nil
+}
+
 // ValidateSAMLResponseReq is the request made by the proxy to validate
 // and activate a login via SAML.
 type ValidateSAMLResponseReq struct {

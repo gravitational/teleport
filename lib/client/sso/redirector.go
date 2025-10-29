@@ -141,6 +141,8 @@ type Redirector struct {
 	doneC chan struct{}
 	// proxyURL is a URL to the Teleport Proxy
 	proxyURL *url.URL
+	// directPKCECallback is an optional callback for direct PKCE flow
+	directPKCECallback func(ctx context.Context, params url.Values) (*authclient.SSHLoginResponse, error)
 }
 
 // NewRedirector returns new local web server redirector
@@ -200,6 +202,10 @@ func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 	// after SAML/OIDC login, the teleport will redirect user's browser
 	// to this laptop-local URL
 	rd.mux.Handle("/callback", rd.wrapCallback(rd.callback))
+
+	// directPKCECallback is stored but not registered yet - will be registered
+	// when SetDirectPKCECallback is called
+	rd.directPKCECallback = nil
 
 	if err := rd.startServer(); err != nil {
 		return nil, trace.Wrap(err)
@@ -413,13 +419,20 @@ func (rd *Redirector) ErrorC() <-chan error {
 }
 
 // callback is used by Teleport proxy to send back credentials
-// issued by Teleport proxy
+// issued by Teleport proxy, or for direct PKCE flow to receive authorization code from IdP.
 func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authclient.SSHLoginResponse, error) {
 	if r.URL.Path != "/callback" {
 		return nil, trace.NotFound("path not found")
 	}
 
 	r.ParseForm()
+
+	// Check if this is a direct PKCE callback (has code and state parameters)
+	if rd.directPKCECallback != nil && r.Form.Has("code") && r.Form.Has("state") {
+		return rd.directPKCECallback(r.Context(), r.Form)
+	}
+
+	// Standard proxy-based callback
 	if r.Form.Has("err") {
 		err := r.Form.Get("err")
 		return nil, trace.Errorf("identity provider callback failed with error: %v", err)
@@ -438,6 +451,11 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authcli
 	}
 
 	return &re, nil
+}
+
+// SetDirectPKCECallback sets the callback function for direct PKCE flow.
+func (rd *Redirector) SetDirectPKCECallback(callback func(ctx context.Context, params url.Values) (*authclient.SSHLoginResponse, error)) {
+	rd.directPKCECallback = callback
 }
 
 // Close closes redirector and releases all resources

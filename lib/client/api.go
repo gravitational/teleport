@@ -1285,6 +1285,10 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
+
+	// oidcDirectFlowStates stores state for direct PKCE OIDC login flows
+	oidcDirectFlowStates map[string]*oidcDirectFlowState
+	oidcStatesMu         sync.Mutex
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1301,7 +1305,8 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	tc = &TeleportClient{
-		Config: *c,
+		Config:               *c,
+		oidcDirectFlowStates: make(map[string]*oidcDirectFlowState),
 	}
 
 	// Create a buffered channel to hold events that occurred during this session.
@@ -4335,8 +4340,17 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 			ssoCeremony := sso.NewCLISAMLCeremony(rd, tc.samlSSOLoginInitFn(keyRing, connectorID, connectorType))
 			resp, err := ssoCeremony.Run(ctx)
 			return resp, trace.Wrap(err)
-
 		}
+
+		// Use direct PKCE flow for OIDC
+		if connectorType == constants.OIDC {
+			rd.SetDirectPKCECallback(tc.oidcDirectPKCECallbackFn(keyRing))
+			ssoCeremony := sso.NewCLICeremony(rd, tc.oidcDirectPKCELoginInitFn(keyRing, connectorID))
+			resp, err := ssoCeremony.Run(ctx)
+			return resp, trace.Wrap(err)
+		}
+
+		// Fallback for other SSO types (e.g., GitHub)
 		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
 		resp, err := ssoCeremony.Run(ctx)
 		return resp, trace.Wrap(err)

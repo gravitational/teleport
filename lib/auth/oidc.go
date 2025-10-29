@@ -35,6 +35,8 @@ type OIDCService interface {
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error)
+	GetOIDCConnectorConfig(ctx context.Context, req authclient.OIDCConnectorConfigRequest) (*authclient.OIDCConnectorConfigResponse, error)
+	ValidateOIDCAuthCode(ctx context.Context, req authclient.OIDCAuthCodeRequest) (*authclient.SSHLoginResponse, error)
 }
 
 var errOIDCNotImplemented = &trace.AccessDeniedError{Message: "OIDC is only available in enterprise subscriptions"}
@@ -155,5 +157,27 @@ func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*a
 	}
 
 	resp, err := a.oidcAuthService.ValidateOIDCAuthCallback(ctx, q)
+	return resp, trace.Wrap(err)
+}
+
+// GetOIDCConnectorConfig delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) GetOIDCConnectorConfig(ctx context.Context, req authclient.OIDCConnectorConfigRequest) (*authclient.OIDCConnectorConfigResponse, error) {
+	if a.oidcAuthService == nil {
+		return nil, errOIDCNotImplemented
+	}
+
+	resp, err := a.oidcAuthService.GetOIDCConnectorConfig(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// ValidateOIDCAuthCode delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) ValidateOIDCAuthCode(ctx context.Context, req authclient.OIDCAuthCodeRequest) (*authclient.SSHLoginResponse, error) {
+	if a.oidcAuthService == nil {
+		return nil, errOIDCNotImplemented
+	}
+
+	resp, err := a.oidcAuthService.ValidateOIDCAuthCode(ctx, req)
 	return resp, trace.Wrap(err)
 }

@@ -4047,6 +4047,14 @@ func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Va
 	return resp, nil
 }
 
+func (a *ServerWithRoles) GetOIDCConnectorConfig(ctx context.Context, req authclient.OIDCConnectorConfigRequest) (*authclient.OIDCConnectorConfigResponse, error) {
+	return a.authServer.GetOIDCConnectorConfig(ctx, req)
+}
+
+func (a *ServerWithRoles) ValidateOIDCAuthCode(ctx context.Context, req authclient.OIDCAuthCodeRequest) (*authclient.SSHLoginResponse, error) {
+	return a.authServer.ValidateOIDCAuthCode(ctx, req)
+}
+
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
