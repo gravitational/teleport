@@ -126,8 +126,8 @@ type DelegationSessionSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Name of the user this session belongs to.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	// Resources that will be accessible in this session.
-	Resources []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
+	// Teleport Protected Resources that will be accessible in this session.
+	Resources []*DelegationResourceSpec `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
 	// Users (i.e. bots or workloads) authorized to use this session.
 	AuthorizedUsers []*DelegationUserSpec `protobuf:"bytes,3,rep,name=authorized_users,json=authorizedUsers,proto3" json:"authorized_users,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -171,7 +171,7 @@ func (x *DelegationSessionSpec) GetUser() string {
 	return ""
 }
 
-func (x *DelegationSessionSpec) GetResources() []string {
+func (x *DelegationSessionSpec) GetResources() []*DelegationResourceSpec {
 	if x != nil {
 		return x.Resources
 	}
@@ -263,6 +263,411 @@ type DelegationUserSpec_BotName struct {
 
 func (*DelegationUserSpec_BotName) isDelegationUserSpec_Matcher() {}
 
+// DelegationResourceSpec describes a Teleport Protected Resource that the bot
+// or workload will be allowed to access on behalf of the user.
+type DelegationResourceSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind of resource.
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// Name of the resource.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Types that are valid to be assigned to Constraints:
+	//
+	//	*DelegationResourceSpec_Mcp
+	//	*DelegationResourceSpec_Db
+	//	*DelegationResourceSpec_Ssh
+	//	*DelegationResourceSpec_Kubernetes
+	Constraints   isDelegationResourceSpec_Constraints `protobuf_oneof:"constraints"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationResourceSpec) Reset() {
+	*x = DelegationResourceSpec{}
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationResourceSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationResourceSpec) ProtoMessage() {}
+
+func (x *DelegationResourceSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DelegationResourceSpec.ProtoReflect.Descriptor instead.
+func (*DelegationResourceSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DelegationResourceSpec) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *DelegationResourceSpec) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DelegationResourceSpec) GetConstraints() isDelegationResourceSpec_Constraints {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+func (x *DelegationResourceSpec) GetMcp() *DelegationMCPResourceConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*DelegationResourceSpec_Mcp); ok {
+			return x.Mcp
+		}
+	}
+	return nil
+}
+
+func (x *DelegationResourceSpec) GetDb() *DelegationDatabaseResourceConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*DelegationResourceSpec_Db); ok {
+			return x.Db
+		}
+	}
+	return nil
+}
+
+func (x *DelegationResourceSpec) GetSsh() *DelegationSSHResourceConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*DelegationResourceSpec_Ssh); ok {
+			return x.Ssh
+		}
+	}
+	return nil
+}
+
+func (x *DelegationResourceSpec) GetKubernetes() *DelegationKubernetesResourceConstraints {
+	if x != nil {
+		if x, ok := x.Constraints.(*DelegationResourceSpec_Kubernetes); ok {
+			return x.Kubernetes
+		}
+	}
+	return nil
+}
+
+type isDelegationResourceSpec_Constraints interface {
+	isDelegationResourceSpec_Constraints()
+}
+
+type DelegationResourceSpec_Mcp struct {
+	// Constraints for MCP server resources.
+	Mcp *DelegationMCPResourceConstraints `protobuf:"bytes,3,opt,name=mcp,proto3,oneof"`
+}
+
+type DelegationResourceSpec_Db struct {
+	// Constraints for database server resources.
+	Db *DelegationDatabaseResourceConstraints `protobuf:"bytes,4,opt,name=db,proto3,oneof"`
+}
+
+type DelegationResourceSpec_Ssh struct {
+	// Constraints for node resources.
+	Ssh *DelegationSSHResourceConstraints `protobuf:"bytes,5,opt,name=ssh,proto3,oneof"`
+}
+
+type DelegationResourceSpec_Kubernetes struct {
+	// Constraints for Kubernetes cluster resources.
+	Kubernetes *DelegationKubernetesResourceConstraints `protobuf:"bytes,6,opt,name=kubernetes,proto3,oneof"`
+}
+
+func (*DelegationResourceSpec_Mcp) isDelegationResourceSpec_Constraints() {}
+
+func (*DelegationResourceSpec_Db) isDelegationResourceSpec_Constraints() {}
+
+func (*DelegationResourceSpec_Ssh) isDelegationResourceSpec_Constraints() {}
+
+func (*DelegationResourceSpec_Kubernetes) isDelegationResourceSpec_Constraints() {}
+
+// DelegationMCPResourceConstraints constrains access to MCP server resources.
+type DelegationMCPResourceConstraints struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Tools that may be used.
+	Tools         []string `protobuf:"bytes,1,rep,name=tools,proto3" json:"tools,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationMCPResourceConstraints) Reset() {
+	*x = DelegationMCPResourceConstraints{}
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationMCPResourceConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationMCPResourceConstraints) ProtoMessage() {}
+
+func (x *DelegationMCPResourceConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DelegationMCPResourceConstraints.ProtoReflect.Descriptor instead.
+func (*DelegationMCPResourceConstraints) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DelegationMCPResourceConstraints) GetTools() []string {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
+// DelegationDatabaseResourceConstraints constrains access to database resources.
+type DelegationDatabaseResourceConstraints struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Names of databases that may be accessed.
+	Databases []string `protobuf:"bytes,1,rep,name=databases,proto3" json:"databases,omitempty"`
+	// Names of database users that may be used.
+	Users         []string `protobuf:"bytes,2,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationDatabaseResourceConstraints) Reset() {
+	*x = DelegationDatabaseResourceConstraints{}
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationDatabaseResourceConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationDatabaseResourceConstraints) ProtoMessage() {}
+
+func (x *DelegationDatabaseResourceConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DelegationDatabaseResourceConstraints.ProtoReflect.Descriptor instead.
+func (*DelegationDatabaseResourceConstraints) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *DelegationDatabaseResourceConstraints) GetDatabases() []string {
+	if x != nil {
+		return x.Databases
+	}
+	return nil
+}
+
+func (x *DelegationDatabaseResourceConstraints) GetUsers() []string {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+// DelegationSSHResourceConstraints constrains access to node resources.
+type DelegationSSHResourceConstraints struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// SSH users that may be used.
+	Users         []string `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationSSHResourceConstraints) Reset() {
+	*x = DelegationSSHResourceConstraints{}
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationSSHResourceConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationSSHResourceConstraints) ProtoMessage() {}
+
+func (x *DelegationSSHResourceConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DelegationSSHResourceConstraints.ProtoReflect.Descriptor instead.
+func (*DelegationSSHResourceConstraints) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DelegationSSHResourceConstraints) GetUsers() []string {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+// DelegationSSHResourceConstraints constrains access to Kubernetes cluster resources.
+type DelegationKubernetesResourceConstraints struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kubernetes resources that may be accessed.
+	Resources     []*DelegationKubernetesResource `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationKubernetesResourceConstraints) Reset() {
+	*x = DelegationKubernetesResourceConstraints{}
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationKubernetesResourceConstraints) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationKubernetesResourceConstraints) ProtoMessage() {}
+
+func (x *DelegationKubernetesResourceConstraints) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DelegationKubernetesResourceConstraints.ProtoReflect.Descriptor instead.
+func (*DelegationKubernetesResourceConstraints) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DelegationKubernetesResourceConstraints) GetResources() []*DelegationKubernetesResource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+// DelegationKubernetesResource describes a Kubernetes resource that may be
+// accessed.
+type DelegationKubernetesResource struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Resource kind.
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// Resource API group.
+	ApiGroup string `protobuf:"bytes,2,opt,name=api_group,json=apiGroup,proto3" json:"api_group,omitempty"`
+	// Kubernetes namespace (may be wildcard "*", or empty for cluster-wide resources).
+	Namespace string `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// Name of the resource (may be wildcard "*").
+	Name          string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DelegationKubernetesResource) Reset() {
+	*x = DelegationKubernetesResource{}
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DelegationKubernetesResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DelegationKubernetesResource) ProtoMessage() {}
+
+func (x *DelegationKubernetesResource) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DelegationKubernetesResource.ProtoReflect.Descriptor instead.
+func (*DelegationKubernetesResource) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DelegationKubernetesResource) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *DelegationKubernetesResource) GetApiGroup() string {
+	if x != nil {
+		return x.ApiGroup
+	}
+	return ""
+}
+
+func (x *DelegationKubernetesResource) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *DelegationKubernetesResource) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_teleport_delegation_v1_delegation_session_resource_proto protoreflect.FileDescriptor
 
 const file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc = "" +
@@ -273,15 +678,39 @@ const file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc = ""
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12A\n" +
-	"\x04spec\x18\x05 \x01(\v2-.teleport.delegation.v1.DelegationSessionSpecR\x04spec\"\xa0\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2-.teleport.delegation.v1.DelegationSessionSpecR\x04spec\"\xd0\x01\n" +
 	"\x15DelegationSessionSpec\x12\x12\n" +
-	"\x04user\x18\x01 \x01(\tR\x04user\x12\x1c\n" +
-	"\tresources\x18\x02 \x03(\tR\tresources\x12U\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x12L\n" +
+	"\tresources\x18\x02 \x03(\v2..teleport.delegation.v1.DelegationResourceSpecR\tresources\x12U\n" +
 	"\x10authorized_users\x18\x03 \x03(\v2*.teleport.delegation.v1.DelegationUserSpecR\x0fauthorizedUsers\"P\n" +
 	"\x12DelegationUserSpec\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1b\n" +
 	"\bbot_name\x18\x02 \x01(\tH\x00R\abotNameB\t\n" +
-	"\amatcherBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
+	"\amatcher\"\x9f\x03\n" +
+	"\x16DelegationResourceSpec\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12L\n" +
+	"\x03mcp\x18\x03 \x01(\v28.teleport.delegation.v1.DelegationMCPResourceConstraintsH\x00R\x03mcp\x12O\n" +
+	"\x02db\x18\x04 \x01(\v2=.teleport.delegation.v1.DelegationDatabaseResourceConstraintsH\x00R\x02db\x12L\n" +
+	"\x03ssh\x18\x05 \x01(\v28.teleport.delegation.v1.DelegationSSHResourceConstraintsH\x00R\x03ssh\x12a\n" +
+	"\n" +
+	"kubernetes\x18\x06 \x01(\v2?.teleport.delegation.v1.DelegationKubernetesResourceConstraintsH\x00R\n" +
+	"kubernetesB\r\n" +
+	"\vconstraints\"8\n" +
+	" DelegationMCPResourceConstraints\x12\x14\n" +
+	"\x05tools\x18\x01 \x03(\tR\x05tools\"[\n" +
+	"%DelegationDatabaseResourceConstraints\x12\x1c\n" +
+	"\tdatabases\x18\x01 \x03(\tR\tdatabases\x12\x14\n" +
+	"\x05users\x18\x02 \x03(\tR\x05users\"8\n" +
+	" DelegationSSHResourceConstraints\x12\x14\n" +
+	"\x05users\x18\x01 \x03(\tR\x05users\"}\n" +
+	"'DelegationKubernetesResourceConstraints\x12R\n" +
+	"\tresources\x18\x01 \x03(\v24.teleport.delegation.v1.DelegationKubernetesResourceR\tresources\"\x81\x01\n" +
+	"\x1cDelegationKubernetesResource\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1b\n" +
+	"\tapi_group\x18\x02 \x01(\tR\bapiGroup\x12\x1c\n" +
+	"\tnamespace\x18\x03 \x01(\tR\tnamespace\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04nameBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
 
 var (
 	file_teleport_delegation_v1_delegation_session_resource_proto_rawDescOnce sync.Once
@@ -295,22 +724,34 @@ func file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP()
 	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescData
 }
 
-var file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_delegation_v1_delegation_session_resource_proto_goTypes = []any{
-	(*DelegationSession)(nil),     // 0: teleport.delegation.v1.DelegationSession
-	(*DelegationSessionSpec)(nil), // 1: teleport.delegation.v1.DelegationSessionSpec
-	(*DelegationUserSpec)(nil),    // 2: teleport.delegation.v1.DelegationUserSpec
-	(*v1.Metadata)(nil),           // 3: teleport.header.v1.Metadata
+	(*DelegationSession)(nil),                       // 0: teleport.delegation.v1.DelegationSession
+	(*DelegationSessionSpec)(nil),                   // 1: teleport.delegation.v1.DelegationSessionSpec
+	(*DelegationUserSpec)(nil),                      // 2: teleport.delegation.v1.DelegationUserSpec
+	(*DelegationResourceSpec)(nil),                  // 3: teleport.delegation.v1.DelegationResourceSpec
+	(*DelegationMCPResourceConstraints)(nil),        // 4: teleport.delegation.v1.DelegationMCPResourceConstraints
+	(*DelegationDatabaseResourceConstraints)(nil),   // 5: teleport.delegation.v1.DelegationDatabaseResourceConstraints
+	(*DelegationSSHResourceConstraints)(nil),        // 6: teleport.delegation.v1.DelegationSSHResourceConstraints
+	(*DelegationKubernetesResourceConstraints)(nil), // 7: teleport.delegation.v1.DelegationKubernetesResourceConstraints
+	(*DelegationKubernetesResource)(nil),            // 8: teleport.delegation.v1.DelegationKubernetesResource
+	(*v1.Metadata)(nil),                             // 9: teleport.header.v1.Metadata
 }
 var file_teleport_delegation_v1_delegation_session_resource_proto_depIdxs = []int32{
-	3, // 0: teleport.delegation.v1.DelegationSession.metadata:type_name -> teleport.header.v1.Metadata
+	9, // 0: teleport.delegation.v1.DelegationSession.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.delegation.v1.DelegationSession.spec:type_name -> teleport.delegation.v1.DelegationSessionSpec
-	2, // 2: teleport.delegation.v1.DelegationSessionSpec.authorized_users:type_name -> teleport.delegation.v1.DelegationUserSpec
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 2: teleport.delegation.v1.DelegationSessionSpec.resources:type_name -> teleport.delegation.v1.DelegationResourceSpec
+	2, // 3: teleport.delegation.v1.DelegationSessionSpec.authorized_users:type_name -> teleport.delegation.v1.DelegationUserSpec
+	4, // 4: teleport.delegation.v1.DelegationResourceSpec.mcp:type_name -> teleport.delegation.v1.DelegationMCPResourceConstraints
+	5, // 5: teleport.delegation.v1.DelegationResourceSpec.db:type_name -> teleport.delegation.v1.DelegationDatabaseResourceConstraints
+	6, // 6: teleport.delegation.v1.DelegationResourceSpec.ssh:type_name -> teleport.delegation.v1.DelegationSSHResourceConstraints
+	7, // 7: teleport.delegation.v1.DelegationResourceSpec.kubernetes:type_name -> teleport.delegation.v1.DelegationKubernetesResourceConstraints
+	8, // 8: teleport.delegation.v1.DelegationKubernetesResourceConstraints.resources:type_name -> teleport.delegation.v1.DelegationKubernetesResource
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_delegation_v1_delegation_session_resource_proto_init() }
@@ -321,13 +762,19 @@ func file_teleport_delegation_v1_delegation_session_resource_proto_init() {
 	file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[2].OneofWrappers = []any{
 		(*DelegationUserSpec_BotName)(nil),
 	}
+	file_teleport_delegation_v1_delegation_session_resource_proto_msgTypes[3].OneofWrappers = []any{
+		(*DelegationResourceSpec_Mcp)(nil),
+		(*DelegationResourceSpec_Db)(nil),
+		(*DelegationResourceSpec_Ssh)(nil),
+		(*DelegationResourceSpec_Kubernetes)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -46,8 +46,8 @@ message DelegationSessionSpec {
   // Name of the user this session belongs to.
   string user = 1;
 
-  // Resources that will be accessible in this session.
-  repeated string resources = 2;
+  // Teleport Protected Resources that will be accessible in this session.
+  repeated DelegationResourceSpec resources = 2;
 
   // Users (i.e. bots or workloads) authorized to use this session.
   repeated DelegationUserSpec authorized_users = 3;
@@ -63,4 +63,71 @@ message DelegationUserSpec {
     // Name of the bot who may use the delegation session.
     string bot_name = 2;
   }
+}
+
+// DelegationResourceSpec describes a Teleport Protected Resource that the bot
+// or workload will be allowed to access on behalf of the user.
+message DelegationResourceSpec {
+  // Kind of resource.
+  string kind = 1;
+
+  // Name of the resource.
+  string name = 2;
+
+  oneof constraints {
+    // Constraints for MCP server resources.
+    DelegationMCPResourceConstraints mcp = 3;
+
+    // Constraints for database server resources.
+    DelegationDatabaseResourceConstraints db = 4;
+
+    // Constraints for node resources.
+    DelegationSSHResourceConstraints ssh = 5;
+
+    // Constraints for Kubernetes cluster resources.
+    DelegationKubernetesResourceConstraints kubernetes = 6;
+  }
+}
+
+// DelegationMCPResourceConstraints constrains access to MCP server resources.
+message DelegationMCPResourceConstraints {
+  // Tools that may be used.
+  repeated string tools = 1;
+}
+
+// DelegationDatabaseResourceConstraints constrains access to database resources.
+message DelegationDatabaseResourceConstraints {
+  // Names of databases that may be accessed.
+  repeated string databases = 1;
+
+  // Names of database users that may be used.
+  repeated string users = 2;
+}
+
+// DelegationSSHResourceConstraints constrains access to node resources.
+message DelegationSSHResourceConstraints {
+  // SSH users that may be used.
+  repeated string users = 1;
+}
+
+// DelegationSSHResourceConstraints constrains access to Kubernetes cluster resources.
+message DelegationKubernetesResourceConstraints {
+  // Kubernetes resources that may be accessed.
+  repeated DelegationKubernetesResource resources = 1;
+}
+
+// DelegationKubernetesResource describes a Kubernetes resource that may be
+// accessed.
+message DelegationKubernetesResource {
+  // Resource kind.
+  string kind = 1;
+
+  // Resource API group.
+  string api_group = 2;
+
+  // Kubernetes namespace (may be wildcard "*", or empty for cluster-wide resources).
+  string namespace = 3;
+
+  // Name of the resource (may be wildcard "*").
+  string name = 4;
 }
