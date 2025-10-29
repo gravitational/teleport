@@ -2,19 +2,21 @@ package authn
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("dt", "authn"))
 
 // NativeCeremony is a wrapper for [authn.Ceremony] that works with gomobile. gomobile doesn't
 // support types defined outside of the package that gomobile is executed on, hence why all protobuf
@@ -89,44 +91,64 @@ func NewCeremony(nc NativeCeremony) *Ceremony {
 	}
 }
 
-func (c *Ceremony) RunWeb() error {
-	dc, err := c.ac.GetDeviceCredential()
+func (c *Ceremony) RunWeb(dc *DevicesClient, webToken *DeviceWebToken) (*DeviceConfirmationToken, error) {
+	// TODO: Figure out how to deal with contexts in Swift.
+	ctx := context.TODO()
+	ct, err := c.ac.RunWeb(ctx, dc.dc, &devicepb.DeviceWebToken{
+		Id:    webToken.TokenID,
+		Token: webToken.Token,
+	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	fmt.Printf("Got device credential in Go: id=%s der=%s\n", dc.Id, dc.PublicKeyDer)
-	return nil
+
+	return &DeviceConfirmationToken{
+		TokenID: ct.Id,
+		Token:   ct.Token,
+	}, nil
 }
 
-type Greeter struct {
+type DevicesClient struct {
+	dc   devicepb.DeviceTrustServiceClient
+	conn *grpc.ClientConn
 }
 
-func NewGreeter() *Greeter {
-	return &Greeter{}
+type ClientConfig struct {
+	// ProxyServer is the host of the proxy service, e.g., "teleport.example.com:3080"
+	ProxyServer string
+	Insecure    bool
 }
 
-func (g *Greeter) Greet(name string) string {
-	return "Hello " + name
-}
-
-func (g *Greeter) Ping() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func NewDevicesClient(cfg *ClientConfig) (*DevicesClient, error) {
 	grpcConn, err := proxyinsecureclient.NewConnection(
-		ctx,
+		context.TODO(),
 		proxyinsecureclient.ConnectionConfig{
-			ProxyServer: "teleport-mbp.ocelot-paradise.ts.net:3030",
+			ProxyServer: cfg.ProxyServer,
+			Insecure:    cfg.Insecure,
 			Clock:       clockwork.NewRealClock(),
-			Insecure:    false,
-			Log:         slog.Default(),
+			Log:         logger,
 		},
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	client := accessgraphsecretsv1pb.NewSecretsScannerServiceClient(grpcConn)
-	_, err = client.Ping(ctx, &accessgraphsecretsv1pb.PingRequest{})
-	return trace.Wrap(err)
+	return &DevicesClient{
+		dc:   devicepb.NewDeviceTrustServiceClient(grpcConn),
+		conn: grpcConn,
+	}, nil
+}
+
+func (dc *DevicesClient) Close() error {
+	return trace.Wrap(dc.conn.Close())
+}
+
+type DeviceWebToken struct {
+	TokenID string
+	Token   string
+}
+
+type DeviceConfirmationToken struct {
+	TokenID string
+	Token   string
 }
