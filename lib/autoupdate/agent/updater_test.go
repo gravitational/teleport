@@ -730,8 +730,8 @@ func TestUpdater_Update(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, tbot := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, tbot := range []bool{false, true} {
 				var requestedGroup string
 				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					requestedGroup = r.URL.Query().Get("group")
@@ -911,8 +911,8 @@ func TestUpdater_Update(t *testing.T) {
 					golden.Set(t, data)
 				}
 				require.Equal(t, string(golden.Get(t)), string(data))
-			})
-		}
+			}
+		})
 	}
 }
 
@@ -1371,8 +1371,8 @@ func TestUpdater_Remove(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, tbot := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, tbot := range []bool{false, true} {
 				dir := t.TempDir()
 				ns := &Namespace{installDir: dir}
 				_, err := ns.Init()
@@ -1476,9 +1476,8 @@ func TestUpdater_Remove(t *testing.T) {
 				require.Equal(t, tt.revertFuncCalls, revertFuncCalls)
 				require.Equal(t, tt.unlinkedVersion, unlinkedVersion)
 				require.Equal(t, tt.teardownCalls, teardownCalls)
-			})
-		}
-
+			}
+		})
 	}
 }
 
@@ -1822,8 +1821,8 @@ func TestUpdater_Install(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		for _, tbot := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s tbot=%t", tt.name, tbot), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, tbot := range []bool{false, true} {
 				if len(tt.restrictOS) > 0 && !slices.Contains(tt.restrictOS, runtime.GOOS) {
 					t.Skip("skipping test because OS is not supported")
 				}
@@ -2008,8 +2007,8 @@ func TestUpdater_Install(t *testing.T) {
 					golden.Set(t, data)
 				}
 				require.Equal(t, string(golden.Get(t)), string(data))
-			})
-		}
+			}
+		})
 	}
 }
 
