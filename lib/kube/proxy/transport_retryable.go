@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -111,26 +110,14 @@ func (t *retryableTransport) makeRetryable(req *http.Request) error {
 	return nil
 }
 
-// isStreamingProtocol returns true for requests using streaming protocols.
-// These requests cannot be made retryable because they have unbounded or
-// bidirectional request bodies that cannot be buffered in memory.
+// isStreamingProtocol detects HTTP/1.1 protocol upgrades (WebSocket, SPDY)
+// that cannot be retried because of unbounded or bidirectional request bodies.
+// This includes Kubernetes exec, attach, and portforward operations.
 func (*retryableTransport) isStreamingProtocol(req *http.Request) bool {
-	// Kubernetes bidirectional streaming operations
-	// use SPDY/WebSocket and not HTTP/2.
-	if strings.Contains(req.URL.Path, "/exec") ||
-		strings.Contains(req.URL.Path, "/attach") ||
-		strings.Contains(req.URL.Path, "/portforward") {
-		return true
-	}
-
-	// HTTP/1.1 protocol upgrade detection.
+	// Detect HTTP/1.1 protocol upgrades
 	if req.Header.Get("Connection") == "Upgrade" ||
-		req.Header.Get("Upgrade") != "" {
-		return true
-	}
-
-	// Check Kubernetes streaming protocol version marker.
-	if req.Header.Get("X-Stream-Protocol-Version") != "" {
+		req.Header.Get("Upgrade") != "" ||
+		req.Header.Get("X-Stream-Protocol-Version") != "" {
 		return true
 	}
 

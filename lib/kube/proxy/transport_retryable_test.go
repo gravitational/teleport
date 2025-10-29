@@ -206,42 +206,6 @@ func TestRetryableTransport_GetBody(t *testing.T) {
 	}
 }
 
-func TestRetryableTransport_SkipStreamingProtocols(t *testing.T) {
-	paths := []string{
-		"/api/v1/namespaces/default/pods/mypod/exec",
-		"/api/v1/namespaces/default/pods/mypod/attach",
-		"/api/v1/namespaces/default/pods/mypod/portforward",
-	}
-
-	for _, p := range paths {
-		t.Run(p, func(t *testing.T) {
-			transport := &mockTransport{
-				fn: func(req *http.Request) (*http.Response, error) {
-					require.Nil(t, req.GetBody, "expect streaming protocols are not buffered")
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(nil)),
-					}, nil
-				},
-			}
-
-			wrapper := &retryableTransport{
-				inner: transport,
-			}
-
-			req, err := http.NewRequest(http.MethodPost, "http://test.local"+p,
-				io.NopCloser(bytes.NewReader([]byte("body"))))
-			require.NoError(t, err)
-			req.ContentLength = 4
-
-			resp, err := wrapper.RoundTrip(req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			resp.Body.Close()
-		})
-	}
-}
-
 func TestRetryableTransport_ReadOnlyStreams(t *testing.T) {
 	// `watch` and `log follow` are buffered because they have
 	// small or empty request bodies.
@@ -288,23 +252,6 @@ func TestRetryableTransport_IsStreamingProtocol(t *testing.T) {
 		headers         map[string]string
 		expectStreaming bool
 	}{
-		// Kube streaming operations
-		{
-			name:            "kubectl exec",
-			url:             "https://kube/api/v1/namespaces/default/pods/mypod/exec",
-			expectStreaming: true,
-		},
-		{
-			name:            "kubectl attach",
-			url:             "https://kube/api/v1/namespaces/default/pods/mypod/attach",
-			expectStreaming: true,
-		},
-		{
-			name:            "kubectl port-forward",
-			url:             "https://kube/api/v1/namespaces/default/pods/mypod/portforward",
-			expectStreaming: true,
-		},
-
 		// Protocol upgrades
 		{
 			name: "WebSocket upgrade",
