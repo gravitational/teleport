@@ -296,7 +296,7 @@ type KeyedItem interface {
 // have the HostID part.
 func GetPaginationKey(ki KeyedItem) string {
 	if h, ok := ki.(HostID); ok {
-		return internalKey(h.GetHostID(), h.GetName()).String()
+		return h.GetHostID() + SeparatorString + h.GetName()
 	}
 
 	return ki.GetName()
