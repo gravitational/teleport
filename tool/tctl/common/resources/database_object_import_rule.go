@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/gravitational/trace"
+
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -29,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
-	"github.com/gravitational/trace"
 )
 
 type databaseObjectImportRuleCollection struct {

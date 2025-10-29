@@ -19,11 +19,12 @@ package resources
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDatabaseImportRuleCollection_writeText(t *testing.T) {

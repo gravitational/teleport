@@ -23,14 +23,14 @@ import (
 	"fmt"
 	"testing"
 
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	"github.com/gravitational/teleport/api/types/label"
-	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
