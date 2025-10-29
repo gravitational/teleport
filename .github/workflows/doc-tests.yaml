@@ -93,7 +93,7 @@ jobs:
         working-directory: docs
         # Prevent occasional `yarn install` executions that run indefinitely
         timeout-minutes: 10
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Prepare docs site configuration
         # The environment we use for linting the docs differs from the one we
