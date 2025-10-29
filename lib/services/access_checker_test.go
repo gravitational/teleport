@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -989,6 +990,100 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 				roleFooLabel,
 			),
 			resource:     fooLabeledWI,
+			requireError: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, tt.roleSet)
+			err := accessChecker.CheckAccess(
+				types.Resource153ToResourceWithLabels(tt.resource),
+				AccessState{},
+			)
+			tt.requireError(t, err)
+		})
+	}
+}
+
+func TestAccessChecker_DelegationProfile(t *testing.T) {
+	t.Parallel()
+
+	const localCluster = "cluster"
+
+	newDelegationProfile := func(labels map[string]string) *delegationv1.DelegationProfile {
+		return &delegationv1.DelegationProfile{
+			Kind:    types.KindDelegationProfile,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:   "payroll-agent",
+				Labels: labels,
+			},
+		}
+	}
+
+	roleNoLabels := newRole(func(rv *types.RoleV6) {})
+	roleWildcard := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.DelegationProfileLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+	})
+	roleFooLabel := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.DelegationProfileLabels = types.Labels{"foo": {"bar"}}
+	})
+
+	profileNoLabels := newDelegationProfile(nil)
+	profileFooLabel := newDelegationProfile(map[string]string{"foo": "bar"})
+
+	tests := []struct {
+		name         string
+		roleSet      RoleSet
+		resource     *delegationv1.DelegationProfile
+		requireError require.ErrorAssertionFunc
+	}{
+		{
+			name: "wildcard role, no labels profile",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     profileNoLabels,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, no labels profile",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     profileNoLabels,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, no labels profile",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     profileNoLabels,
+			requireError: require.Error,
+		},
+		{
+			name: "wildcard role, labels profile",
+			roleSet: NewRoleSet(
+				roleWildcard,
+			),
+			resource:     profileFooLabel,
+			requireError: require.NoError,
+		},
+		{
+			name: "no labels role, labels profile",
+			roleSet: NewRoleSet(
+				roleNoLabels,
+			),
+			resource:     profileFooLabel,
+			requireError: require.Error,
+		},
+		{
+			name: "labels role, labels profile",
+			roleSet: NewRoleSet(
+				roleFooLabel,
+			),
+			resource:     profileFooLabel,
 			requireError: require.NoError,
 		},
 	}
