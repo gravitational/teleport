@@ -1892,18 +1892,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// Perform the label/search/expr filtering here (instead of at the backend
 	// `ListResources`) to ensure that it will be applied only to resources
 	// the user has access to.
-	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
-	}
-
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		filter.PredicateExpression = expression
+	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	req.Labels = nil
@@ -4383,6 +4374,24 @@ func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets b
 		}
 	}
 	return a.authServer.GetGithubConnectors(ctx, withSecrets)
+}
+
+// ListGithubConnectors returns a page of valid registered Github connectors.
+// withSecrets adds or removes client secret from return results.
+func (a *ServerWithRoles) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	if err := a.authConnectorAction(types.KindGithub, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if err := a.authConnectorAction(types.KindGithub, types.VerbReadNoSecrets); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if withSecrets {
+		if err := a.authConnectorAction(types.KindGithub, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.ListGithubConnectors(ctx, limit, start, withSecrets)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.

@@ -52,7 +52,7 @@ func ProxyServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 	alpnUpgradeCache *internal.ALPNUpgradeCache,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -67,12 +67,12 @@ func ProxyServiceBuilder(
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
 			alpnUpgradeCache:          alpnUpgradeCache,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(ProxyServiceType, cfg.Name, buildFn)
 }
 
 // ProxyService presents a http_proxy compatible proxy on a listener which will

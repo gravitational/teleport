@@ -295,7 +295,9 @@ func (x *DeleteBotInstanceRequest) GetInstanceId() string {
 type SubmitHeartbeatRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The heartbeat data to submit.
-	Heartbeat     *BotInstanceStatusHeartbeat `protobuf:"bytes,1,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
+	Heartbeat *BotInstanceStatusHeartbeat `protobuf:"bytes,1,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
+	// The health of the services/output `tbot` is running.
+	ServiceHealth []*BotInstanceServiceHealth `protobuf:"bytes,2,rep,name=service_health,json=serviceHealth,proto3" json:"service_health,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -333,6 +335,13 @@ func (*SubmitHeartbeatRequest) Descriptor() ([]byte, []int) {
 func (x *SubmitHeartbeatRequest) GetHeartbeat() *BotInstanceStatusHeartbeat {
 	if x != nil {
 		return x.Heartbeat
+	}
+	return nil
+}
+
+func (x *SubmitHeartbeatRequest) GetServiceHealth() []*BotInstanceServiceHealth {
+	if x != nil {
+		return x.ServiceHealth
 	}
 	return nil
 }
@@ -396,9 +405,10 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\x18DeleteBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
-	"instanceId\"i\n" +
+	"instanceId\"\xc1\x01\n" +
 	"\x16SubmitHeartbeatRequest\x12O\n" +
-	"\theartbeat\x18\x01 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\theartbeat\"\x19\n" +
+	"\theartbeat\x18\x01 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\theartbeat\x12V\n" +
+	"\x0eservice_health\x18\x02 \x03(\v2/.teleport.machineid.v1.BotInstanceServiceHealthR\rserviceHealth\"\x19\n" +
 	"\x17SubmitHeartbeatResponse2\xbd\x03\n" +
 	"\x12BotInstanceService\x12b\n" +
 	"\x0eGetBotInstance\x12,.teleport.machineid.v1.GetBotInstanceRequest\x1a\".teleport.machineid.v1.BotInstance\x12s\n" +
@@ -429,25 +439,27 @@ var file_teleport_machineid_v1_bot_instance_service_proto_goTypes = []any{
 	(*types.SortBy)(nil),               // 6: types.SortBy
 	(*BotInstance)(nil),                // 7: teleport.machineid.v1.BotInstance
 	(*BotInstanceStatusHeartbeat)(nil), // 8: teleport.machineid.v1.BotInstanceStatusHeartbeat
-	(*emptypb.Empty)(nil),              // 9: google.protobuf.Empty
+	(*BotInstanceServiceHealth)(nil),   // 9: teleport.machineid.v1.BotInstanceServiceHealth
+	(*emptypb.Empty)(nil),              // 10: google.protobuf.Empty
 }
 var file_teleport_machineid_v1_bot_instance_service_proto_depIdxs = []int32{
-	6, // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
-	7, // 1: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
-	8, // 2: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	0, // 3: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
-	1, // 4: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
-	3, // 5: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
-	4, // 6: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
-	7, // 7: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
-	2, // 8: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
-	9, // 9: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
-	5, // 10: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	6,  // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
+	7,  // 1: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
+	8,  // 2: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	9,  // 3: teleport.machineid.v1.SubmitHeartbeatRequest.service_health:type_name -> teleport.machineid.v1.BotInstanceServiceHealth
+	0,  // 4: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
+	1,  // 5: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
+	3,  // 6: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
+	4,  // 7: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
+	7,  // 8: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
+	2,  // 9: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
+	10, // 10: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
+	5,  // 11: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
+	8,  // [8:12] is the sub-list for method output_type
+	4,  // [4:8] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_service_proto_init() }

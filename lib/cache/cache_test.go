@@ -305,7 +305,7 @@ func newPackForAuth(t *testing.T) *testPack {
 }
 
 func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *testPack {
-	pack, err := newPack(t.TempDir(), setupConfig, opts...)
+	pack, err := newPack(t, setupConfig, opts...)
 	require.NoError(t, err)
 	return pack
 }
@@ -529,9 +529,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
-	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, opts...)
+func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
+	t.Helper()
+
+	ctx := t.Context()
+	p, err := newPackWithoutCache(t.TempDir(), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -590,15 +592,14 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		return nil, trace.Wrap(err)
 	}
 
-	select {
-	case event := <-p.eventsC:
-
-		if event.Type != WatcherStarted {
-			return nil, trace.CompareFailed("%q != %q %s", event.Type, WatcherStarted, event)
-		}
-	case <-time.After(time.Second):
-		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
+	// Wait for the watcher to start. Note that we do not enforce a timeout on this, as depending on the machine
+	// the calling test runs on and CPU/scheduler contention the expected time may vary. If the watcher fails to start we will
+	// timeout due to the top level harness timeout setting instead.
+	event := <-p.eventsC
+	if event.Type != WatcherStarted {
+		return nil, trace.CompareFailed("%q != %q %s", event.Type, WatcherStarted, event)
 	}
+
 	return p, nil
 }
 
@@ -984,7 +985,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	p, err := newPack(b.TempDir(), ForAuth)
+	p, err := newPack(b, ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
 
@@ -2021,7 +2022,7 @@ func TestPartialHealth(t *testing.T) {
 	ctx := context.Background()
 
 	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
-	p, err := newPack(t.TempDir(), ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
+	p, err := newPack(t, ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 

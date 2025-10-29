@@ -3131,6 +3131,33 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	}, nil
 }
 
+// ListGithubConnectors returns a page of valid registered Github connectors.
+func (g *GRPCServer) ListGithubConnectors(ctx context.Context, req *authpb.ListGithubConnectorsRequest) (*authpb.ListGithubConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, next, err := auth.ServerWithRoles.ListGithubConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListGithubConnectorsResponse{
+		Connectors:    make([]*types.GithubConnectorV3, 0, len(connectors)),
+		NextPageToken: next,
+	}
+
+	for _, connector := range connectors {
+		if v3, ok := connector.(*types.GithubConnectorV3); ok {
+			resp.Connectors = append(resp.Connectors, v3)
+		} else {
+			return nil, trace.Errorf("encountered unexpected Github connector type %T", connector)
+		}
+	}
+
+	return resp, nil
+}
+
 // UpsertGithubConnectorV2 creates a new or replaces an existing Github connector.
 func (g *GRPCServer) UpsertGithubConnectorV2(ctx context.Context, req *authpb.UpsertGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
