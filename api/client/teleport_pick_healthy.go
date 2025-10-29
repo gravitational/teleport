@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -241,6 +242,8 @@ func (t *wrappedBalancer) NewSubConn(addrs []resolver.Address, opts balancer.New
 		}
 	}
 
+	//nolint:staticcheck // NewSubConn is the only way to currently create new sub connections.
+	// The deprecation is noting that in the future providing multiples addresses will be deprecated.
 	sc, err := t.tlb.cc.NewSubConn(addrs, opts)
 	if err != nil {
 		return nil, err
@@ -265,19 +268,6 @@ func (t *wrappedBalancer) RemoveSubConn(sc balancer.SubConn) {
 	sc.Shutdown()
 }
 
-// UpdateAddresses invokes UpdateAddresses if the balancer is not a stale balancer.
-func (t *wrappedBalancer) UpdateAddresses(sc balancer.SubConn, addrs []resolver.Address) {
-	t.tlb.mu.Lock()
-	if t != t.tlb.current && t != t.tlb.pending {
-		t.tlb.mu.Unlock()
-		return
-	}
-
-	t.tlb.mu.Unlock()
-
-	t.tlb.cc.UpdateAddresses(sc, addrs)
-}
-
 // UpdateState handles creating new pick_first_leaf balancers in the case one becomes unhealthy.
 func (t *wrappedBalancer) UpdateState(state balancer.State) {
 	// TODO(dustin.specker): refactor to remove nesting and simply unlocking mutex
@@ -288,9 +278,10 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 		return
 	}
 
-	if t == t.tlb.current {
+	switch t {
+	case t.tlb.current:
 		if state.ConnectivityState == connectivity.TransientFailure {
-			t.log.Info("creating new balancer")
+			t.log.InfoContext(context.Background(), "creating new balancer")
 			wb := wrappedBalancer{
 				ClientConn: t.tlb.cc,
 				log:        t.log,
@@ -312,7 +303,7 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 				ResolverState: pickfirstleaf.EnableHealthListener(t.tlb.resolvedState),
 			})
 		} else if state.ConnectivityState == connectivity.Ready && t.tlb.pending != nil {
-			t.log.Info("original balancer became healthy, closing pending balancer")
+			t.log.InfoContext(context.Background(), "original balancer became healthy, closing pending balancer")
 
 			pending := t.tlb.pending
 
@@ -324,9 +315,10 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 		} else {
 			t.tlb.mu.Unlock()
 		}
-	} else if t == t.tlb.pending {
-		if state.ConnectivityState == connectivity.Ready {
-			t.log.Info("new balancer is ready, migrating to new balancer")
+	case t.tlb.pending:
+		switch state.ConnectivityState {
+		case connectivity.Ready:
+			t.log.InfoContext(context.Background(), "new balancer is ready, migrating to new balancer")
 
 			current := t.tlb.current
 
@@ -336,8 +328,8 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 			t.tlb.mu.Unlock()
 
 			current.Close()
-		} else if state.ConnectivityState == connectivity.TransientFailure {
-			t.log.Info("new balancer is unhealthy, recreating new balancer")
+		case connectivity.TransientFailure:
+			t.log.InfoContext(context.Background(), "new balancer is unhealthy, recreating new balancer")
 
 			t.tlb.pending.Close()
 
@@ -367,11 +359,11 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 			pflb.UpdateClientConnState(balancer.ClientConnState{
 				ResolverState: pickfirstleaf.EnableHealthListener(t.tlb.resolvedState),
 			})
-		} else {
+		default:
 			t.tlb.mu.Unlock()
 		}
-	} else {
-		t.log.Info("UpdateState called for invalid balancer")
+	default:
+		t.log.InfoContext(context.Background(), "UpdateState called for invalid balancer")
 		t.tlb.mu.Unlock()
 	}
 
