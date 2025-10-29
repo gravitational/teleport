@@ -1838,6 +1838,20 @@ type InstallParams struct {
 	// This value is used to group installations in order to update them in batches.
 	// See --group flag in teleport-update program.
 	UpdateGroup string `yaml:"update_group,omitempty"`
+	// HTTPProxySettings configures HTTP proxy settings for the installation.
+	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+}
+
+// HTTPProxySettings configures HTTP proxy settings for the installation.
+// When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+type HTTPProxySettings struct {
+	// HTTPProxy is the HTTP proxy URL.
+	HTTPProxy string `yaml:"http_proxy,omitempty"`
+	// HTTPSProxy is the HTTPS proxy URL.
+	HTTPSProxy string `yaml:"https_proxy,omitempty"`
+	// NoProxy is a comma-separated list of hosts that should be excluded
+	// from proxying.
+	NoProxy string `yaml:"no_proxy,omitempty"`
 }
 
 const (
@@ -1858,6 +1872,18 @@ func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams,
 		Suffix:          ip.Suffix,
 		UpdateGroup:     ip.UpdateGroup,
 		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+	}
+
+	if ip.HTTPProxySettings != nil {
+		install.HTTPProxySettings = &types.HTTPProxySettings{
+			HTTPProxy:  ip.HTTPProxySettings.HTTPProxy,
+			HTTPSProxy: ip.HTTPProxySettings.HTTPSProxy,
+			NoProxy:    ip.HTTPProxySettings.NoProxy,
+		}
+
+		if err := install.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch ip.EnrollMode {
