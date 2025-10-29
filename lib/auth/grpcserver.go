@@ -5786,6 +5786,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
 		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer,
+		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -5848,10 +5850,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-		Authorizer:  cfg.Authorizer,
-		AuthService: cfg.AuthServer,
-		Clock:       cfg.AuthServer.clock,
-		FIPS:        cfg.AuthServer.fips,
+		Authorizer:         cfg.Authorizer,
+		AuthService:        cfg.AuthServer,
+		Clock:              cfg.AuthServer.clock,
+		FIPS:               cfg.AuthServer.fips,
+		ScopedTokenService: cfg.AuthServer.Services,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

@@ -413,6 +413,9 @@ type InitConfig struct {
 
 	// ScopedAccess is a service that manages scoped access resources.
 	ScopedAccess services.ScopedAccess
+
+	// ScopedTokenService is a service that manages scoped join token resources.
+	ScopedTokenService services.ScopedTokenService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1610,7 +1613,7 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

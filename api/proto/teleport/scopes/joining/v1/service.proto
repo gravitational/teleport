@@ -53,17 +53,23 @@ message GetScopedTokenResponse {
 
 // ListScopedTokensRequest is the request to list scoped tokens.
 message ListScopedTokensRequest {
-  // ResourceScope filters tokens by their resource scope if specified.
+  // Filter tokens by their resource scope.
   teleport.scopes.v1.Filter resource_scope = 1;
 
-  // AssignedScope filters tokens by their assigned scope if specified.
+  // Filter tokens by their assigned scope.
   teleport.scopes.v1.Filter assigned_scope = 2;
 
-  // Cursor is the pagination cursor.
+  // The pagination cursor.
   string cursor = 3;
 
-  // Limit is the maximum number of results to return.
+  // The maximum number of results to return.
   uint32 limit = 4;
+
+  // Filter tokens that apply at least one of the provided roles.
+  repeated string roles = 5;
+
+  // Filter tokens that match all provided labels.
+  map<string, string> labels = 6;
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.

@@ -133,8 +133,15 @@ func (x *ScopedToken) GetSpec() *ScopedTokenSpec {
 // ScopedTokenSpec is the specification of a scoped token.
 type ScopedTokenSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// AssignedScope is the scope to which this token is assigned.
+	// The scope to which this token is assigned.
 	AssignedScope string `protobuf:"bytes,1,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
+	// The list of roles associated with the token. They will be converted
+	// to metadata in the SSH and X509 certificates issued to the user of the
+	// token.
+	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	// The joining method required in order to use this token.
+	// Supported joining methods for scoped tokens only include 'token'.
+	JoinMethod    string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -176,6 +183,20 @@ func (x *ScopedTokenSpec) GetAssignedScope() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetJoinMethod() string {
+	if x != nil {
+		return x.JoinMethod
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -187,9 +208,12 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
-	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"8\n" +
+	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"o\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
-	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScopeBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
+	"\vjoin_method\x18\x03 \x01(\tR\n" +
+	"joinMethodBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once

@@ -461,9 +461,14 @@ const (
 )
 
 const (
-	// CertExtensionScopePin is used to pin a certificate to a specific scope and
-	// set of scoped roles.
+	// CertExtensionScopePin is used to pin a user certificate to a specific scope and
+	// set of scoped roles. This constrains a user's access to resources based on both
+	// the scoping rules and scoped roles defined.
 	CertExtensionScopePin = "scope-pin@goteleport.com"
+	// CertExtensionAgentScope is used to pin an agent/host certificate to a specific scope.
+	// This constrains other identities' access to the agent itself as well as the agent's
+	// access to other resources based on scoping rules.
+	CertExtensionAgentScope = "agent-scope@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
