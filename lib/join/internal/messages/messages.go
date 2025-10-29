@@ -324,6 +324,24 @@ type IAMChallengeSolution struct {
 	STSIdentityRequest []byte
 }
 
+// EC2Init is sent from the client in response to the ServerInit message for
+// the EC2 join method.
+//
+// The EC2 method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: EC2Init
+// 4. client<-server: Result
+type EC2Init struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// Document is a signed EC2 Instance Identity Document used to prove the
+	// identity of a joining EC2 instance.
+	Document []byte
+}
+
 // Response is implemented by all join response messages.
 type Response interface {
 	isResponse()

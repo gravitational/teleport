@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
@@ -1495,7 +1496,7 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 
 	select {
 	case resources := <-w.ResourcesC:
-		require.Empty(t, resources)
+		require.Len(t, resources, teleport.VirtualDefaultHealthCheckConfigCount)
 	case <-w.Done():
 		require.FailNow(t, "Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -1513,8 +1514,8 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(resources))
+		require.NoError(t, err)
+		require.Len(t, filtered, len(resources)+teleport.VirtualDefaultHealthCheckConfigCount)
 	}, time.Second, 100*time.Millisecond, "Timeout waiting for watcher to receive resources.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s *healthcheckconfigv1.HealthCheckConfig) bool {
@@ -1528,8 +1529,8 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 	require.NoError(t, localSvc.DeleteHealthCheckConfig(ctx, resources[0].GetMetadata().GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, filtered, len(resources)-1)
+		require.NoError(t, err)
+		require.Len(t, filtered, len(resources)-1+teleport.VirtualDefaultHealthCheckConfigCount)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive resources.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s *healthcheckconfigv1.HealthCheckConfig) bool {

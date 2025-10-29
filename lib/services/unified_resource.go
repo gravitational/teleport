@@ -946,6 +946,14 @@ func newResourceCollection(r resource) resourceCollection {
 					status:         aggregateHealthStatuses(servers),
 				}
 			})
+	case types.KubeServer:
+		return newServerResourceCollection(r,
+			func(srv types.KubeServer, servers map[string]types.KubeServer) types.KubeServer {
+				return &aggregatedKube{
+					KubeServer: srv,
+					status:     aggregateHealthStatuses(servers),
+				}
+			})
 	case serverResource:
 		return newServerResourceCollection(r, nil)
 	default:
@@ -1066,6 +1074,46 @@ func (d *aggregatedDatabase) Copy() types.DatabaseServer {
 // CloneResource returns a copy of the underlying database server with
 // aggregated health status.
 func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
+	return d.Copy()
+}
+
+// aggregatedKube wraps a kube server with aggregated health status.
+// It is assumed that multiple heartbeats with the same resource name but
+// different host IDs may be received and they may report different health
+// statuses.
+// This type provides the following properties:
+//   - avoid cloning the resource *before* filtering.
+//   - when the resource is cloned *after* filtering, set the clone's health
+//     status to the aggregate health status.
+//
+// Go generics do not support embedding a generic type, otherwise this type
+// would be made generic.
+type aggregatedKube struct {
+	types.KubeServer
+	status types.TargetHealthStatus
+}
+
+// This type MUST implement [types.KubeServer] to act as a facade type,
+// otherwise dynamic assertions elsewhere will fail.
+var _ types.KubeServer = (*aggregatedKube)(nil)
+
+// GetTargetHealthStatus gets the aggregate health status for filtering by
+// health status.
+func (d *aggregatedKube) GetTargetHealthStatus() types.TargetHealthStatus {
+	return d.status
+}
+
+// Copy returns a copy of the underlying kube server with aggregated health
+// status.
+func (d *aggregatedKube) Copy() types.KubeServer {
+	out := d.KubeServer.Copy()
+	out.SetTargetHealthStatus(d.status)
+	return out
+}
+
+// CloneResource returns a copy of the underlying kube server with
+// aggregated health status.
+func (d *aggregatedKube) CloneResource() types.ResourceWithLabels {
 	return d.Copy()
 }
 

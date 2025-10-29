@@ -21,10 +21,14 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
+	"math"
 	"net"
+	"slices"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -41,6 +45,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 		hostId      = "hostId"
 		proxyIds    = []string{"proxyId"}
 		clusterName = "cluster"
+		health      = types.TargetHealthStatusHealthy
 	)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
@@ -49,7 +54,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 		},
 		getKubernetesServersForKubeCluster: func(_ context.Context, kubeClusterName string) ([]types.KubeServer, error) {
 			return []types.KubeServer{
-				newKubeServerWithProxyIDs(t, hostname, hostId, proxyIds),
+				newKubeServer(t, hostname, hostId, proxyIds, health),
 			}, nil
 		},
 	}
@@ -72,7 +77,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 					Addr:        hostname,
 					AddrNetwork: "tcp",
 				},
-				ServerID: fmt.Sprintf("%s.%s", hostId, clusterName),
+				ServerID: hostId + "." + clusterName,
 				ConnType: types.KubeTunnel,
 				ProxyIDs: proxyIds,
 			},
@@ -128,7 +133,7 @@ func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Co
 	return nil, nil
 }
 
-func newKubeServerWithProxyIDs(t *testing.T, hostname, hostID string, proxyIds []string) types.KubeServer {
+func newKubeServer(t *testing.T, hostname, hostID string, proxyIds []string, health types.TargetHealthStatus) types.KubeServer {
 	k, err := types.NewKubernetesClusterV3(types.Metadata{
 		Name: "cluster",
 	}, types.KubernetesClusterSpecV3{})
@@ -137,6 +142,11 @@ func newKubeServerWithProxyIDs(t *testing.T, hostname, hostID string, proxyIds [
 	ks, err := types.NewKubernetesServerV3FromCluster(k, hostname, hostID)
 	require.NoError(t, err)
 	ks.Spec.ProxyIDs = proxyIds
+	ks.Status = &types.KubernetesServerStatusV3{
+		TargetHealth: &types.TargetHealth{
+			Status: string(health),
+		},
+	}
 	return ks
 }
 
@@ -180,4 +190,168 @@ func TestDirectTransportNotCached(t *testing.T) {
 	_, tlsConfig, err = forwarder.transportForRequestWithImpersonation(clusterSess)
 	require.NoError(t, err)
 	require.Equal(t, "example.com", tlsConfig.ServerName)
+}
+
+func TestLocalClusterDialsByHealth(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	const (
+		hostname    = "localhost:8080"
+		clusterName = "cluster"
+	)
+	proxyIds := []string{"proxyId"}
+	tests := []struct {
+		name    string
+		servers []types.KubeServer
+	}{
+		{
+			name: "one",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+			},
+		},
+		{
+			name: "healthy",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+			},
+		},
+		{
+			name: "unknown",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+			},
+		},
+		{
+			name: "unhealthy",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+			},
+		},
+		{
+			name: "random",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+			},
+		},
+		{
+			name: "reversed",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+			},
+		},
+		{
+			name: "sorted",
+			servers: []types.KubeServer{
+				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &Forwarder{
+				cfg: ForwarderConfig{
+					tracer:           otel.Tracer("test"),
+					ClusterName:      clusterName,
+					ReverseTunnelSrv: healthReverseTunnel{},
+				},
+				getKubernetesServersForKubeCluster: func(context.Context, string) ([]types.KubeServer, error) {
+					return tt.servers, nil
+				},
+			}
+			_, err := f.localClusterDialer(clusterName)(ctx, "tcp", "")
+			require.Error(t, err)
+
+			var aggErr trace.Aggregate
+			require.ErrorAs(t, err, &aggErr, "expected an aggregate error")
+			var healthErrs []healthError
+			for _, e := range aggErr.Errors() {
+				var he healthError
+				if errors.As(e, &he) {
+					healthErrs = append(healthErrs, he)
+				}
+			}
+
+			require.Len(t, healthErrs, len(tt.servers))
+			require.True(t, slices.IsSortedFunc(healthErrs, byHealthOrder),
+				"expected dialed errors to be order by healthy, unknown, and unhealthy")
+		})
+	}
+}
+
+type healthReverseTunnel struct {
+	reversetunnelclient.Server
+}
+
+func (f healthReverseTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return &healthRemoteSiteTunnel{}, nil
+}
+
+type healthRemoteSiteTunnel struct {
+	reversetunnelclient.Cluster
+}
+
+func (f healthRemoteSiteTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Conn, error) {
+	// Extract health from ServerID.
+	// ServerID = <health>-<n>.<clusterName>
+	idx := strings.Index(p.ServerID, "-")
+	if idx < 0 {
+		return nil, trace.BadParameter("invalid server ID: %q", p.ServerID)
+	}
+	return nil, healthError{health: types.TargetHealthStatus(p.ServerID[:idx])}
+}
+
+type healthError struct {
+	health types.TargetHealthStatus
+}
+
+func (e healthError) Error() string {
+	return string(e.health)
+}
+
+func healthOrder(e healthError) int {
+	switch e.health {
+	case types.TargetHealthStatusHealthy:
+		return 0
+	case types.TargetHealthStatusUnknown:
+		return 1
+	case types.TargetHealthStatusUnhealthy:
+		return 2
+	}
+	return math.MaxInt
+}
+
+func byHealthOrder(a, b healthError) int {
+	return healthOrder(a) - healthOrder(b)
 }

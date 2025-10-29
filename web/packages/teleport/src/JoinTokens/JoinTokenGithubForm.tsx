@@ -28,7 +28,7 @@ import { Trash } from 'design/Icon/Icons/Trash';
 import Link from 'design/Link/Link';
 import Text from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import cfg from 'teleport/config';
@@ -46,10 +46,10 @@ export const JoinTokenGithubForm = ({
   readonly: boolean;
 }) => {
   const { github } = tokenState;
-  const { rules } = github;
+  const { rules } = github ?? {};
 
   function removeRule(index: number) {
-    const newRules = rules.filter((_, i) => index !== i);
+    const newRules = rules?.filter((_, i) => index !== i);
     const newState = {
       ...tokenState,
       github: {
@@ -66,7 +66,7 @@ export const JoinTokenGithubForm = ({
       github: {
         ...tokenState.github,
         rules: [
-          ...rules,
+          ...(rules ?? []),
           {
             ref_type: 'any' as const,
           },
@@ -81,7 +81,7 @@ export const JoinTokenGithubForm = ({
       ...tokenState,
       github: {
         ...tokenState.github,
-        rules: rules.map((rule, i) => {
+        rules: rules?.map((rule, i) => {
           if (i === index) {
             return { ...rule, [fieldName]: opts };
           }
@@ -94,7 +94,7 @@ export const JoinTokenGithubForm = ({
 
   return (
     <>
-      {rules.map((rule, index) => (
+      {rules?.map((rule, index) => (
         <RuleBox
           data-testid={`rule_${index}`}
           key={index} // order doesn't change without updating the referrenced array
@@ -118,7 +118,7 @@ export const JoinTokenGithubForm = ({
             label="Repository"
             placeholder="gravitational/teleport"
             toolTipContent="Fully qualified name of a GitHub repository (i.e. including the owner)"
-            value={rule.repository}
+            value={rule.repository ?? ''}
             onChange={e => updateRuleField(index, 'repository', e.target.value)}
             rule={
               rule.repository_owner
@@ -132,7 +132,7 @@ export const JoinTokenGithubForm = ({
             label="Repository owner"
             placeholder="gravitational"
             toolTipContent="Name of an organization or user that a repository belongs to"
-            value={rule.repository_owner}
+            value={rule.repository_owner ?? ''}
             onChange={e =>
               updateRuleField(index, 'repository_owner', e.target.value)
             }
@@ -147,7 +147,7 @@ export const JoinTokenGithubForm = ({
           <FieldInput
             label="Workflow name"
             placeholder="my-workflow"
-            value={rule.workflow}
+            value={rule.workflow ?? ''}
             onChange={e => updateRuleField(index, 'workflow', e.target.value)}
             readonly={readonly}
           />
@@ -155,7 +155,7 @@ export const JoinTokenGithubForm = ({
           <FieldInput
             label="Environment"
             placeholder="production"
-            value={rule.environment}
+            value={rule.environment ?? ''}
             onChange={e =>
               updateRuleField(index, 'environment', e.target.value)
             }
@@ -167,7 +167,7 @@ export const JoinTokenGithubForm = ({
               flex={2}
               label="Git ref"
               placeholder="ref/heads/main"
-              value={rule.ref}
+              value={rule.ref ?? ''}
               onChange={e => updateRuleField(index, 'ref', e.target.value)}
               readonly={readonly}
             />
@@ -177,7 +177,7 @@ export const JoinTokenGithubForm = ({
               label="Ref type"
               options={refTypeOptions}
               value={refTypeOptions.find(o => o.value === rule.ref_type)}
-              onChange={opts => updateRuleField(index, 'ref_type', opts.value)}
+              onChange={opts => updateRuleField(index, 'ref_type', opts?.value)}
               isDisabled={!rule.ref || readonly}
               data-testid="ref-type-select"
             />
@@ -190,14 +190,14 @@ export const JoinTokenGithubForm = ({
         Add another GitHub rule
       </ButtonText>
 
-      {/* TODO(nickmarais): Make SectionBox a component instead of reusing it from Roles */}
+      {/* TODO(nicholasmarais1158): Make SectionBox a component instead of reusing it from Roles */}
       <SectionBox
         titleSegments={['GitHub Enterprise Server']}
         initiallyCollapsed={[
           'server_host',
           'enterprise_slug',
           'static_jwks',
-        ].every(k => !github[k])}
+        ].every(k => !github?.[k])}
         validation={{
           valid: true,
         }}
@@ -223,7 +223,7 @@ export const JoinTokenGithubForm = ({
         <FieldInput
           label="Server host"
           placeholder="github.example.com"
-          value={github.server_host}
+          value={github?.server_host ?? ''}
           onChange={e =>
             onUpdateState({
               ...tokenState,
@@ -239,7 +239,7 @@ export const JoinTokenGithubForm = ({
         <FieldInput
           label="Slug"
           placeholder="octo-enterprise"
-          value={github.enterprise_slug}
+          value={github?.enterprise_slug ?? ''}
           onChange={e =>
             onUpdateState({
               ...tokenState,
@@ -256,7 +256,7 @@ export const JoinTokenGithubForm = ({
           label="Static JWKS"
           placeholder='{"keys":[--snip--]}'
           toolTipContent="JSON Web Key Set used to verify the token issued by GitHub Actions"
-          value={github.static_jwks}
+          value={github?.static_jwks ?? ''}
           onChange={e =>
             onUpdateState({
               ...tokenState,

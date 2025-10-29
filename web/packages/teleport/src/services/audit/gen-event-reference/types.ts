@@ -16,12 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { EmptyState } from './EmptyState/EmptyState';
+/*
+ * These are more generalized version of types from services/audit/types.ts.
+ * gen-event-reference doesn't care about exact codes. We just need to make sure that the object
+ * shapes stay in sync between audit and gen-event-reference.
+ */
 
-export default {
-  title: 'Teleport/WorkloadIdentity',
+export type Event = {
+  id: string;
+  time: Date;
+  user: string;
+  message: string;
+  code: string;
+  codeDesc: string;
+  raw: RawEvent;
 };
 
-export const Empty = () => {
-  return <EmptyState />;
+export type Formatters = {
+  [key in string]: {
+    type: string;
+    desc: string | ((json: RawEvent) => string);
+    format: (json: RawEvent) => string;
+  };
+};
+
+type RawEvent = {
+  code: string;
+  user?: string;
+  time: string;
+  uid: string;
+  event: string;
 };
