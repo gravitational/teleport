@@ -2118,6 +2118,22 @@ message IdentityCenterAccountAssignment {
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 
+message ListInstallersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListInstallersResponse {
+  // Installers is a list of installer resources.
+  repeated types.InstallerV1 installers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
   // Resource is the resource itself.
@@ -2513,6 +2529,24 @@ message ListSAMLConnectorsRequest {
 message ListSAMLConnectorsResponse {
   // Connectors is a list of SAML connectors.
   repeated types.SAMLConnectorV2 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+message ListGithubConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListGithubConnectorsResponse {
+  // Connectors is a list of Github connectors.
+  repeated types.GithubConnectorV3 connectors = 1;
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
@@ -3325,7 +3359,13 @@ service AuthService {
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
-  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
+  //
+  // Deprecated: Use ListGithubConnectors instead.
+  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List) {
+    option deprecated = true;
+  }
+  // ListGithubConnectors returns a page of current Github connector resources.
+  rpc ListGithubConnectors(ListGithubConnectorsRequest) returns (ListGithubConnectorsResponse);
   // CreateGithubConnector creates a new Github connector in the backend.
   rpc CreateGithubConnector(CreateGithubConnectorRequest) returns (types.GithubConnectorV3);
   // UpdateGithubConnector updates an existing Github connector in the backend.
@@ -3647,7 +3687,11 @@ service AuthService {
   // GetInstaller retrieves the installer script resource
   rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
   // GetInstallers retrieves all of installer script resources.
-  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
+  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List) {
+    option deprecated = true;
+  }
+  // ListInstallers returns a page of installer script resources.
+  rpc ListInstallers(ListInstallersRequest) returns (ListInstallersResponse);
 
   // SetInstaller sets the installer script resource
   rpc SetInstaller(types.InstallerV1) returns (google.protobuf.Empty);

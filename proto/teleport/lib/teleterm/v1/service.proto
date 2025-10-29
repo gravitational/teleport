@@ -91,8 +91,6 @@ service TerminalService {
   rpc ListKubernetesServers(ListKubernetesServersRequest) returns (ListKubernetesServersResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
-  // RemoveCluster removes a cluster from profile
-  rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
 
   // ListGateways lists gateways
   rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
@@ -133,7 +131,9 @@ service TerminalService {
   // -> Receive the index number associated with the selected credential in list
   // <- End
   rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
-  // ClusterLogin logs out a user from cluster
+  // Logs the user out of the cluster and cleans up associated resources.
+  // Optionally removes the profile.
+  // This operation is idempotent and can be safely invoked multiple times.
   rpc Logout(LogoutRequest) returns (EmptyResponse);
   // TransferFile sends a request to download/upload a file
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
@@ -193,19 +193,15 @@ service TerminalService {
 
 message EmptyResponse {}
 
-// RemoveClusterRequest describes RemoveClusterRequest
-message RemoveClusterRequest {
-  string cluster_uri = 1;
-}
-
 // GetClusterRequest describes GetClusterRequest
 message GetClusterRequest {
   string cluster_uri = 1;
 }
 
-// LogoutRequest describes LogoutRequest
 message LogoutRequest {
   string cluster_uri = 1;
+  // Whether to remove the associated YAML profile after logout.
+  bool remove_profile = 2;
 }
 
 message StartHeadlessWatcherRequest {

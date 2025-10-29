@@ -342,29 +342,7 @@ Controls Reference](../../../reference/access-controls/roles.mdx).
 
 ### Configuring the JWT token
 
-By default, Teleport includes a user's roles and traits in the JWT
-generated for application access. If your application doesn't care
-about these values, or you are encountering an error due to exceeding
-the size limit of HTTP headers, you can configure Teleport to omit
-this information from the token.
-
-```yaml
-- name: "dashboard"
-  uri: https://localhost:4321
-  public_addr: dashboard.example.com
-  rewrite:
-    # Specify whether to include roles or traits in the JWT.
-    # Options:
-    # - roles-and-traits: include both roles and traits
-    # - roles: include only roles
-    # - traits: include only traits
-    # - none: exclude both roles and traits from the JWT token
-    # Default: roles-and-traits
-    jwt_claims: roles-and-traits
-    headers:
-    # Inject header with Teleport-signed JWT token.
-    - "Authorization: Bearer {{internal.jwt}}"
-```
+(!docs/pages/includes/application-access/jwt-configure-claims.mdx!)
 
 ### Backends-for-Frontends support
 

@@ -53,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
@@ -769,33 +768,6 @@ func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type installerCollection struct {
-	installers []types.Installer
-}
-
-func (c *installerCollection) Resources() []types.Resource {
-	var r []types.Resource
-	for _, inst := range c.installers {
-		r = append(r, inst)
-	}
-	return r
-}
-
-func (c *installerCollection) WriteText(w io.Writer, verbose bool) error {
-	for _, inst := range c.installers {
-		if _, err := fmt.Fprintf(w, "Script: %s\n----------\n", inst.GetName()); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := fmt.Fprintln(w, inst.GetScript()); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := fmt.Fprintln(w, "----------"); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 type integrationCollection struct {
 	integrations []types.Integration
 }
@@ -1186,23 +1158,6 @@ func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
 	t.AddRow([]string{
 		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
 		strings.Join(dnsZoneSuffixes, ", "),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type accessGraphSettings struct {
-	accessGraphSettings *clusterconfigrec.AccessGraphSettings
-}
-
-func (c *accessGraphSettings) Resources() []types.Resource {
-	return []types.Resource{c.accessGraphSettings}
-}
-
-func (c *accessGraphSettings) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"SSH Keys Scan"})
-	t.AddRow([]string{
-		c.accessGraphSettings.Spec.SecretsScanConfig,
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

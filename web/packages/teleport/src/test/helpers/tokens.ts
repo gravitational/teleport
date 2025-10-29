@@ -42,36 +42,39 @@ export const listV2TokensError = (
 
 export const listV2TokensSuccess = (options?: {
   hasNextPage?: boolean;
-  tokens?: string[];
+  tokens?: string[] | null;
 }) => {
   const { hasNextPage = false, tokens } = options ?? {};
   return http.get(cfg.api.joinToken.listV2, () => {
     return HttpResponse.json(
       {
-        items: (
-          tokens ?? [
-            'token',
-            'ec2',
-            'iam',
-            'github',
-            'circleci',
-            'kubernetes',
-            'azure',
-            'gitlab',
-            'gcp',
-            'spacelift',
-            'tpm',
-            'terraform_cloud',
-            'bitbucket',
-            'oracle',
-            'azure_devops',
-            'bound_keypair',
-          ]
-        ).map(method => ({
-          id: `token-${method}`,
-          safeName: method,
-          method: method,
-        })),
+        items:
+          tokens === null
+            ? null
+            : (
+                tokens ?? [
+                  'token',
+                  'ec2',
+                  'iam',
+                  'github',
+                  'circleci',
+                  'kubernetes',
+                  'azure',
+                  'gitlab',
+                  'gcp',
+                  'spacelift',
+                  'tpm',
+                  'terraform_cloud',
+                  'bitbucket',
+                  'oracle',
+                  'azure_devops',
+                  'bound_keypair',
+                ]
+              ).map(method => ({
+                id: `token-${method}`,
+                safeName: method,
+                method: method,
+              })),
         next_page_token: hasNextPage ? 'yes' : undefined,
       },
       { status: 200 }

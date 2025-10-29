@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -58,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -71,7 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
-	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -138,7 +135,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
 		types.KindToken:                       rc.createToken,
-		types.KindInstaller:                   rc.createInstaller,
 		types.KindOIDCConnector:               rc.createOIDCConnector,
 		types.KindSAMLConnector:               rc.createSAMLConnector,
 		types.KindLoginRule:                   rc.createLoginRule,
@@ -156,7 +152,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
-		types.KindAccessGraphSettings:         rc.upsertAccessGraphSettings,
 		types.KindPlugin:                      rc.createPlugin,
 		types.KindStaticHostUser:              rc.createStaticHostUser,
 		types.KindUserTask:                    rc.createUserTask,
@@ -177,7 +172,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAccessMonitoringRule:        rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
-		types.KindAccessGraphSettings:         rc.updateAccessGraphSettings,
 		types.KindPlugin:                      rc.updatePlugin,
 		types.KindStaticHostUser:              rc.updateStaticHostUser,
 		types.KindUserTask:                    rc.updateUserTask,
@@ -972,20 +966,6 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.C
 	return nil
 }
 
-func (rc *ResourceCommand) createInstaller(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	inst, err := services.UnmarshalInstaller(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.SetInstaller(ctx, inst)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("installer %q has been set\n", inst.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1567,16 +1547,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			}
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindInstaller:
-		err := client.DeleteInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if rc.ref.Name == installers.InstallerScriptName {
-			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
-		} else {
-			fmt.Printf("%s has been deleted\n", rc.ref.Name)
-		}
 	case types.KindLoginRule:
 		loginRuleClient := client.LoginRuleClient()
 		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
@@ -2126,19 +2096,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
-	case types.KindInstaller:
-		if rc.ref.Name == "" {
-			installers, err := client.GetInstallers(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &installerCollection{installers: installers}, nil
-		}
-		inst, err := client.GetInstaller(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &installerCollection{installers: []types.Installer{inst}}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{
@@ -2460,16 +2417,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			startKey = resp.NextKey
 		}
 		return &pluginCollection{plugins: plugins}, nil
-	case types.KindAccessGraphSettings:
-		settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		rec, err := clusterconfigrec.ProtoToResource(settings)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &accessGraphSettings{accessGraphSettings: rec}, nil
 	case types.KindStaticHostUser:
 		hostUserClient := client.StaticHostUserClient()
 		if rc.ref.Name != "" {
@@ -2654,7 +2601,15 @@ func getOIDCConnectors(ctx context.Context, client *authclient.Client, name stri
 
 func getGithubConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.GithubConnector, error) {
 	if name == "" {
-		connectors, err := client.GetGithubConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+				return client.ListGithubConnectors(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.GithubConnector, error) {
+				return client.GetGithubConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2840,32 +2795,5 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 		return trace.Wrap(err)
 	}
 	fmt.Printf("plugin %q has been updated\n", item.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err = client.ClusterConfigClient().UpsertAccessGraphSettings(ctx, &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("access_graph_settings has been upserted")
-	return nil
-}
-
-func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err = client.ClusterConfigClient().UpdateAccessGraphSettings(ctx, &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("access_graph_settings has been updated")
 	return nil
 }
