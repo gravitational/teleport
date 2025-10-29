@@ -62,6 +62,8 @@ type AppServer interface {
 	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -329,6 +331,11 @@ func (s *AppServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *AppServerV3) GetScope() string {
+	return s.Scope
 }
 
 // AppServers represents a list of app servers.

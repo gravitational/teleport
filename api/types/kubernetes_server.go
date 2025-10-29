@@ -58,6 +58,8 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -307,6 +309,11 @@ func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
 		return deriveTeleportEqualKubernetesServerV3(k, other)
 	}
 	return false
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *KubernetesServerV3) GetScope() string {
+	return s.Scope
 }
 
 // KubeServers represents a list of kube servers.

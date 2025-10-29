@@ -983,6 +983,9 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if s.GetScope() != "" {
+		return nil, trace.BadParameter("scoped nodes must register a control stream")
+	}
 	return a.authServer.UpsertNode(ctx, s)
 }
 
@@ -5570,6 +5573,9 @@ func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types
 	if err := a.actionNamespace(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if server.GetScope() != "" {
+		return nil, trace.BadParameter("scoped database server must register a control stream")
+	}
 	return a.authServer.UpsertDatabaseServer(ctx, server)
 }
 
@@ -5745,6 +5751,9 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if server.GetScope() != "" {
+		return nil, trace.BadParameter("scoped app server must register a control stream")
 	}
 	return a.authServer.UpsertApplicationServer(ctx, server)
 }
@@ -6019,6 +6028,9 @@ func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.Kub
 func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	if err := a.authorizeAction(types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if s.GetScope() != "" {
+		return nil, trace.BadParameter("scoped kubernetes server must register a control stream")
 	}
 	return a.authServer.UpsertKubernetesServer(ctx, s)
 }
