@@ -809,6 +809,8 @@ const (
 	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
 	// via SCIM
 	SCIMListResourcesFailureCode = "TSCIM005E"
+	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
+	ClientIPRestrictionsUpdateCode = "CIR001I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
