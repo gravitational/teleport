@@ -126,6 +126,26 @@ func TestInstallerScript(t *testing.T) {
 			},
 			errCheck: require.Error,
 		},
+		{
+			name: "with join token that needs escaping",
+			req: func() *types.InstallerParams {
+				req := basicParams()
+				req.JoinToken = "token$(sh)"
+				return req
+			},
+			errCheck:       require.NoError,
+			expectedScript: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s token\\$\\(sh\\)",
+		},
+		{
+			name: "with script name that needs escaping",
+			req: func() *types.InstallerParams {
+				req := basicParams()
+				req.ScriptName = "scriptName$(sh)"
+				return req
+			},
+			errCheck:       require.NoError,
+			expectedScript: `curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName\$%28sh%29 | bash -s my-token`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			script, err := installerScript(t.Context(), tt.req(), tt.withOptions...)
