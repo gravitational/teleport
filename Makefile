@@ -1987,3 +1987,7 @@ gen-docs:
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
+
+.PHONY: mobile/Foobar/Foobar/gen/Authn.xcframework
+mobile/Foobar/Foobar/gen/Authn.xcframework:
+	gomobile bind -target=ios -o $@ github.com/gravitational/teleport/lib/mobile/devicetrust/authn
