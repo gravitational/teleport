@@ -72,9 +72,10 @@ jobs:
           ref: 6f388765b8ce993721502083c74cb9af1fc5658f 
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version: 'stable'
+          cache-dependency-path: shared-workflows/bot/go.sum
 
       - name: Ensure docs changes include redirects
         env:
