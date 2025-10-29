@@ -590,119 +590,206 @@ func TestMinimumUpload(t *testing.T) {
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-
-	var (
-		minFileBytes = 8192
-		// encrypted upload files should be aggregated by the encrypted uploader to reach the
-		// target size, without exceeding the max size.
-		encryptedTargetSize = minFileBytes * 4
-		encryptedMaxSize    = encryptedTargetSize * 2
+	for _, tc := range []struct {
+		name         string
+		minFileBytes int
+		// encrypted upload files should be aggregated by the encrypted uploader to reach the target size.
+		encryptedTargetSize      int
+		encryptedMaxSize         int
+		expectEncryptedUploadErr bool
 		// uploads from the encrypted uploader should be padded further by the final uploader to
 		// reach the minimum upload size. e.g. pad encrypted uploads of 4MB (max from GRPC) to reach
 		// S3 minimum upload of 5MB.
-		minUploadBytes = encryptedMaxSize * 2
-	)
+		minUploadBytes int
+	}{
+		{
+			name:                "default values",
+			minFileBytes:        minUploadBytes,
+			encryptedTargetSize: events.MinUploadPartSizeBytes,
+			encryptedMaxSize:    1024 * 1024 * 4, // default GRPC message limit
+			minUploadBytes:      events.MinUploadPartSizeBytes,
+		}, {
+			name:                "target size larger than max encrypted upload size",
+			minFileBytes:        8192,
+			encryptedTargetSize: 8192 * 4 * 2,
+			encryptedMaxSize:    8192 * 4,
+		}, {
+			name:                "target size equals max encrypted upload size",
+			minFileBytes:        8192,
+			encryptedTargetSize: 8192 * 4,
+			encryptedMaxSize:    8192 * 4,
+		}, {
+			name:                "target size smaller than max encrypted upload size",
+			minFileBytes:        8192,
+			encryptedTargetSize: 8192 * 4,
+			encryptedMaxSize:    8192 * 4 * 2,
+		}, {
+			name:                "target size larger than min upload size",
+			minFileBytes:        8192,
+			encryptedTargetSize: 8192 * 4 * 2,
+			minUploadBytes:      8192 * 4,
+		}, {
+			name:                "target size equals min upload size",
+			minFileBytes:        8192,
+			encryptedTargetSize: 8192 * 4,
+			minUploadBytes:      8192 * 4,
+		}, {
+			name:                "target size smaller than min upload size",
+			minFileBytes:        8192,
+			encryptedTargetSize: 8192 * 4,
+			minUploadBytes:      8192 * 4 * 2,
+		}, {
+			name:                     "min file size larger than max encrypted size",
+			minFileBytes:             8192 * 4,
+			encryptedMaxSize:         8192,
+			expectEncryptedUploadErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
 
-	// Create a wrapper around the encrypted uploader to ensure the caller is yielding
-	// correctly sized uploads.
-	var recollectParts [][]byte
-	encryptedUploadWrapper := wrapEncryptedUploaderFn(func(u events.EncryptedRecordingUploader) events.EncryptedRecordingUploader {
-		return encryptedUploaderFn(func(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
-			next, stop := iter.Pull2(parts)
-			defer stop()
+			// First we calculate some expected size values for different steps in the event stream.
+			// It is easier to calculate them here rather than in the test case's parameters.
 
-			part, err, ok := next()
-			if err != nil {
-				return trace.Wrap(err)
-			} else if !ok {
-				return trace.BadParameter("unexpected empty upload")
+			// the gzip writer is imprecise and may exceed the min file size. With a min of 8192,
+			// an extra 8192 bytes should be plenty of overhead. If this test becomes flaky, consider
+			// raising the minimum in the test cases above.
+			maxFileSize := tc.minFileBytes * 2
+
+			// We expect encrypted uploads to exceed the target size, unless the maximum prevents it,
+			// in which case we will be short one file part.
+			expectEncryptedSizeFloor := tc.encryptedTargetSize
+			if tc.encryptedMaxSize != 0 && tc.encryptedTargetSize+maxFileSize > tc.encryptedMaxSize {
+				expectEncryptedSizeFloor = tc.encryptedMaxSize - maxFileSize
 			}
 
-			for {
-				recollectParts = append(recollectParts, part)
-
-				nextPart, err, hasNext := next()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				if !hasNext {
-					break
-				}
-
-				if hasNext {
-					require.True(t, len(part) >= encryptedTargetSize && len(part) <= encryptedMaxSize, "expected upload part to be between %v and %v bytes, but was %v bytes", encryptedTargetSize, encryptedMaxSize, len(part))
-				} else {
-					// The last part is not expected to meet the target size.
-					require.True(t, len(part) <= encryptedMaxSize, "expected last upload part to be smaller than %v bytes, but was %v bytes", encryptedMaxSize, len(part))
-				}
-
-				part = nextPart
+			// We expect encrypted uploads to be below the max size if set. Otherwise, we expect it to
+			// be the target size + one additional file part.
+			expectEncryptedSizeCeil := tc.encryptedMaxSize
+			if tc.encryptedMaxSize == 0 {
+				expectEncryptedSizeCeil = tc.encryptedTargetSize + maxFileSize
 			}
 
-			partReIter := func(yield func([]byte, error) bool) {
-				for _, part := range recollectParts {
-					if !yield(part, nil) {
-						return
+			// the final upload is never smaller than the encrypted size, but always above the minimum.
+			expectFinalSizeFloor := max(tc.minUploadBytes, expectEncryptedSizeFloor)
+
+			// the final upload is only larger than the minimum (+header_size) if the encrypted size is larger.
+			expectFinalSizeCeil := max(expectEncryptedSizeCeil, tc.minUploadBytes+events.ProtoStreamV2PartHeaderSize)
+
+			// Create a wrapper around the encrypted uploader to ensure the caller is yielding
+			// correctly sized uploads.
+			var recollectParts [][]byte
+			encryptedUploadWrapper := wrapEncryptedUploaderFn(func(u events.EncryptedRecordingUploader) events.EncryptedRecordingUploader {
+				return encryptedUploaderFn(func(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+					next, stop := iter.Pull2(parts)
+					defer stop()
+
+					part, err, ok := next()
+					if err != nil {
+						return trace.Wrap(err)
+					} else if !ok {
+						return trace.BadParameter("unexpected empty upload")
 					}
+
+					for {
+						recollectParts = append(recollectParts, part)
+
+						nextPart, err, hasNext := next()
+						if err != nil {
+							return trace.Wrap(err)
+						}
+
+						if !hasNext {
+							break
+						}
+
+						if hasNext {
+							require.True(t, len(part) >= expectEncryptedSizeFloor && len(part) <= expectEncryptedSizeCeil, "expected encrypted upload to be between %v and %v bytes, but was %v bytes", expectEncryptedSizeFloor, expectEncryptedSizeCeil, len(part))
+						} else {
+							// The last part is not expected to meet the target size.
+							require.True(t, len(part) <= expectEncryptedSizeCeil, "expected last encrypted upload to be smaller than %v bytes, but was %v bytes", expectEncryptedSizeCeil, len(part))
+						}
+
+						part = nextPart
+					}
+
+					partReIter := func(yield func([]byte, error) bool) {
+						for _, part := range recollectParts {
+							if !yield(part, nil) {
+								return
+							}
+						}
+					}
+
+					return u.UploadEncryptedRecording(ctx, sessionID, partReIter)
+				})
+			})
+
+			p := newUploaderPack(ctx, t, uploaderPackConfig{
+				minimumFileUploadBytes:             int64(tc.minFileBytes),
+				minimumUploadBytes:                 int64(tc.minUploadBytes),
+				encrypter:                          &fakeEncryptedIO{},
+				wrapEncryptedUploader:              encryptedUploadWrapper,
+				encryptedRecordingUploadTargetSize: tc.encryptedTargetSize,
+				encryptedRecordingUploadMaxSize:    tc.encryptedMaxSize,
+			})
+
+			// wait until uploader blocks on the clock
+			err := p.clock.BlockUntilContext(ctx, 1)
+			require.NoError(t, err)
+
+			// Here we ensure at least 5 final upload parts so that we amply test the test case values, + some variance.
+			eventsCount := expectFinalSizeCeil*5/64 + mathrand.IntN(1000)
+			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: int64(eventsCount)})
+			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+			p.emitEvents(ctx, t, inEvents)
+
+			// initiate the scan by advancing clock past
+			// block period
+			p.clock.Advance(p.scanPeriod + time.Second)
+
+			var event events.UploadEvent
+			select {
+			case event = <-p.memEventsC:
+				if tc.expectEncryptedUploadErr {
+					t.Fatalf("Unexpected upload event")
+				}
+				require.Equal(t, event.SessionID, sid)
+				require.NoError(t, event.Error)
+			case event = <-p.eventsC:
+				if !tc.expectEncryptedUploadErr {
+					t.Fatalf("Unexpected upload event")
+				}
+				require.Error(t, event.Error)
+				require.True(t, isSessionError(event.Error))
+				return
+			case <-ctx.Done():
+				t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
+			}
+
+			// read the upload and make sure the data is equal
+			outEvents := p.readEvents(ctx, t, event.UploadID)
+			require.Equal(t, inEvents, outEvents)
+
+			uploadParts, err := p.memUploader.GetParts(event.UploadID)
+			require.NoError(t, err)
+
+			// final uploads should be above the minimum upload size.
+			for i, part := range uploadParts {
+				if i == len(uploadParts)-1 {
+					// The last part is not required to meet the minimum size, so it shouldn't exceed the original encrypted recording size.
+					require.True(t, len(part) <= expectEncryptedSizeCeil, "expected last upload to be smaller than %v bytes, but was %v bytes", expectEncryptedSizeCeil, len(part))
+				} else {
+					require.True(t, len(part) >= expectFinalSizeFloor && len(part) <= expectFinalSizeCeil, "expected upload to be between %v and %v bytes, but was %v bytes", expectFinalSizeFloor, expectFinalSizeCeil, len(part))
 				}
 			}
 
-			return u.UploadEncryptedRecording(ctx, sessionID, partReIter)
+			// There should be one final upload for each upload part from the encrypted uploader.
+			require.Equal(t, len(recollectParts), len(uploadParts), "expected there to be an equal amount of final upload parts and transient upload parts, but got %v and %v respectively", len(uploadParts), len(recollectParts))
+
 		})
-	})
-
-	p := newUploaderPack(ctx, t, uploaderPackConfig{
-		minimumFileUploadBytes:             int64(minFileBytes),
-		minimumUploadBytes:                 int64(minUploadBytes),
-		encrypter:                          &fakeEncryptedIO{},
-		wrapEncryptedUploader:              encryptedUploadWrapper,
-		encryptedRecordingUploadTargetSize: encryptedTargetSize,
-		encryptedRecordingUploadMaxSize:    encryptedMaxSize,
-	})
-
-	// wait until uploader blocks on the clock
-	err := p.clock.BlockUntilContext(ctx, 1)
-	require.NoError(t, err)
-
-	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: int64(mathrand.IntN(5000) + 5000)})
-	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
-	p.emitEvents(ctx, t, inEvents)
-
-	// initiate the scan by advancing clock past
-	// block period
-	p.clock.Advance(p.scanPeriod + time.Second)
-
-	var event events.UploadEvent
-	select {
-	case event = <-p.memEventsC:
-		require.Equal(t, event.SessionID, sid)
-		require.NoError(t, event.Error)
-	case <-ctx.Done():
-		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
-
-	// read the upload and make sure the data is equal
-	outEvents := p.readEvents(ctx, t, event.UploadID)
-	require.Equal(t, inEvents, outEvents)
-
-	uploadParts, err := p.memUploader.GetParts(event.UploadID)
-	require.NoError(t, err)
-
-	// final uploads should be above the minimum upload size.
-	for i, part := range uploadParts {
-		if i == len(uploadParts)-1 {
-			// The last part is not required to meet the minimum size. In this example, it should always be smaller.
-			require.True(t, len(part) <= minUploadBytes, "expected last upload part to be smaller than %v bytes, but was %v bytes", minUploadBytes, len(part))
-		} else {
-			require.True(t, len(part) >= minUploadBytes, "expected upload part %v to be larger than %v bytes, but was %v bytes", i, minUploadBytes, len(part))
-		}
-	}
-
-	// There should be one final upload for each upload part from the encrypted uploader.
-	require.Equal(t, len(recollectParts), len(uploadParts), "expected there to be an equal amount of final upload parts and transient upload parts, but got %v and %v respectively", len(uploadParts), len(recollectParts))
 }
 
 type uploaderPackConfig struct {
