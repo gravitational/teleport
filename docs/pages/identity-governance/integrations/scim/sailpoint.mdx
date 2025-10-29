@@ -55,7 +55,6 @@ Save all changes.
 
 #### Configure SCIM group aggregation in SailPoint
 
-
 SailPoint group aggregation enables the retrieval of SCIM-type Access Lists into SailPoint as Application Group Entitlements.
 This allows you to import Teleport Access Lists into SailPoint and manage membership directly through SailPoint with the changes being reflected in Teleport Access Lists.
 
@@ -67,6 +66,72 @@ If the aggregation completes successfully,
 you should see the imported Access Lists `type: "scim"` from Teleport in SailPoint under: **Applications > Entitlement Catalog**
 
 ![Aggregation Result](../../../../img/sailpoint/sailpoint-8.png)
+
+#### Configure SCIM retries in SailPoint
+
+On a busy SailPoint instance, it is possible for SailPoint to issue concurrent
+updates to a Teleport Group via SCIM.
+
+Without special handling, concurrent updates can leave a SCIM Group (and its
+corresponding Teleport Access List) in an indeterminate state. When the Teleport
+SCIM server detects a concurrent Group update, or an update based on a now-obsolete
+revision of the SCIM group, Teleport will block the update and return the HTTP
+stats code `412 Precondition Failed`. By default, the SailPoint SCIM provisioner
+does not automatically re-try an update when it encounters a conflict like this,
+and considers it an error.
+
+You can, however, [add retry configurations to the SCIM provisioner](https://documentation.sailpoint.com/connectors/scim_2_0/help/integrating_scim2/retry_configurations.html)
+either via the SailPoint REST API, or the SailPoint debug interface. We will use
+the debug interface. 
+
+<Admonition type="warning">
+Editing SailPoint configuration via the debug interface is an inherently
+dangerous operation. Please ensure you are editing the correct resource and make
+a backup copy for the resource XML in order to roll back your change if
+necessary.
+</Admonition>
+
+Navigate to the SailPoint debug interface for your SailPoint instance, which
+will be hosted at `${YOUR_SAILPOINT_HOST}/identityiq/debug`. In the Sailpoint 
+Object Browser select Object Type "Application" from the drop-down list, and
+then locate the SCIM application you created above. 
+
+![Object Browser](../../../../img/sailpoint/sailpoint-object-browser.png)
+
+Clicking on the Application in the object browser will bring up the XML
+configuration for your SCIM application. In the application attribute map, add
+the `retryableErrors` attribute.
+
+```xml
+<entry key="retryableErrors">
+  <value>
+    <List>
+      <String>412</String>
+      <String>Precondition Failed</String>
+    </List>
+  </value>
+</entry>
+```
+
+Your application XML should now look something like this:
+
+![SailPoint Application XML Configuration](../../../../img/sailpoint/sailpoint-app-xml.png)
+
+Save your changes to the XML using the Save Button at the bottom of the XML
+editor, and navigate back to your normal SailPoint dashboard. SailPoint will 
+now retry provisioning when it encounters a `412 Precondition Failed` response
+from the Teleport SCIM server. The retry cycle includes fetching a fresh
+representation of the target Group from teleport, ensuring that SailPoint has
+the latest version of the Group to work with when provisioning the Group a
+second time.
+
+<Admonition type="info">
+If you are updating a previously-configured integration to retry provisioning on
+version conflicts, you will also need to repeat the _Discover Schema Attributes_
+step in the [Configure SCIM schema discovery](#configure-scim-schema-discovery)
+section above. This will make the SailPoint SCIM provisioner fetch and preserve
+the resource versions.
+</Admonition>
 
 ## Step 2/2: Submit Access Requests to SailPoint Group Entitlement (Optional)
 
