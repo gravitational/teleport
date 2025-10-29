@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1
+
+# Minimal container for generating BPF bytecode
+# This Dockerfile is used to generate BPF bytecode used
+# by enhanced recording.
+FROM docker.io/library/debian:12
+
+ENV LANGUAGE="en_US.UTF-8" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8" \
+    DEBIAN_FRONTEND="noninteractive"
+
+# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by default).
+# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+ARG BUILDARCH
+
+RUN apt -y update && \
+    apt install -q -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        clang \
+        curl \
+        libbpf-dev \
+        llvm && \
+    apt -y clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Go.
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && \
+    cd /opt && \
+    curl -fsSL "https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$BUILDARCH.tar.gz" | tar xz && \
+    mkdir -p /go/src/github.com/gravitational/teleport && \
+    chmod a+w /go && \
+    chmod a+w /var/lib && \
+    chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+ARG UID
+ARG GID
+RUN groupadd bpf --gid=$GID -o && \
+    useradd bpf --uid=$UID --gid=$GID --create-home --shell=/bin/sh
+
+USER bpf

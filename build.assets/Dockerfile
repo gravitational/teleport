@@ -69,26 +69,6 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     make install && \
     make clean
 
-## LIBBPF #####################################################################
-
-FROM buildpack-deps:22.04 AS libbpf
-
-# Install required dependencies
-RUN apt-get update -y --fix-missing && \
-    apt-get -q -y upgrade && \
-    apt-get install -q -y --no-install-recommends \
-        libelf-dev
-
-ARG LIBBPF_VERSION
-# BUILD_STATIC_ONLY - builds only static libraries without shared ones
-# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
-# DESTDIR - where to install the library
-# V=1 - verbose build
-RUN mkdir -p /opt && cd /opt &&  \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers
-
 ## BUILDBOX ###################################################################
 #
 # Image layers are ordered according to how slow that layer takes to build and
@@ -142,6 +122,7 @@ RUN apt-get -y update && \
         gnupg \
         gzip \
         jq \
+        libbpf-dev \
         libc6-dev \
         libelf-dev \
         libpam-dev \
@@ -331,10 +312,6 @@ RUN VERSION="$GOLANGCI_LINT_VERSION"; \
 ARG BUF_VERSION # eg, "v1.26.1"
 RUN VERSION="$BUF_VERSION"; \
     go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
-
-# Copy BPF libraries.
-ARG LIBBPF_VERSION
-COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
