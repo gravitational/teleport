@@ -372,6 +372,24 @@ message ChangePasswordRequest {
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
+message ListSemaphoresRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // filter encodes semaphore filtering params.
+  types.SemaphoreFilter filter = 3;
+}
+
+message ListSemaphoresResponse {
+  // a list of semaphores.
+  repeated types.SemaphoreV3 semaphores = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
@@ -3083,7 +3101,11 @@ service AuthService {
   // CancelSemaphoreLease cancels semaphore lease early.
   rpc CancelSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
   // GetSemaphores returns a list of all semaphores matching the supplied filter.
-  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores);
+  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores) {
+    option deprecated = true;
+  }
+  // ListSemaphores returns a page of all semaphores matching the supplied filter.
+  rpc ListSemaphores(ListSemaphoresRequest) returns (ListSemaphoresResponse);
   // DeleteSemaphore deletes a semaphore matching the supplied filter.
   rpc DeleteSemaphore(types.SemaphoreFilter) returns (google.protobuf.Empty);
 
