@@ -43,6 +43,14 @@ struct ContentView: View {
     }
     .onAppear {
       Task {
+        let nc = DeviceAuthCeremony()
+        let ac = AuthnCeremony(nc)!
+        do {
+          try ac.runWeb()
+          logger.debug("Call to Go finished successfully")
+        } catch {
+          logger.error("Got an error: \(error)")
+        }
         let greeter = AuthnGreeter()!
         logger.debug("Attempting to send a ping")
         do {

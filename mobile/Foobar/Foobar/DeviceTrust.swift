@@ -4,6 +4,7 @@
 //
 //  Created by Rafał Cieślak on 2025-10-06.
 //
+import Authn
 import Connect
 import ConnectNIO
 import CryptoKit
@@ -15,6 +16,38 @@ private let logger = Logger(
   subsystem: Bundle.main.bundleIdentifier ?? "Foobar",
   category: "devicetrust"
 )
+
+class DeviceAuthCeremony: NSObject, AuthnNativeCeremonyProtocol {
+  func collectDeviceData() throws -> AuthnDeviceCollectedData {
+    // TODO: Return AuthnDeviceCollectedData from nativeCollectDeviceData.
+    let ncd = nativeCollectDeviceData()
+    let cd = AuthnDeviceCollectedData()
+    cd.serialNumber = ncd.serialNumber
+    cd.modelIdentifier = ncd.modelIdentifier
+    cd.versionOS = ncd.osVersion
+    cd.buildOS = ncd.osBuild
+    cd.systemSerialNumber = ncd.systemSerialNumber
+    return cd
+  }
+
+  func getDeviceCredential() throws -> AuthnDeviceCredential {
+    guard let ndc = try DeviceKey.get() else {
+      throw DeviceKeyError.noDeviceKey
+    }
+    let dc = AuthnDeviceCredential()
+    dc.deviceID = ndc.id
+    dc.publicKeyDER = ndc.publicKeyDer
+    return dc
+  }
+
+  func signChallenge(_ maybeChal: Data?) throws -> Data {
+    guard let chal = maybeChal else {
+      throw DeviceKeySignError.noChallenge
+    }
+    let signature = try DeviceKey.sign(chal)
+    return signature
+  }
+}
 
 protocol DeviceTrustP {
   func getSerialNumber() -> String
@@ -48,7 +81,7 @@ final class DeviceTrust: DeviceTrustP {
       )
     )
     let client = Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: protocolClient)
-    let cd = collectDeviceData()
+    let cd = nativeCollectDeviceData()
     logger.debug("Collected device data: \(cd.debugDescription, privacy: .public)")
 
     let cred = try DeviceKey.getOrCreate()
@@ -121,7 +154,7 @@ final class DeviceTrust: DeviceTrustP {
       )
     )
     let client = Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: protocolClient)
-    let cd = collectDeviceData()
+    let cd = nativeCollectDeviceData()
     logger.debug("Collected device data: \(cd.debugDescription, privacy: .public)")
 
     guard let cred = try DeviceKey.get() else {
@@ -231,7 +264,7 @@ func getSingleMessage<Request, Response>(_ stream: any BidirectionalAsyncStreamI
   return .failure(.noMessage)
 }
 
-func collectDeviceData() -> Teleport_Devicetrust_V1_DeviceCollectedData {
+func nativeCollectDeviceData() -> Teleport_Devicetrust_V1_DeviceCollectedData {
   let device = UIDevice.current
   var cd = Teleport_Devicetrust_V1_DeviceCollectedData()
   let serialNumber = "FOO1234"
@@ -272,9 +305,11 @@ enum DeviceKeyError: Error {
   case noValueRef
   /// copyFailed is used when getting a public key from a private key has failed.
   case copyFailed
+  case noDeviceKey
 }
 
 enum DeviceKeySignError: Error {
+  case noChallenge
   case noDeviceKey
 }
 
