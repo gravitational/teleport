@@ -29,10 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -250,41 +248,6 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 			)
 			return table.AsBuffer().String()
 		},
-	}
-	test.run(t)
-}
-
-func TestDatabaseObjectCollection_writeText(t *testing.T) {
-	mkObj := func(name string) *dbobjectv1.DatabaseObject {
-		r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
-			Name:                name,
-			Protocol:            "postgres",
-			DatabaseServiceName: "pg",
-			ObjectKind:          "table",
-		})
-		require.NoError(t, err)
-		return r
-	}
-
-	items := []*dbobjectv1.DatabaseObject{
-		mkObj("object_1"),
-		mkObj("object_2"),
-		mkObj("object_3"),
-	}
-
-	table := asciitable.MakeTable(
-		[]string{"Name", "Kind", "DB Service", "Protocol"},
-		[]string{"object_1", "table", "pg", "postgres"},
-		[]string{"object_2", "table", "pg", "postgres"},
-		[]string{"object_3", "table", "pg", "postgres"},
-	)
-
-	formatted := table.AsBuffer().String()
-
-	test := writeTextTest{
-		collection:          &databaseObjectCollection{items},
-		wantVerboseTable:    func() string { return formatted },
-		wantNonVerboseTable: func() string { return formatted },
 	}
 	test.run(t)
 }

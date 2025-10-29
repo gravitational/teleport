@@ -42,7 +42,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -70,7 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -148,7 +146,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
-		types.KindDatabaseObject:              rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
@@ -521,27 +518,6 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	object, err := databaseobject.UnmarshalJSON(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if rc.IsForced() {
-		_, err = client.DatabaseObjectsClient().UpsertDatabaseObject(ctx, object)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
-		return nil
-	}
-	_, err = client.DatabaseObjectsClient().CreateDatabaseObject(ctx, object)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
 	return nil
 }
 
@@ -1617,11 +1593,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabaseObject:
-		if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
 	case types.KindAccessMonitoringRule:
 		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2197,22 +2168,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		})
 
 		return &deviceCollection{devices: devs}, nil
-	case types.KindDatabaseObject:
-		remote := client.DatabaseObjectsClient()
-		if rc.ref.Name != "" {
-			object, err := remote.GetDatabaseObject(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &databaseObjectCollection{objects: []*dbobjectv1.DatabaseObject{object}}, nil
-		}
-
-		objects, err := stream.Collect(clientutils.Resources(ctx, remote.ListDatabaseObjects))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &databaseObjectCollection{objects: objects}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
