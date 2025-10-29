@@ -369,11 +369,11 @@ During rotation, clients can continue to join as expected so long as the CA used
 to sign their join state JWT is either active or trusted, which remains true
 through the `update_servers` phase.
 
-Machine ID bots, if active, should detect the rotation event and renew their
-certificates, which will automatically fetch a new join state JWT signed with
-the new CA. Bots that are not currently running will need to be started once
-and allowed to fetch new certificates, which will also refresh the join state
-JWT.
+Machine & Workload ID bots, if active, should detect the rotation event and
+renew their certificates, which will automatically fetch a new join state JWT
+signed with the new CA. Bots that are not currently running will need to be
+started once and allowed to fetch new certificates, which will also refresh the
+join state JWT.
 
 If join state verification fails after a CA rotation, you can allow clients to
 join again by [temporarily disabling join state
