@@ -68,7 +68,7 @@ func WorkloadAPIServiceBuilder(
 	trustBundleCache TrustBundleGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -79,11 +79,12 @@ func WorkloadAPIServiceBuilder(
 			cfg:                       cfg,
 			trustBundleCache:          trustBundleCache,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return bot.NewServicePair(svc, sidecar), nil
 	}
+	return bot.NewServiceBuilder(WorkloadAPIServiceType, cfg.Name, buildFn)
 }
 
 type TrustBundleGetter interface {
