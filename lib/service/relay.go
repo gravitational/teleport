@@ -103,13 +103,21 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer lockWatcher.Close()
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:   conn.clusterName,
-		AccessPoint:   accessPoint,
-		LockWatcher:   lockWatcher,
-		Logger:        sublogger("authorizer"),
-		PermitCaching: process.Config.CachePolicy.Enabled,
-	})
+	authorizerOpts := authz.AuthorizerOpts{
+		ClusterName:      conn.clusterName,
+		AccessPoint:      accessPoint,
+		ScopedRoleReader: accessPoint.ScopedRoleReader(),
+		LockWatcher:      lockWatcher,
+		Logger:           sublogger("authorizer"),
+		PermitCaching:    process.Config.CachePolicy.Enabled,
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -229,6 +237,7 @@ func (process *TeleportProcess) runRelayService() error {
 				ClusterName: conn.clusterName,
 			},
 			Authorizer:        authorizer,
+			ScopedAuthorizer:  scopedAuthorizer,
 			GetAuthPreference: accessPoint.GetAuthPreference,
 		})
 		if err != nil {
@@ -292,7 +301,7 @@ func (process *TeleportProcess) runRelayService() error {
 		FIPS:   process.Config.FIPS,
 		Logger: sublogger("transport_service"),
 		Dialer: relayRouter,
-		SignerFn: func(*authz.Context, string) agentless.SignerCreator {
+		SignerFn: func(*authz.ScopedContext, string) agentless.SignerCreator {
 			return func(context.Context, agentless.LocalAccessPoint, agentless.CertGenerator) (ssh.Signer, error) {
 				// the behavior of relayRouter is such that we should never
 				// attempt to connect to an agentless server

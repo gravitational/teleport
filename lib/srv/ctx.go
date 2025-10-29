@@ -96,6 +96,9 @@ type AccessPoint interface {
 	// Semaphores provides semaphore operations
 	types.Semaphores
 
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
+
 	// GetClusterName returns cluster name
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
@@ -755,7 +758,10 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	}
 
 	// ensure moderated session policies allow starting an unattended session
-	policySets := c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	var policySets []*types.SessionTrackerPolicySet
+	if c.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
 	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
