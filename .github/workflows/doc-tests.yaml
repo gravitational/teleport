@@ -86,9 +86,10 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
-          node-version: 22
+          # node-version: 22
           cache: 'yarn'
           cache-dependency-path: '${{ github.workspace }}/docs/yarn.lock'
+          node-version-file: '${{ github.workspace }}/docs/package.json'
 
       - name: Install docs site dependencies
         working-directory: docs
