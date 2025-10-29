@@ -1360,7 +1360,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 	}
 	tlsConfig.ServerName = apiutils.EncodeClusterName(connector.ClusterName())
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(connector.ClientGetPool)
+	tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, connector.ClientGetPool)
 
 	sshClientConfig, err := connector.clientSSHClientConfig(process.Config.FIPS)
 	if err != nil {
