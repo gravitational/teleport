@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"testing"
 	"time"
@@ -507,6 +508,66 @@ func TestAccessListNestedGrants(t *testing.T) {
 		rootACLRole, rootACLRoleForUpdate, rootACLRoleForUpsert, rootACLRoleForUpsertWithMembers,
 		nestedACLRole, nestedACLRoleForUpdate, nestedACLRoleForUpsert, nestedACLRoleForUpsertWithMembers,
 	})
+}
+
+// TestAccessListGrantsPropagation verifies that access list role grants are properly
+// applied through the web access path during user authentication. This test ensures that
+// user state is correctly updated with the appropriate roles when access list membership
+// changes between login attempts. The primary purpose is to validate that user login state
+// is not cached anywhere and that web login hooks do not cache the user or user state object,
+// ensuring fresh role grants are applied on each authentication.
+func TestAccessListGrantsPropagation(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithLicense("../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice", "requester"),
+	)
+	authServer := sut.Teleport.Process.GetAuthServer()
+	ctx := t.Context()
+
+	testAccessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title: "access list 1",
+		Owners: []accesslist.Owner{
+			{Name: "alice"},
+		},
+		Grants: accesslist.Grants{Roles: []string{"editor"}},
+		Audit:  accesslist.Audit{NextAuditDate: sut.Clock.Now()},
+	})
+	require.NoError(t, err)
+
+	aclMember := []*accesslist.AccessListMember{
+		mustCreateMember(t, testAccessList.GetName(), "alice"),
+	}
+
+	// checkRoleListAccess checks if Alice can access the role list endpoint with the single login flow
+	// where webhooks are called and user login state is created.
+	checkRoleListAccess := func(wantStatus int) {
+		webClient := sut.CreateWebClientForUser(t, "alice")
+		endpoint := webClient.Endpoint("webapi", "roles")
+		req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+		require.NoError(t, err)
+		resp, err := webClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		require.Equal(t, wantStatus, resp.StatusCode)
+	}
+
+	// Initially, Alice has only requester role and should not be able to list roles.
+	checkRoleListAccess(http.StatusForbidden)
+
+	// Alice is added as a member to access list with editor role grant.
+	_, _, err = authServer.AccessListsInternal.UpsertAccessListWithMembers(ctx, testAccessList, aclMember)
+	require.NoError(t, err)
+	// Membership 'editor' grant should allow Alice to list roles.
+	checkRoleListAccess(http.StatusOK)
+
+	// After alice is removed from the access list,
+	err = authServer.AccessListsInternal.DeleteAccessListMember(ctx, testAccessList.GetName(), "alice")
+	require.NoError(t, err)
+
+	// She should no longer be able to list roles.
+	checkRoleListAccess(http.StatusForbidden)
 }
 
 func eventuallyHasRoles(t *testing.T, sut *common.SUT, user types.User, roles []types.Role) {
