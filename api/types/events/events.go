@@ -2539,7 +2539,12 @@ func (m *MCPSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 }
 
 func (m *MCPSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
-	return m
+	return trimEventToMaxSize(m, maxSize, func(m, out *MCPSessionEnd) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+			newTraitsTrimmer(m.Headers, &out.Headers),
+		}
+	})
 }
 
 func (m *MCPJSONRPCMessage) nonEmptyStrs() int {
@@ -2566,6 +2571,8 @@ func (m *MCPSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	return trimEventToMaxSize(m, maxSize, func(m, out *MCPSessionRequest) fieldTrimmer {
 		return fieldTrimmers{
 			newGenericTrimmer(&m.Message, &out.Message),
+			newGenericTrimmer(&m.Status, &out.Status),
+			newTraitsTrimmer(m.Headers, &out.Headers),
 		}
 	})
 }
@@ -2574,12 +2581,19 @@ func (m *MCPSessionNotification) TrimToMaxSize(maxSize int) AuditEvent {
 	return trimEventToMaxSize(m, maxSize, func(m, out *MCPSessionNotification) fieldTrimmer {
 		return fieldTrimmers{
 			newGenericTrimmer(&m.Message, &out.Message),
+			newGenericTrimmer(&m.Status, &out.Status),
+			newTraitsTrimmer(m.Headers, &out.Headers),
 		}
 	})
 }
 
 func (m *MCPSessionListenSSEStream) TrimToMaxSize(maxSize int) AuditEvent {
-	return m
+	return trimEventToMaxSize(m, maxSize, func(m, out *MCPSessionListenSSEStream) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+			newTraitsTrimmer(m.Headers, &out.Headers),
+		}
+	})
 }
 
 func (m *MCPSessionInvalidHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
