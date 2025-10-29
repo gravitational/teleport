@@ -335,11 +335,29 @@ type Semaphores interface {
 
 // Match checks if the supplied semaphore matches this filter.
 func (f *SemaphoreFilter) Match(sem Semaphore) bool {
-	if f.SemaphoreKind != "" && f.SemaphoreKind != sem.GetSubKind() {
+	if f.GetSemaphoreKind() != "" && f.GetSemaphoreKind() != sem.GetSubKind() {
 		return false
 	}
-	if f.SemaphoreName != "" && f.SemaphoreName != sem.GetName() {
+	if f.GetSemaphoreName() != "" && f.GetSemaphoreName() != sem.GetName() {
 		return false
 	}
 	return true
+}
+
+// GetSemaphoreKind returns the semaphore kind to filter by if filter is non-nil
+func (f *SemaphoreFilter) GetSemaphoreKind() string {
+	if f == nil {
+		return ""
+	}
+
+	return f.SemaphoreKind
+}
+
+// GetSemaphoreName returns the semaphore name to filter by if filter is non-nil
+func (f *SemaphoreFilter) GetSemaphoreName() string {
+	if f == nil {
+		return ""
+	}
+
+	return f.SemaphoreName
 }

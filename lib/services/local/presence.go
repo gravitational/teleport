@@ -803,30 +803,26 @@ func (s *PresenceService) rangeSemaphores(ctx context.Context, start string, fil
 			return nil, false
 		}
 
-		// No filter means all items are returned.
-		if filter == nil {
-			return sem, true
-		}
-
 		return sem, filter.Match(sem)
 	}
 
 	startKey := backend.NewKey(semaphoresPrefix).AppendKey(backend.KeyFromString(start))
 	endKey := backend.RangeEnd(backend.NewKey(semaphoresPrefix))
 
+	filterKind := filter.GetSemaphoreKind()
+	filterName := filter.GetSemaphoreName()
+
 	// If the filter is set we optimize the ranges to avoid fetching items that will be filtered.
-	if filter != nil {
-		if filter.SemaphoreKind != "" && filter.SemaphoreName != "" {
-			// Special case when both kind and name are set the result should yield only a single item.
-			startKey = backend.NewKey(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)
-			endKey = startKey
-		} else if filter.SemaphoreKind != "" {
-			// Terminate range early as we know the only kind requested.
-			endKey = backend.RangeEnd(backend.NewKey(semaphoresPrefix, filter.SemaphoreKind))
-			if start == "" {
-				// We are not resuming previous list, skip to the start of the correct kind range
-				startKey = backend.NewKey(semaphoresPrefix, filter.SemaphoreKind)
-			}
+	if filterKind != "" && filterName != "" {
+		// Special case when both kind and name are set the result should yield only a single item.
+		startKey = backend.NewKey(semaphoresPrefix, filterKind, filterName)
+		endKey = startKey
+	} else if filterKind != "" {
+		// Terminate range early as we know the only kind requested.
+		endKey = backend.RangeEnd(backend.NewKey(semaphoresPrefix, filterKind))
+		if start == "" {
+			// We are not resuming previous list, skip to the start of the correct kind range
+			startKey = backend.NewKey(semaphoresPrefix, filterKind)
 		}
 	}
 
