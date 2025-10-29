@@ -59,8 +59,8 @@ type NewWebSessionRequest struct {
 	// LoginUserAgent is the user agent of the client's browser, as captured by
 	// the Proxy.
 	LoginUserAgent string
-	// LoginProxyPublicAddr is the proxy public address where request is generated.
-	LoginProxyPublicAddr string
+	// ProxyGroupID is the proxy group id where request is generated.
+	ProxyGroupID string
 	// Roles optionally lists additional user roles
 	Roles []string
 	// Traits optionally lists role traits
@@ -350,7 +350,7 @@ func (a *Server) newWebSession(
 
 	UserLoginCount.With(prometheus.Labels{
 		teleport.TagUserAgent: "web/" + teleport.Version,
-		teleport.TagProxy:     req.LoginProxyPublicAddr,
+		teleport.TagProxy:     req.ProxyGroupID,
 	}).Inc()
 
 	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
@@ -619,7 +619,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 
 	UserLoginCount.With(prometheus.Labels{
 		teleport.TagUserAgent: "web/" + teleport.Version,
-		teleport.TagProxy:     req.LoginProxyPublicAddr,
+		teleport.TagProxy:     req.ProxyGroupID,
 	}).Inc()
 
 	// Do not send app session start for MCP. They have their own events on

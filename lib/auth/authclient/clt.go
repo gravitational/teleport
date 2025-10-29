@@ -1420,8 +1420,8 @@ type ForwardedClientMetadata struct {
 	// either from a direct client connection, or from a PROXY protocol header
 	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
-	// ProxyPublicAddr is public address of the proxy service.
-	ProxyPublicAddr string `json:"proxy_public_addr,omitempty"`
+	// ProxyGroupID is proxy group id of the proxy service.
+	ProxyGroupID string `json:"proxy_group_id,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
