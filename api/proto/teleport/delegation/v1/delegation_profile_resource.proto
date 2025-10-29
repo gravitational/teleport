@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.delegation.v1;
 
 import "google/protobuf/duration.proto";
+import "teleport/delegation/v1/delegation_session_resource.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
@@ -58,18 +59,6 @@ message DelegationProfileSpec {
 
   // Configuration for the delegation consent screen.
   optional DelegationConsentSpec consent = 4;
-}
-
-// DelegationUserSpec describes a bot or workload who is allowed to use a
-// delegation session.
-message DelegationUserSpec {
-  // Type of user (currently only "bot" is supported).
-  string type = 1;
-
-  oneof matcher {
-    // Name of the bot who may use the delegation session.
-    string bot_name = 2;
-  }
 }
 
 // DelegationConsentSpec contains configuration for the delegation consent screen.

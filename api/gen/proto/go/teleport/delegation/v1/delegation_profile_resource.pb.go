@@ -198,84 +198,6 @@ func (x *DelegationProfileSpec) GetConsent() *DelegationConsentSpec {
 	return nil
 }
 
-// DelegationUserSpec describes a bot or workload who is allowed to use a
-// delegation session.
-type DelegationUserSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Type of user (currently only "bot" is supported).
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// Types that are valid to be assigned to Matcher:
-	//
-	//	*DelegationUserSpec_BotName
-	Matcher       isDelegationUserSpec_Matcher `protobuf_oneof:"matcher"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DelegationUserSpec) Reset() {
-	*x = DelegationUserSpec{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DelegationUserSpec) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DelegationUserSpec) ProtoMessage() {}
-
-func (x *DelegationUserSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DelegationUserSpec.ProtoReflect.Descriptor instead.
-func (*DelegationUserSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *DelegationUserSpec) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *DelegationUserSpec) GetMatcher() isDelegationUserSpec_Matcher {
-	if x != nil {
-		return x.Matcher
-	}
-	return nil
-}
-
-func (x *DelegationUserSpec) GetBotName() string {
-	if x != nil {
-		if x, ok := x.Matcher.(*DelegationUserSpec_BotName); ok {
-			return x.BotName
-		}
-	}
-	return ""
-}
-
-type isDelegationUserSpec_Matcher interface {
-	isDelegationUserSpec_Matcher()
-}
-
-type DelegationUserSpec_BotName struct {
-	// Name of the bot who may use the delegation session.
-	BotName string `protobuf:"bytes,2,opt,name=bot_name,json=botName,proto3,oneof"`
-}
-
-func (*DelegationUserSpec_BotName) isDelegationUserSpec_Matcher() {}
-
 // DelegationConsentSpec contains configuration for the delegation consent screen.
 type DelegationConsentSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -294,7 +216,7 @@ type DelegationConsentSpec struct {
 
 func (x *DelegationConsentSpec) Reset() {
 	*x = DelegationConsentSpec{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[3]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -306,7 +228,7 @@ func (x *DelegationConsentSpec) String() string {
 func (*DelegationConsentSpec) ProtoMessage() {}
 
 func (x *DelegationConsentSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[3]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -319,7 +241,7 @@ func (x *DelegationConsentSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DelegationConsentSpec.ProtoReflect.Descriptor instead.
 func (*DelegationConsentSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{3}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DelegationConsentSpec) GetTitle() string {
@@ -364,7 +286,7 @@ type DelegationResourceSpec struct {
 
 func (x *DelegationResourceSpec) Reset() {
 	*x = DelegationResourceSpec{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[4]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -376,7 +298,7 @@ func (x *DelegationResourceSpec) String() string {
 func (*DelegationResourceSpec) ProtoMessage() {}
 
 func (x *DelegationResourceSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[4]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -389,7 +311,7 @@ func (x *DelegationResourceSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DelegationResourceSpec.ProtoReflect.Descriptor instead.
 func (*DelegationResourceSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{4}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DelegationResourceSpec) GetKind() string {
@@ -492,7 +414,7 @@ type DelegationMCPResourceConstraints struct {
 
 func (x *DelegationMCPResourceConstraints) Reset() {
 	*x = DelegationMCPResourceConstraints{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[5]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -504,7 +426,7 @@ func (x *DelegationMCPResourceConstraints) String() string {
 func (*DelegationMCPResourceConstraints) ProtoMessage() {}
 
 func (x *DelegationMCPResourceConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[5]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -517,7 +439,7 @@ func (x *DelegationMCPResourceConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DelegationMCPResourceConstraints.ProtoReflect.Descriptor instead.
 func (*DelegationMCPResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{5}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DelegationMCPResourceConstraints) GetTools() []string {
@@ -540,7 +462,7 @@ type DelegationDatabaseResourceConstraints struct {
 
 func (x *DelegationDatabaseResourceConstraints) Reset() {
 	*x = DelegationDatabaseResourceConstraints{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[6]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -552,7 +474,7 @@ func (x *DelegationDatabaseResourceConstraints) String() string {
 func (*DelegationDatabaseResourceConstraints) ProtoMessage() {}
 
 func (x *DelegationDatabaseResourceConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[6]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -565,7 +487,7 @@ func (x *DelegationDatabaseResourceConstraints) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use DelegationDatabaseResourceConstraints.ProtoReflect.Descriptor instead.
 func (*DelegationDatabaseResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{6}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DelegationDatabaseResourceConstraints) GetDatabases() []string {
@@ -593,7 +515,7 @@ type DelegationSSHResourceConstraints struct {
 
 func (x *DelegationSSHResourceConstraints) Reset() {
 	*x = DelegationSSHResourceConstraints{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[7]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -605,7 +527,7 @@ func (x *DelegationSSHResourceConstraints) String() string {
 func (*DelegationSSHResourceConstraints) ProtoMessage() {}
 
 func (x *DelegationSSHResourceConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[7]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -618,7 +540,7 @@ func (x *DelegationSSHResourceConstraints) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DelegationSSHResourceConstraints.ProtoReflect.Descriptor instead.
 func (*DelegationSSHResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{7}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DelegationSSHResourceConstraints) GetUsers() []string {
@@ -639,7 +561,7 @@ type DelegationKubernetesResourceConstraints struct {
 
 func (x *DelegationKubernetesResourceConstraints) Reset() {
 	*x = DelegationKubernetesResourceConstraints{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[8]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +573,7 @@ func (x *DelegationKubernetesResourceConstraints) String() string {
 func (*DelegationKubernetesResourceConstraints) ProtoMessage() {}
 
 func (x *DelegationKubernetesResourceConstraints) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[8]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -664,7 +586,7 @@ func (x *DelegationKubernetesResourceConstraints) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use DelegationKubernetesResourceConstraints.ProtoReflect.Descriptor instead.
 func (*DelegationKubernetesResourceConstraints) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{8}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DelegationKubernetesResourceConstraints) GetResources() []*DelegationKubernetesResource {
@@ -692,7 +614,7 @@ type DelegationKubernetesResource struct {
 
 func (x *DelegationKubernetesResource) Reset() {
 	*x = DelegationKubernetesResource{}
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[9]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -704,7 +626,7 @@ func (x *DelegationKubernetesResource) String() string {
 func (*DelegationKubernetesResource) ProtoMessage() {}
 
 func (x *DelegationKubernetesResource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[9]
+	mi := &file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -717,7 +639,7 @@ func (x *DelegationKubernetesResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DelegationKubernetesResource.ProtoReflect.Descriptor instead.
 func (*DelegationKubernetesResource) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{9}
+	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DelegationKubernetesResource) GetKind() string {
@@ -752,7 +674,7 @@ var File_teleport_delegation_v1_delegation_profile_resource_proto protoreflect.F
 
 const file_teleport_delegation_v1_delegation_profile_resource_proto_rawDesc = "" +
 	"\n" +
-	"8teleport/delegation/v1/delegation_profile_resource.proto\x12\x16teleport.delegation.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\"\xd9\x01\n" +
+	"8teleport/delegation/v1/delegation_profile_resource.proto\x12\x16teleport.delegation.v1\x1a\x1egoogle/protobuf/duration.proto\x1a8teleport/delegation/v1/delegation_session_resource.proto\x1a!teleport/header/v1/metadata.proto\"\xd9\x01\n" +
 	"\x11DelegationProfile\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -766,11 +688,7 @@ const file_teleport_delegation_v1_delegation_profile_resource_proto_rawDesc = ""
 	"\aconsent\x18\x04 \x01(\v2-.teleport.delegation.v1.DelegationConsentSpecH\x01R\aconsent\x88\x01\x01B\x19\n" +
 	"\x17_default_session_lengthB\n" +
 	"\n" +
-	"\b_consent\"P\n" +
-	"\x12DelegationUserSpec\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1b\n" +
-	"\bbot_name\x18\x02 \x01(\tH\x00R\abotNameB\t\n" +
-	"\amatcher\"\x83\x01\n" +
+	"\b_consent\"\x83\x01\n" +
 	"\x15DelegationConsentSpec\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x122\n" +
@@ -812,33 +730,33 @@ func file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescGZIP()
 	return file_teleport_delegation_v1_delegation_profile_resource_proto_rawDescData
 }
 
-var file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_delegation_v1_delegation_profile_resource_proto_goTypes = []any{
 	(*DelegationProfile)(nil),                       // 0: teleport.delegation.v1.DelegationProfile
 	(*DelegationProfileSpec)(nil),                   // 1: teleport.delegation.v1.DelegationProfileSpec
-	(*DelegationUserSpec)(nil),                      // 2: teleport.delegation.v1.DelegationUserSpec
-	(*DelegationConsentSpec)(nil),                   // 3: teleport.delegation.v1.DelegationConsentSpec
-	(*DelegationResourceSpec)(nil),                  // 4: teleport.delegation.v1.DelegationResourceSpec
-	(*DelegationMCPResourceConstraints)(nil),        // 5: teleport.delegation.v1.DelegationMCPResourceConstraints
-	(*DelegationDatabaseResourceConstraints)(nil),   // 6: teleport.delegation.v1.DelegationDatabaseResourceConstraints
-	(*DelegationSSHResourceConstraints)(nil),        // 7: teleport.delegation.v1.DelegationSSHResourceConstraints
-	(*DelegationKubernetesResourceConstraints)(nil), // 8: teleport.delegation.v1.DelegationKubernetesResourceConstraints
-	(*DelegationKubernetesResource)(nil),            // 9: teleport.delegation.v1.DelegationKubernetesResource
-	(*v1.Metadata)(nil),                             // 10: teleport.header.v1.Metadata
+	(*DelegationConsentSpec)(nil),                   // 2: teleport.delegation.v1.DelegationConsentSpec
+	(*DelegationResourceSpec)(nil),                  // 3: teleport.delegation.v1.DelegationResourceSpec
+	(*DelegationMCPResourceConstraints)(nil),        // 4: teleport.delegation.v1.DelegationMCPResourceConstraints
+	(*DelegationDatabaseResourceConstraints)(nil),   // 5: teleport.delegation.v1.DelegationDatabaseResourceConstraints
+	(*DelegationSSHResourceConstraints)(nil),        // 6: teleport.delegation.v1.DelegationSSHResourceConstraints
+	(*DelegationKubernetesResourceConstraints)(nil), // 7: teleport.delegation.v1.DelegationKubernetesResourceConstraints
+	(*DelegationKubernetesResource)(nil),            // 8: teleport.delegation.v1.DelegationKubernetesResource
+	(*v1.Metadata)(nil),                             // 9: teleport.header.v1.Metadata
+	(*DelegationUserSpec)(nil),                      // 10: teleport.delegation.v1.DelegationUserSpec
 	(*durationpb.Duration)(nil),                     // 11: google.protobuf.Duration
 }
 var file_teleport_delegation_v1_delegation_profile_resource_proto_depIdxs = []int32{
-	10, // 0: teleport.delegation.v1.DelegationProfile.metadata:type_name -> teleport.header.v1.Metadata
+	9,  // 0: teleport.delegation.v1.DelegationProfile.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.delegation.v1.DelegationProfile.spec:type_name -> teleport.delegation.v1.DelegationProfileSpec
-	4,  // 2: teleport.delegation.v1.DelegationProfileSpec.required_resources:type_name -> teleport.delegation.v1.DelegationResourceSpec
-	2,  // 3: teleport.delegation.v1.DelegationProfileSpec.authorized_users:type_name -> teleport.delegation.v1.DelegationUserSpec
+	3,  // 2: teleport.delegation.v1.DelegationProfileSpec.required_resources:type_name -> teleport.delegation.v1.DelegationResourceSpec
+	10, // 3: teleport.delegation.v1.DelegationProfileSpec.authorized_users:type_name -> teleport.delegation.v1.DelegationUserSpec
 	11, // 4: teleport.delegation.v1.DelegationProfileSpec.default_session_length:type_name -> google.protobuf.Duration
-	3,  // 5: teleport.delegation.v1.DelegationProfileSpec.consent:type_name -> teleport.delegation.v1.DelegationConsentSpec
-	5,  // 6: teleport.delegation.v1.DelegationResourceSpec.mcp:type_name -> teleport.delegation.v1.DelegationMCPResourceConstraints
-	6,  // 7: teleport.delegation.v1.DelegationResourceSpec.db:type_name -> teleport.delegation.v1.DelegationDatabaseResourceConstraints
-	7,  // 8: teleport.delegation.v1.DelegationResourceSpec.ssh:type_name -> teleport.delegation.v1.DelegationSSHResourceConstraints
-	8,  // 9: teleport.delegation.v1.DelegationResourceSpec.kubernetes:type_name -> teleport.delegation.v1.DelegationKubernetesResourceConstraints
-	9,  // 10: teleport.delegation.v1.DelegationKubernetesResourceConstraints.resources:type_name -> teleport.delegation.v1.DelegationKubernetesResource
+	2,  // 5: teleport.delegation.v1.DelegationProfileSpec.consent:type_name -> teleport.delegation.v1.DelegationConsentSpec
+	4,  // 6: teleport.delegation.v1.DelegationResourceSpec.mcp:type_name -> teleport.delegation.v1.DelegationMCPResourceConstraints
+	5,  // 7: teleport.delegation.v1.DelegationResourceSpec.db:type_name -> teleport.delegation.v1.DelegationDatabaseResourceConstraints
+	6,  // 8: teleport.delegation.v1.DelegationResourceSpec.ssh:type_name -> teleport.delegation.v1.DelegationSSHResourceConstraints
+	7,  // 9: teleport.delegation.v1.DelegationResourceSpec.kubernetes:type_name -> teleport.delegation.v1.DelegationKubernetesResourceConstraints
+	8,  // 10: teleport.delegation.v1.DelegationKubernetesResourceConstraints.resources:type_name -> teleport.delegation.v1.DelegationKubernetesResource
 	11, // [11:11] is the sub-list for method output_type
 	11, // [11:11] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
@@ -851,11 +769,9 @@ func file_teleport_delegation_v1_delegation_profile_resource_proto_init() {
 	if File_teleport_delegation_v1_delegation_profile_resource_proto != nil {
 		return
 	}
+	file_teleport_delegation_v1_delegation_session_resource_proto_init()
 	file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[1].OneofWrappers = []any{}
-	file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[2].OneofWrappers = []any{
-		(*DelegationUserSpec_BotName)(nil),
-	}
-	file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[4].OneofWrappers = []any{
+	file_teleport_delegation_v1_delegation_profile_resource_proto_msgTypes[3].OneofWrappers = []any{
 		(*DelegationResourceSpec_Mcp)(nil),
 		(*DelegationResourceSpec_Db)(nil),
 		(*DelegationResourceSpec_Ssh)(nil),
@@ -867,7 +783,7 @@ func file_teleport_delegation_v1_delegation_profile_resource_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_profile_resource_proto_rawDesc), len(file_teleport_delegation_v1_delegation_profile_resource_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -1,0 +1,66 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.delegation.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
+
+// DelegationSession allows an automated workload or bot to act on a Teleport
+// user's behalf, with a subset of their permissions, for a limited amount of
+// time.
+message DelegationSession {
+  // The kind of resource represented. This is always `delegation_session`.
+  string kind = 1;
+
+  // Differentiates variations of the same kind. All resources should contain
+  // one, even if it is never populated.
+  string sub_kind = 2;
+
+  // The version of the resource being represented.
+  string version = 3;
+
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Delegation session details.
+  DelegationSessionSpec spec = 5;
+}
+
+// Delegation session details.
+message DelegationSessionSpec {
+  // Name of the user this session belongs to.
+  string user = 1;
+
+  // Resources that will be accessible in this session.
+  repeated string resources = 2;
+
+  // Users (i.e. bots or workloads) authorized to use this session.
+  repeated DelegationUserSpec authorized_users = 3;
+}
+
+// DelegationUserSpec describes a bot or workload who is allowed to use a
+// delegation session.
+message DelegationUserSpec {
+  // Type of user (currently only "bot" is supported).
+  string type = 1;
+
+  oneof matcher {
+    // Name of the bot who may use the delegation session.
+    string bot_name = 2;
+  }
+}
