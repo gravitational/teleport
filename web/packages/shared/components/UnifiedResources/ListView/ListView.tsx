@@ -38,7 +38,13 @@ export function ListView({
   return (
     <Flex className="ListContainer">
       {mappedResources.map(
-        ({ item, key, onShowStatusInfo, showingStatusInfo }) => (
+        ({
+          item,
+          key,
+          onShowStatusInfo,
+          showingStatusInfo,
+          hideCheckboxInput,
+        }) => (
           <ResourceListItem
             key={key}
             viewItem={item}
@@ -51,6 +57,7 @@ export function ListView({
             expandAllLabels={expandAllLabels}
             onShowStatusInfo={onShowStatusInfo}
             showingStatusInfo={showingStatusInfo}
+            hideCheckboxInput={hideCheckboxInput}
           />
         )
       )}

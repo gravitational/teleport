@@ -253,11 +253,33 @@ export async function fetchRole(
   );
 }
 
+export async function fetchRoles(
+  params?: UrlListRolesParams,
+  signal?: AbortSignal
+): Promise<{
+  items: RoleResource[];
+  startKey: string;
+}> {
+  return await api.get(cfg.getRoleUrl({ action: 'list', params }), signal);
+}
+
 export async function fetchRoleWithYamlParse(name: string): Promise<Role> {
   const { content } = await fetchRole(name);
   return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
     yaml: content,
   });
+}
+
+export async function fetchRolesWithYamlParse(search: string): Promise<Role[]> {
+  const roles = await fetchRoles({ search });
+
+  const promises = roles.items.map(role => {
+    return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
+      yaml: role.content,
+    });
+  });
+
+  return await Promise.all(promises);
 }
 
 export async function updateRoleWithYamlConversion({

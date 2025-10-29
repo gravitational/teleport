@@ -75,6 +75,8 @@ type Application interface {
 	IsMCP() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
+	// GetCloudInstance returns the cloud instance.
+	GetCloudInstance() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
@@ -314,6 +316,11 @@ func (a *AppV3) GetProtocol() string {
 		return "MCP"
 	}
 	return "HTTP"
+}
+
+// GetCloudInstance returns the cloud instance eg: Azure, GCP, AWS.
+func (a *AppV3) GetCloudInstance() string {
+	return a.Spec.Cloud
 }
 
 // GetAWSAccountID returns value of label containing AWS account ID on this app.

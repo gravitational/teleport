@@ -83,7 +83,7 @@ export function UnifiedResources() {
   );
 }
 
-const ResizingResourceWrapper = styled(Box)`
+export const ResizingResourceWrapper = styled(Box)`
   width: 100%;
   padding-right: ${props => props.theme.space[3]}px;
 `;

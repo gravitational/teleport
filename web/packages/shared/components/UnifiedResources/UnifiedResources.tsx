@@ -26,7 +26,7 @@ import React, {
   useState,
   type JSX,
 } from 'react';
-import styled from 'styled-components';
+import styled, { CSSProp } from 'styled-components';
 
 import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -57,7 +57,7 @@ import {
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
-import { ResourcesResponse } from 'teleport/services/agents';
+import { ResourceLabel, ResourcesResponse } from 'teleport/services/agents';
 
 import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
 import { CardsView } from './CardsView/CardsView';
@@ -212,7 +212,25 @@ export interface UnifiedResourcesProps {
    * with selected resources status info.
    */
   onShowStatusInfo(resource: UnifiedResourceDefinition): void;
+
+  /**
+   * hideFilter will not render the filter set to true.
+   * Default is to render the filter.
+   */
+  hideFilter?: HideFilter;
+  /**
+   * onLabelClick is a custom label click handler.
+   * Default is to add label to the query string (predicate expression).
+   */
+  onLabelClick?(label: ResourceLabel): void;
+  cssStyle?: CSSProp;
 }
+
+export type HideFilter = {
+  checkboxInputs?: boolean;
+  clusterMenu?: boolean;
+  statusMenu?: boolean;
+};
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
   const {
@@ -230,6 +248,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     ClusterDropdown,
     bulkActions = [],
     onShowStatusInfo,
+    hideFilter,
+    onLabelClick,
+    cssStyle,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -475,12 +496,16 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   return (
     <div
       className="ContainerContext"
-      css={`
+      css={
+        cssStyle
+          ? cssStyle
+          : `
         width: 100%;
         max-width: 1800px;
         margin: 0 auto;
         min-width: 450px;
-      `}
+      `
+      }
       ref={containerRef}
     >
       <ErrorsContainer>
@@ -532,6 +557,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
       {props.Header}
       <FilterPanel
+        hideFilter={hideFilter}
         availabilityFilter={availabilityFilter}
         changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}
@@ -605,12 +631,15 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         </Flex>
       )}
       <ViewComponent
-        onLabelClick={label =>
-          setParams({
-            ...params,
-            search: '',
-            query: makeAdvancedSearchQueryForLabel(label, params),
-          })
+        onLabelClick={
+          onLabelClick
+            ? onLabelClick
+            : label =>
+                setParams({
+                  ...params,
+                  search: '',
+                  query: makeAdvancedSearchQueryForLabel(label, params),
+                })
         }
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}
@@ -649,6 +678,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 }),
                 key: generateUnifiedResourceKey(resource),
                 onShowStatusInfo: () => onShowStatusInfo(resource),
+                hideCheckboxInput: hideFilter?.checkboxInputs,
                 showingStatusInfo:
                   infoGuideConfig?.id &&
                   infoGuideConfig.id === getResourceId(resource),

@@ -150,6 +150,8 @@ export interface UnifiedResourceGitServer {
 
 export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
+  muteWithTooltip?: string;
+  noLabelClick?: boolean;
 };
 
 export type UnifiedResourceDefinition =
@@ -194,6 +196,8 @@ export interface UnifiedResourceViewItem {
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
   status?: ResourceHealthStatus;
+  muteWithTooltip?: string;
+  noLabelClick?: boolean;
 }
 
 export enum PinningSupport {
@@ -230,6 +234,7 @@ export type ResourceItemProps = {
    * Used as a flag to render different styling.
    */
   showingStatusInfo: boolean;
+  hideCheckboxInput: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -271,6 +276,7 @@ export type ResourceViewProps = {
     key: string;
     onShowStatusInfo(): void;
     showingStatusInfo: boolean;
+    hideCheckboxInput: boolean;
   }[];
   expandAllLabels: boolean;
 };

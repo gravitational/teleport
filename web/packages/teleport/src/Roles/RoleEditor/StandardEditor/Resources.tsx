@@ -250,39 +250,74 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   );
 });
 
+/**
+ * True if value is neither undefined or null.
+ */
+function showInputField(value: any) {
+  return value != null;
+}
+
 export function ServerAccessSection({
   value,
   isProcessing,
   validation,
   onChange,
+  readOnly,
+  inputFieldCfg: cfg,
 }: SectionProps<ServerAccess, ServerAccessValidationResult>) {
+  // Flags to conditionally render input fields.
+  let show = {
+    labels: true,
+    logins: true,
+  };
+
+  if (cfg) {
+    show = {
+      labels: showInputField(cfg.serverAccess?.node_labels),
+      logins: showInputField(cfg.serverAccess?.logins),
+    };
+  }
+
   return (
     <>
-      <LabelsInput
-        atLeastOneRow
-        legend="Labels"
-        disableBtns={isProcessing}
-        labels={value.labels}
-        setLabels={labels => onChange?.({ ...value, labels })}
-        rule={precomputed(validation.fields.labels)}
-      />
-      <FieldSelectCreatable
-        isMulti
-        label="Logins"
-        placeholder="Type a login and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Login: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.logins}
-        onChange={logins => onChange?.({ ...value, logins })}
-        rule={precomputed(validation.fields.logins)}
-        mt={3}
-        mb={0}
-        menuPosition="fixed"
-      />
+      {show.labels && (
+        <LabelsInput
+          atLeastOneRow
+          legend="Labels"
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.labels)}
+        />
+      )}
+      {show.logins && (
+        <FieldSelectCreatable
+          isMulti
+          label="Logins"
+          placeholder="Type a login and press Enter"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Login: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.logins}
+          onChange={logins => onChange?.({ ...value, logins })}
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.logins)}
+          mt={3}
+          mb={0}
+          menuPosition="fixed"
+          toolTipContent={
+            <>
+              OS/Unix user accounts that users are allowed to use when
+              connecting to servers e.g. <Mark>ec2-user</Mark>,{' '}
+              <Mark>ubuntu</Mark>, <Mark>centos</Mark>
+            </>
+          }
+        />
+      )}
     </>
   );
 }
@@ -292,102 +327,133 @@ export function KubernetesAccessSection({
   isProcessing,
   validation,
   onChange,
+  readOnly,
+  inputFieldCfg: cfg,
 }: SectionProps<KubernetesAccess, KubernetesAccessValidationResult>) {
+  // Flags to conditionally render input fields.
+  let show = {
+    labels: true,
+    groups: true,
+    users: true,
+    resources: true,
+  };
+
+  if (cfg) {
+    show = {
+      labels: showInputField(cfg.kubeAccess?.kubernetes_labels),
+      groups: showInputField(cfg.kubeAccess?.kubernetes_groups),
+      users: showInputField(cfg.kubeAccess?.kubernetes_users),
+      resources: showInputField(cfg.kubeAccess?.kubernetes_resources),
+    };
+  }
+
   const resourcesValidationResult = useRule(
     precomputed(validation.fields.resources)(value.resources)
   );
   return (
     <>
-      <FieldSelectCreatable
-        isMulti
-        label="Groups"
-        placeholder="Type a group name and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Group: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.groups}
-        onChange={groups => onChange?.({ ...value, groups })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.groups)}
-      />
+      {show.groups && (
+        <FieldSelectCreatable
+          isMulti
+          label="Groups"
+          placeholder="Type a group name and press Enter"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Group: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.groups}
+          onChange={groups => onChange?.({ ...value, groups })}
+          menuPosition="fixed"
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.groups)}
+        />
+      )}
 
-      <FieldSelectCreatable
-        isMulti
-        label="Users"
-        placeholder="Type a user name and press Enter"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `User: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.users}
-        onChange={users => onChange?.({ ...value, users })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.users)}
-      />
+      {show.users && (
+        <FieldSelectCreatable
+          isMulti
+          label="Users"
+          placeholder="Type a user name and press Enter"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `User: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.users}
+          onChange={users => onChange?.({ ...value, users })}
+          menuPosition="fixed"
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.users)}
+        />
+      )}
 
-      <LabelsInput
-        atLeastOneRow
-        legend="Labels"
-        disableBtns={isProcessing}
-        labels={value.labels}
-        rule={precomputed(validation.fields.labels)}
-        setLabels={labels => onChange?.({ ...value, labels })}
-      />
+      {show.labels && (
+        <LabelsInput
+          atLeastOneRow
+          legend="Labels"
+          disableBtns={isProcessing}
+          labels={value.labels}
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.labels)}
+          setLabels={labels => onChange?.({ ...value, labels })}
+        />
+      )}
 
-      <Flex flexDirection="column" gap={3} mt={3}>
-        {value.resources.map((resource, index) => (
-          <KubernetesResourceView
-            key={resource.id}
-            value={resource}
-            validation={validation.fields.resources.results[index]}
-            isProcessing={isProcessing}
-            onChange={newRes =>
-              onChange?.({
-                ...value,
-                resources: value.resources.map((res, i) =>
-                  i === index ? newRes : res
-                ),
-              })
-            }
-            onRemove={() =>
-              onChange?.({
-                ...value,
-                resources: value.resources.toSpliced(index, 1),
-              })
-            }
-          />
-        ))}
+      {show.resources && (
+        <Flex flexDirection="column" gap={3} mt={3}>
+          {value.resources.map((resource, index) => (
+            <KubernetesResourceView
+              readOnly={readOnly}
+              key={resource.id}
+              value={resource}
+              validation={validation.fields.resources.results[index]}
+              isProcessing={isProcessing}
+              onChange={newRes =>
+                onChange?.({
+                  ...value,
+                  resources: value.resources.map((res, i) =>
+                    i === index ? newRes : res
+                  ),
+                })
+              }
+              onRemove={() =>
+                onChange?.({
+                  ...value,
+                  resources: value.resources.toSpliced(index, 1),
+                })
+              }
+            />
+          ))}
 
-        <Box>
-          <Button
-            fill={resourcesValidationResult.valid ? 'filled' : 'border'}
-            intent={resourcesValidationResult.valid ? 'neutral' : 'danger'}
-            disabled={isProcessing}
-            gap={1}
-            onClick={() =>
-              onChange?.({
-                ...value,
-                resources: [
-                  ...value.resources,
-                  newKubernetesResourceModel(value.roleVersion),
-                ],
-              })
-            }
-            size="small"
-            inputAlignment
-          >
-            <Add disabled={isProcessing} size="small" />
-            {value.resources.length > 0
-              ? 'Add Another Kubernetes Resource'
-              : 'Add a Kubernetes Resource'}
-          </Button>
-        </Box>
-      </Flex>
+          <Box>
+            <Button
+              fill={resourcesValidationResult.valid ? 'filled' : 'border'}
+              intent={resourcesValidationResult.valid ? 'neutral' : 'danger'}
+              disabled={isProcessing}
+              gap={1}
+              onClick={() =>
+                onChange?.({
+                  ...value,
+                  resources: [
+                    ...value.resources,
+                    newKubernetesResourceModel(value.roleVersion),
+                  ],
+                })
+              }
+              size="small"
+              inputAlignment
+            >
+              <Add disabled={isProcessing} size="small" />
+              {value.resources.length > 0
+                ? 'Add Another Kubernetes Resource'
+                : 'Add a Kubernetes Resource'}
+            </Button>
+          </Box>
+        </Flex>
+      )}
     </>
   );
 }
@@ -398,12 +464,14 @@ function KubernetesResourceKindView({
   isProcessing,
   onChange,
   roleVersion,
+  readOnly = false,
 }: {
   value: KubernetesResourceModel;
   validation: KubernetesResourceValidationResult['kind'];
   isProcessing: boolean;
   onChange?(m: KubernetesResourceModel): void;
   roleVersion: RoleVersion;
+  readOnly?: boolean;
 }) {
   if (!supportsKubernetesCustomResources(roleVersion)) {
     return (
@@ -414,7 +482,8 @@ function KubernetesResourceKindView({
           elem => roleVersion == 'v7' || elem.value == 'pod' // In v7, we have the fill list, in v6 and earlier, only pod.
         )}
         value={value.kind}
-        rule={precomputed(validation)}
+        readOnly={readOnly}
+        rule={readOnly ? undefined : precomputed(validation)}
         onChange={k => onChange?.({ ...value, kind: k })}
       />
     );
@@ -435,7 +504,8 @@ function KubernetesResourceKindView({
       value={value.kind}
       onChange={kind => onChange?.({ ...value, kind })}
       menuPosition="fixed"
-      rule={precomputed(validation)}
+      readOnly={readOnly}
+      rule={readOnly ? undefined : precomputed(validation)}
       options={kubernetesResourceKindOptionsV8}
       components={{
         DropdownIndicator: null,
@@ -450,12 +520,14 @@ function KubernetesResourceView({
   isProcessing,
   onChange,
   onRemove,
+  readOnly = false,
 }: {
   value: KubernetesResourceModel;
   validation: KubernetesResourceValidationResult;
   isProcessing: boolean;
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
+  readOnly?: boolean;
 }) {
   const { kind, name, namespace, verbs, apiGroup } = value;
   const theme = useTheme();
@@ -471,16 +543,18 @@ function KubernetesResourceView({
         <Box flex="1">
           <H4 mb={3}>Kubernetes Resource</H4>
         </Box>
-        <ButtonIcon
-          aria-label="Remove Kubernetes resource"
-          disabled={isProcessing}
-          onClick={onRemove}
-        >
-          <Trash
-            size="small"
-            color={theme.colors.interactive.solid.danger.default}
-          />
-        </ButtonIcon>
+        {!readOnly && (
+          <ButtonIcon
+            aria-label="Remove Kubernetes resource"
+            disabled={isProcessing}
+            onClick={onRemove}
+          >
+            <Trash
+              size="small"
+              color={theme.colors.interactive.solid.danger.default}
+            />
+          </ButtonIcon>
+        )}
       </Flex>
       <KubernetesResourceKindView
         value={value}
@@ -488,6 +562,7 @@ function KubernetesResourceView({
         isProcessing={isProcessing}
         onChange={k => onChange?.({ ...value, ...k })}
         roleVersion={value.roleVersion}
+        readOnly={readOnly}
       />
       {(supportsCrds || apiGroup) && (
         <FieldInput
@@ -501,7 +576,8 @@ function KubernetesResourceView({
           }
           disabled={isProcessing}
           value={apiGroup}
-          rule={precomputed(validation.apiGroup)}
+          readonly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.apiGroup)}
           onChange={e => onChange?.({ ...value, apiGroup: e.target.value })}
         />
       )}
@@ -516,7 +592,8 @@ function KubernetesResourceView({
         }
         disabled={isProcessing}
         value={name}
-        rule={precomputed(validation.name)}
+        readonly={readOnly}
+        rule={readOnly ? undefined : precomputed(validation.name)}
         onChange={e => onChange?.({ ...value, name: e.target.value })}
       />
       <FieldInput
@@ -530,7 +607,8 @@ function KubernetesResourceView({
         }
         disabled={isProcessing}
         value={namespace}
-        rule={precomputed(validation.namespace)}
+        readonly={readOnly}
+        rule={readOnly ? undefined : precomputed(validation.namespace)}
         onChange={e => onChange?.({ ...value, namespace: e.target.value })}
       />
       <FieldSelect
@@ -539,7 +617,8 @@ function KubernetesResourceView({
         isDisabled={isProcessing}
         options={kubernetesVerbOptions}
         value={verbs}
-        rule={precomputed(validation.verbs)}
+        readOnly={readOnly}
+        rule={readOnly ? undefined : precomputed(validation.verbs)}
         onChange={v => onChange?.({ ...value, verbs: v })}
         mb={0}
         menuPosition="fixed"
@@ -553,45 +632,111 @@ export function AppAccessSection({
   validation,
   isProcessing,
   onChange,
+  readOnly,
+  inputFieldCfg: cfg,
 }: SectionProps<AppAccess, AppAccessValidationResult>) {
+  // Flags to conditionally render input fields.
+  let show = {
+    labels: true,
+    aws: true,
+    azure: true,
+    gcp: true,
+    mcp: true,
+  };
+
+  if (cfg) {
+    show = {
+      labels: showInputField(cfg.appAccess?.app_labels),
+      aws: showInputField(cfg.appAccess?.aws_role_arns),
+      azure: showInputField(cfg.appAccess?.azure_identities),
+      gcp: showInputField(cfg.appAccess?.gcp_service_accounts),
+      mcp: showInputField(cfg.appAccess?.mcp),
+    };
+  }
+
   return (
     <Flex flexDirection="column" gap={3}>
-      <LabelsInput
-        atLeastOneRow
-        legend="Labels"
-        disableBtns={isProcessing}
-        labels={value.labels}
-        setLabels={labels => onChange?.({ ...value, labels })}
-        rule={precomputed(validation.fields.labels)}
-      />
-      <FieldMultiInput
-        label="AWS Role ARNs"
-        disabled={isProcessing}
-        value={value.awsRoleARNs}
-        onChange={arns => onChange?.({ ...value, awsRoleARNs: arns })}
-        rule={precomputed(validation.fields.awsRoleARNs)}
-      />
-      <FieldMultiInput
-        label="Azure Identities"
-        disabled={isProcessing}
-        value={value.azureIdentities}
-        onChange={ids => onChange?.({ ...value, azureIdentities: ids })}
-        rule={precomputed(validation.fields.azureIdentities)}
-      />
-      <FieldMultiInput
-        label="GCP Service Accounts"
-        disabled={isProcessing}
-        value={value.gcpServiceAccounts}
-        onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
-        rule={precomputed(validation.fields.gcpServiceAccounts)}
-      />
-      <FieldMultiInput
-        label="MCP Tools"
-        disabled={isProcessing}
-        value={value.mcpTools}
-        onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
-        rule={precomputed(validation.fields.mcpTools)}
-      />
+      {show.labels && (
+        <LabelsInput
+          atLeastOneRow
+          legend="Labels"
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.labels)}
+        />
+      )}
+      {show.aws && (
+        <FieldMultiInput
+          label="AWS Role ARNs"
+          disabled={isProcessing}
+          value={value.awsRoleARNs}
+          onChange={arns => onChange?.({ ...value, awsRoleARNs: arns })}
+          readOnly={readOnly}
+          rule={
+            readOnly ? undefined : precomputed(validation.fields.awsRoleARNs)
+          }
+          tooltipContent={
+            <>
+              List of AWS roles allowed to assume when accessing AWS console.
+              Example format:{' '}
+              <Mark>
+                arn:aws:iam::&lt;AWS_ACCOUNT&gt;:role/&lt;IAM_ROLE_NAME&gt;
+              </Mark>
+            </>
+          }
+        />
+      )}
+      {show.azure && (
+        <FieldMultiInput
+          label="Azure Identities"
+          disabled={isProcessing}
+          value={value.azureIdentities}
+          onChange={ids => onChange?.({ ...value, azureIdentities: ids })}
+          readOnly={readOnly}
+          rule={
+            readOnly
+              ? undefined
+              : precomputed(validation.fields.azureIdentities)
+          }
+          tooltipContent={
+            <>
+              List of Azure managed identities allowed to assume when accessing
+              Azure CLIs and APIs. Example format:{' '}
+              <Mark>
+                /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
+              </Mark>
+            </>
+          }
+        />
+      )}
+      {show.gcp && (
+        <FieldMultiInput
+          label="GCP Service Accounts"
+          disabled={isProcessing}
+          value={value.gcpServiceAccounts}
+          onChange={accts =>
+            onChange?.({ ...value, gcpServiceAccounts: accts })
+          }
+          readOnly={readOnly}
+          rule={
+            readOnly
+              ? undefined
+              : precomputed(validation.fields.gcpServiceAccounts)
+          }
+        />
+      )}
+      {show.mcp && (
+        <FieldMultiInput
+          label="MCP Tools"
+          disabled={isProcessing}
+          value={value.mcpTools}
+          onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.mcpTools)}
+        />
+      )}
     </Flex>
   );
 }
@@ -601,87 +746,129 @@ export function DatabaseAccessSection({
   isProcessing,
   validation,
   onChange,
+  readOnly,
+  inputFieldCfg: cfg,
 }: SectionProps<DatabaseAccess, DatabaseAccessValidationResult>) {
+  // Flags to conditionally render input fields.
+  let show = {
+    labels: true,
+    dbNames: true,
+    dbUsers: true,
+    dbRoles: true,
+    svcLabels: true,
+  };
+
+  if (cfg) {
+    show = {
+      labels: showInputField(cfg.dbAccess?.db_labels),
+      dbNames: showInputField(cfg.dbAccess?.db_names),
+      dbUsers: showInputField(cfg.dbAccess?.db_users),
+      dbRoles: showInputField(cfg.dbAccess?.db_roles),
+      svcLabels: showInputField(cfg.dbAccess?.db_service_labels),
+    };
+  }
+
   return (
     <>
-      <Box mb={3}>
+      {show.labels && (
+        <Box mb={3}>
+          <LabelsInput
+            atLeastOneRow
+            legend="Labels"
+            tooltipContent="Access to databases with these labels will be affected by this role"
+            disableBtns={isProcessing}
+            labels={value.labels}
+            setLabels={labels => onChange?.({ ...value, labels })}
+            readOnly={readOnly}
+            rule={readOnly ? undefined : precomputed(validation.fields.labels)}
+          />
+        </Box>
+      )}
+      {show.dbNames && (
+        <FieldSelectCreatable
+          isMulti
+          label="Database Names"
+          placeholder="Type a database name and press Enter"
+          toolTipContent={
+            <>
+              List of database names that this role is allowed to connect to.
+              Special value <MarkInverse>*</MarkInverse> means any name.
+            </>
+          }
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Database Name: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.names}
+          onChange={names => onChange?.({ ...value, names })}
+          menuPosition="fixed"
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.names)}
+        />
+      )}
+      {show.dbUsers && (
+        <FieldSelectCreatable
+          isMulti
+          label="Database Users"
+          placeholder="Type a user name and press Enter"
+          toolTipContent={
+            <>
+              List of database users that this role is allowed to connect as.
+              Special value <MarkInverse>*</MarkInverse> means any user.
+            </>
+          }
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Database User: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.users}
+          onChange={users => onChange?.({ ...value, users })}
+          menuPosition="fixed"
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.users)}
+        />
+      )}
+      {show.dbRoles && (
+        <FieldSelectCreatable
+          isMulti
+          label="Database Roles"
+          placeholder="Type a role name and press Enter"
+          toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Database Role: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.roles}
+          onChange={roles => onChange?.({ ...value, roles })}
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.roles)}
+          menuPosition="fixed"
+        />
+      )}
+      {show.svcLabels && (
         <LabelsInput
           atLeastOneRow
-          legend="Labels"
-          tooltipContent="Access to databases with these labels will be affected by this role"
+          legend="Database Service Labels"
+          tooltipContent="The database service labels control which Database Services (Teleport Agents) are visible to the user, which is required when adding Databases in the Enroll New Resource wizard. Access to Databases themselves is controlled by the Database Labels field."
           disableBtns={isProcessing}
-          labels={value.labels}
-          setLabels={labels => onChange?.({ ...value, labels })}
-          rule={precomputed(validation.fields.labels)}
+          labels={value.dbServiceLabels}
+          setLabels={dbServiceLabels =>
+            onChange?.({ ...value, dbServiceLabels })
+          }
+          readOnly={readOnly}
+          rule={
+            readOnly
+              ? undefined
+              : precomputed(validation.fields.dbServiceLabels)
+          }
         />
-      </Box>
-      <FieldSelectCreatable
-        isMulti
-        label="Database Names"
-        placeholder="Type a database name and press Enter"
-        toolTipContent={
-          <>
-            List of database names that this role is allowed to connect to.
-            Special value <MarkInverse>*</MarkInverse> means any name.
-          </>
-        }
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Database Name: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.names}
-        onChange={names => onChange?.({ ...value, names })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.names)}
-      />
-      <FieldSelectCreatable
-        isMulti
-        label="Database Users"
-        placeholder="Type a user name and press Enter"
-        toolTipContent={
-          <>
-            List of database users that this role is allowed to connect as.
-            Special value <MarkInverse>*</MarkInverse> means any user.
-          </>
-        }
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Database User: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.users}
-        onChange={users => onChange?.({ ...value, users })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.users)}
-      />
-      <FieldSelectCreatable
-        isMulti
-        label="Database Roles"
-        placeholder="Type a role name and press Enter"
-        toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Database Role: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.roles}
-        onChange={roles => onChange?.({ ...value, roles })}
-        rule={precomputed(validation.fields.roles)}
-        menuPosition="fixed"
-      />
-      <LabelsInput
-        atLeastOneRow
-        legend="Database Service Labels"
-        tooltipContent="The database service labels control which Database Services (Teleport Agents) are visible to the user, which is required when adding Databases in the Enroll New Resource wizard. Access to Databases themselves is controlled by the Database Labels field."
-        disableBtns={isProcessing}
-        labels={value.dbServiceLabels}
-        setLabels={dbServiceLabels => onChange?.({ ...value, dbServiceLabels })}
-        rule={precomputed(validation.fields.dbServiceLabels)}
-      />
+      )}
     </>
   );
 }
@@ -691,35 +878,56 @@ export function WindowsDesktopAccessSection({
   isProcessing,
   validation,
   onChange,
+  readOnly,
+  inputFieldCfg: cfg,
 }: SectionProps<WindowsDesktopAccess, WindowsDesktopAccessValidationResult>) {
+  // Flags to conditionally render input fields.
+  let show = {
+    labels: false,
+    logins: false,
+  };
+
+  if (cfg) {
+    show = {
+      labels: showInputField(cfg.desktopAccess?.windows_desktop_labels),
+      logins: showInputField(cfg.desktopAccess?.windows_desktop_logins),
+    };
+  }
+
   return (
     <>
-      <Box mb={3}>
-        <LabelsInput
-          atLeastOneRow
-          legend="Labels"
-          disableBtns={isProcessing}
-          labels={value.labels}
-          setLabels={labels => onChange?.({ ...value, labels })}
-          rule={precomputed(validation.fields.labels)}
+      {show.labels && (
+        <Box mb={3}>
+          <LabelsInput
+            atLeastOneRow
+            legend="Labels"
+            disableBtns={isProcessing}
+            labels={value.labels}
+            setLabels={labels => onChange?.({ ...value, labels })}
+            readOnly={readOnly}
+            rule={readOnly ? undefined : precomputed(validation.fields.labels)}
+          />
+        </Box>
+      )}
+      {show.logins && (
+        <FieldSelectCreatable
+          isMulti
+          label="Logins"
+          placeholder="Type a login and press Enter"
+          toolTipContent="List of desktop logins that this role is allowed to use"
+          isDisabled={isProcessing}
+          formatCreateLabel={label => `Login: ${label}`}
+          components={{
+            DropdownIndicator: null,
+          }}
+          openMenuOnClick={false}
+          value={value.logins}
+          onChange={logins => onChange?.({ ...value, logins })}
+          menuPosition="fixed"
+          readOnly={readOnly}
+          rule={readOnly ? undefined : precomputed(validation.fields.logins)}
         />
-      </Box>
-      <FieldSelectCreatable
-        isMulti
-        label="Logins"
-        placeholder="Type a login and press Enter"
-        toolTipContent="List of desktop logins that this role is allowed to use"
-        isDisabled={isProcessing}
-        formatCreateLabel={label => `Login: ${label}`}
-        components={{
-          DropdownIndicator: null,
-        }}
-        openMenuOnClick={false}
-        value={value.logins}
-        onChange={logins => onChange?.({ ...value, logins })}
-        menuPosition="fixed"
-        rule={precomputed(validation.fields.logins)}
-      />
+      )}
     </>
   );
 }
@@ -729,6 +937,7 @@ export function GitHubOrganizationAccessSection({
   isProcessing,
   validation,
   onChange,
+  readOnly,
 }: SectionProps<
   GitHubOrganizationAccess,
   GitHubOrganizationAccessValidationResult
@@ -748,7 +957,8 @@ export function GitHubOrganizationAccessSection({
       value={value.organizations}
       onChange={organizations => onChange?.({ ...value, organizations })}
       menuPosition="fixed"
-      rule={precomputed(validation.fields.organizations)}
+      readOnly={readOnly}
+      rule={readOnly ? undefined : precomputed(validation.fields.organizations)}
       mb={0}
     />
   );

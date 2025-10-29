@@ -21,7 +21,7 @@ import { AwsRole, getAppUriScheme } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, PermissionSet } from './types';
+import { App, CloudInstance, PermissionSet } from './types';
 
 function getLaunchUrl({
   fqdn,
@@ -66,6 +66,7 @@ export default function makeApp(json: any): App {
     subKind,
     samlAppLaunchUrls,
     mcp,
+    cloudInstance,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -85,10 +86,19 @@ export default function makeApp(json: any): App {
   const isCloud = scheme === 'cloud';
   const isMcp = scheme.startsWith('mcp+');
 
+  // TODO(kimlisa): DELETE IN v20. This field got introduced in 18.X.
+  let cloudInstanceManual = '';
+
   let addrWithProtocol = uri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
+      if (uri.startsWith(`cloud://${CloudInstance.Azure}`)) {
+        cloudInstanceManual = CloudInstance.Azure;
+      }
+      if (uri.startsWith(`cloud://${CloudInstance.Gcp}`)) {
+        cloudInstanceManual = CloudInstance.Gcp;
+      }
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
     } else if (isMcp) {
@@ -137,5 +147,6 @@ export default function makeApp(json: any): App {
     permissionSets,
     samlAppLaunchUrls,
     mcp,
+    cloudInstance: cloudInstance ? cloudInstance : cloudInstanceManual,
   };
 }

@@ -65,6 +65,8 @@ export function makeUnifiedResourceViewItemNode(
       addr: addressIfNotTunnel,
     },
     requiresRequest: resource.requiresRequest,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 
@@ -88,6 +90,8 @@ export function makeUnifiedResourceViewItemDatabase(
     },
     requiresRequest: resource.requiresRequest,
     status: resource.targetHealth?.status,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 
@@ -109,6 +113,8 @@ export function makeUnifiedResourceViewItemKube(
     },
     requiresRequest: resource.requiresRequest,
     status: resource.targetHealth?.status,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 
@@ -132,6 +138,8 @@ export function makeUnifiedResourceViewItemApp(
         description: resource.description || 'MCP server',
       },
       requiresRequest: resource.requiresRequest,
+      muteWithTooltip: ui.muteWithTooltip,
+      noLabelClick: ui.noLabelClick,
     };
   }
   return {
@@ -150,6 +158,8 @@ export function makeUnifiedResourceViewItemApp(
       addr: resource.addrWithProtocol,
     },
     requiresRequest: resource.requiresRequest,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 
@@ -172,6 +182,8 @@ export function makeUnifiedResourceViewItemDesktop(
       addr: resource.addr,
     },
     requiresRequest: resource.requiresRequest,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 
@@ -190,6 +202,8 @@ export function makeUnifiedResourceViewItemUserGroup(
       resourceType: 'User Group',
     },
     requiresRequest: resource.requiresRequest,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 
@@ -210,6 +224,8 @@ export function makeUnifiedResourceViewItemGitServer(
       resourceType: 'GitHub Organization',
     },
     requiresRequest: resource.requiresRequest,
+    muteWithTooltip: ui.muteWithTooltip,
+    noLabelClick: ui.noLabelClick,
   };
 }
 

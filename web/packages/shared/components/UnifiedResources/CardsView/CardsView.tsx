@@ -39,7 +39,13 @@ export function CardsView({
   return (
     <CardsContainer className="CardsContainer" gap={2}>
       {mappedResources.map(
-        ({ item, key, onShowStatusInfo, showingStatusInfo }) => (
+        ({
+          item,
+          key,
+          onShowStatusInfo,
+          showingStatusInfo,
+          hideCheckboxInput,
+        }) => (
           <ResourceCard
             key={key}
             viewItem={item}
@@ -51,6 +57,7 @@ export function CardsView({
             pinResource={() => onPinResource(key)}
             onShowStatusInfo={onShowStatusInfo}
             showingStatusInfo={showingStatusInfo}
+            hideCheckboxInput={hideCheckboxInput}
           />
         )
       )}
