@@ -5444,6 +5444,14 @@ func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter types.Semaph
 	return a.authServer.GetSemaphores(ctx, filter)
 }
 
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (a *ServerWithRoles) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbReadNoSecrets, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.authServer.ListSemaphores(ctx, limit, start, filter)
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
 func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbDelete); err != nil {
