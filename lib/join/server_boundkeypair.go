@@ -28,8 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/legacyjius"
-	"github.com/gravitational/teleport/lib/join/previsio"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleBoundKeypairJoin handles join attempts for the bound keypair join
