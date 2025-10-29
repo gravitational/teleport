@@ -62,17 +62,21 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 		"jwks-mismatched-service-account": {Username: "system:serviceaccount:static-jwks:mismatched"},
 	}
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetK8sTokenReviewValidator(&mockK8STokenReviewValidator{tokens: tokenReviewTokens})
-		server.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
-			result, ok := jwksTokens[token]
-			if !ok {
-				return nil, errMockInvalidToken
-			}
-			return result, nil
-		})
-		return nil
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		MutateAuth: func(server *auth.Server) error {
+			server.SetK8sTokenReviewValidator(&mockK8STokenReviewValidator{tokens: tokenReviewTokens})
+			server.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
+				result, ok := jwksTokens[token]
+				if !ok {
+					return nil, errMockInvalidToken
+				}
+				return result, nil
+			})
+
+			return nil
+		},
 	})
 	require.NoError(t, err)
 	auth := p.a
