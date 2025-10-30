@@ -149,7 +149,7 @@ export function DocumentAuthorizeWebSession(props: {
             </Alert>
           )}
           <Text>
-            Would you like to authorize a device trust web session for{' '}
+            Would you like to authorize a Device Trust web session for{' '}
             <b>{clusterName}</b>?
             <br />
             The session will automatically open in a new browser tab.
