@@ -136,7 +136,7 @@ export const DeviceTrustConnectPassthrough = ({
               `}
               href={processRedirectUri(redirectUri)}
             >
-              continue without device trust{' '}
+              continue without Device Trust{' '}
             </a>
             but you will not be able to connect to resources that require Device
             Trust.
