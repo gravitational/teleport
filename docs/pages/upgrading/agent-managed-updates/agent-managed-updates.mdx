@@ -1,19 +1,20 @@
 ---
-title: Managed Updates (v2) for Teleport Agents & Bots
-description: Describes how to set up Managed Updates (v2) for Teleport Agents & Bots
+title: Managed Updates for Teleport Agents & Bots
+description: Describes how to set up Managed Updates for Teleport Agents & Bots
 tags:
   - conceptual
   - platform-wide
 ---
 
 <Admonition type="warning">
-This document describes Managed Updates for Agents & Bots (v2), which replaces Managed Updates v1.
+This document describes Managed Updates for Agents & Bots (v2),
+which replaces Managed Updates for Agents (v1).
 
 For Managed Updates v1 instructions, see
 [Managed Updates for Agents (v1)](../agent-managed-updates-v1.mdx).
 </Admonition>
 
-In Managed Updates v2, a binary called `teleport-update` is distributed in
+For Managed Updates, a binary called `teleport-update` is distributed in
 all Teleport packages, alongside the `teleport`, `tbot`, and other binaries.
 Admins configure updates by managing the `autoupdate_version` and
 `autoupdate_config` dynamic resources.
