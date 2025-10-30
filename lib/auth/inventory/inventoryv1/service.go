@@ -18,12 +18,12 @@ package inventoryv1
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gravitational/trace"
 
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
 )
@@ -73,62 +73,32 @@ func (s *Service) ListUnifiedInstances(ctx context.Context, req *inventoryv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	// Determine which kinds to include based on permissions.
-	includeInstances := true
-	includeBotInstances := true
-
-	if err := authCtx.CheckAccessToKind(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
-		if !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		}
-		includeInstances = false
+	// If no kinds are specified, default to all kinds.
+	if req.Filter == nil {
+		req.Filter = &inventoryv1.ListUnifiedInstancesFilter{}
+		req.Filter.Kinds = []string{types.KindInstance, types.KindBotInstance}
+	} else if len(req.Filter.Kinds) == 0 {
+		req.Filter.Kinds = []string{types.KindInstance, types.KindBotInstance}
+	} else {
+		req.Filter.Kinds = utils.Deduplicate(req.Filter.Kinds)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList, types.VerbRead); err != nil {
-		if !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		}
-		includeBotInstances = false
-	}
-
-	// If the user doesn't have access to either, return an error.
-	if !includeInstances && !includeBotInstances {
-		return nil, trace.AccessDenied("user does not have permission to list instances or bot instances")
-	}
-
-	// Ensure that the kinds requested in the filter (if any) align with the user's permissions.
+	// Ensure that the kinds requested align with the user's permissions.
 	// This is a last line of defense because the client should already prevent the user from requesting
 	// kinds they don't have access to (eg. the UI should grey out those options).
-	if req.Filter != nil && len(req.Filter.Kinds) > 0 {
-
-		// Deduplicate
-		slices.Sort(req.Filter.Kinds)
-		req.Filter.Kinds = slices.Compact(req.Filter.Kinds)
-
-		var allowedKinds []string
-		for _, kind := range req.Filter.Kinds {
-			if (kind == types.KindInstance) && includeInstances {
-				allowedKinds = append(allowedKinds, kind)
-			} else if (kind == types.KindBotInstance) && includeBotInstances {
-				allowedKinds = append(allowedKinds, kind)
+	for _, kind := range req.Filter.Kinds {
+		switch kind {
+		case types.KindInstance:
+			if err := authCtx.CheckAccessToKind(types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
 			}
+			continue
+		case types.KindBotInstance:
+			if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			continue
 		}
-		if len(allowedKinds) == 0 {
-			return nil, trace.AccessDenied("user doesn't have permission to list the requested instance kinds")
-		}
-		req.Filter.Kinds = allowedKinds
-	} else {
-		if req.Filter == nil {
-			req.Filter = &inventoryv1.ListUnifiedInstancesFilter{}
-		}
-		var kinds []string
-		if includeInstances {
-			kinds = append(kinds, types.KindInstance)
-		}
-		if includeBotInstances {
-			kinds = append(kinds, types.KindBotInstance)
-		}
-		req.Filter.Kinds = kinds
 	}
 
 	resp, err := s.inventoryCache.ListUnifiedInstances(ctx, req)

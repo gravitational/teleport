@@ -221,7 +221,7 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 		cancel: cancel,
 	}
 
-	go ic.initializeAndWatch(ctx)
+	go ic.initializeAndWatchWithRetry(ctx)
 
 	return ic, nil
 }
@@ -265,28 +265,54 @@ func calculateReadsPerSecond(clusterSize int) int {
 	return minimumComponent + linearComponent + subLinearComponent
 }
 
-// initializeAndWatch initializes the inventory cache and begins watching for instance and bot_instance backend events.
-func (ic *InventoryCache) initializeAndWatch(ctx context.Context) {
+// initializeAndWatchWithRetry runs initializeAndWatch with a retry every 10 seconds if it fails.
+func (ic *InventoryCache) initializeAndWatchWithRetry(ctx context.Context) {
 	defer close(ic.initDone)
 
+	const retryInterval = 10 * time.Second
+
+	for {
+		ic.cfg.Logger.DebugContext(ctx, "Attempting to initialize inventory cache")
+
+		// Attempt to initialize and watch
+		if err := ic.initializeAndWatch(ctx); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+
+			ic.cfg.Logger.WarnContext(ctx, "Failed to initialize inventory cache, retrying in 10 seconds",
+				"error", err)
+
+			// Wait before retrying
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(retryInterval):
+			}
+			continue
+		}
+
+		return
+	}
+}
+
+// initializeAndWatch initializes the inventory cache and begins watching for instance and bot_instance backend events.
+func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
 	// Wait for primary cache to be ready.
 	if err := ic.waitForPrimaryCacheInit(ctx); err != nil {
-		ic.cfg.Logger.ErrorContext(ctx, "Failed to wait for primary cache initialization", "error", err)
-		return
+		return trace.Wrap(err, "Failed to wait for primary cache init")
 	}
 
 	// Setup the backend watcher.
 	watcher, err := ic.setupWatcher(ctx)
 	if err != nil {
-		ic.cfg.Logger.ErrorContext(ctx, "Failed to set up backend watcher", "error", err)
-		return
+		return trace.Wrap(err, "Failed to set up backend watcher")
 	}
 	defer watcher.Close()
 
 	// Wait for the watcher to be ready.
 	if err := ic.waitForWatcherInit(ctx, watcher); err != nil {
-		ic.cfg.Logger.ErrorContext(ctx, "Failed to wait for watcher init", "error", err)
-		return
+		return trace.Wrap(err, "Failed to wait for watcher init")
 	}
 
 	// Calculate the rate limit to use.
@@ -295,14 +321,16 @@ func (ic *InventoryCache) initializeAndWatch(ctx context.Context) {
 
 	// Populate the cache with teleport instance and bot instances.
 	if err := ic.populateCache(ctx, readsPerSecond); err != nil {
-		ic.cfg.Logger.ErrorContext(ctx, "Failed to populate cache", "error", err)
-		return
+		return trace.Wrap(err, "failed to populate inventory cache")
 	}
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
 
+	// This runs infinitely until the context is cancelled, so the return below won't be hit until shutdown.
 	ic.processEvents(ctx, watcher)
+
+	return nil
 }
 
 // waitForPrimaryCacheInit waits for the primary cache to be initialized.
