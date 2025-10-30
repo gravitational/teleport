@@ -348,9 +348,11 @@ func (a *Server) newWebSession(
 		HasDeviceExtensions: hasDeviceExtensions,
 	}
 
-	UserLoginCount.With(prometheus.Labels{
-		teleport.TagUserAgent: "web/" + teleport.Version,
-		teleport.TagProxy:     req.ProxyGroupID,
+	UserLoginCount.Inc()
+	UserLoginCountPerClient.With(prometheus.Labels{
+		teleport.TagUserAgentType: "web",
+		teleport.TagVersion:       teleport.Version,
+		teleport.TagProxyGroupID:  req.ProxyGroupID,
 	}).Inc()
 
 	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
@@ -617,9 +619,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
 
-	UserLoginCount.With(prometheus.Labels{
-		teleport.TagUserAgent: "web/" + teleport.Version,
-		teleport.TagProxy:     req.ProxyGroupID,
+	UserLoginCount.Inc()
+	UserLoginCountPerClient.With(prometheus.Labels{
+		teleport.TagUserAgentType: "web",
+		teleport.TagVersion:       teleport.Version,
+		teleport.TagProxyGroupID:  req.ProxyGroupID,
 	}).Inc()
 
 	// Do not send app session start for MCP. They have their own events on

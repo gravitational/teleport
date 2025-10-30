@@ -23,8 +23,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -821,9 +823,12 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		userAgent = req.ClientMetadata.UserAgent
 		proxyGroupID = req.ClientMetadata.ProxyGroupID
 	}
-	UserLoginCount.With(prometheus.Labels{
-		teleport.TagUserAgent: userAgent,
-		teleport.TagProxy:     proxyGroupID,
+	UserLoginCount.Inc()
+	userAgentType, userAgentVersion := splitClientUserAgent(userAgent)
+	UserLoginCountPerClient.With(prometheus.Labels{
+		teleport.TagUserAgentType: userAgentType,
+		teleport.TagVersion:       userAgentVersion,
+		teleport.TagProxyGroupID:  proxyGroupID,
 	}).Inc()
 
 	var clientOptions authclient.ClientOptions
@@ -904,6 +909,21 @@ func trimUserAgent(userAgent string) string {
 		return userAgent[:maxUserAgentLen-3] + "..."
 	}
 	return userAgent
+}
+
+// splitClientUserAgent strictly splits the user agent into a type and a semantic version.
+// Any other formatting is not allowed and is treated as a third-party client (to be ignored).
+func splitClientUserAgent(userAgent string) (string, string) {
+	agent := strings.SplitN(userAgent, "/", 2)
+	if len(agent) != 2 {
+		return "", ""
+	}
+	ver, err := semver.NewVersion(agent[1])
+	if err != nil {
+		return "", ""
+	}
+
+	return agent[0], ver.String()
 }
 
 const noLocalAuth = "local auth disabled"
