@@ -101,7 +101,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -7777,7 +7776,7 @@ func TestLogoutOneIdentity(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	rootServer, err := testenv.NewTeleportProcess(
+	rootServer, err := testserver.NewTeleportProcess(
 		t.TempDir(),
 		testserver.WithBootstrap(connector, alice))
 	require.NoError(t, err)

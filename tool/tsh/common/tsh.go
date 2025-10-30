@@ -2567,7 +2567,7 @@ func onLogout(cf *CLIConf) error {
 		}
 		if cf.Username == "" {
 			logger.DebugContext(cf.Context, "No --user flag provided, but identities found for proxy",
-				"proxyHost", proxyHost,
+				"proxy_host", proxyHost,
 				"users", usernames)
 
 			if len(usernames) == 1 {
