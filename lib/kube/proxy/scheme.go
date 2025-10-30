@@ -38,6 +38,8 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/metrics/pkg/apis/metrics"
+	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
 const (
@@ -69,6 +71,15 @@ func init() {
 func registerDefaultKubeTypes(s *runtime.Scheme) error {
 	// Register external types for Scheme
 	metav1.AddToGroupVersion(s, schema.GroupVersion{Group: "", Version: "v1"})
+
+	if err := metrics.AddToScheme(s); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := metricsv1beta1.AddToScheme(s); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := metav1.AddMetaToScheme(s); err != nil {
 		return trace.Wrap(err)
 	}
