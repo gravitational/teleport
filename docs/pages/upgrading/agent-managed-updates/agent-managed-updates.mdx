@@ -50,7 +50,7 @@ and `autoupdate_version` is present, the `autoupdate_config` settings are implic
 derived from `cluster_maintenance_config`.
 
 Regardless of how the cluster is configured, `teleport-update` is capable of managing
-both Teleport Agend and tbot installations, while `teleport-upgrade` is only capable
+both Teleport Agent and tbot installations, while `teleport-upgrade` is only capable
 of managing Teleport Agents.
 
 Users of cloud-hosted Teleport Enterprise have been migrated to Managed Updates v2
@@ -70,7 +70,7 @@ Service to determine when an update is available and if it should perform the up
 Each installation belongs to an update group. The update schedule specifies when each
 group is updated. The schedule is stored in the `autoupdate_config` resource and
 can be edited via `tctl`. The `tctl autoupdate agents` subcommands are used to interact
-with the rollout for both Teleport Agents and long-running (agent-like) tbots.
+with the rollout for both Teleport Agents and long-running tbot installations.
 
 For Linux server-based installations, `teleport-update` command configures
 Managed Updates for Teleport Agents and tbot locally on the server.
