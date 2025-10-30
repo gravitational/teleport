@@ -402,7 +402,7 @@ db_service:
 +     tls:
 +       # Point it to your Database CA PEM certificate.
 +       ca_cert_file: "rdsca.pem"
-+       # If your database certificate has an empty CN filed, you must change
++       # If your database certificate has an empty CN field, you must change
 +       # the TLS mode to only verify the CA.
 +       mode: verify-ca
       ad:
@@ -420,4 +420,3 @@ skipping TLS verification in production environments.
 ## Further reading
 
 - [Kerberos PKINIT authentication](https://web.mit.edu/kerberos/krb5-1.13/doc/admin/pkinit.html).
-
