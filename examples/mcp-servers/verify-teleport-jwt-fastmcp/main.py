@@ -13,15 +13,14 @@
 # limitations under the License.
 
 import os
-import requests
+import httpx
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_access_token, AccessToken
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 
 # Teleport Proxy URL. If Proxy uses self-signed certificate for web address:
-# export REQUESTS_CA_BUNDLE=/path/to/teleport-cert.pem
-# export SSL_CERT_FILE=/path/to/teleport-cert.pem
+# export SSL_CERT_FILE=/path/to/teleport-proxy-web-cert.pem
 TELEPORT_PROXY_URL = os.getenv("TELEPORT_PROXY_URL", "https://teleport.example.com")
 
 # Optional configs.
@@ -30,9 +29,10 @@ PORT = int(os.getenv("MCP_PORT", "8000"))
 TELEPORT_MCP_APP_URI = os.getenv("TELEPORT_MCP_APP_URI", f"mcp+http://{HOST}:{PORT}/mcp")
 
 def get_json(url: str):
-    resp = requests.get(url, timeout=5)
-    resp.raise_for_status()
-    return resp.json()
+    with httpx.Client(timeout=5) as client:
+        resp = client.get(url)
+        resp.raise_for_status()
+        return resp.json()
 
 def get_teleport_cluster_name() -> str:
     try:

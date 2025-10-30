@@ -118,6 +118,3 @@ msgfile/
 
 # Dockerized builds generate .pnpm-store in the root, so ignore it
 .pnpm-store
-
-# Python in examples
-.venv
