@@ -129,7 +129,10 @@ The idea for fetching the root CAs in a trusted manner is the following:
 1. The joining instance will sign the request with its own instance credentials using Oracle's Go SDK.
 1. The joining instance will not send the request, but dump it to a byte stream.
 1. The joining instance will send the raw signed request to Teleport in the join message.
-1. The Teleport Auth service will parse the signed HTTP request and verify the host is a legitimate oracle API endpoint matching the expected path.
+1. The Teleport Auth service will parse the signed HTTP request and verify the host is a legitimate oracle API endpoint:
+   * the region must be a valid OCI region
+   * the host must the actual host for the OCI auth API in that region as determined by Oracle's Go SDK
+   * the path must be exactly `/v1/instancePrincipalRootCACertificates`
 1. The Teleport Auth service will send the pre-signed HTTP request to the Oracle API over HTTPS.
 1. As the Teleport Auth service has verified the legitimacy of the API endpoint and established TLS, it can trust the returned root CAs.
 
