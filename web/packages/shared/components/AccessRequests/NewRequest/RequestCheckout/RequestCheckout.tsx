@@ -923,8 +923,8 @@ function TextBox({
 
   const placeholderText =
     reasonPrompts && numPendingAccessRequests > 0
-    ? reasonPrompts.filter(s => s.length > 0).join('\n')
-    : 'Describe your request...';
+      ? reasonPrompts.filter(s => s.length > 0).join('\n')
+      : 'Describe your request...';
 
   return (
     <LabelInput hasError={hasError}>
