@@ -309,6 +309,9 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 		return
 	}
 
+	// always pass UpdateState to ClientConn if the current or pending balancer experiences a state change
+	defer t.tlb.cc.UpdateState(state)
+
 	switch t {
 	case t.tlb.current:
 		if state.ConnectivityState == connectivity.TransientFailure {
@@ -379,6 +382,4 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 		t.log.InfoContext(context.Background(), "UpdateState called for invalid balancer")
 		t.tlb.mu.Unlock()
 	}
-
-	t.tlb.cc.UpdateState(state)
 }
