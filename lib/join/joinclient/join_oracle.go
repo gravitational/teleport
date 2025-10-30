@@ -54,7 +54,7 @@ func oracleJoin(
 		return nil, trace.Wrap(err, "receiving OracleChallenge")
 	}
 
-	solution, err := oracle.SolveChallenge(ctx, challenge)
+	solution, err := oracle.SolveChallenge(ctx, joinParams.OracleIMDSClient, challenge)
 	if err != nil {
 		err = trace.Wrap(err, "solving challenge")
 		sendGivingUpErr := stream.Send(&messages.GivingUp{
