@@ -27,9 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -60,10 +62,11 @@ func TestRotateKey(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer: &fakeAuthorizer{},
-				Logger:     logtest.NewLogger(),
-				Uploader:   fakeUploader{},
-				KeyRotater: rotater,
+				Authorizer:      &fakeAuthorizer{},
+				Logger:          logtest.NewLogger(),
+				Uploader:        fakeUploader{},
+				KeyRotater:      rotater,
+				SessionStreamer: &fakeSessionStreamer{},
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -105,10 +108,11 @@ func TestCompleteRotation(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer: &fakeAuthorizer{},
-				Logger:     logtest.NewLogger(),
-				Uploader:   fakeUploader{},
-				KeyRotater: rotater,
+				Authorizer:      &fakeAuthorizer{},
+				Logger:          logtest.NewLogger(),
+				Uploader:        fakeUploader{},
+				KeyRotater:      rotater,
+				SessionStreamer: &fakeSessionStreamer{},
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -152,10 +156,11 @@ func TestRollbackRotation(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer: &fakeAuthorizer{},
-				Logger:     logtest.NewLogger(),
-				Uploader:   fakeUploader{},
-				KeyRotater: rotater,
+				Authorizer:      &fakeAuthorizer{},
+				Logger:          logtest.NewLogger(),
+				Uploader:        fakeUploader{},
+				KeyRotater:      rotater,
+				SessionStreamer: &fakeSessionStreamer{},
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -198,10 +203,11 @@ func TestGetRotationState(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer: &fakeAuthorizer{},
-				Logger:     logtest.NewLogger(),
-				Uploader:   fakeUploader{},
-				KeyRotater: rotater,
+				Authorizer:      &fakeAuthorizer{},
+				Logger:          logtest.NewLogger(),
+				Uploader:        fakeUploader{},
+				KeyRotater:      rotater,
+				SessionStreamer: &fakeSessionStreamer{},
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -299,4 +305,10 @@ func (f *fakeKeyRotater) RollbackRotation(ctx context.Context) error {
 
 func (f *fakeKeyRotater) GetRotationState(ctx context.Context) ([]*recordingencryptionv1pb.FingerprintWithState, error) {
 	return f.keys, nil
+}
+
+type fakeSessionStreamer struct{}
+
+func (f *fakeSessionStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	return nil, nil
 }

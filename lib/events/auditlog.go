@@ -40,6 +40,8 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
@@ -255,6 +257,11 @@ type AuditLogConfig struct {
 
 	// Decrypter wraps session replay with decryption
 	Decrypter DecryptionWrapper
+
+	// SessionSummarizerProvider provides session summarizers
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider provides recording metadata service
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -280,6 +287,12 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.DirMask == nil {
 		mask := os.FileMode(teleport.DirMaskSharedGroup)
 		a.DirMask = &mask
+	}
+	if a.SessionSummarizerProvider == nil {
+		a.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
+	}
+	if a.RecordingMetadataProvider == nil {
+		a.RecordingMetadataProvider = recordingmetadata.NewProvider()
 	}
 	if (a.GID != nil && a.UID == nil) || (a.UID != nil && a.GID == nil) {
 		return trace.BadParameter("if UID or GID is set, both should be specified")
@@ -668,8 +681,63 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		streamParts = append(streamParts, *streamPart)
 		partNumber++
 	}
+	err = l.UploadHandler.CompleteUpload(ctx, *upload, streamParts)
+	if err != nil {
+		return trace.Wrap(err, "completing upload")
+	}
 
-	return trace.Wrap(l.UploadHandler.CompleteUpload(ctx, *upload, streamParts), "completing upload")
+	sessionEnd, err := l.findSessionEndEvent(ctx, upload.SessionID)
+	if err != nil || sessionEnd == nil {
+		return nil
+	}
+
+	summarizer := l.AuditLogConfig.SessionSummarizerProvider.SessionSummarizer()
+	switch o := sessionEnd.(type) {
+	case *apievents.SessionEnd:
+		if err := summarizer.SummarizeSSH(ctx, o); err != nil {
+			l.log.WarnContext(ctx, "failed to summarize upload", "error", err)
+		}
+		metadataSvc := l.AuditLogConfig.RecordingMetadataProvider.Service()
+		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
+			duration := o.EndTime.Sub(o.StartTime)
+			if err := metadataSvc.ProcessSessionRecording(ctx, upload.SessionID, duration); err != nil {
+				l.log.WarnContext(ctx, "failed to process session recording metadata", "error", err)
+			}
+		}
+	case *apievents.DatabaseSessionEnd:
+		if err := summarizer.SummarizeDatabase(ctx, o); err != nil {
+			l.log.WarnContext(ctx, "failed to summarize upload", "error", err)
+		}
+	}
+
+	return nil
+}
+
+// findSessionEndEvent streams session events to find the session end event for the given session ID.
+// It returns either a SessionEnd or DatabaseSessionEnd event, or nil if none is found.
+func (l *AuditLog) findSessionEndEvent(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eventsCh, errCh := l.StreamSessionEvents(ctx, sessionID, 0)
+
+	for {
+		select {
+		case event, ok := <-eventsCh:
+			if !ok {
+				return nil, nil
+			}
+			switch e := event.(type) {
+			case *apievents.SessionEnd:
+				return e, nil
+			case *apievents.DatabaseSessionEnd:
+				return e, nil
+			}
+		case err := <-errCh:
+			return nil, trace.Wrap(err)
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		}
+	}
 }
 
 // getLocalLog returns the local (file based) AuditLogger.

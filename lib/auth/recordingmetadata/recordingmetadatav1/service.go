@@ -45,6 +45,7 @@ type Service struct {
 	authorizer      Authorizer
 	streamer        player.Streamer
 	downloadHandler DownloadHandler
+	decrypter       events.DecryptionWrapper
 	logger          *slog.Logger
 }
 
@@ -70,6 +71,8 @@ type ServiceConfig struct {
 	Streamer player.Streamer
 	// DownloadHandler is used to handle uploads and downloads of session recording metadata and thumbnails.
 	DownloadHandler DownloadHandler
+	// Decrypter is used to decrypt session metadata and thumbnails.
+	Decrypter events.DecryptionWrapper
 }
 
 // NewService creates a new instance of the recording metadata service.
@@ -86,6 +89,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		streamer:        cfg.Streamer,
 		downloadHandler: cfg.DownloadHandler,
 		logger:          slog.With(teleport.ComponentKey, "recording_metadata"),
+		decrypter:       cfg.Decrypter,
 	}, nil
 }
 
@@ -102,8 +106,13 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 		return nil, trace.Wrap(err)
 	}
 
+	payload, err := r.decryptIfNeeded(ctx, buf.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting session recording thumbnail")
+	}
+
 	thumbnail := &pb.SessionRecordingThumbnail{}
-	err = proto.Unmarshal(buf.Bytes(), thumbnail)
+	err = proto.Unmarshal(payload, thumbnail)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,7 +134,11 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		return trace.Wrap(err)
 	}
 
-	reader := bufio.NewReader(bytes.NewReader(buf.Bytes()))
+	payload, err := r.decryptIfNeeded(stream.Context(), buf.Bytes())
+	if err != nil {
+		return trace.Wrap(err, "decrypting session recording thumbnail")
+	}
+	reader := bufio.NewReader(bytes.NewReader(payload))
 
 	for {
 		msgBytes, err := readDelimitedMessage(reader)
@@ -217,4 +230,36 @@ func readDelimitedMessage(r *bufio.Reader) ([]byte, error) {
 	}
 
 	return msgBytes, nil
+}
+
+// ageEncryptionPrefix is the prefix used to identify age-encrypted data.
+// age always uses "age-encryption.org/v1" as the prefix for its encrypted files.
+const ageEncryptionPrefix = "age-encryption.org"
+
+var ageEncryptionPrefixBytes = []byte(ageEncryptionPrefix)
+
+// decryptIfNeeded decrypts the data if it is age-encrypted by checking for the age encryption prefix
+// [age-encryption.org/v1].
+// If the data is not age-encrypted, it is returned as-is.
+func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
+	if !bytes.HasPrefix(data, ageEncryptionPrefixBytes) {
+		return data, nil
+	}
+
+	if r.decrypter == nil {
+		return nil, trace.BadParameter("recording metadata decrypter is not configured")
+	}
+
+	decryptedReader, err := r.decrypter.WithDecryption(ctx, bytes.NewReader(data))
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting recording metadata")
+	}
+
+	var decryptedBuf bytes.Buffer
+	_, err = io.Copy(&decryptedBuf, decryptedReader)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading decrypted recording metadata")
+	}
+
+	return decryptedBuf.Bytes(), nil
 }

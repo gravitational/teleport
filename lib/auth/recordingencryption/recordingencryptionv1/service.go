@@ -27,6 +27,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -46,6 +49,14 @@ type ServiceConfig struct {
 	Logger     *slog.Logger
 	Uploader   events.MultipartUploader
 	KeyRotater KeyRotater
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
+	// SessionStreamer is a streamer for session events.
+	SessionStreamer events.SessionStreamer
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -57,6 +68,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("uploader is required")
 	case cfg.KeyRotater == nil:
 		return nil, trace.BadParameter("key rotater is required")
+	case cfg.SessionStreamer == nil:
+		return nil, trace.BadParameter("session streamer is required")
 	}
 
 	if cfg.Logger == nil {
@@ -64,10 +77,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:   cfg.Logger,
-		uploader: cfg.Uploader,
-		auth:     cfg.Authorizer,
-		rotater:  cfg.KeyRotater,
+		logger:                    cfg.Logger,
+		uploader:                  cfg.Uploader,
+		auth:                      cfg.Authorizer,
+		rotater:                   cfg.KeyRotater,
+		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		recordingMetadataProvider: cfg.RecordingMetadataProvider,
+		streamer:                  cfg.SessionStreamer,
 	}, nil
 }
 
@@ -79,6 +95,13 @@ type Service struct {
 	logger   *slog.Logger
 	uploader events.MultipartUploader
 	rotater  KeyRotater
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	recordingMetadataProvider *recordingmetadata.Provider
+	streamer                  events.SessionStreamer
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
@@ -195,7 +218,57 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 		return nil, trace.Wrap(err)
 	}
 
+	sessionEnd, err := s.findSessionEndEvent(ctx, upload.SessionID)
+	if err != nil || sessionEnd == nil {
+		return &recordingencryptionv1.CompleteUploadResponse{}, nil
+	}
+
+	summarizer := s.sessionSummarizerProvider.SessionSummarizer()
+	switch o := sessionEnd.(type) {
+	case *apievents.SessionEnd:
+		if err := summarizer.SummarizeSSH(ctx, o); err != nil {
+			s.logger.WarnContext(ctx, "failed to summarize upload", "error", err)
+		}
+		metadataSvc := s.recordingMetadataProvider.Service()
+		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
+			duration := o.EndTime.Sub(o.StartTime)
+			if err := metadataSvc.ProcessSessionRecording(ctx, upload.SessionID, duration); err != nil {
+				s.logger.WarnContext(ctx, "failed to process session recording metadata", "error", err)
+			}
+		}
+	case *apievents.DatabaseSessionEnd:
+		if err := summarizer.SummarizeDatabase(ctx, o); err != nil {
+			s.logger.WarnContext(ctx, "failed to summarize upload", "error", err)
+		}
+	}
+
 	return &recordingencryptionv1.CompleteUploadResponse{}, nil
+}
+
+// findSessionEndEvent streams session events to find the session end event for the given session ID.
+// It returns either a SessionEnd or DatabaseSessionEnd event, or nil if none is found.
+func (s *Service) findSessionEndEvent(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eventsCh, errCh := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
+	for {
+		select {
+		case event, ok := <-eventsCh:
+			if !ok {
+				return nil, nil
+			}
+			switch e := event.(type) {
+			case *apievents.SessionEnd:
+				return e, nil
+			case *apievents.DatabaseSessionEnd:
+				return e, nil
+			}
+		case err := <-errCh:
+			return nil, trace.Wrap(err)
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		}
+	}
 }
 
 func (s *Service) authorizeKeyRotation(ctx context.Context) error {
