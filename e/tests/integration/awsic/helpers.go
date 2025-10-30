@@ -60,7 +60,11 @@ func mustSetupAWSIdentityCenterIntegration(t *testing.T, authClient authclient.C
 	mustCreateAWSICPlugin(t, authClient, options...)
 }
 
-func mustSetupOIDCIntegration(t *testing.T, authClient authclient.ClientI) {
+type integrationCreator interface {
+	CreateIntegration(context.Context, types.Integration) (types.Integration, error)
+}
+
+func mustSetupOIDCIntegration(t *testing.T, authClient integrationCreator) {
 	t.Helper()
 	_, err := authClient.CreateIntegration(t.Context(), awsOIDCIntegration())
 	require.NoError(t, err)

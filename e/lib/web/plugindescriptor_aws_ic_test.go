@@ -107,7 +107,7 @@ func TestAWSICCreatePlugin(t *testing.T) {
 			}
 
 			if tc.statusCode == http.StatusOK {
-				newSP, err := authClient.GetSAMLIdPServiceProvider(wSuite.ctx, newServcieProviderName)
+				newSP, err := authClient.GetSAMLIdPServiceProvider(wSuite.ctx, newServiceProviderName)
 				require.NoError(t, err)
 				require.Equal(t, common.OriginAWSIdentityCenter, newSP.Origin())
 				require.Equal(t, samlsp.AWSIdentityCenter, newSP.GetPreset())
@@ -205,7 +205,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		// installing plugin does not immediately create identity center data. So it is safe
 		// to assert with existing data created with createICResources function.
 		ictestenv.CheckAllICResourcesAreConditionallyDeleted(t, ctx, ictestenv.CheckCleanupArgs{
-			SAMLlServiceProviderName: newServcieProviderName,
+			SAMLlServiceProviderName: newServiceProviderName,
 			IntegrationName:          icOIDCIntegrationName,
 			IsCreateRequest:          true,
 			DownstreamID:             string(identitycenter.IdentityCenterDownstreamID),
@@ -230,7 +230,8 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 	})
 
 	t.Run("plugin deletion prevented if user does not have access to all resources that requires deletion", func(t *testing.T) {
-		_, err := authClient.PluginsClient().CreatePlugin(ctx, ictestenv.NewPluginV1CreateRequest(icOIDCIntegrationName, newServcieProviderName))
+		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
+		_, err := authClient.PluginsClient().CreatePlugin(ctx, ictestenv.NewPluginV1CreateRequest(icOIDCIntegrationName, newServiceProviderName))
 		require.NoError(t, err)
 
 		// "foo" is username of a user created with aPack. This user is
@@ -271,13 +272,13 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		})
 		require.True(t, trace.IsNotFound(err))
 
-		_, err = authClient.GetSAMLIdPServiceProvider(ctx, newServcieProviderName)
+		_, err = authClient.GetSAMLIdPServiceProvider(ctx, newServiceProviderName)
 		require.True(t, trace.IsNotFound(err))
 		_, err = authClient.GetIntegration(ctx, icOIDCIntegrationName)
 		require.True(t, trace.IsNotFound(err))
 
 		ictestenv.CheckAllICResourcesAreConditionallyDeleted(t, ctx, ictestenv.CheckCleanupArgs{
-			SAMLlServiceProviderName: newServcieProviderName,
+			SAMLlServiceProviderName: newServiceProviderName,
 			IntegrationName:          icOIDCIntegrationName,
 			IsCreateRequest:          false,
 			DownstreamID:             string(identitycenter.IdentityCenterDownstreamID),
@@ -450,7 +451,7 @@ type errorResp struct {
 
 const (
 	existingServcieProviderName = "existing-service-provider"
-	newServcieProviderName      = "saml-sp-1"
+	newServiceProviderName      = "saml-sp-1"
 	icOIDCIntegrationName       = "ic-oidc-integration"
 )
 
@@ -463,7 +464,7 @@ func installRequestValidURLValues(t *testing.T, scimBaseURL string) url.Values {
 		awsICPluginICARNField:                       {"arn:aws:sso:::instance/ssoins-8893885e0d4lllka"},
 		awsICPluginOIDCIntegrationNameField:         {icOIDCIntegrationName},
 		awsICPluginAccessListDefaultOwnersField:     {`["user1", "user2"]`},
-		awsICPluginSAMLServiceProviderNameField:     {newServcieProviderName},
+		awsICPluginSAMLServiceProviderNameField:     {newServiceProviderName},
 		awsICPluginSAMLServiceProviderMetadataField: {newEntityDescriptor("https://example.com", "https://example.com/acs")},
 		awsICPluginSCIMBaseURLField:                 {scimBaseURL},
 		awsICPluginSCIMAccessTokenField:             {"abc123example"},

@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"sync"
@@ -26,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/e/tests/common/tctl"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -58,10 +58,13 @@ func assertResourcesByDesc[T resourceDesc](t assert.TestingT, want, got []T) {
 	})))
 }
 
-func mustRunTCTLAndGetResultAs(t require.TestingT, tctl *tctlCommand, args []string, v any) {
+func mustRunTCTLAndGetResultAs(t require.TestingT, tctlCLI *tctl.CLI, args []string, v any) {
 	var output bytes.Buffer
-	tctl.run(t, args, withStdout(&output))
-	err := json.Unmarshal(output.Bytes(), v)
+	err := tctlCLI.
+		Command(tctl.WithStdout(&output)).
+		Run(context.Background(), args...)
+	require.NoError(t, err)
+	err = json.Unmarshal(output.Bytes(), v)
 	require.NoError(t, err)
 }
 
@@ -105,11 +108,6 @@ func userExistInTeleportAndIsNotLocked(t *testing.T, ctx context.Context, auth *
 	require.Empty(t, locks)
 }
 
-type tctlCommand struct {
-	DataDir  string
-	Listener string
-}
-
 type cmdOptions struct {
 	stdout io.Writer
 }
@@ -120,46 +118,6 @@ func withStdout(w io.Writer) cmdOption {
 	return func(o *cmdOptions) {
 		o.stdout = w
 	}
-}
-func (c *tctlCommand) run(t require.TestingT, args []string, opts ...cmdOption) {
-	options := &cmdOptions{
-		stdout: os.Stdout,
-	}
-	for _, o := range opts {
-		o(options)
-	}
-
-	yamlConfig := fmt.Sprintf(`
-version: v3
-teleport:
-  data_dir: %s
-auth_service:
-  enabled: "yes"
-  listen_addr: %s
-`, c.DataDir, c.Listener)
-
-	tempDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-	d := filepath.Join(tempDir, "teleport.yaml")
-	err = os.WriteFile(d, []byte(yamlConfig), 0600)
-	require.NoError(t, err)
-	defer func() {
-		err = os.RemoveAll(tempDir)
-		require.NoError(t, err)
-	}()
-
-	selfExe, err := os.Executable()
-	require.NoError(t, err)
-
-	execCmd := exec.Command(selfExe,
-		append([]string{fmt.Sprintf(`--config=%s`, d)}, args...)...,
-	)
-	execCmd.Stderr = os.Stderr
-	execCmd.Stdout = options.stdout
-	execCmd.Env = append(execCmd.Env, fmt.Sprintf("%s=1", testBinTCTLTestEnv))
-
-	err = execCmd.Run()
-	require.NoError(t, err)
 }
 
 type output struct {

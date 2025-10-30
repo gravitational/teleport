@@ -18,7 +18,7 @@ import (
 type awsicPluginHandler struct{}
 
 // validatePlugin implements [pluginHandler] for the [awsicPluginHandler].
-func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.PluginV1, server *auth.Server) error {
+func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.PluginV1, auth *auth.Server) error {
 	settings := plugin.Spec.GetAwsIc()
 	if settings == nil {
 		return trace.BadParameter("missing AWS IC settings")
@@ -58,7 +58,34 @@ func (awsicPluginHandler) validatePlugin(ctx context.Context, plugin *types.Plug
 		}
 	}
 
+	if err := validateAWSICCredentials(ctx, settings.Credentials, auth); err != nil {
+		return trace.Wrap(err, "invalid credentials")
+	}
+
 	return nil
+}
+
+type integrationGetter interface {
+	GetIntegration(context.Context, string) (types.Integration, error)
+}
+
+func validateAWSICCredentials(ctx context.Context, credentials *types.AWSICCredentials, services integrationGetter) error {
+	switch creds := credentials.GetSource().(type) {
+	case *types.AWSICCredentials_Oidc:
+		// check that the presented integration exists
+		if creds.Oidc == nil {
+			return trace.BadParameter("missing inner OIDC credentials")
+		}
+
+		if _, err := services.GetIntegration(ctx, creds.Oidc.IntegrationName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+
+	default:
+		// no other credential types need validation
+		return nil
+	}
 }
 
 var excludeAll types.AWSICResourceFilter_ExcludeNameRegex = types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*"}

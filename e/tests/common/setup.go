@@ -17,6 +17,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/e/tests/common/tctl"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -155,6 +156,13 @@ func (s *SUT) CreateWebClientForUser(t *testing.T, user string) *helpers.WebClie
 	pass := uuid.NewString()
 	require.NoError(t, s.Teleport.Process.GetAuthServer().UpsertPassword(user, []byte(pass)))
 	return helpers.LoginWebClient(t, s.ProxyAddr, user, pass)
+}
+
+func (s *SUT) GetTCTL(t *testing.T) *tctl.CLI {
+	tctlCLI, err := tctl.New(s.DataDir, s.AuthListenerAddr)
+	require.NoError(t, err)
+	t.Cleanup(func() { tctlCLI.Cleanup() })
+	return tctlCLI
 }
 
 func newInstanceConfig(t *testing.T) helpers.InstanceConfig {

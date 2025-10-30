@@ -45,22 +45,19 @@ func TestBasicAssignmentFlow(t *testing.T) {
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 	)
 
-	tclCmd := &tctlCommand{
-		DataDir:  sut.DataDir,
-		Listener: sut.AuthListenerAddr,
-	}
+	tclCmd := sut.GetTCTL(t)
 
 	beforeInstall := time.Now()
 
-	tclCmd.run(t, []string{
+	err := tclCmd.Run(t.Context(),
 		`plugins`, `install`, `okta`,
 		`--org`, oktaApiClient.GetOrgUrl(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
 		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
-		fmt.Sprintf("--owner=%s", defaultOwner.login()),
-	})
+		fmt.Sprintf("--owner=%s", defaultOwner.login()))
+	require.NoError(t, err)
 
 	// Set time between imports to 1s
 	authServer := sut.Teleport.Process.GetAuthServer()
@@ -86,14 +83,14 @@ func TestBasicAssignmentFlow(t *testing.T) {
 		}, &accessListMembers)
 		assertResourcesByName(t, wantMembers, accessListMembers)
 	}, time.Second*10, time.Millisecond*100)
-	tclCmd.run(t, []string{
-		`acl`, `users`, `rm`, oktaInfra.Groups[0].Id, oktaInfra.Users[0].login(),
-	})
+	err = tclCmd.Run(t.Context(),
+		`acl`, `users`, `rm`, oktaInfra.Groups[0].Id, oktaInfra.Users[0].login())
+	require.NoError(t, err)
 	oktaInfra.assertUserWasUnassignedFromOktaGroup(t, oktaInfra.Users[0].Id, oktaInfra.Groups[0].Id)
 
-	tclCmd.run(t, []string{
-		`acl`, `users`, `add`, oktaInfra.Groups[0].Id, oktaInfra.Users[2].login(),
-	})
+	err = tclCmd.Run(t.Context(),
+		`acl`, `users`, `add`, oktaInfra.Groups[0].Id, oktaInfra.Users[2].login())
+	require.NoError(t, err)
 	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[2].Id, oktaInfra.Groups[0].Id)
 }
 
@@ -117,15 +114,11 @@ func TestNestedAclAssignment(t *testing.T) {
 	)
 
 	authServer := sut.Teleport.Process.GetAuthServer()
-
-	tclCmd := &tctlCommand{
-		DataDir:  sut.DataDir,
-		Listener: sut.AuthListenerAddr,
-	}
+	tctlCmd := sut.GetTCTL(t)
 
 	beforeInstall := time.Now()
 
-	tclCmd.run(t, []string{
+	err := tctlCmd.Run(t.Context(),
 		`plugins`, `install`, `okta`,
 		`--org`, oktaApiClient.GetOrgUrl(),
 		`--saml-connector`, `okta-pre-created-test`,
@@ -133,7 +126,8 @@ func TestNestedAclAssignment(t *testing.T) {
 		`--app-filter=*`,
 		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
 		fmt.Sprintf("--owner=%s", defaultOwner.login()),
-	})
+	)
+	require.NoError(t, err)
 
 	// Set time between imports to 1s
 	plugin, err := oktaplugin.Get(ctx, authServer.Plugins, true)
@@ -212,14 +206,11 @@ func TestAccessRequest(t *testing.T) {
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 	)
 
-	tclCmd := &tctlCommand{
-		DataDir:  sut.DataDir,
-		Listener: sut.AuthListenerAddr,
-	}
+	tctlCmd := sut.GetTCTL(t)
 
 	beforeInstall := time.Now()
 
-	tclCmd.run(t, []string{
+	err := tctlCmd.Run(t.Context(),
 		`plugins`, `install`, `okta`,
 		`--org`, oktaApiClient.GetOrgUrl(),
 		`--saml-connector`, `okta-pre-created-test`,
@@ -227,7 +218,8 @@ func TestAccessRequest(t *testing.T) {
 		`--app-filter=*`,
 		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
 		fmt.Sprintf("--owner=%s", reviewer.login()),
-	})
+	)
+	require.NoError(t, err)
 
 	// Set time between imports to 1s
 	authServer := sut.Teleport.Process.GetAuthServer()
@@ -242,7 +234,7 @@ func TestAccessRequest(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var wantMembers []*accesslist.AccessListMember
 		var accessListMembers []*accesslist.AccessListMember
-		mustRunTCTLAndGetResultAs(t, tclCmd, []string{
+		mustRunTCTLAndGetResultAs(t, tctlCmd, []string{
 			`acl`, `users`, `ls`, `--format=json`, oktaInfra.Groups[0].Id,
 		}, &accessListMembers)
 		assertResourcesByName(t, wantMembers, accessListMembers)
