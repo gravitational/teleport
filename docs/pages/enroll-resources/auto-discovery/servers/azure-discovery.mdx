@@ -288,8 +288,8 @@ discovery_service:
   Service.
 - Set the `install.suffix` key to install teleport in a non-global location, allowing
   for multiple, simultaneously installations from different clusters.
-  Requires [agent managed updates](../../../upgrading/agent-managed-updates.mdx).
-- When using [agent managed updates](../../../upgrading/agent-managed-updates.mdx), you can
+  Requires [agent managed updates](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx).
+- When using [agent managed updates](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx), you can
   configure the update group by setting the `install.update_group` key.
 
 ## Step 6/6. [Optional] Customize the default installer script
@@ -298,6 +298,10 @@ discovery_service:
 
 If `client_id` is set in the Discovery Service config, custom installers will
 also have the `{{ .AzureClientID }}` templating option.
+
+## Auto-discovery labels
+
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
 
 ## Troubleshooting
 

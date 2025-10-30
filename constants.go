@@ -464,9 +464,14 @@ const (
 )
 
 const (
-	// CertExtensionScopePin is used to pin a certificate to a specific scope and
-	// set of scoped roles.
+	// CertExtensionScopePin is used to pin a user certificate to a specific scope and
+	// set of scoped roles. This constrains a user's access to resources based on both
+	// the scoping rules and scoped roles defined.
 	CertExtensionScopePin = "scope-pin@goteleport.com"
+	// CertExtensionAgentScope is used to pin an agent/host certificate to a specific scope.
+	// This constrains other identities' access to the agent itself as well as the agent's
+	// access to other resources based on scoping rules.
+	CertExtensionAgentScope = "agent-scope@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -775,9 +780,18 @@ const (
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
-	// PresetDefaultHealthCheckConfigName is the name of a preset
-	// default health_check_config that enables health checks for all resources.
-	PresetDefaultHealthCheckConfigName = "default"
+	// VirtualDefaultHealthCheckConfigDBName is the name of a virtual
+	// health_check_config that enables health checks for all database
+	// resources. For historical reasons, it's value is "default" even
+	// though it applies to databases only.
+	VirtualDefaultHealthCheckConfigDBName = "default"
+	// VirtualDefaultHealthCheckConfigKubeName is the name of a virtual
+	// health_check_config that enables health checks for all Kubernetes
+	// resources.
+	VirtualDefaultHealthCheckConfigKubeName = "default-kube"
+	// VirtualDefaultHealthCheckConfigCount is the number of virtual
+	// health_check_config resources.
+	VirtualDefaultHealthCheckConfigCount = 2
 )
 
 const (

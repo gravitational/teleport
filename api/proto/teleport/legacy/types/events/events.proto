@@ -4890,6 +4890,7 @@ message OneOf {
     events.MCPSessionInvalidHTTPRequest MCPSessionInvalidHTTPRequest = 224;
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
+    events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
   }
 }
 
@@ -8729,6 +8730,12 @@ message MCPSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPJSONRPCMessage includes details of a MCP request or notification.
@@ -8784,6 +8791,12 @@ message MCPSessionRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "message,omitempty"
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPSessionNotification is emitted when a notification is sent by client
@@ -8824,6 +8837,12 @@ message MCPSessionNotification {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPSessionListenSSEStream is emitted when client sends a GET request to a
@@ -8859,6 +8878,12 @@ message MCPSessionListenSSEStream {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
 }
 
@@ -9121,4 +9146,45 @@ message SCIMResourceEvent {
   // Display is a human-readable name or identifier for the Teleport resource
   // affected by the event.
   string Display = 6 [(gogoproto.jsontag) = "display,omitempty"];
+}
+
+// ClientIPRestrictionsUpdate records a Client IP Restrictions update.
+message ClientIPRestrictionsUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // UserMetadata is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the operation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ClientIPRestrictions is the new Client IP Restrictions allowlist.
+  repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
 }
