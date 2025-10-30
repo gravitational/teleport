@@ -79,6 +79,7 @@ func (s *Server) handleOracleJoin(
 		Challenge:      challenge,
 		Solution:       solution,
 		ProvisionToken: provisionToken,
+		HTTPClient:     s.cfg.OracleHTTPClient,
 	})
 	// CheckOracleRequest may return claims even when returning an error, which
 	// may aid in debugging.

@@ -196,6 +196,9 @@ type RegisterParams struct {
 	// GetInstanceIdentityDocumentFunc overrides the function used to get an
 	// EC2 Instance Identity Document for the host.
 	GetInstanceIdentityDocumentFunc func(ctx context.Context) ([]byte, error)
+	// OracleIMDSClient overrides the HTTP client used to make requests to the
+	// OCI Instance Metadata Service.
+	OracleIMDSClient utils.HTTPDoClient
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -217,6 +220,14 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 
 	if r.GetInstanceIdentityDocumentFunc == nil {
 		r.GetInstanceIdentityDocumentFunc = awsutils.GetRawEC2IdentityDocument
+	}
+
+	if r.OracleIMDSClient == nil {
+		var err error
+		r.OracleIMDSClient, err = defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

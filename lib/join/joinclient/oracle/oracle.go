@@ -35,39 +35,38 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SolveChallenge solves an Oracle join challenge.
-func SolveChallenge(ctx context.Context, challenge *messages.OracleChallenge) (*messages.OracleChallengeSolution, error) {
-	client, err := defaults.HTTPClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	signedRootCAReq, err := makeSignedRootCAReq(client)
+func SolveChallenge(ctx context.Context, httpClient utils.HTTPDoClient, challenge *messages.OracleChallenge) (*messages.OracleChallengeSolution, error) {
+	signedRootCAReq, err := makeSignedRootCAReq(httpClient)
 	if err != nil {
 		return nil, trace.Wrap(err, "making signed root CA request")
 	}
 
-	cert, err := fetchIMDS(ctx, client, "cert.pem")
+	cert, err := fetchIMDS(ctx, httpClient, "cert.pem")
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching instance cert from IMDS")
 	}
 
-	intermediate, err := fetchIMDS(ctx, client, "intermediate.pem")
+	intermediate, err := fetchIMDS(ctx, httpClient, "intermediate.pem")
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching intermediate CA certs from IMDS")
 	}
 
-	keyPEM, err := fetchIMDS(ctx, client, "key.pem")
+	keyPEM, err := fetchIMDS(ctx, httpClient, "key.pem")
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching instance private key from IMDS")
 	}
 
-	signature, err := signChallenge(keyPEM, challenge.Challenge)
+	key, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing instance private key")
+	}
+
+	signature, err := SignChallenge(key, challenge.Challenge)
 	if err != nil {
 		return nil, trace.Wrap(err, "signing challenge")
 	}
@@ -80,14 +79,10 @@ func SolveChallenge(ctx context.Context, challenge *messages.OracleChallenge) (*
 	}, nil
 }
 
-func signChallenge(keyPEM []byte, challenge string) ([]byte, error) {
-	key, err := keys.ParsePrivateKey(keyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing instance private key")
-	}
-
+// SignChallenge signs a challenge with a given instance private key.
+func SignChallenge(key crypto.Signer, challenge string) ([]byte, error) {
 	var signerOpts crypto.SignerOpts = crypto.SHA256
-	if _, ok := key.Signer.(*rsa.PrivateKey); ok {
+	if _, ok := key.Public().(*rsa.PublicKey); ok {
 		signerOpts = &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}
 	}
 	signature, err := crypto.SignMessage(key, rand.Reader, []byte(challenge), signerOpts)

@@ -118,7 +118,7 @@ func CheckChallengeSolution(ctx context.Context, params *CheckChallengeSolutionP
 		Roots:         rootCAPool,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}); err != nil {
-		return claims, trace.Wrap(err, "verifying instance certificate chain to Oracle root CAs")
+		return claims, trace.AccessDenied("instance certificate chain did not verify to Oracle root CAs")
 	}
 
 	if err := CheckOracleAllowRules(claims, params.ProvisionToken); err != nil {
@@ -238,11 +238,11 @@ func validateRootCAReq(req *http.Request, instanceID string) error {
 	if req.URL.Path != rootCAPath {
 		return trace.BadParameter("path must be %s, got %s", rootCAPath, req.URL.Path)
 	}
-	region, err := regionFromInstanceID(instanceID)
+	expectedRegion, err := regionFromInstanceID(instanceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	expectedHostname := region.Endpoint("auth")
+	expectedHostname := expectedRegion.Endpoint("auth")
 	if req.URL.Hostname() != expectedHostname {
 		return trace.BadParameter("hostname must be %s, got %s", expectedHostname, req.URL.Hostname())
 	}
@@ -250,11 +250,12 @@ func validateRootCAReq(req *http.Request, instanceID string) error {
 }
 
 // regionFromInstanceID returns an oci region for a given instance ID. It will
-// return an error if the region short name is not recognized by the SDK. This
-// is a critical check since this region will be used to validate the endpoint
-// that will be used to fetch the regional root CAs, if a bogus region were
-// allowed then teleport could be tricked into making a request to
-// auth.<bogus-region-name>.oraclecloud.com with potential tricks in <bogus-region-name>.
+// return an error if the region name is not recognized by the SDK. This is a
+// critical check since this region will be used to validate the endpoint that
+// will be used to fetch the regional root CAs. If a bogus region were allowed
+// then teleport could be tricked into making a request to
+// auth.<bogus-region-name>.oraclecloud.com with potential tricks in
+// <bogus-region-name>.
 func regionFromInstanceID(instanceID string) (common.Region, error) {
 	// Expected InstanceID format ocid1.instance.<realm>.[region][.future-use].<id>
 	chunks := strings.SplitN(instanceID, ".", 5)
@@ -266,7 +267,7 @@ func regionFromInstanceID(instanceID string) (common.Region, error) {
 	if _, err := region.RealmID(); err != nil {
 		// StringToRegion always returns something, RealmID will return an
 		// error if it's not a real region.
-		return "", trace.BadParameter("unsupported region %s", regionShortName)
+		return "", trace.AccessDenied("unsupported region %s", regionShortName)
 	}
 	return region, nil
 }
@@ -303,12 +304,11 @@ type rootCAResp struct {
 func parseRootCAPool(resp *rootCAResp) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	for _, certBase64 := range resp.Certificates {
-		bytes := make([]byte, base64.StdEncoding.DecodedLen(len(certBase64)))
-		n, err := base64.StdEncoding.Decode(bytes, []byte(certBase64))
+		bytes, err := base64.StdEncoding.DecodeString(certBase64)
 		if err != nil {
 			return nil, trace.Wrap(err, "decoding cert base64")
 		}
-		cert, err := x509.ParseCertificate(bytes[:n])
+		cert, err := x509.ParseCertificate(bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing x509 certificate")
 		}

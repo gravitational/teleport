@@ -89,6 +89,7 @@ type ServerConfig struct {
 	Authorizer         authz.Authorizer
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
+	OracleHTTPClient   utils.HTTPDoClient
 }
 
 // Server implements cluster joining for nodes and bots.
