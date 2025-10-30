@@ -45,16 +45,23 @@ interface ClusterStore {
  * When the watched directory is removed, the watcher emits a profile change
  * and enters polling mode (with 1 second interval) until the directory reappears.
  */
-export async function* watchProfiles(
-  tshDirectory: string,
-  tshClient: TshClient,
-  clusterStore: ClusterStore,
-  options?: { signal?: AbortSignal }
-): AsyncGenerator<ProfileChangeSet, void, void> {
-  while (!options?.signal?.aborted) {
+export async function* watchProfiles({
+  tshDirectory,
+  tshClient,
+  clusterStore,
+  debounceMs = 200,
+  signal,
+}: {
+  tshDirectory: string;
+  tshClient: TshClient;
+  clusterStore: ClusterStore;
+  debounceMs?: number;
+  signal?: AbortSignal;
+}): AsyncGenerator<ProfileChangeSet, void, void> {
+  while (!signal?.aborted) {
     try {
       // eslint-disable-next-line unused-imports/no-unused-vars
-      for await (const _ of debounceWatch(tshDirectory, 200, options?.signal)) {
+      for await (const _ of debounceWatch(tshDirectory, debounceMs, signal)) {
         const clusters = await tshClient.listRootClusters();
         const newClusters = new Map(clusters.map(c => [c.uri, c]));
         const oldClusters = new Map(
@@ -80,7 +87,7 @@ export async function* watchProfiles(
           .getRootClusters()
           .map(cluster => ({ op: 'removed', cluster }));
         // Wait for the path to appear, and then start the next loop iteration.
-        await waitForPath(tshDirectory, options?.signal);
+        await waitForPath(tshDirectory, signal);
       } else {
         throw error;
       }
@@ -103,7 +110,7 @@ async function pathExists(dirPath: string): Promise<boolean> {
 /** Waits for path to exists, polling at intervals (1 second). */
 async function waitForPath(
   dirPath: string,
-  signal: AbortSignal
+  signal?: AbortSignal
 ): Promise<void> {
   if (signal?.aborted) {
     return;

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'fs/promises';
-import { tmpdir } from 'node:os';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
@@ -31,7 +31,7 @@ import { watchProfiles } from './profileWatcher';
 let tshDir: string;
 
 beforeAll(async () => {
-  tshDir = await fs.mkdtemp(path.join(tmpdir(), 'profile-watcher-test'));
+  tshDir = await fs.mkdtemp(path.join(os.tmpdir(), 'profile-watcher-test'));
 });
 
 afterAll(async () => {
@@ -48,6 +48,8 @@ beforeEach(() => {
 afterEach(() => {
   abortController.abort();
 });
+
+const testDebounceMs = 100;
 
 async function mockTshClient(initial: { clusters: Cluster[] }) {
   const listRootClusters = async () => {
@@ -108,8 +110,13 @@ function mockClusterStore(initial: { clusters: Cluster[] }) {
 test('yields an "added" change when new cluster appears', async () => {
   const tshClientMock = await mockTshClient({ clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock);
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
+    signal: abortController.signal,
+    debounceMs: testDebounceMs,
+  });
 
   const cluster = makeRootCluster();
   await tshClientMock.insertOrUpdateCluster(cluster);
@@ -124,8 +131,13 @@ test('yields a "removed" change when cluster disappears', async () => {
   const cluster = makeRootCluster();
   const tshClientMock = await mockTshClient({ clusters: [cluster] });
   const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
-
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock);
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
+    signal: abortController.signal,
+    debounceMs: testDebounceMs,
+  });
 
   void tshClientMock.removeCluster(cluster.uri);
 
@@ -139,8 +151,13 @@ test('yields a "changed" change when cluster properties differ', async () => {
   const oldCluster = makeRootCluster();
   const tshClientMock = await mockTshClient({ clusters: [oldCluster] });
   const clusterStoreMock = mockClusterStore({ clusters: [oldCluster] });
-
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock);
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
+    signal: abortController.signal,
+    debounceMs: testDebounceMs,
+  });
 
   const newCluster: Cluster = { ...oldCluster, connected: false };
   void tshClientMock.insertOrUpdateCluster(newCluster);
@@ -163,9 +180,12 @@ test('does not yield when no cluster changes detected', async () => {
     ],
   });
   const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
-
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock, {
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
     signal: abortController.signal,
+    debounceMs: testDebounceMs,
   });
 
   // Overwrite the cluster (profile properties are unchanged).
@@ -183,14 +203,15 @@ test('does not yield when no cluster changes detected', async () => {
 });
 
 test('file system events are debounced and no events are lost when handler is slow', async () => {
-  const debounceMs = 200; // Debounce interval used in watchProfiles
-  const slowHandlerMs = 300; // Simulated slow handler duration
   const tshClientMock = await mockTshClient({ clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-
   const handler = jest.fn();
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock, {
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
     signal: abortController.signal,
+    debounceMs: testDebounceMs,
   });
 
   void (async () => {
@@ -201,37 +222,39 @@ test('file system events are debounced and no events are lost when handler is sl
 
   const cluster = makeRootCluster();
 
+  // Test FS events debouncing.
   handler.mockImplementation(() => Promise.resolve());
-
   // Insert two rapid events within debounce interval.
   await tshClientMock.insertOrUpdateCluster(cluster);
   await tshClientMock.insertOrUpdateCluster(cluster);
-
-  // Wait slightly longer than debounce interval to ensure handler is called.
-  await wait(debounceMs + 50);
-
+  // Wait slightly longer than debounce interval to ensure a single handler is called.
+  await wait(testDebounceMs + 50);
   expect(handler).toHaveBeenCalledTimes(1);
   handler.mockClear();
 
-  // Slow handler - ensure no events are lost.
-  handler.mockImplementation(() => wait(slowHandlerMs));
-
+  // Test no events are lost when processing is slow.
+  handler.mockImplementation(() => wait(100));
   await tshClientMock.insertOrUpdateCluster(cluster);
-  // Insert second event during slow handler processing (more than debounceMs but less than slowHandlerMs)
-  await wait(debounceMs + 50);
+  // Insert the second event while the first event is still processed
+  // (it will finish at testDebounceMs + 100 ms).
+  await wait(testDebounceMs + 50);
   await tshClientMock.insertOrUpdateCluster(cluster);
-
-  // Wait for both events to be processed.
-  await wait(debounceMs + slowHandlerMs + 50);
-
-  expect(handler).toHaveBeenCalledTimes(2);
+  await expect(() => {
+    return handler.mock.calls.length === 2;
+  }).toEventuallyBeTrue({ waitFor: 1000, tick: 50 });
 });
 
 test('watcher stops when consumer throws', async () => {
   const tshClientMock = await mockTshClient({ clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
+    signal: abortController.signal,
+    debounceMs: testDebounceMs,
+  });
 
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock);
   await expect(() =>
     watcher.throw(new Error('Consumer failure'))
   ).rejects.toThrow('Consumer failure');
@@ -250,9 +273,12 @@ test('removing tsh directory does not break watcher', async () => {
   const cluster = makeRootCluster();
   const tshClientMock = await mockTshClient({ clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
-
-  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock, {
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
     signal: abortController.signal,
+    debounceMs: testDebounceMs,
   });
   const firstEvent = watcher.next();
   const secondEvent = watcher.next();
@@ -262,7 +288,11 @@ test('removing tsh directory does not break watcher', async () => {
   // Clean up the store, so that we can detect a change.
   clusterStoreMock.clearAll();
 
+  jest.useFakeTimers();
   await fs.mkdir(tshDir);
+  // Polling uses 1 second interval.
+  jest.advanceTimersByTime(1000);
+  jest.useRealTimers();
   await tshClientMock.insertOrUpdateCluster(cluster);
 
   expect((await secondEvent).value).toEqual([{ op: 'added', cluster }]);
