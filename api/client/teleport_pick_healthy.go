@@ -168,7 +168,9 @@ func (t *teleportPickHealthyBalancer) UpdateClientConnState(state balancer.Clien
 		return errors.New("balancer closed")
 	}
 
+	t.mu.Lock()
 	t.resolvedState = state.ResolverState
+	t.mu.Unlock()
 
 	state.ResolverState = pickfirstleaf.EnableHealthListener(state.ResolverState)
 
@@ -317,11 +319,12 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 
 			t.tlb.pending = &wb
 
+			resolvedState := t.tlb.resolvedState
+
 			t.tlb.mu.Unlock()
 
-			// TODO(dustin.specker): do we need to enable health listener here?
 			pflb.UpdateClientConnState(balancer.ClientConnState{
-				ResolverState: pickfirstleaf.EnableHealthListener(t.tlb.resolvedState),
+				ResolverState: pickfirstleaf.EnableHealthListener(resolvedState),
 			})
 		} else if state.ConnectivityState == connectivity.Ready && t.tlb.pending != nil {
 			t.log.InfoContext(context.Background(), "original balancer became healthy, closing pending balancer")
@@ -374,11 +377,12 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 
 			t.tlb.pending = &wb
 
+			resolvedState := t.tlb.resolvedState
+
 			t.tlb.mu.Unlock()
 
-			// TODO(dustin.specker): do we need to enable health listener here?
 			pflb.UpdateClientConnState(balancer.ClientConnState{
-				ResolverState: pickfirstleaf.EnableHealthListener(t.tlb.resolvedState),
+				ResolverState: pickfirstleaf.EnableHealthListener(resolvedState),
 			})
 		default:
 			t.tlb.mu.Unlock()
