@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
@@ -97,19 +96,20 @@ func exportAWSCredentials(credentialsAsJsonString string, stdout io.Writer) erro
 		SessionToken    string `json:"SessionToken"`
 	}
 
-	err := json.Unmarshal([]byte(credentialsAsJsonString), &credentials)
-	if err != nil {
+	if err := json.Unmarshal([]byte(credentialsAsJsonString), &credentials); err != nil {
 		return trace.Wrap(err)
 	}
 
-	stringExport := strings.Builder{}
-
-	stringExport.WriteString(fmt.Sprintf("export AWS_ACCESS_KEY_ID=%q\n", shsprintf.EscapeDefaultContext(credentials.AccessKeyID)))
-	stringExport.WriteString(fmt.Sprintf("export AWS_SECRET_ACCESS_KEY=%q\n", shsprintf.EscapeDefaultContext(credentials.SecretAccessKey)))
-	stringExport.WriteString(fmt.Sprintf("export AWS_SESSION_TOKEN=%q\n", shsprintf.EscapeDefaultContext(credentials.SessionToken)))
-	stringExport.WriteString("# Export the above variables in your current shell to start using the AWS credentials.\n")
-
-	_, err = stdout.Write([]byte(stringExport.String()))
+	_, err := fmt.Fprintf(stdout,
+		`export AWS_ACCESS_KEY_ID=%q
+export AWS_SECRET_ACCESS_KEY=%q
+export AWS_SESSION_TOKEN=%q
+# Export the above variables in your current shell to start using the AWS credentials.
+`,
+		shsprintf.EscapeDefaultContext(credentials.AccessKeyID),
+		shsprintf.EscapeDefaultContext(credentials.SecretAccessKey),
+		shsprintf.EscapeDefaultContext(credentials.SessionToken),
+	)
 	return trace.Wrap(err)
 }
 

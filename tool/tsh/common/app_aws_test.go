@@ -288,9 +288,6 @@ credential_process=tsh apps config --format aws-credential-process aws-profile
 func TestAWSRolesAnywhereBasedAccess_usingMFA(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
-	awsConfigFile := filepath.Join(tmpHomePath, "aws_config")
-	t.Setenv("AWS_CONFIG_FILE", awsConfigFile)
-
 	connector := mockConnector(t)
 
 	user, awsRole := makeUserWithAWSRole(t)
