@@ -80,6 +80,7 @@ func (s *Server) handleOracleJoin(
 		Solution:       solution,
 		ProvisionToken: provisionToken,
 		HTTPClient:     s.cfg.OracleHTTPClient,
+		RootCACache:    s.oracleRootCACache,
 	})
 	// CheckOracleRequest may return claims even when returning an error, which
 	// may aid in debugging.
