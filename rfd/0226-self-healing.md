@@ -96,8 +96,28 @@ connection enters the `TRANSIENT_FAILURE` state[^6] new connection attempts will
 made until either the existing connection returns to `READY` or the new connection
 reaches the `READY` state.
 
+All connection attempts should use a backoff policy with jitter to avoid a thundering
+heard problem.
+
 If the new connection reaches the `READY` state it will replace the old connection
 and the old connection will be shutdown.
+
+We will differentiate between a connection failing due to the service being unhealthy
+and a connection failing due to a network issue.
+
+A connection failing due to a network issue can simply create a new conneciton.
+
+A connection failing due to an unhealthy service should continue to send RPCs to the
+unhealthy service until a new connection to a healthy service can be established.
+
+This allows for a partially degraded auth service to attempt to service RPCs. This
+preservers todays behavior where all requests get sent to the auth regardless of its
+health.
+
+Once a new connection is established the old connection will be drained gracefully
+and new RPCs will be sent over the new connection.
+
+Any open RPCs on the old connection will be allowed to run to completetion.
 
 Clients will discover the new load balancing policy via the `/webapi/ping` endpoint.
 
@@ -204,6 +224,11 @@ or there are excess connections to the desired Proxy set.
 ### Additonal Thoughts and Considerations
 
 #### Periodic Auth Reconnects
+
+> [!NOTE]
+> Periodic Auth Reconnects was discussed but no decision was made. We will revisit
+> this after implementing [Auth Reconnects](#auth-reconnects) for failover purposes described above. **
+
 The custom load balancer policy described in [Auth Reconnects](#auth-reconnects)
 could be extended to support periodic auth reconnects. This would help to balance
 load across auth server instances and redistribute load after recovering from 
@@ -221,6 +246,11 @@ side. This would force clients to disconnect after the specific age but may be l
 graceful than the option described above.
 
 #### Periodic Tunnel Reconnects
+
+> [!NOTE]
+> Periodic tunnel teconnects was discussed but no decision was made. We will revisit
+> this after implementing [Proxy Reconnects](#proxy-reconnects) as described above. **
+
 Reconnecting reversetunnels during a failure can lead to imbalanced and suboptimal
 routing that should be addressed when the Teleport cluster recovers. To address
 this we need a way to trigger periodic reconnects. This can be achieved by having
