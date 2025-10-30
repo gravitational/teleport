@@ -487,6 +487,17 @@ $ ssh -o ForwardAgent=yes user@node
 $ ssh -o AddKeysToAgent=yes user@node
 ```
 
+By default, the Teleport Proxy Service listens on port `3080`.
+
+If a Teleport Proxy Service instance is configured to listen on non-default
+ports, they must be specified via `--proxy` flag as shown:
+
+```code
+$ tsh --proxy=proxy.example.com:5000 <subcommand>
+```
+
+This `tsh` command will use port `5000` of the Proxy Service.
+
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
@@ -505,24 +516,6 @@ $ ssh -o AddKeysToAgent=yes user@node
 ```
 
 </TabItem>
-
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-### Proxy ports
-
-By default, the Teleport Proxy Service listens on port `3080`.
-
-If a Teleport Proxy Service instance is configured to listen on non-default
-ports, they must be specified via `--proxy` flag as shown:
-
-```code
-$ tsh --proxy=proxy.example.com:5000 <subcommand>
-```
-
-This `tsh` command will use port `5000` of the Proxy Service.
-
-</TabItem>
-
 </Tabs>
 
 ### Port forwarding
