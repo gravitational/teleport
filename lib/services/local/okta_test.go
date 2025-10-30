@@ -36,6 +36,7 @@ import (
 
 // TestOktaImportRuleCRUD tests backend operations with Okta import rule resources.
 func TestOktaImportRuleCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -300,6 +301,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 
 // TestOktaAssignmentCRUD tests backend operations with Okta assignment resources.
 func TestOktaAssignmentCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -437,6 +439,192 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+}
+
+func TestOktaAssignmentValidation_CreateOktaAssignment(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewOktaService(backend, clock)
+	require.NoError(t, err)
+
+	noInitForCreate := func(_ context.Context, a types.OktaAssignment) (types.OktaAssignment, error) { return a, nil }
+
+	oktaAssignmentValidationSuite(
+		t, clock,
+		service.CreateOktaAssignment, // testedFn
+		noInitForCreate,              // initFn
+		service.DeleteOktaAssignment, // cleanupFn
+	)
+}
+
+func TestOktaAssignmentValidation_UpdateOktaAssignment(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewOktaService(backend, clock)
+	require.NoError(t, err)
+
+	noCleanupForUpdate := func(_ context.Context, _ string) error { return nil }
+
+	oktaAssignmentValidationSuite(
+		t, clock,
+		service.UpdateOktaAssignment, // testedFn
+		service.CreateOktaAssignment, // initFn
+		noCleanupForUpdate,           // cleanupFn
+	)
+}
+
+func oktaAssignmentValidationSuite(
+	t *testing.T,
+	clock clockwork.Clock,
+	testedFn func(context.Context, types.OktaAssignment) (types.OktaAssignment, error),
+	initFn func(context.Context, types.OktaAssignment) (types.OktaAssignment, error),
+	cleanupFn func(context.Context, string) error,
+) {
+	t.Helper()
+	ctx := t.Context()
+
+	a1 := oktaAssignment(t, "assignment1", "test-user@test.user", constants.OktaAssignmentStatusPending, clock.Now(),
+		oktaTarget(t, types.OktaAssignmentTargetV1_APPLICATION, "test_app_1"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_GROUP, "test_group_1"),
+	)
+
+	a1, err := initFn(ctx, a1)
+	require.NoError(t, err)
+
+	msg := "empty status is valid"
+
+	a1.SetResourceStatus(types.OktaAssignmentStatus{})
+	a1, err = testedFn(ctx, a1)
+	require.NoError(t, err, msg)
+	err = cleanupFn(ctx, a1.GetName())
+	require.NoError(t, err, msg)
+
+	msg = "empty, when set on the proto level"
+
+	a1Proto := a1.(*types.OktaAssignmentV1)
+	a1Proto.Status = types.OktaAssignmentStatusV1{}
+	a1, err = testedFn(ctx, a1Proto)
+	require.NoError(t, err, msg)
+	err = cleanupFn(ctx, a1.GetName())
+	require.NoError(t, err, msg)
+
+	msg = "minimal non-empty status"
+
+	a1.SetResourceStatus(types.OktaAssignmentStatus{
+		Phase:       types.OktaAssignmentPhaseProcessed,
+		ProcessedAt: clock.Now(),
+	})
+	a1, err = testedFn(ctx, a1)
+	require.NoError(t, err, msg)
+	err = cleanupFn(ctx, a1.GetName())
+	require.NoError(t, err, msg)
+
+	msg = "filled status"
+
+	newFilledStatus := func() types.OktaAssignmentStatus {
+		return types.OktaAssignmentStatus{
+			Phase:       types.OktaAssignmentPhaseProcessed,
+			ProcessedAt: clock.Now(),
+			Targets: types.OktaAssignmentStatusTargets{
+				Stats: types.OktaAssignmentStatusTargetsStats{
+					Total:       2,
+					Provisioned: 1,
+					Failed:      1,
+				},
+				Status: []types.OktaAssignmentStatusTargetStatus{
+					{
+						Type:        types.OktaAssignmentTargetTypeApplication,
+						ID:          "test_target_1",
+						Phase:       types.OktaAssignmentTargetPhaseCreated,
+						ProcessedAt: clock.Now().Add(-1 * time.Second),
+					},
+					{
+						Type:           types.OktaAssignmentTargetTypeGroup,
+						ID:             "test_target_2",
+						Phase:          types.OktaAssignmentTargetPhaseError,
+						ProcessedAt:    clock.Now().Add(-1 * time.Minute),
+						FailedAttempts: 22,
+					},
+				},
+			},
+		}
+	}
+	a1.SetResourceStatus(newFilledStatus())
+	a1, err = testedFn(ctx, a1)
+	require.NoError(t, err, msg)
+	err = cleanupFn(ctx, a1.GetName())
+	require.NoError(t, err, msg)
+
+	msg = "when status.phase is set: fail if .processed_at not set"
+
+	status := newFilledStatus()
+	status.ProcessedAt = time.Time{}
+	a1.SetResourceStatus(status)
+	_, err = testedFn(ctx, a1)
+	require.ErrorContains(t, err, "status.processed_at: must be set when status.phase is set", msg)
+
+	msg = "when status.phase is set: .processed_at before any of .targets.status[*].processed_at"
+
+	status = newFilledStatus()
+	status.Targets.Status[1].ProcessedAt = status.ProcessedAt.Add(1)
+	a1.SetResourceStatus(status)
+	_, err = testedFn(ctx, a1)
+	require.ErrorContains(t, err, "status.targets.status[1].processed_at:", msg)
+	require.ErrorContains(t, err, "is after status.processed_at", msg)
+
+	msg = "when status.phase is set: .targets.stats.total smaller than number of target statuses"
+
+	status = newFilledStatus()
+	status.Targets.Status = append(status.Targets.Status, types.OktaAssignmentStatusTargetStatus{
+		Type:        types.OktaAssignmentTargetTypeGroup,
+		ID:          "test_target_3",
+		Phase:       types.OktaAssignmentTargetPhaseCreated,
+		ProcessedAt: status.ProcessedAt.Add(-1 * time.Second),
+	})
+	a1.SetResourceStatus(status)
+	_, err = testedFn(ctx, a1)
+	require.ErrorContains(t, err, "status.targets.stats.total: [2] smaller than len(status.targets.status) [3]", msg)
+
+	msg = "when status.phase is set: status.targets.stats.total smaller than number of spec.targets"
+
+	status = newFilledStatus()
+	status.Targets.Stats.Total = len(a1.GetTargets()) - 1
+	a1.SetResourceStatus(status)
+	_, err = testedFn(ctx, a1)
+	require.ErrorContains(t, err, "status.targets.stats.total: [1] not equal to len(spec.targets) [2]", msg)
+
+	msg = "when status.phase is set: status.targets.stats.total bigger than number of spec.targets"
+
+	status = newFilledStatus()
+	status.Targets.Stats.Total = len(a1.GetTargets()) + 1
+	a1.SetResourceStatus(status)
+	_, err = testedFn(ctx, a1)
+	require.ErrorContains(t, err, "status.targets.stats.total: [3] not equal to len(spec.targets) [2]", msg)
+
+	msg = "when status.phase is set: .targets.stats.total smaller than .provisioned + .failed"
+
+	status = newFilledStatus()
+	status.Targets.Stats.Provisioned = status.Targets.Stats.Total - 1
+	status.Targets.Stats.Failed = status.Targets.Stats.Total + 1
+	a1.SetResourceStatus(status)
+	_, err = testedFn(ctx, a1)
+	require.ErrorContains(t, err, "status.targets.stats: .total [2] smaller than .provisioned [1] + .failed [3]", msg)
 }
 
 func oktaAssignment(t *testing.T, name, username, status string, lastTransition time.Time, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {

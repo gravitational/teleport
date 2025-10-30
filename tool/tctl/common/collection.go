@@ -988,9 +988,10 @@ func (c *oktaAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *oktaAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name"})
+	t := asciitable.MakeTable([]string{"Name", "User"})
 	for _, assignment := range c.assignments {
 		t.AddRow([]string{assignment.GetName()})
+		t.AddRow([]string{assignment.GetUser()})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
