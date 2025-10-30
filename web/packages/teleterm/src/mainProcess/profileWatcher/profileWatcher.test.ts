@@ -99,6 +99,9 @@ async function mockTshClient(initial: { clusters: Cluster[] }) {
 function mockClusterStore(initial: { clusters: Cluster[] }) {
   return {
     getRootClusters: () => initial.clusters,
+    clearAll: () => {
+      initial.clusters = [];
+    },
   };
 }
 
@@ -241,4 +244,26 @@ test('watcher stops when consumer throws', async () => {
   ]);
 
   expect(race).toStrictEqual({ done: true, value: undefined });
+});
+
+test('removing tsh directory does not break watcher', async () => {
+  const cluster = makeRootCluster();
+  const tshClientMock = await mockTshClient({ clusters: [] });
+  const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
+
+  const watcher = watchProfiles(tshDir, tshClientMock, clusterStoreMock, {
+    signal: abortController.signal,
+  });
+  const firstEvent = watcher.next();
+  const secondEvent = watcher.next();
+
+  await fs.rm(tshDir, { recursive: true });
+  expect((await firstEvent).value).toEqual([{ op: 'removed', cluster }]);
+  // Clean up the store, so that we can detect a change.
+  clusterStoreMock.clearAll();
+
+  await fs.mkdir(tshDir);
+  await tshClientMock.insertOrUpdateCluster(cluster);
+
+  expect((await secondEvent).value).toEqual([{ op: 'added', cluster }]);
 });

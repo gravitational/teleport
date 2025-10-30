@@ -17,6 +17,7 @@
  */
 
 import { watch } from 'node:fs';
+import { access } from 'node:fs/promises';
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import {
@@ -25,6 +26,7 @@ import {
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { debounce } from 'shared/utils/highbar';
+import { wait } from 'shared/utils/wait';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -39,6 +41,9 @@ interface ClusterStore {
 /**
  * Watches the specified `tshDirectory` for profile changes.
  * File system events are debounced with a 200 ms delay.
+ *
+ * When the watched directory is removed, the watcher emits a profile change
+ * and enters polling mode (with 1 second interval) until the directory reappears.
  */
 export async function* watchProfiles(
   tshDirectory: string,
@@ -46,18 +51,70 @@ export async function* watchProfiles(
   clusterStore: ClusterStore,
   options?: { signal?: AbortSignal }
 ): AsyncGenerator<ProfileChangeSet, void, void> {
-  // eslint-disable-next-line unused-imports/no-unused-vars
-  for await (const _ of debounceWatch(tshDirectory, 200, options?.signal)) {
-    const clusters = await tshClient.listRootClusters();
-    const newClusters = new Map(clusters.map(c => [c.uri, c]));
-    const oldClusters = new Map(
-      clusterStore.getRootClusters().map(c => [c.uri, c])
-    );
+  while (!options?.signal?.aborted) {
+    try {
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      for await (const _ of debounceWatch(tshDirectory, 200, options?.signal)) {
+        const clusters = await tshClient.listRootClusters();
+        const newClusters = new Map(clusters.map(c => [c.uri, c]));
+        const oldClusters = new Map(
+          clusterStore.getRootClusters().map(c => [c.uri, c])
+        );
 
-    const changes = detectChanges(oldClusters, newClusters);
-    if (changes.length > 0) {
-      yield changes;
+        const changes = detectChanges(oldClusters, newClusters);
+        if (changes.length > 0) {
+          yield changes;
+        }
+      }
+    } catch (error) {
+      // Check if the error is caused by the tshDirectory being removed.
+      // Detecting directory removal via fs.watch is unreliable:
+      //   - On macOS/Linux, it emits a 'rename' event.
+      //   - On Windows, it may throw an EPERM error.
+      // To reliably detect removal on macOS/Linux, we expect tshClient.listRootClusters()
+      // to fail with a filesystem-related error, allowing us to catch all relevant cases here.
+      const ok = await pathExists(tshDirectory);
+      if (!ok) {
+        // Directory doesn't exist, remove all clusters.
+        yield clusterStore
+          .getRootClusters()
+          .map(cluster => ({ op: 'removed', cluster }));
+        // Wait for the path to appear, and then start the next loop iteration.
+        await waitForPath(tshDirectory, options?.signal);
+      } else {
+        throw error;
+      }
     }
+  }
+}
+
+async function pathExists(dirPath: string): Promise<boolean> {
+  try {
+    await access(dirPath);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** Waits for path to exists, polling at intervals (1 second). */
+async function waitForPath(
+  dirPath: string,
+  signal: AbortSignal
+): Promise<void> {
+  if (signal?.aborted) {
+    return;
+  }
+
+  while (!signal?.aborted) {
+    const exist = await pathExists(dirPath);
+    if (exist) {
+      return;
+    }
+    await wait(1000, signal);
   }
 }
 
@@ -108,6 +165,10 @@ async function* debounceWatch(
   watcher.on('close', closeHandler);
   watcher.on('error', errorHandler);
 
+  // The watcher might be restarted if the path disappears and then reappears.
+  // Begin by checking for any changes immediately.
+  scheduleYield();
+
   try {
     while (true) {
       await signal.promise;
@@ -122,7 +183,6 @@ async function* debounceWatch(
     }
   } finally {
     scheduleYield.cancel();
-    // Unblocks the loop.
     watcher.close();
     watcher.off('close', closeHandler);
     watcher.off('error', errorHandler);
