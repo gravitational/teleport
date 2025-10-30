@@ -27,17 +27,19 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 )
 
 func TestRetryableTransport_WithGOAWAY(t *testing.T) {
+	t.Parallel()
+
 	backend := httptest.NewUnstartedServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Simulate connection close on /goaway.
@@ -131,8 +133,8 @@ func TestRetryableTransport_WithGOAWAY(t *testing.T) {
 						return
 					}
 
-					assert.Equal(t, http.StatusOK, res.StatusCode)
-					assert.Equal(t, body, got)
+					require.Equal(t, http.StatusOK, res.StatusCode)
+					require.Equal(t, body, got)
 				}
 			}
 		}()
@@ -140,42 +142,46 @@ func TestRetryableTransport_WithGOAWAY(t *testing.T) {
 	wg.Wait()
 
 	// just log it, actual count varies.
+	// multiple connections show retry working
 	t.Logf("connections used: %d", connCount.Load())
 }
 
-func TestRetryableTransport_GetBody(t *testing.T) {
-	cases := []struct {
-		name        string
-		body        []byte
-		wantGetBody bool
+func TestRetryableTransport_MemoryBuffer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		bodySize int64
 	}{
 		{
-			name:        "with body",
-			body:        []byte("some data here"),
-			wantGetBody: true,
+			name:     "zero",
+			bodySize: 0,
 		},
 		{
-			name:        "nil body",
-			body:        nil,
-			wantGetBody: false,
+			name:     "small (1KB)",
+			bodySize: 1024,
+		},
+		{
+			name:     "medium (1MB)",
+			bodySize: 1024 * 1024,
+		},
+		{
+			name:     "exact limit (5MB)",
+			bodySize: 5 * 1024 * 1024,
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			body := bytes.Repeat([]byte("x"), int(tt.bodySize))
+
 			transport := &mockTransport{
 				fn: func(req *http.Request) (*http.Response, error) {
-					if tc.wantGetBody {
-						require.NotNil(t, req.GetBody)
-						// make sure it works.
-						body, err := req.GetBody()
-						require.NoError(t, err)
-						data, err := io.ReadAll(body)
-						require.NoError(t, err)
-						require.Equal(t, tc.body, data)
-					} else {
-						require.Nil(t, req.GetBody)
-					}
+					readData, err := io.ReadAll(req.Body)
+					require.NoError(t, err)
+					require.Equal(t, body, readData)
+
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewReader(nil)),
@@ -187,63 +193,236 @@ func TestRetryableTransport_GetBody(t *testing.T) {
 				inner: transport,
 			}
 
-			var reqBody io.Reader
-			if tc.body != nil {
-				reqBody = io.NopCloser(bytes.NewReader(tc.body))
-			}
-
-			req, err := http.NewRequest(http.MethodPost, "http://test.local/api", reqBody)
+			req, err := http.NewRequest(http.MethodPost, "http://test/api",
+				io.NopCloser(bytes.NewReader(body)))
 			require.NoError(t, err)
-			if tc.body != nil {
-				req.ContentLength = int64(len(tc.body))
-			}
+			req.ContentLength = int64(len(body))
 
-			resp, err := wrapper.RoundTrip(req)
+			cleanup, err := wrapper.makeRetryable(req)
 			require.NoError(t, err)
-			require.NotNil(t, resp)
-			resp.Body.Close()
+			require.Nil(t, cleanup, " expect memory buffer not to return cleanup function")
+			require.NotNil(t, req.GetBody, "expect GetBody to be set for memory buffer")
+
+			// Test request flow
+			resp, err := wrapper.inner.RoundTrip(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+
+			// Verify GetBody returns correct data
+			retryBody, err := req.GetBody()
+			require.NoError(t, err)
+			retryData, err := io.ReadAll(retryBody)
+			require.NoError(t, err)
+			require.NoError(t, retryBody.Close())
+			require.Equal(t, body, retryData, "expect GetBody to return complete body")
 		})
 	}
 }
 
-func TestRetryableTransport_ReadOnlyStreams(t *testing.T) {
-	// `watch` and `log follow` are buffered because they have
-	// small or empty request bodies.
-	paths := []string{
-		"/api/v1/pods?watch=true",
-		"/api/v1/namespaces/default/pods/mypod/log?follow=true",
+func TestRetryableTransport_DiskBuffer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		bodySize      int64
+		contentLength int64
+		description   string
+	}{
+		{
+			name:          "5MB + 1",
+			bodySize:      5*1024*1024 + 1,
+			contentLength: 5*1024*1024 + 1,
+			description:   "just over limit",
+		},
+		{
+			name:          "6MB",
+			bodySize:      6 * 1024 * 1024,
+			contentLength: 6 * 1024 * 1024,
+			description:   "over limit",
+		},
+		{
+			name:          "10MB",
+			bodySize:      10 * 1024 * 1024,
+			contentLength: 10 * 1024 * 1024,
+			description:   "twice limit",
+		},
+		{
+			name:          "unknown size",
+			bodySize:      1024,
+			contentLength: -1,
+			description:   "chunked encoding",
+		},
 	}
 
-	for _, p := range paths {
-		t.Run(p, func(t *testing.T) {
-			transport := &mockTransport{
-				fn: func(req *http.Request) (*http.Response, error) {
-					require.NotNil(t, req.GetBody, "expect read-only streams buffered")
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(bytes.NewReader(nil)),
-					}, nil
-				},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := bytes.Repeat([]byte("x"), int(tt.bodySize))
+			rt := &retryableTransport{inner: &mockTransport{}}
+
+			req, _ := http.NewRequest("POST", "http://test", io.NopCloser(bytes.NewReader(body)))
+			req.ContentLength = tt.contentLength
+
+			cleanup, err := rt.makeRetryable(req)
+			require.NoError(t, err)
+			require.NotNil(t, cleanup, "expect disk buffer to return cleanup")
+			defer cleanup()
+			require.NotNil(t, req.GetBody)
+
+			// Verify original body can be read
+			readData, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			require.Equal(t, body, readData)
+			require.NoError(t, req.Body.Close())
+
+			// Verify retry body works
+			retryBody, err := req.GetBody()
+			require.NoError(t, err)
+			retryData, err := io.ReadAll(retryBody)
+			require.NoError(t, err)
+			require.Equal(t, body, retryData, "expect retry body to match original")
+			require.NoError(t, retryBody.Close())
+		})
+	}
+}
+
+func TestRetryableTransport_DiskCleanup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		scenario func(t *testing.T, req *http.Request)
+	}{
+		{
+			name: "cleanup after successful request",
+			scenario: func(t *testing.T, req *http.Request) {
+				io.Copy(io.Discard, req.Body)
+				require.NoError(t, req.Body.Close())
+			},
+		},
+		{
+			name: "cleanup after retry",
+			scenario: func(t *testing.T, req *http.Request) {
+				io.Copy(io.Discard, req.Body)
+				require.NoError(t, req.Body.Close())
+
+				retryBody, err := req.GetBody()
+				require.NoError(t, err)
+				io.Copy(io.Discard, retryBody)
+				require.NoError(t, retryBody.Close())
+			},
+		},
+		{
+			name: "cleanup after partial read",
+			scenario: func(t *testing.T, req *http.Request) {
+				buf := make([]byte, 1024)
+				req.Body.Read(buf)
+				require.NoError(t, req.Body.Close())
+			},
+		},
+		{
+			name: "cleanup without reading body",
+			scenario: func(t *testing.T, req *http.Request) {
+				// Don't read or close body. Simulates an early return/error
+				// before the body is used. Expect cleanup to work.
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rt := &retryableTransport{inner: &mockTransport{}}
+			body := bytes.Repeat([]byte("x"), 6*1024*1024)
+			req, _ := http.NewRequest("POST", "http://test", io.NopCloser(bytes.NewReader(body)))
+			req.ContentLength = int64(len(body))
+
+			cleanup, err := rt.makeRetryable(req)
+			require.NoError(t, err)
+			require.NotNil(t, cleanup, "expect cleanup function for disk buffer")
+
+			// Run scenario
+			tt.scenario(t, req)
+
+			// Verify cleanup succeeds
+			err = cleanup()
+			if err != nil {
+				require.True(t, os.IsNotExist(err), "expect cleanup to succeed")
+			}
+		})
+	}
+}
+
+func TestRetryableTransport_SkippedRequests(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		contentLength int64
+		body          []byte
+		expectCleanup bool
+		expectGetBody bool
+		reason        string
+	}{
+		{
+			name:          "nil body",
+			contentLength: 0,
+			body:          nil,
+			expectCleanup: false,
+			expectGetBody: false,
+			reason:        "no body to buffer",
+		},
+		{
+			name:          "already has GetBody",
+			contentLength: 100,
+			body:          []byte("data"),
+			expectCleanup: false,
+			expectGetBody: true,
+			reason:        "already retryable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rt := &retryableTransport{inner: &mockTransport{}}
+
+			var reqBody io.ReadCloser
+			if tt.body != nil {
+				reqBody = io.NopCloser(bytes.NewReader(tt.body))
 			}
 
-			wrapper := &retryableTransport{
-				inner: transport,
+			req, err := http.NewRequest(http.MethodPost, "http://test/api", reqBody)
+			require.NoError(t, err)
+			req.ContentLength = tt.contentLength
+
+			if tt.name == "already has GetBody" {
+				req.GetBody = func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader(tt.body)), nil
+				}
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "http://test.local"+p,
-				io.NopCloser(bytes.NewReader([]byte("body"))))
+			cleanup, err := rt.makeRetryable(req)
 			require.NoError(t, err)
-			req.ContentLength = 4
 
-			resp, err := wrapper.RoundTrip(req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			resp.Body.Close()
+			if tt.expectCleanup {
+				require.NotNil(t, cleanup, tt.reason)
+			} else {
+				require.Nil(t, cleanup, tt.reason)
+			}
+
+			if tt.expectGetBody {
+				require.NotNil(t, req.GetBody, tt.reason)
+			} else {
+				require.Nil(t, req.GetBody, tt.reason)
+			}
 		})
 	}
 }
 
 func TestRetryableTransport_IsStreamingProtocol(t *testing.T) {
+	t.Parallel()
 	rt := &retryableTransport{}
 
 	tests := []struct {
@@ -272,17 +451,15 @@ func TestRetryableTransport_IsStreamingProtocol(t *testing.T) {
 			expectStreaming: true,
 		},
 		{
-			name: "Connection Upgrade without Upgrade header (malformed)",
+			name: "Connection Upgrade only (malformed but defensive)",
 			url:  "https://kube/api/v1/pods",
 			headers: map[string]string{
 				"Connection": "Upgrade",
 			},
 			expectStreaming: true,
 		},
-
-		// Kubernetes streaming protocol marker
 		{
-			name: "X-Stream-Protocol-Version present",
+			name: "X-Stream-Protocol-Version",
 			url:  "https://kube/api/v1/pods",
 			headers: map[string]string{
 				"X-Stream-Protocol-Version": "v4.channel.k8s.io",
@@ -290,16 +467,16 @@ func TestRetryableTransport_IsStreamingProtocol(t *testing.T) {
 			expectStreaming: true,
 		},
 
-		// Non-streaming operations
+		// Non-streaming
 		{
 			name:            "watch (read-only stream)",
 			url:             "https://kube/api/v1/pods?watch=true",
-			expectStreaming: false, // GET with no body, can be retried
+			expectStreaming: false,
 		},
 		{
 			name:            "log follow (read-only stream)",
 			url:             "https://kube/api/v1/namespaces/default/pods/mypod/log?follow=true",
-			expectStreaming: false, // GET with no body, can be retried
+			expectStreaming: false,
 		},
 		{
 			name:            "regular GET",
@@ -320,6 +497,7 @@ func TestRetryableTransport_IsStreamingProtocol(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req, err := http.NewRequest("GET", tt.url, nil)
 			require.NoError(t, err)
 
@@ -328,67 +506,27 @@ func TestRetryableTransport_IsStreamingProtocol(t *testing.T) {
 			}
 
 			got := rt.isStreamingProtocol(req)
-			assert.Equal(t, tt.expectStreaming, got)
+			require.Equal(t, tt.expectStreaming, got)
 		})
 	}
 }
 
-func TestRetryableTransport_BufferLimits(t *testing.T) {
-	tests := []struct {
-		name          string
-		description   string
-		bodySize      int64
-		contentLength int64
-		expectGetBody bool
-	}{
-		{
-			name:          "small body (1KB)",
-			description:   "Small bodies are buffered",
-			bodySize:      1024,
-			contentLength: 1024,
-			expectGetBody: true,
-		},
-		{
-			name:          "exactly 5MB",
-			description:   "Exact limit is buffered",
-			bodySize:      5 * 1024 * 1024,
-			contentLength: 5 * 1024 * 1024,
-			expectGetBody: true,
-		},
-		{
-			name:          "5MB + 1 byte",
-			description:   "Over the limit is not buffered",
-			bodySize:      5*1024*1024 + 1,
-			contentLength: 5*1024*1024 + 1,
-			expectGetBody: false,
-		},
-		{
-			name:          "chunked encoding (ContentLength -1)",
-			description:   "Chunked encoding, which have unknown size, are not buffered",
-			bodySize:      1024,
-			contentLength: -1,
-			expectGetBody: false,
-		},
-		{
-			name:          "zero length",
-			description:   "Zero-length bodies have GetBody for consistency",
-			bodySize:      0,
-			contentLength: 0,
-			expectGetBody: true,
-		},
+func TestRetryableTransport_WatchAndLogAreBuffered(t *testing.T) {
+	// `watch` and `log?follow` are buffered because they have
+	// small or empty request bodies that can be retried,
+	// despite having streaming responses.
+	t.Parallel()
+	paths := []string{
+		"/api/v1/pods?watch=true",
+		"/api/v1/namespaces/default/pods/mypod/log?follow=true",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var body []byte
-			if tt.bodySize > 0 {
-				body = bytes.Repeat([]byte("x"), int(tt.bodySize))
-			}
-
-			var gotGetBody bool
+	for _, p := range paths {
+		t.Run(p, func(t *testing.T) {
+			t.Parallel()
 			transport := &mockTransport{
 				fn: func(req *http.Request) (*http.Response, error) {
-					gotGetBody = req.GetBody != nil
+					require.NotNil(t, req.GetBody, "watch/log should be buffered")
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewReader(nil)),
@@ -400,17 +538,15 @@ func TestRetryableTransport_BufferLimits(t *testing.T) {
 				inner: transport,
 			}
 
-			req, err := http.NewRequest(http.MethodPost, "http://test.local/api",
-				io.NopCloser(bytes.NewReader(body)))
+			req, err := http.NewRequest(http.MethodPost, "http://test"+p,
+				io.NopCloser(bytes.NewReader([]byte("body"))))
 			require.NoError(t, err)
-			req.ContentLength = tt.contentLength
+			req.ContentLength = 4
 
 			resp, err := wrapper.RoundTrip(req)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			resp.Body.Close()
-
-			assert.Equal(t, tt.expectGetBody, gotGetBody, tt.description)
 		})
 	}
 }
