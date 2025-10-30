@@ -289,17 +289,12 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
 	log := logger.Get(ctx)
 
-	var userTraits map[string][]string
-
-	const withSecretsFalse = false
-	user, err := amrh.apiClient.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	userTraits, err := common.GetUserTraits(ctx, amrh.apiClient, req.GetUser())
 	switch {
 	case trace.IsAccessDenied(err):
-		log.WarnContext(ctx, "Missing permissions to read user.traits, please add user.read to the associated role", "error", err)
+		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
 	case err != nil:
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
-	default:
-		userTraits = user.GetTraits()
 	}
 
 	// UsePreviewAsRoles option is required to fetch requested resource labels.

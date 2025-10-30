@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
-	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -254,9 +253,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	loginsByRole, err := a.getLoginsByRole(ctx, req)
-	if trace.IsAccessDenied(err) {
-		log.WarnContext(ctx, "Missing permissions to get logins by role, please add role.read to the associated role", "error", err)
-	} else if err != nil {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -525,35 +522,31 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 }
 
 func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
-	loginsByRole := make(map[string][]string, len(req.GetRoles()))
 	log := logger.Get(ctx)
+	loginsByRole := make(map[string][]string, len(req.GetRoles()))
 
-	user, err := a.apiClient.GetUser(ctx, req.GetUser(), false)
-	if err != nil {
-		log.WarnContext(ctx, "Missing permissions to apply user traits to login roles, please add user.read to the associated role", "error", err)
-		for _, role := range req.GetRoles() {
-			currentRole, err := a.apiClient.GetRole(ctx, role)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			loginsByRole[role] = currentRole.GetLogins(types.Allow)
-		}
-		return loginsByRole, nil
+	traits, err := common.GetUserTraits(ctx, a.apiClient, req.GetUser())
+	switch {
+	case trace.IsAccessDenied(err):
+		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
-	for _, role := range req.GetRoles() {
-		currentRole, err := a.apiClient.GetRole(ctx, role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		currentRole, err = services.ApplyTraits(currentRole, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		logins := currentRole.GetLogins(types.Allow)
+
+	roles, err := common.GetUserRoles(ctx, a.apiClient, req.GetRoles(), traits)
+	switch {
+	case trace.IsAccessDenied(err):
+		log.WarnContext(ctx, `Missing permissions to read user.roles, please use the preset "access-plugin" role`, "error", err)
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	for _, role := range roles {
+		logins := role.GetLogins(types.Allow)
 		if logins == nil {
 			logins = []string{}
 		}
-		loginsByRole[role] = logins
+		loginsByRole[role.GetName()] = logins
 	}
 	return loginsByRole, nil
 }
