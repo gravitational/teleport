@@ -100,7 +100,7 @@ func CheckChallengeSolution(ctx context.Context, params *CheckChallengeSolutionP
 	}
 
 	if err := verifyChallengeSignature(identityCert, []byte(params.Challenge), params.Solution.Signature); err != nil {
-		return claims, trace.AccessDenied("challenge signature did not verify")
+		return claims, trace.Wrap(err)
 	}
 
 	intermediateCAPool, err := makeIntermediateCAPool(params.Solution.Intermediate)
@@ -176,16 +176,26 @@ func verifyChallengeSignature(identityCert *x509.Certificate, challenge, signatu
 	case *rsa.PublicKey:
 		return trace.Wrap(verifyRSAChallengeSignature(pub, challenge, signature))
 	default:
-		return trace.BadParameter("unsupported certificate key type %s", identityCert.PublicKeyAlgorithm.String())
+		return trace.AccessDenied("unsupported certificate key type %s", identityCert.PublicKeyAlgorithm.String())
 	}
 }
 
 func verifyRSAChallengeSignature(pub *rsa.PublicKey, challenge, signature []byte) error {
+	// pub.Size returns the key size in bytes, we require a 2048-bit key.
+	if pub.Size() < 2048/8 {
+		return trace.AccessDenied("instance key: RSA key is too small (minimum 2048 bits)")
+	}
+	if pub.Size() > 4096/8 {
+		return trace.AccessDenied("instance key: RSA key is too large (maximum 4096 bits)")
+	}
 	digest := sha256.Sum256(challenge)
-	return trace.Wrap(rsa.VerifyPSS(pub, crypto.SHA256, digest[:], signature, &rsa.PSSOptions{
+	if err := rsa.VerifyPSS(pub, crypto.SHA256, digest[:], signature, &rsa.PSSOptions{
 		SaltLength: rsa.PSSSaltLengthAuto,
 		Hash:       crypto.SHA256,
-	}))
+	}); err != nil {
+		return trace.AccessDenied("RSA challenge signature did not verify")
+	}
+	return nil
 }
 
 func makeIntermediateCAPool(intermediateCAPEM []byte) (*x509.CertPool, error) {

@@ -81,10 +81,11 @@ func SolveChallenge(ctx context.Context, httpClient utils.HTTPDoClient, challeng
 
 // SignChallenge signs a challenge with a given instance private key.
 func SignChallenge(key crypto.Signer, challenge string) ([]byte, error) {
-	var signerOpts crypto.SignerOpts = crypto.SHA256
-	if _, ok := key.Public().(*rsa.PublicKey); ok {
-		signerOpts = &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}
+	if _, ok := key.Public().(*rsa.PublicKey); !ok {
+		return nil, trace.BadParameter("only RSA keys are supported")
+
 	}
+	signerOpts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}
 	signature, err := crypto.SignMessage(key, rand.Reader, []byte(challenge), signerOpts)
 	return signature, trace.Wrap(err)
 }
