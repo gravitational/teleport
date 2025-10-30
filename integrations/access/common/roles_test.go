@@ -35,17 +35,6 @@ func TestGetUserRoles(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	t.Cleanup(cancel)
 
-	client := &mockRoleClient{}
-	client.On("GetRole", mock.Anything, "dev").
-		Return(&types.RoleV6{
-			Metadata: types.Metadata{Name: "dev"},
-			Spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Logins: []string{"root", "{{internal.logins}}"},
-				},
-			},
-		}, nil)
-
 	tests := []struct {
 		description string
 		roleNames   []string
@@ -106,6 +95,17 @@ func TestGetUserRoles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			t.Parallel()
+
+			client := &mockRoleClient{}
+			client.On("GetRole", mock.Anything, "dev").
+				Return(&types.RoleV6{
+					Metadata: types.Metadata{Name: "dev"},
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							Logins: []string{"root", "{{internal.logins}}"},
+						},
+					},
+				}, nil)
 
 			roles, err := GetUserRoles(ctx, client, tt.roleNames, tt.traits)
 			require.NoError(t, err)
