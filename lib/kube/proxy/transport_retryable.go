@@ -144,17 +144,9 @@ func (t *retryableTransport) makeRetryableWithDisk(req *http.Request) (func() er
 // This includes Kubernetes exec, attach, and portforward operations.
 func (*retryableTransport) isStreamingProtocol(req *http.Request) bool {
 	// Detect HTTP/1.1 protocol upgrades
-	if req.Header.Get("Connection") == "Upgrade" ||
+	return req.Header.Get("Connection") == "Upgrade" ||
 		req.Header.Get("Upgrade") != "" ||
-		req.Header.Get("X-Stream-Protocol-Version") != "" {
-		return true
-	}
-
-	// Note: We allow requests for watch, log streaming, and proxy.
-	// Watch and log stream have GET with no body, and can be retried.
-	// Proxy requests can have the body buffered when not too large.
-
-	return false
+		req.Header.Get("X-Stream-Protocol-Version") != ""
 }
 
 // CloseIdleConnections closes idle connections in the inner transport.
