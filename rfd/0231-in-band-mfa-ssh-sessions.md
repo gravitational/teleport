@@ -498,26 +498,7 @@ in‑band MFA flow.
 
 ### Audit Events
 
-The existing audit events for MFA challenge creation and validation will be updated to include the action ID field to
-provide better context about the MFA challenges being created and validated.
-
-```proto
-// CreateMFAAuthChallenge records the creation of an MFA auth challenge.
-message CreateMFAAuthChallenge {
-  // ... existing fields ...
-
-  // ActionID is the optional ID of the action requiring MFA.
-  string ActionID = 5 [(gogoproto.jsontag) = "action_id,omitempty"];
-}
-
-// ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
-message ValidateMFAAuthResponse {
-  // ... existing fields ...
-
-  // ActionID is the optional ID of the action requiring MFA.
-  string ActionID = 7 [(gogoproto.jsontag) = "action_id,omitempty"];
-}
-```
+No changes to audit events are needed.
 
 ### Observability
 
@@ -569,8 +550,6 @@ The following are assumed to be completed before starting work on this RFD:
 1. Update modern agents to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
    legacy clients.
 1. Add tests to ensure both legacy and modern clients can connect to both legacy and modern agents as expected.
-1. Update existing audit events to include the action ID field. Clients should be updated to display the action ID if
-   available.
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
