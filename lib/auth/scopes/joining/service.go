@@ -233,7 +233,7 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 	}
 
 	ruleCtx := authzContext.RuleContext()
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbList); err != nil {
+	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -244,7 +244,7 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 		}
 
 		if err := authzContext.CheckerContext.Decision(ctx, token.GetScope(), func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbList)
+			return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbRead, types.VerbList)
 		}); err != nil {
 			continue
 		}
