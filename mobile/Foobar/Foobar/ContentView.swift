@@ -399,6 +399,11 @@ struct ScannedURLView: View {
                 webToken.tokenID = deepURL.id
                 webToken.token = deepURL.token
                 do {
+                  // TODO: Figure out how to run this from a separate thread.
+                  // At the moment it's probably blocking the main thread. Maybe we could confirm it
+                  // by creating some spinning element in the UI?
+                  // https://stackoverflow.com/questions/72862670/integrate-a-blocking-function-into-swift-async
+                  // TODO: Figure out what to do about Go's context.Context in Swift.
                   confirmToken = try ceremony.runWeb(devicesClient, webToken: webToken)
                 } catch {
                   authAttempt = .failure(.unknownError(error))
