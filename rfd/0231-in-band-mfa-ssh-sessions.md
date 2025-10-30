@@ -76,19 +76,24 @@ If MFA is _not required_, the SSH service will then proceed to establish the SSH
 
 If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt` message](#ssh-keyboard-interactive-messages) via
 the SSH [keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed.
-The message will include an action ID, which is a unique session identifier (UUID v4) that [ties the MFA challenge to a
-specific user action](#associating-mfa-challenges-with-user-actions) (in this case, SSH session establishment). In the
-future, action IDs could be used for other Teleport features beyond SSH access.
 
-The client must then invoke the `CreateChallengeForAction` RPC of the MFA service, providing the action ID along with
-any relevant request metadata. The MFA service will respond to the client with a challenge that must be solved. The
-client must solve the MFA challenge and send a Protobuf [`MFAPromptAnswer` message](#ssh-keyboard-interactive-messages)
-back to the SSH service via the keyboard-interactive channel.
+The client must then invoke the `CreateChallenge` RPC of the MFA service, providing a _session identifying payload
+(SIP)_ along with any relevant request metadata. The MFA service will respond to the client with a challenge that must
+be solved. The client must solve the MFA challenge and send a Protobuf
+[`MFAPromptAnswer`](#ssh-keyboard-interactive-messages) message back to the SSH service via the keyboard-interactive
+channel.
 
-Once the MFA challenge response is received, the SSH service will invoke the `ValidateChallengeForAction` RPC with the
-action ID, the client's MFA challenge response, and any other relevant metadata. If the MFA response is valid and the
-action ID matches the expected value, the SSH service will proceed to establish the SSH session. If the MFA response is
-invalid, the SSH service will deny the connection with an `Access Denied: Invalid MFA response` error.
+Once the MFA challenge response is received from the client, the SSH service will invoke the `ValidateChallenge` RPC
+with the client's MFA challenge response. If the MFA response is valid, the MFA service will return a response to the
+SSH service with the session identifying payload that the challenge was originally created for. If the MFA response is
+invalid, the MFA service will return an `Access Denied: Invalid MFA response` error.
+
+Although the SSH service receives a successful response from the MFA service, it still must independently compute the
+session identifying payload and ensure it matches the payload in the response from `ValidateChallenge`. This two-step
+verification ensures that MFA verification was performed for the same SSH session that it was requested for.
+
+If the session identifying payload does not match, the SSH service will deny access to the client with an `Access
+Denied: Invalid MFA response`.
 
 If the client fails to complete the MFA challenge within a specified timeout (e.g., default 1 minute), the SSH service
 will terminate the connection with an `Access Denied: MFA verification timed out` error. If the client wishes to retry,
@@ -108,17 +113,20 @@ sequenceDiagram
   Client->>Proxy: Dial SSH (client cert)
   Proxy->>Decision Service: EvaluateSSHAccess(client cert)
   Decision Service-->>Proxy: Permit
-  Proxy->>SSH: Proxy SSH connection (client cert, stapled permit)
+  Proxy->>SSH: Proxy SSH connection (stapled permit)
   SSH->>SSH: Is MFA required?
 
   alt MFA required
-    SSH->>Client: Keyboard-interactive (MFA required, action ID)
-    Client->>MFA: CreateChallengeForAction (client cert, action ID)
+    SSH->>Client: Keyboard-interactive (MFA required)
+    Client->>MFA: CreateChallenge (session ID payload)
+    MFA-->>MFA: Generate and store MFA challenge (session ID payload)
     MFA-->>Client: MFA challenge
     Client->>Client: Solve MFA challenge
     Client->>SSH: Keyboard-interactive (MFA response)
-    SSH->>MFA: ValidateChallengeForAction (action ID, MFA response)
+    SSH->>MFA: ValidateChallenge (MFA response)
     MFA-->>SSH: MFA valid
+    SSH-->>SSH: Compute session ID payload
+    SSH-->>SSH: Verify session ID payload matches
   end
 
   SSH->>Host: Establish SSH connection
@@ -141,24 +149,24 @@ well.
 
 Mitigations:
 
-1. Each MFA challenge will include a unique action ID that couples the challenge to a specific user action.
-1. The MFA service will [maintain a record](#associating-mfa-challenges-with-user-actions) of issued challenges and
-   their associated action IDs. Once a challenge has been successfully completed or expired, it will be invalidated.
+1. MFA challenges and their responses will be single-use only. Once a challenge has been successfully validated, it
+   cannot be reused.
 1. The MFA challenge is time-bound and will expire after a duration (e.g., 5 minutes).
+1. Each MFA challenge will include a session identifying payload that binds the challenge to a specific user session.
 
 #### New RPCs Attack Surface Risk
 
-This RFD introduces two new RPCs `CreateChallengeForAction` and `ValidateChallengeForAction` in the MFA service, which
-could potentially be exploited by an attacker to DoS the service by flooding it with requests.
+This RFD introduces two new RPCs `CreateChallenge` and `ValidateChallenge` in the MFA service, which could potentially
+be exploited by an attacker to DoS the service by flooding it with requests.
 
 Mitigations:
 
-1. Only authenticated clients are authorized to call the `CreateChallengeForAction` RPC, requests from other sources
-   will be rejected.
-1. Only Teleport instances are authorized to call the `ValidateChallengeForAction` RPC, requests from other sources will
-   be rejected.
-1. Ensure that the MFA service validates the `AuthenticateResponse` and action ID before processing the request to avoid
-   unnecessary processing of invalid requests.
+1. Only authenticated clients are authorized to call the `CreateChallenge` RPC, requests from other sources will be
+   rejected.
+1. Only Teleport instances are authorized to call the `ValidateChallenge` RPC, requests from other sources will be
+   rejected.
+1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
+   invalid requests.
 
 ### Privacy
 
@@ -206,26 +214,32 @@ keyboard-interactive channel using [protojson](https://pkg.go.dev/google.golang.
 
 ```proto
 // AuthPrompt is shown to the user during SSH keyboard-interactive authentication.
-// Currently, only MFA prompts are supported, but this message is designed to be extensible
-// for additional prompt types or checks in the future.
 message AuthPrompt {
   oneof prompt {
     MFAPrompt mfa_prompt = 1;
   }
 }
 
-  // Action ID is a unique identifier (UUID v4) associated with the SSH session for MFA.
+// MFAPrompt indicates MFA is required for SSH keyboard-interactive authentication.
 message MFAPrompt {
-  // Action ID for the MFA action derived from the SSH session ID.
-  string action_id = 1;
   // Message to display to the user.
-  string message = 2;
+  string message = 1;
 }
 
 // MFAPromptAnswer is the user's answer to an MFA prompt.
 message MFAPromptAnswer {
   // User's response to the MFA challenge.
   teleport.mfa.v1.AuthenticateResponse mfa_response = 1;
+}
+
+// SessionPayload contains identification information about an SSH session.
+message SessionPayload {
+  // version is the version of the payload structure. Currently supports "v1". To extend, add new fields and bump the
+  // version.
+  string version = 1;
+  // session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value from
+  // crypto/ssh#ConnMetadata.SessionID().
+  bytes session_id = 2;
 }
 ```
 
@@ -238,28 +252,29 @@ the `AuthService` should be gradually migrated to `MFAService`.
 A new service was opted to be created instead of extending/adding new RPCs to the existing `AuthService` to maintain
 clear separation of concerns and to avoid continuing to bloat the `AuthService` with more responsibilities and
 complexity. Additionally, the RPCs defined in this new service are specifically focused on MFA challenges for user
-actions, instead of further expanding the existing `CreateAuthenticateChallenge` RPC which is more general-purpose.
+sessions, instead of further expanding the existing `CreateAuthenticateChallenge` RPC which is more general-purpose.
 
 It will implement the following RPC and messages for creating and validating MFA challenges tied to specific user
-actions:
+sessions:
 
 ```proto
 // MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
 // of the AuthService.
 service MFAService {
-  // CreateChallengeForAction creates an MFA challenge that is tied to a specific user action. The action_id is required
-  // and the created challenge will be correlated to that action.
-  rpc CreateChallengeForAction(CreateChallengeForActionRequest) returns (CreateChallengeForActionResponse);
-  // ValidateChallengeForAction validates the MFA challenge response provided by the user for a specific user action.
-  // The action_id is required and must match the action the challenge was created for.
-  rpc ValidateChallengeForAction(ValidateChallengeForActionRequest) returns (ValidateChallengeForActionResponse);
+  // CreateChallenge creates an MFA challenge that is tied to a user session.
+  rpc CreateChallenge(CreateChallengeRequest) returns (CreateChallengeResponse);
+  // ValidateChallenge validates the MFA challenge response for a user session. The client must verify the returned
+  // payload matches the expected payload to ensure the response is tied to the correct session.
+  rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
 }
 
-// CreateChallengeForActionRequest is the request message for CreateChallengeForAction.
-message CreateChallengeForActionRequest {
-  // action_id is a required unique identifier associated with the MFA challenge. The challenge will be correlated to a
-  // specific user action based on this ID. This field MUST be a UUID v4 (RFC 4122, version 4).
-  string action_id = 1;
+// CreateChallengeRequest is the request message for CreateChallenge.
+message CreateChallengeRequest {
+  // payload is a value that uniquely identifies the user's session. It should be a versioned, encoded blob (e.g.,
+  // protobuf, JSON, etc.) computed by the client. The server will store this as ancillary data and return it in
+  // ValidateChallengeResponse. It WILL NOT be interpreted by the server. For SSH sessions, this would be the protobuf
+  // encoding of teleport.ssh.v1.SessionPayload.
+  bytes payload = 1;
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
   string sso_client_redirect_url = 2;
@@ -268,35 +283,32 @@ message CreateChallengeForActionRequest {
   string proxy_address = 3;
 }
 
-// CreateChallengeForActionResponse is the response message for CreateChallengeForAction.
-message CreateChallengeForActionResponse {
-  // action_id is the unique identifier associated with the MFA challenge. It indicates which action the
-  // challenge/response will be tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
-  string action_id = 1;
+// CreateChallengeResponse is the response message for CreateChallenge.
+message CreateChallengeResponse {
+  // name is the unique resource name for the issued challenge generated by the server. This value should be treated as
+  // an opaque identifier and used as-is in subsequent API calls.
+  string name = 1;
   // mfa_challenge contains the MFA challenge that the user must respond to.
   AuthenticateChallenge mfa_challenge = 2;
 }
 
-// ValidateChallengeForActionRequest is the request message for ValidateChallengeForAction.
-message ValidateChallengeForActionRequest {
-  // action_id is a required unique identifier associated with the MFA challenge. It validates that the challenge and
-  // response are tied to a specific user action. This field MUST be a UUID v4 (RFC 4122, version 4).
-  string action_id = 1;
+// ValidateChallengeRequest is the request message for ValidateChallenge.
+message ValidateChallengeRequest {
+  // name is the resource name for the issued challenge.
+  // This must match the 'name' returned in CreateChallengeResponse to tie the validation to the correct challenge.
+  string name = 1;
   // mfa_response contains the MFA challenge response provided by the user.
   AuthenticateResponse mfa_response = 2;
-  // user is the Teleport username of the user attempting to authenticate.
-  string user = 3;
 }
 
-// ValidateChallengeForActionResponse is the response message for ValidateChallengeForAction.
-message ValidateChallengeForActionResponse {
-  // action_id is the unique identifier associated with the MFA challenge. It indicates which action the
-  // challenge/response was tied to. This field MUST be a UUID v4 (RFC 4122, version 4).
-  string action_id = 1;
-  // user is the Teleport username of the user authenticated by the MFA challenge.
-  string user = 2;
+// ValidateChallengeResponse is the response message for ValidateChallenge.
+message ValidateChallengeResponse {
+  // payload is a value that uniquely identifies the user's session. The client calling ValidateChallenge MUST
+  // independently compute this value from session state to verify it matches in order to verify the response is tied to
+  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
+  bytes payload = 1;
   // device contains information about the user's MFA device used to authenticate.
-  types.MFADevice device = 3;
+  types.MFADevice device = 2;
 }
 
 // AuthenticateChallenge is a challenge for all MFA devices registered for a user.
@@ -339,67 +351,30 @@ message SSOChallengeResponse {
 }
 ```
 
-##### Associating MFA Challenges with User Actions
+##### Storing Session Identifying Payloads
 
-To associate MFA challenges with specific user actions, a new session data struct is introduced for each MFA method,
-scoped specifically for action-related MFA challenges. These structs are used only for challenges created via the
-`CreateChallengeForAction` RPC and are stored in the backend with the associated action ID.
-
-New structs are chosen to ensure that action-related MFA challenges are clearly separated from legacy session data. The
-structs model the legacy session data while omitting fields that are not relevant for action-scoped MFA challenges
-(e.g., Challenge extensions). The new structs will have explicit CRUD operations that model the legacy session data
-(e.g., key format, TTL handling, etc.).
-
-When the `ValidateChallengeForAction` RPC is called, the action ID is used in combination with the user information to
-retrieve the corresponding action-scoped MFA session data. This ensures that the MFA challenge response is validated
-against the correct context.
-
-###### WebAuthn Action Challenges
-
-A new `WebAuthnActionSessionData` struct is defined to encapsulate the action ID and relevant WebAuthn session
-information for action-scoped MFA challenges.
+The existing session data models for WebAuthn and SSO MFA will be extended to store the SIP as optional ancillary data.
+These changes are expected to be backwards compatible since the SIP is optional and existing clients will not be
+affected.
 
 ```go
-// WebAuthnActionSessionData stores session data for WebAuthn MFA challenges tied to a specific user action.
-type WebAuthnActionSessionData struct {
-  // ActionID is the MFA action ID associated with this session.
-  ActionID string `json:"action_id"`
-  // Raw challenge used for the ceremony.
-  Challenge []byte `json:"challenge,omitempty"`
-  // Raw User ID.
-  UserID []byte `json:"userId,omitempty"`
-  // Raw Credential IDs of the credentials allowed for the ceremony.
-  AllowCredentials [][]byte `json:"allowCredentials,omitempty"`
-  // True if resident keys were required by the server / Relying Party.
-  ResidentKey bool `json:"residentKey,omitempty"`
-  // Requested user verification requirement, either "discouraged" or
-  // "required".
-  // An empty value is treated equivalently to "discouraged".
-  UserVerification string `json:"userVerification,omitempty"`
+// SessionData is a clone of [webauthn.SessionData], materialized here to keep a
+// stable JSON marshal/unmarshal representation and add extensions.
+type SessionData struct {
+  // ... existing fields ...
+
+  // Payload is an optional session identifying value that uniquely identifies the user's session.
+  Payload []byte `json:"payload,omitempty"`
 }
 ```
 
-###### SSO Action Challenges
-
-A new `SSOMFAActionSessionData` struct is defined to encapsulate the action ID and relevant SSO MFA session information
-for action-scoped MFA challenges.
-
 ```go
-// SSOMFAActionSessionData stores session data for SSO MFA challenges tied to a specific user action.
-type SSOMFAActionSessionData struct {
-  // ActionID is the MFA action ID associated with this session.
-  ActionID string `json:"action_id"`
-  // RequestID is the ID of the corresponding SSO Auth request, which is used to
-  // identify this session.
-  RequestID string `json:"request_id,omitempty"`
-  // Username is the Teleport username.
-  Username string `json:"username,omitempty"`
-  // Token is an active token used to verify the owner of this SSO MFA session data.
-  Token string `json:"token,omitempty"`
-  // ConnectorID is id of the corresponding Auth connector.
-  ConnectorID string `json:"connector_id,omitempty"`
-  // ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC).
-  ConnectorType string `json:"connector_type,omitempty"`
+// SSOMFASessionData SSO MFA Session data.
+type SSOMFASessionData struct {
+  // ... existing fields ...
+
+  // Payload is an optional session identifying value that uniquely identifies the user's session.
+  Payload []byte `json:"payload,omitempty"`
 }
 ```
 
@@ -541,7 +516,7 @@ The following are assumed to be completed before starting work on this RFD:
 #### Phase 1 (Transition Period - at least 2 major releases)
 
 1. Update the Decision service to return a permit containing a `preconditions` field.
-1. Add `MFAService` to support creating and validating MFA challenges tied to specific user actions.
+1. Add `MFAService` to support creating and validating MFA challenges tied to specific user sessions.
 1. Update the SSH service to implement the in-band MFA flow during session establishment.
 1. Update the SSH service auth handler to use `VerifiedPublicKeyCallback` instead of `PublicKeyCallback` to ensure that
    the client has confirmed possession of the private key associated with the client certificate.
