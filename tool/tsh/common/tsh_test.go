@@ -101,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -7766,4 +7767,70 @@ func TestDebugVersionOutput(t *testing.T) {
 	for _, v := range vers {
 		require.Contains(t, string(output), v)
 	}
+}
+
+func TestLogoutOneIdentity(t *testing.T) {
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	rootServer, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, alice))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String()},
+		setHomePath(tmpHomePath),
+		setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// logout with one identity with --proxy flag set
+	buf := bytes.NewBuffer([]byte{})
+	err = Run(context.Background(), []string{
+		"logout",
+		"--proxy", proxyAddr.String()},
+		setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
+			cf.OverrideStdout = buf
+			return nil
+		})
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String()},
+		setHomePath(tmpHomePath),
+		setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// logout with TELEPORT_PROXY set
+	t.Setenv(proxyEnvVar, proxyAddr.String())
+
+	buf.Reset()
+	err = Run(context.Background(), []string{
+		"logout"},
+		setHomePath(tmpHomePath),
+		func(cf *CLIConf) error {
+			cf.OverrideStdout = buf
+			return nil
+		})
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
 }
