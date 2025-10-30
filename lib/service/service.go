@@ -718,6 +718,12 @@ type TeleportProcess struct {
 	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
 
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	// optionally other systems can add their gatherers, this can be used if they
+	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
+	metricsGatherers prometheus.Gatherers
+
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
 
@@ -731,6 +737,10 @@ var processID int32
 
 func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
+}
+
+func (process *TeleportProcess) AddMetricsGatherer(gatherer prometheus.Gatherer) {
+	process.metricsGatherers = append(process.metricsGatherers, gatherer)
 }
 
 // GetReverseTunnelServer returns the process's reverse tunnel server
@@ -1291,6 +1301,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		metricsGatherers: prometheus.Gatherers{
+			metricsRegistry,
+			prometheus.DefaultGatherer,
+		},
 	}
 
 	process.registerExpectedServices(cfg)
