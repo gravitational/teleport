@@ -36,7 +36,7 @@ export const SortMenu = <T extends object>({
   fields: { value: SortMenuSort<T>['fieldName']; label: string }[];
   onChange: (value: SortMenuSort<T>) => void;
 }) => {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   const handleOpen = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) =>
     setAnchorEl(event.currentTarget);
