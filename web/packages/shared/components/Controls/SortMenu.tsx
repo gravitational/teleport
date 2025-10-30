@@ -27,6 +27,11 @@ export type SortMenuSort<T extends object> = {
   dir: 'ASC' | 'DESC';
 };
 
+// TODO(nicholasmarais1158): Remove this component once fully migrated to
+// SortMenuV2
+/**
+ * @deprecated Use `SortMenu` from ./SortMenuV2.tsx instead
+ */
 export const SortMenu = <T extends object>({
   current,
   fields,
