@@ -29,17 +29,15 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 )
 
 func TestEntraIDGroupFilters(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		groupFilterIncludeID   []string
-		groupFilterIncludeName []string
-		groupFilterExcludeID   []string
-		groupFilterExcludeName []string
-		expectedFilters        []*types.PluginSyncFilter
-		errorAssertion         require.ErrorAssertionFunc
+		name            string
+		groupFilters    filter.Inputs
+		expectedFilters []*types.PluginSyncFilter
+		errorAssertion  require.ErrorAssertionFunc
 	}{
 		{
 			name:            "empty filter",
@@ -47,11 +45,13 @@ func TestEntraIDGroupFilters(t *testing.T) {
 			errorAssertion:  require.NoError,
 		},
 		{
-			name:                   "valid filters",
-			groupFilterIncludeID:   []string{"id1"},
-			groupFilterIncludeName: []string{"a*"},
-			groupFilterExcludeID:   []string{"id2"},
-			groupFilterExcludeName: []string{"b*"},
+			name: "valid filters",
+			groupFilters: filter.Inputs{
+				ID:               []string{"id1"},
+				NameRegex:        []string{"a*"},
+				ExcludeID:        []string{"id2"},
+				ExcludeNameRegex: []string{"b*"},
+			},
 			expectedFilters: []*types.PluginSyncFilter{
 				{Include: &types.PluginSyncFilter_Id{Id: "id1"}},
 				{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
@@ -61,11 +61,13 @@ func TestEntraIDGroupFilters(t *testing.T) {
 			errorAssertion: require.NoError,
 		},
 		{
-			name:                   "valid multiple filters",
-			groupFilterIncludeID:   []string{"id1", "id2"},
-			groupFilterIncludeName: []string{"a*", "b*"},
-			groupFilterExcludeID:   []string{"id3", "id4"},
-			groupFilterExcludeName: []string{"b*", "c*"},
+			name: "valid multiple filters",
+			groupFilters: filter.Inputs{
+				ID:               []string{"id1", "id2"},
+				NameRegex:        []string{"a*", "b*"},
+				ExcludeID:        []string{"id3", "id4"},
+				ExcludeNameRegex: []string{"b*", "c*"},
+			},
 			expectedFilters: []*types.PluginSyncFilter{
 				{Include: &types.PluginSyncFilter_Id{Id: "id1"}},
 				{Include: &types.PluginSyncFilter_Id{Id: "id2"}},
@@ -79,24 +81,32 @@ func TestEntraIDGroupFilters(t *testing.T) {
 			errorAssertion: require.NoError,
 		},
 		{
-			name:                 "empty include id string",
-			groupFilterIncludeID: []string{""},
-			errorAssertion:       require.Error,
+			name: "empty include id string",
+			groupFilters: filter.Inputs{
+				ID: []string{""},
+			},
+			errorAssertion: require.Error,
 		},
 		{
-			name:                   "bad regex",
-			groupFilterIncludeName: []string{"^[)$"},
-			errorAssertion:         require.Error,
+			name: "bad regex",
+			groupFilters: filter.Inputs{
+				NameRegex: []string{"^[)$"},
+			},
+			errorAssertion: require.Error,
 		},
 		{
-			name:                   "bad exclude regex",
-			groupFilterExcludeName: []string{"^[)$"},
-			errorAssertion:         require.Error,
+			name: "bad exclude regex",
+			groupFilters: filter.Inputs{
+				ExcludeNameRegex: []string{"^[)$"},
+			},
+			errorAssertion: require.Error,
 		},
 		{
-			name:                 "empty exclude id string",
-			groupFilterExcludeID: []string{""},
-			errorAssertion:       require.Error,
+			name: "empty exclude id string",
+			groupFilters: filter.Inputs{
+				ExcludeID: []string{""},
+			},
+			errorAssertion: require.Error,
 		},
 	}
 
@@ -138,14 +148,11 @@ func TestEntraIDGroupFilters(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "entra-id-default",
 					entraID: entraArgs{
-						authConnectorName:      "fake-saml-connector",
-						accessGraph:            false,
-						manualEntraIDSetup:     true,
-						useSystemCredentials:   true,
-						groupFilterIncludeID:   test.groupFilterIncludeID,
-						groupFilterIncludeName: test.groupFilterIncludeName,
-						groupFilterExcludeID:   test.groupFilterExcludeID,
-						groupFilterExcludeName: test.groupFilterExcludeName,
+						authConnectorName:    "fake-saml-connector",
+						accessGraph:          false,
+						manualEntraIDSetup:   true,
+						useSystemCredentials: true,
+						groupFilters:         test.groupFilters,
 					},
 				},
 				stdin:  inputs,

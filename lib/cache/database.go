@@ -53,12 +53,8 @@ func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*col
 				databaseNameIndex: types.Database.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Database, error) {
-			out, err := stream.Collect(upstream.RangeDatabases(ctx, "", ""))
-			// TODO(lokraszewski): DELETE IN v21.0.0
-			if trace.IsNotImplemented(err) {
-				out, err := upstream.GetDatabases(ctx)
-				return out, trace.Wrap(err)
-			}
+			// TODO(lokraszewski): DELETE IN v21.0.0 replace by regular clientutils.Resources
+			out, err := clientutils.CollectWithFallback(ctx, upstream.ListDatabases, upstream.GetDatabases)
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Database {

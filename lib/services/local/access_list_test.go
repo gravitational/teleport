@@ -33,17 +33,19 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -635,7 +637,129 @@ func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {
 	require.Len(t, accessList.Spec.Owners, 2)
 }
 
-func TestAccessListUpsertWithMembers(t *testing.T) {
+func deleteAllAccessLists(t *testing.T, service *AccessListService) func() {
+	return func() {
+		require.NoError(t, service.DeleteAllAccessLists(context.Background()))
+	}
+}
+
+// getAccessListMembers fetches the current list of members for the given access
+// list, sorted by name
+func getAccessListMembers(t *testing.T, service *AccessListService, listName string) []*accesslist.AccessListMember {
+	getPage := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+		return service.ListAccessListMembers(ctx, listName, pageSize, pageToken)
+	}
+	members, err := stream.Collect(clientutils.Resources(t.Context(), getPage))
+	require.NoError(t, err)
+	return members
+}
+
+type writeAccessListWithMembersFn func(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+func testAddAndRemoveAccessListMembers(t *testing.T, service *AccessListService, clock clockwork.Clock, fnUnderTest writeAccessListWithMembersFn) {
+	t.Run("add and remove members", func(t *testing.T) {
+		const listName = "test-add-members-list"
+		t.Cleanup(deleteAllAccessLists(t, service))
+		ctx := t.Context()
+
+		toAccessListMember := func(name string) *accesslist.AccessListMember {
+			return newAccessListMember(t, listName, name)
+		}
+
+		cmpOpts := []cmp.Option{
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+			cmpopts.EquateEmpty(),
+		}
+
+		// GIVEN an existing Access List
+		acl, err := service.UpsertAccessList(ctx, newAccessList(t, listName, clock))
+		require.NoError(t, err)
+
+		var expectedMemberNames []string
+		for _, memberName := range []string{"alice", "bob", "carol", "dave"} {
+			expectedMemberNames = append(expectedMemberNames, memberName)
+			members := sliceutils.Map(expectedMemberNames, toAccessListMember)
+
+			// WHEN I update the Access List to have one or more users,
+			// EXPECT that the operation succeeds and all member are present
+			// in both the returned member list and in the backend service
+			updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
+			require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
+
+			backendMembers := getAccessListMembers(t, service, listName)
+			require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
+		}
+
+		for len(expectedMemberNames) > 0 {
+			expectedMemberNames = expectedMemberNames[1:]
+			members := sliceutils.Map(expectedMemberNames, toAccessListMember)
+
+			// WHEN I update the Access List to remove a user, EXPECT that
+			// the operation succeeds and that only the expected members
+			// are present in the returned member list and in the backend
+			// service
+			updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
+			require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
+
+			backendMembers := getAccessListMembers(t, service, listName)
+			require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
+		}
+	})
+}
+
+func testSetEmptyAccessListMembers(t *testing.T, service *AccessListService, clock clockwork.Clock, fnUnderTest writeAccessListWithMembersFn) {
+	t.Run("setting empty member list deletes members", func(t *testing.T) {
+		ctx := t.Context()
+
+		emptyLists := []struct {
+			name  string
+			value []*accesslist.AccessListMember
+		}{
+			{
+				name:  "nil",
+				value: nil,
+			},
+			{
+				name:  "zero-length",
+				value: []*accesslist.AccessListMember{},
+			},
+		}
+
+		for _, emptyList := range emptyLists {
+			t.Run(emptyList.name, func(t *testing.T) {
+				t.Cleanup(deleteAllAccessLists(t, service))
+				listName := "test-set-empty-members-list" + emptyList.name
+
+				// GIVEN an access list with several members...
+				acl, _, err := service.UpsertAccessListWithMembers(ctx,
+					newAccessList(t, listName, clock),
+					[]*accesslist.AccessListMember{
+						newAccessListMember(t, listName, "alice"),
+						newAccessListMember(t, listName, "bob"),
+						newAccessListMember(t, listName, "carol"),
+						newAccessListMember(t, listName, "dave"),
+					})
+				require.NoError(t, err)
+				require.Len(t, getAccessListMembers(t, service, listName), 4)
+
+				// WHEN I update it with an empty member list
+				_, members, err := fnUnderTest(ctx, acl, emptyList.value)
+				require.NoError(t, err)
+
+				// EXPECT that both the returned member list and the member
+				// collection from the backend are empty
+				require.Empty(t, members)
+				require.Empty(t, getAccessListMembers(t, service, listName))
+			})
+		}
+	})
+}
+
+func TestUpsertAccessListWithMembers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -647,65 +771,197 @@ func TestAccessListUpsertWithMembers(t *testing.T) {
 
 	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
-	// Create a couple access lists.
-	accessList1 := newAccessList(t, "accessList1", clock)
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	}
+
+	t.Run("create empty", func(t *testing.T) {
+		emptyLists := []struct {
+			name  string
+			value []*accesslist.AccessListMember
+		}{
+			{
+				name:  "nil",
+				value: nil,
+			},
+			{
+				name:  "zero-length",
+				value: []*accesslist.AccessListMember{},
+			},
+		}
+		for _, empty := range emptyLists {
+			t.Run(empty.name, func(t *testing.T) {
+				t.Cleanup(deleteAllAccessLists(t, service))
+				listName := "test-create-acl-list-" + empty.name
+
+				acl := newAccessList(t, listName, clock)
+				createdACL, createdMembers, err := service.UpsertAccessListWithMembers(ctx, acl, empty.value)
+				require.NoError(t, err)
+				require.Empty(t, createdMembers)
+				require.Empty(t, cmp.Diff(createdACL, acl, cmpOpts...))
+			})
+		}
+	})
+
+	t.Run("create with members", func(t *testing.T) {
+		const listName = "test-create-with-members-list"
+		t.Cleanup(deleteAllAccessLists(t, service))
+
+		acl := newAccessList(t, listName, clock)
+		members := []*accesslist.AccessListMember{newAccessListMember(t, listName, "alice")}
+		createdACL, createdMembers, err := service.UpsertAccessListWithMembers(ctx, acl, members)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(acl, createdACL, cmpOpts...))
+		require.Empty(t, cmp.Diff(members, createdMembers, cmpOpts...))
+		require.Empty(t, cmp.Diff(members, getAccessListMembers(t, service, listName), cmpOpts...))
+	})
+
+	testAddAndRemoveAccessListMembers(t, service, clock, service.UpsertAccessListWithMembers)
+
+	testSetEmptyAccessListMembers(t, service, clock, service.UpsertAccessListWithMembers)
+
+	t.Run("colliding updates", func(t *testing.T) {
+		const listName = "test-colliding-updates-list"
+		t.Cleanup(deleteAllAccessLists(t, service))
+
+		// GIVEN an existing Access List...
+		originalACL, _, err := service.UpsertAccessListWithMembers(ctx,
+			newAccessList(t, listName, clock),
+			[]*accesslist.AccessListMember{
+				newAccessListMember(t, listName, "alice"),
+				newAccessListMember(t, listName, "bob"),
+				newAccessListMember(t, listName, "carol"),
+				newAccessListMember(t, listName, "dave"),
+			})
+		require.NoError(t, err)
+
+		// GIVEN an updated version of the original access list, which
+		// will have a new version string...
+		update := originalACL.Clone()
+		update.Spec.Title = "updated list once"
+		_, err = service.UpsertAccessList(ctx, update)
+		require.NoError(t, err)
+
+		// WHEN I submit an updated Access List based on the original Access List revision
+		secondUpdate := originalACL.Clone()
+		secondUpdate.Spec.Title = "overridden update"
+		updatedMembers := []*accesslist.AccessListMember{
+			newAccessListMember(t, listName, "erica"),
+			newAccessListMember(t, listName, "fred"),
+			newAccessListMember(t, listName, "giselle"),
+			newAccessListMember(t, listName, "hector"),
+		}
+		finalACL, finalMembers, updateErr := service.UpsertAccessListWithMembers(ctx, secondUpdate, updatedMembers)
+
+		// EXPECT an upsert to succeed
+		require.NoError(t, updateErr)
+
+		// EXPECT the returned Access List and member list to match the
+		// requested update
+		require.Empty(t, cmp.Diff(finalACL, secondUpdate, cmpOpts...))
+		require.Empty(t, cmp.Diff(finalMembers, updatedMembers, cmpOpts...))
+
+		// EXPECT the actual backend records to match the updated values
+		backendACL, err := service.GetAccessList(ctx, listName)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(backendACL, secondUpdate, cmpOpts...))
+		require.Empty(t, cmp.Diff(getAccessListMembers(t, service, listName), updatedMembers))
+	})
+}
+
+func TestUpdateAccessListAndOverwriteMembers(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
 
 	cmpOpts := []cmp.Option{
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
 	}
 
-	t.Run("create access list", func(t *testing.T) {
-		// Create both access lists.
-		accessList, _, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
+	t.Run("update non-existing", func(t *testing.T) {
+		const listName = "test-update-acl-list"
+		t.Cleanup(deleteAllAccessLists(t, service))
+
+		acl := newAccessList(t, listName, clock)
+		_, _, err := service.UpdateAccessListAndOverwriteMembers(ctx, acl, []*accesslist.AccessListMember{})
+
+		var NotFound *trace.NotFoundError
+		require.ErrorAs(t, err, &NotFound)
 	})
 
-	accessList1Member1 := newAccessListMember(t, accessList1.GetName(), "alice")
+	t.Run("update non-existing with members", func(t *testing.T) {
+		const listName = "test-update-with-members-list"
+		t.Cleanup(deleteAllAccessLists(t, service))
 
-	t.Run("add member to the access list", func(t *testing.T) {
-		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1})
-		require.NoError(t, err)
-		// Assert that access list is returned.
-		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
-		// Assert that the member is returned.
-		require.Len(t, updatedMembers, 1)
-		require.Empty(t, cmp.Diff(updatedMembers[0], accessList1Member1, cmpOpts...))
+		acl := newAccessList(t, listName, clock)
+		members := []*accesslist.AccessListMember{newAccessListMember(t, listName, "alice")}
+		_, _, err := service.UpdateAccessListAndOverwriteMembers(ctx, acl, members)
 
-		listMembers, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(listMembers, accessList1Member1, cmpOpts...))
+		var NotFound *trace.NotFoundError
+		require.ErrorAs(t, err, &NotFound)
 	})
 
-	accessList1Member2 := newAccessListMember(t, accessList1.GetName(), "bob")
+	testAddAndRemoveAccessListMembers(t, service, clock, service.UpdateAccessListAndOverwriteMembers)
 
-	t.Run("add another member to the access list", func(t *testing.T) {
-		// Add access list members.
-		updatedAccessList, updatedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2})
-		require.NoError(t, err)
-		// Assert that access list is returned.
-		require.Empty(t, cmp.Diff(updatedAccessList, updatedAccessList, cmpOpts...))
-		// Assert that the member is returned.
-		require.Len(t, updatedMembers, 2)
-		require.Empty(t, cmp.Diff(updatedMembers, []*accesslist.AccessListMember{accessList1Member1, accessList1Member2}, cmpOpts...))
+	testSetEmptyAccessListMembers(t, service, clock, service.UpdateAccessListAndOverwriteMembers)
 
-		listMembers, err := service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(listMembers, accessList1Member1, cmpOpts...))
+	t.Run("colliding updates", func(t *testing.T) {
+		const listName = "test-colliding-updates-list"
+		t.Cleanup(deleteAllAccessLists(t, service))
 
-		listMembers, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member2.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(listMembers, accessList1Member2, cmpOpts...))
-	})
-
-	t.Run("empty members removes all members", func(t *testing.T) {
-		_, _, err = service.UpsertAccessListWithMembers(ctx, accessList1, []*accesslist.AccessListMember{})
+		// GIVEN an existing Access List (note that we're deliberately
+		// using UpsertAccessListWithMembers because this is part of the
+		// test setup rather than the test action itself.)
+		originalACL, originalMembers, err := service.UpsertAccessListWithMembers(ctx,
+			newAccessList(t, listName, clock),
+			[]*accesslist.AccessListMember{
+				newAccessListMember(t, listName, "alice"),
+				newAccessListMember(t, listName, "bob"),
+				newAccessListMember(t, listName, "carol"),
+				newAccessListMember(t, listName, "dave"),
+			})
 		require.NoError(t, err)
 
-		members, _, err := service.ListAccessListMembers(ctx, accessList1.GetName(), 0 /* default size*/, "")
+		// GIVEN an updated version of the original access list, which
+		// will have a new version string...
+		update := originalACL.Clone()
+		update.Spec.Title = "updated list once"
+
+		updatedACL, err := service.UpsertAccessList(ctx, update)
 		require.NoError(t, err)
-		require.Empty(t, members)
+
+		// WHEN I try to submit an updated Access List based on the original
+		// Access List revision
+		secondUpdate := originalACL.Clone()
+		secondUpdate.Spec.Title = "overridden update"
+		updatedMembers := []*accesslist.AccessListMember{
+			newAccessListMember(t, listName, "erica"),
+			newAccessListMember(t, listName, "fred"),
+			newAccessListMember(t, listName, "giselle"),
+			newAccessListMember(t, listName, "hector"),
+		}
+		_, _, err = service.UpdateAccessListAndOverwriteMembers(ctx, secondUpdate, updatedMembers)
+
+		// EXPECT a conditional update to fail
+		var cmpFailedErr *trace.CompareFailedError
+		require.ErrorAs(t, err, &cmpFailedErr)
+
+		// EXPECT that the backend Access List record has not been changed
+		backendACL, err := service.GetAccessList(ctx, listName)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(backendACL, updatedACL, cmpOpts...))
+
+		// EXPECT that the member list has not been changed
+		require.Empty(t, cmp.Diff(getAccessListMembers(t, service, listName), originalMembers, cmpOpts...))
 	})
 }
 
@@ -1441,71 +1697,6 @@ func TestAccessListRequiresEqual(t *testing.T) {
 	}
 }
 
-func TestAccessListMemberOwnerEligibility(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
-
-	mem, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
-
-	acl := newAccessList(t, "test-access-list-1", clock,
-		withOwners([]accesslist.Owner{{Name: "test-owner-1"}}),
-		withOwnerRequires(accesslist.Requires{}),
-		withMemberRequires(accesslist.Requires{}),
-	)
-
-	aclR := newAccessList(t, "test-access-list-2", clock,
-		withOwners([]accesslist.Owner{{Name: "test-owner-1"}}),
-		withOwnerRequires(accesslist.Requires{Roles: []string{"role1"}}),
-		withMemberRequires(accesslist.Requires{Roles: []string{"role2"}}),
-	)
-
-	_, err = service.UpsertAccessList(ctx, acl)
-	require.NoError(t, err)
-	item, err := service.GetAccessList(ctx, acl.GetName())
-	require.NoError(t, err)
-	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(), item.GetOwners()[0].IneligibleStatus)
-
-	_, err = service.UpsertAccessList(ctx, aclR)
-	require.NoError(t, err)
-	item2, err := service.GetAccessList(ctx, aclR.GetName())
-	require.NoError(t, err)
-	require.Empty(t, item2.GetOwners()[0].IneligibleStatus)
-
-	_, err = service.UpsertAccessListMember(ctx, newAccessListMember(t, acl.GetName(), "member1", withExpire(time.Time{})))
-	require.NoError(t, err)
-	m, err := service.GetAccessListMember(ctx, acl.GetName(), "member1")
-	require.NoError(t, err)
-	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(), m.Spec.IneligibleStatus)
-
-	_, err = service.UpsertAccessListMember(ctx, newAccessListMember(t, aclR.GetName(), "member1"))
-	require.NoError(t, err)
-	m, err = service.GetAccessListMember(ctx, aclR.GetName(), "member1")
-	require.NoError(t, err)
-	require.Empty(t, m.Spec.IneligibleStatus)
-
-	require.NoError(t, service.DeleteAllAccessLists(ctx))
-
-	_, _, err = service.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{
-		newAccessListMember(t, acl.GetName(), "member1", withExpire(time.Time{})),
-		newAccessListMember(t, acl.GetName(), "member2", withExpire(time.Now().Add(time.Hour))),
-	})
-	require.NoError(t, err)
-	m1, err := service.GetAccessListMember(ctx, acl.GetName(), "member1")
-	require.NoError(t, err)
-	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(), m1.Spec.IneligibleStatus)
-
-	m2, err := service.GetAccessListMember(ctx, acl.GetName(), "member2")
-	require.NoError(t, err)
-	require.Empty(t, m2.Spec.IneligibleStatus)
-
-}
-
 type newAccessListOptions struct {
 	typ            accesslist.Type
 	owners         []accesslist.Owner
@@ -1524,18 +1715,6 @@ func withType(typ accesslist.Type) newAccessListOpt {
 func withOwners(owners []accesslist.Owner) newAccessListOpt {
 	return func(o *newAccessListOptions) {
 		o.owners = owners
-	}
-}
-
-func withOwnerRequires(req accesslist.Requires) newAccessListOpt {
-	return func(o *newAccessListOptions) {
-		o.ownerRequires = req
-	}
-}
-
-func withMemberRequires(req accesslist.Requires) newAccessListOpt {
-	return func(o *newAccessListOptions) {
-		o.memberRequires = req
 	}
 }
 
@@ -1622,12 +1801,6 @@ type accessListMemberOpt func(*accessListMemberOptions)
 func withMembershipKind(membershipKind string) accessListMemberOpt {
 	return func(o *accessListMemberOptions) {
 		o.membershipKind = membershipKind
-	}
-}
-
-func withExpire(t time.Time) accessListMemberOpt {
-	return func(o *accessListMemberOptions) {
-		o.expires = t
 	}
 }
 

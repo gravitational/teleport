@@ -53,6 +53,9 @@ type AccessListsGetter interface {
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
 	// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
 	GetInheritedGrants(context.Context, string) (*accesslist.Grants, error)
+	// ListUserAccessLists returns a paginated list of all access lists where the
+	// user is explicitly an owner or member.
+	ListUserAccessLists(context.Context, *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error)
 }
 
 // AccessListsSuggestionsGetter defines an interface for reading access lists suggestions.
@@ -80,6 +83,16 @@ type AccessLists interface {
 
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
+}
+
+// AccessListsInternal extends the public AccessList interface with internal-only
+// methods.
+type AccessListsInternal interface {
+	AccessLists
+
+	// UpdateAccessListAndOverwriteMembers conditionally updates the access list,
+	// overwriting the list's members if successful.
+	UpdateAccessListAndOverwriteMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.

@@ -69,9 +69,10 @@ import type { Gateway } from "./gateway_pb";
 import type { CreateGatewayRequest } from "./service_pb";
 import type { ListGatewaysResponse } from "./service_pb";
 import type { ListGatewaysRequest } from "./service_pb";
-import type { RemoveClusterRequest } from "./service_pb";
 import type { Cluster } from "./cluster_pb";
 import type { AddClusterRequest } from "./service_pb";
+import type { ListKubernetesServersResponse } from "./service_pb";
+import type { ListKubernetesServersRequest } from "./service_pb";
 import type { ListKubernetesResourcesResponse } from "./service_pb";
 import type { ListKubernetesResourcesRequest } from "./service_pb";
 import type { GetSuggestedAccessListsResponse } from "./service_pb";
@@ -221,17 +222,17 @@ export interface ITerminalServiceClient {
      */
     listKubernetesResources(input: ListKubernetesResourcesRequest, options?: RpcOptions): UnaryCall<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>;
     /**
+     * Lists Kubernetes servers.
+     *
+     * @generated from protobuf rpc: ListKubernetesServers(teleport.lib.teleterm.v1.ListKubernetesServersRequest) returns (teleport.lib.teleterm.v1.ListKubernetesServersResponse);
+     */
+    listKubernetesServers(input: ListKubernetesServersRequest, options?: RpcOptions): UnaryCall<ListKubernetesServersRequest, ListKubernetesServersResponse>;
+    /**
      * AddCluster adds a cluster to profile
      *
      * @generated from protobuf rpc: AddCluster(teleport.lib.teleterm.v1.AddClusterRequest) returns (teleport.lib.teleterm.v1.Cluster);
      */
     addCluster(input: AddClusterRequest, options?: RpcOptions): UnaryCall<AddClusterRequest, Cluster>;
-    /**
-     * RemoveCluster removes a cluster from profile
-     *
-     * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
-     */
-    removeCluster(input: RemoveClusterRequest, options?: RpcOptions): UnaryCall<RemoveClusterRequest, EmptyResponse>;
     /**
      * ListGateways lists gateways
      *
@@ -307,7 +308,9 @@ export interface ITerminalServiceClient {
      */
     loginPasswordless(options?: RpcOptions): DuplexStreamingCall<LoginPasswordlessRequest, LoginPasswordlessResponse>;
     /**
-     * ClusterLogin logs out a user from cluster
+     * Logs the user out of the cluster and cleans up associated resources.
+     * Optionally removes the profile.
+     * This operation is idempotent and can be safely invoked multiple times.
      *
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
@@ -591,22 +594,22 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * Lists Kubernetes servers.
+     *
+     * @generated from protobuf rpc: ListKubernetesServers(teleport.lib.teleterm.v1.ListKubernetesServersRequest) returns (teleport.lib.teleterm.v1.ListKubernetesServersResponse);
+     */
+    listKubernetesServers(input: ListKubernetesServersRequest, options?: RpcOptions): UnaryCall<ListKubernetesServersRequest, ListKubernetesServersResponse> {
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ListKubernetesServersRequest, ListKubernetesServersResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * AddCluster adds a cluster to profile
      *
      * @generated from protobuf rpc: AddCluster(teleport.lib.teleterm.v1.AddClusterRequest) returns (teleport.lib.teleterm.v1.Cluster);
      */
     addCluster(input: AddClusterRequest, options?: RpcOptions): UnaryCall<AddClusterRequest, Cluster> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
-        return stackIntercept<AddClusterRequest, Cluster>("unary", this._transport, method, opt, input);
-    }
-    /**
-     * RemoveCluster removes a cluster from profile
-     *
-     * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
-     */
-    removeCluster(input: RemoveClusterRequest, options?: RpcOptions): UnaryCall<RemoveClusterRequest, EmptyResponse> {
         const method = this.methods[17], opt = this._transport.mergeOptions(options);
-        return stackIntercept<RemoveClusterRequest, EmptyResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<AddClusterRequest, Cluster>("unary", this._transport, method, opt, input);
     }
     /**
      * ListGateways lists gateways
@@ -710,7 +713,9 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<LoginPasswordlessRequest, LoginPasswordlessResponse>("duplex", this._transport, method, opt);
     }
     /**
-     * ClusterLogin logs out a user from cluster
+     * Logs the user out of the cluster and cleans up associated resources.
+     * Optionally removes the profile.
+     * This operation is idempotent and can be safely invoked multiple times.
      *
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */

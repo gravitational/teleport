@@ -233,6 +233,22 @@ type Owner struct {
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
+// IsMembershipKindUser returns true if the owner is of kind user.
+// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+func (o *Owner) IsMembershipKindUser() bool {
+	return isMembershipKindUser(o.MembershipKind)
+}
+
+func isMembershipKindUser(membershipKind string) bool {
+	switch membershipKind {
+	case MembershipKindUnspecified, MembershipKindUser, "":
+		return true
+	default:
+		// In case if MembershipKind was extended.
+		return false
+	}
+}
+
 // Audit describes the audit configuration for an access list.
 type Audit struct {
 	// NextAuditDate is the date that the next audit should be performed.
@@ -310,6 +326,8 @@ type Status struct {
 
 	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
+	// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+	UserAssignments *UserAssignments `json:"-" yaml:"-"`
 }
 
 // CurrentUserAssignments describes the current user's ownership and membership status in the access list.
@@ -328,6 +346,24 @@ func (c *CurrentUserAssignments) IsMember() bool {
 // IsOwner returns true if the OwnershipType is either explicit or inherited.
 func (c *CurrentUserAssignments) IsOwner() bool {
 	return c.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
+}
+
+// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+type UserAssignments struct {
+	// OwnershipType represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+	OwnershipType accesslistv1.AccessListUserAssignmentType `json:"ownership_type" yaml:"ownership_type"`
+	// MembershipType represents the requested user's membership type (explicit, inherited, or none) in the access list.
+	MembershipType accesslistv1.AccessListUserAssignmentType `json:"membership_type" yaml:"membership_type"`
+}
+
+// IsMember returns true if the MembershipType is either explicit or inherited.
+func (u *UserAssignments) IsMember() bool {
+	return u.MembershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
+}
+
+// IsOwner returns true if the OwnershipType is either explicit or inherited.
+func (u *UserAssignments) IsOwner() bool {
+	return u.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
 // NewAccessList will create a new access list.
@@ -598,4 +634,82 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 	a.Spec.Audit.NextAuditDate = clock.Now()
 	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
 	return trace.Wrap(err)
+}
+
+// EqualAccessListsOption is a functional option for configuring
+// the behavior of EqualAccessLists.
+type EqualAccessListsOption func(*equalAccessListsConfig)
+
+type equalAccessListsConfig struct {
+	skipClone     bool
+	resetFieldsFn func(*AccessList)
+}
+
+// WithSkipClone configures EqualAccessLists to skip cloning
+// and directly mutate the input access lists. Use this option only when you're
+// certain the input access lists can be safely modified (e.g., they're already
+// clones or will be discarded after comparison).
+func WithSkipClone() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.skipClone = true
+	}
+}
+
+// WithIgnoreEphemeralFields configures EqualAccessLists to reset ephemeral
+// fields before comparison. Ephemeral fields are those managed by reconcilers
+// or the backend and should typically be ignored when comparing access lists.
+//
+// The following fields are reset:
+//   - Metadata.Revision: Managed by the backend
+//   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
+//   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
+//
+// Note: This option causes the input access lists to be cloned (unless WithSkipClone
+// is also used) to avoid modifying the originals.
+func WithIgnoreEphemeralFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.resetFieldsFn = resetEphemeralFieldsAccessList
+	}
+}
+
+// EqualAccessLists compares two access lists for semantic equality.
+//
+// By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
+// to ignore ephemeral fields that are managed by reconcilers or the backend. This function
+// mimics the behavior of services.CompareResources for AccessList types when used with
+// WithIgnoreEphemeralFields().
+//
+// By default, this function clones the input access lists before comparison to avoid
+// modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be
+// safely modified (e.g., when inputs are already clones or will be discarded after comparison).
+func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
+	cfg := equalAccessListsConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if !cfg.skipClone {
+		a = a.Clone()
+		b = b.Clone()
+	}
+
+	if cfg.resetFieldsFn != nil {
+		cfg.resetFieldsFn(a)
+		cfg.resetFieldsFn(b)
+	}
+
+	return deriveTeleportEqualAccessList(a, b)
+}
+
+// resetEphemeralFieldsAccessList clears ephemeral fields that should be
+// ignored when comparing access lists.
+func resetEphemeralFieldsAccessList(a *AccessList) {
+	if a == nil {
+		return
+	}
+	a.Metadata.Revision = ""
+	a.Status = Status{}
+	for i := range a.Spec.Owners {
+		a.Spec.Owners[i].IneligibleStatus = ""
+	}
 }

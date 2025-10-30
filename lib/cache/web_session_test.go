@@ -17,6 +17,7 @@
 package cache
 
 import (
+	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -176,45 +177,33 @@ func TestWebSessions(t *testing.T) {
 
 func TestSnowflakeSessions(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for i := range 31 {
-		err := p.snowflakeSessionS.UpsertSnowflakeSession(t.Context(), &types.WebSessionV2{
-			Kind:    types.KindWebSession,
-			SubKind: types.KindSnowflakeSession,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name: "snow-session" + strconv.Itoa(i+1),
-			},
-			Spec: types.WebSessionSpecV2{
-				User: "fish",
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		expected, err := p.snowflakeSessionS.GetSnowflakeSessions(ctx)
-		require.NoError(t, err)
-		assert.Len(t, expected, 31)
-
-		for _, session := range expected {
-			cached, err := p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: session.GetName()})
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(session, cached))
-		}
-	}, 15*time.Second, 100*time.Millisecond)
-
-	require.NoError(t, p.snowflakeSessionS.DeleteAllSnowflakeSessions(ctx))
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for i := range 31 {
-			session, err := p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: "snow-session" + strconv.Itoa(i+1)})
-			require.Error(t, err)
-			require.Nil(t, session)
-		}
-	}, 15*time.Second, 100*time.Millisecond)
+	testResources(t, p, testFuncs[types.WebSession]{
+		newResource: func(name string) (types.WebSession, error) {
+			return &types.WebSessionV2{
+				Kind:    types.KindWebSession,
+				SubKind: types.KindSnowflakeSession,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      name,
+					Namespace: "default",
+				},
+				Spec: types.WebSessionSpecV2{
+					User: "fish",
+				},
+			}, nil
+		},
+		create: p.snowflakeSessionS.UpsertSnowflakeSession,
+		list:   p.snowflakeSessionS.ListSnowflakeSessions,
+		Range:  p.snowflakeSessionS.RangeSnowflakeSessions,
+		cacheGet: func(ctx context.Context, name string) (types.WebSession, error) {
+			return p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: name})
+		},
+		cacheList:  p.cache.ListSnowflakeSessions,
+		cacheRange: p.cache.RangeSnowflakeSessions,
+		update:     p.snowflakeSessionS.UpsertSnowflakeSession,
+		deleteAll:  p.snowflakeSessionS.DeleteAllSnowflakeSessions,
+	})
 }

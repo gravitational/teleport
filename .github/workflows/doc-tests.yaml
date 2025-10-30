@@ -69,38 +69,32 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
-          ref: 6ea1f547eee108478e4dc576cc2128f2fb0e460a 
+          ref: 6f388765b8ce993721502083c74cb9af1fc5658f 
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version: 'stable'
+          cache-dependency-path: shared-workflows/bot/go.sum
 
       - name: Ensure docs changes include redirects
         env:
           TOKEN: ${{ steps.generate_token.outputs.token }}
           REVIEWERS: ${{ secrets.reviewers }}
         run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
-      # Cache node_modules. Unlike the example in the actions/cache repo, this
-      # caches the node_modules directory instead of the yarn cache. This is
-      # because yarn needs to build fresh packages even when it copies files
-      # from the yarn cache into node_modules.
-      # See:
-      # https://github.com/actions/cache/blob/main/examples.md#node---yarn
-      - uses: actions/cache@v4
-        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+
+      - name: Install Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
-          path: '${{ github.workspace }}/docs/node_modules'
-          key: ${{ runner.os }}-yarn-${{ hashFiles(format('{0}/docs/yarn.lock', github.workspace)) }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+          node-version: 22
+          cache: 'yarn'
+          cache-dependency-path: '${{ github.workspace }}/docs/yarn.lock'
 
       - name: Install docs site dependencies
         working-directory: docs
-        if: ${{ steps.yarn-cache.outputs.cache-hit != 'true' }}
         # Prevent occasional `yarn install` executions that run indefinitely
         timeout-minutes: 10
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Prepare docs site configuration
         working-directory: docs

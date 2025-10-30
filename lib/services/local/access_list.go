@@ -236,8 +236,6 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 			return trace.Wrap(err)
 		}
 		preserveAccessListFields(existingAccessList, accessList)
-		setOwnersEligibility(accessList)
-
 		listMembers, err := a.memberService.WithPrefix(accessList.GetName()).GetResources(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -537,7 +535,6 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return trace.Wrap(err)
 		}
 		keepAWSIdentityCenterLabels(existingMember, member)
-		setMemberEligibility(memberList, member)
 
 		if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 			return trace.Wrap(err)
@@ -585,7 +582,6 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 				return trace.Wrap(err)
 			}
 			keepAWSIdentityCenterLabels(existingMember, member)
-			setMemberEligibility(memberList, member)
 
 			if err := accesslists.ValidateAccessListMember(ctx, memberList, member, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
 				return trace.Wrap(err)
@@ -680,12 +676,31 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
 
-// UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+type writeFn func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+func (a *AccessListService) selectWriteFn(op opType) (writeFn, error) {
+	switch op {
+	case opTypeUpdate:
+		return a.service.ConditionalUpdateResource, nil
+
+	case opTypeUpsert:
+		return a.service.UpsertResource, nil
+	}
+
+	return nil, trace.BadParameter("Unknown Access List write operation: %d", op)
+}
+
+// writeAccessListWithMembers holds all of the common logic for updating and
+// upserting an access list and it's collection of members.
+func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, op opType) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	setOwnersEligibility(accessList)
+
+	writeFn, err := a.selectWriteFn(op)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	for _, m := range membersIn {
 		if err := m.CheckAndSetDefaults(); err != nil {
@@ -695,9 +710,20 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 	validateAccessList := func() error {
 		existingAccessList, err := a.service.GetResource(ctx, accessList.GetName())
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+		if err != nil {
+			// a not found error is totally legal for an upsert operation, but
+			// fatal for an update.
+			if op == opTypeUpdate || !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
+
+		if op == opTypeUpdate {
+			if accessList.Metadata.Revision != existingAccessList.Metadata.Revision {
+				return trace.CompareFailed("access list revision does not match. it may have been concurrently modified")
+			}
+		}
+
 		preserveAccessListFields(existingAccessList, accessList)
 
 		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
@@ -773,11 +799,6 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 		// Add any remaining members to the access list.
 		for _, member := range membersMap {
-			// Set Eligibility status for new members if this is possible
-			// to avoid updating the user object by access list eligibility reconciler
-			// and save backend operations.
-			setMemberEligibility(accessList, member)
-
 			upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
 			if err != nil {
 				return trace.Wrap(err)
@@ -806,9 +827,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		return nil
 	}
 
-	updateAccessList := func() error {
+	writeAccessList := func() error {
 		var err error
-		accessList, err = a.service.UpsertResource(ctx, accessList)
+		accessList, err = writeFn(ctx, accessList)
 		return trace.Wrap(err)
 	}
 
@@ -822,7 +843,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
-	actions = append(actions, validateAccessList, reconcileMembers, updateAccessList, reconcileOwners)
+	actions = append(actions, validateAccessList, reconcileMembers, writeAccessList, reconcileOwners)
 
 	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -838,6 +859,26 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	}
 
 	return accessList, membersIn, nil
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	upsertedACL, upsertedMembers, err := a.writeAccessListWithMembers(ctx, accessList, membersIn, opTypeUpsert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return upsertedACL, upsertedMembers, nil
+}
+
+// UpdateAccessListAndOverwriteMembers does a conditional update on an AccessList and
+// all its members. For the purposes of this update, the Access List's member
+// records  are covered under the enclosing Access List's revision.
+func (a *AccessListService) UpdateAccessListAndOverwriteMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	updatedACL, udatedMembers, err := a.writeAccessListWithMembers(ctx, accessList, membersIn, opTypeUpdate)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return updatedACL, udatedMembers, nil
 }
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
@@ -1090,30 +1131,7 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	}
 }
 
-// setMemberEligibility sets the member eligibility status to eligible if possible to avoid
-// unnecessary updates via access list eligibility reconciler.
-func setMemberEligibility(acl *accesslist.AccessList, member *accesslist.AccessListMember) {
-	if !member.Spec.Expires.IsZero() || !acl.Spec.MembershipRequires.IsEmpty() {
-		// If the member has an expiration date or the Access List Requirements are not empty
-		// we cant assume the eligibility status. That needs to be calculated
-		// by the eligibility reconsider based on the user object.
-		return
-	}
-	member.Spec.IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
-}
-
-// setOwnersEligibility sets the owners eligibility status to eligible if possible to avoid
-// unnecessary updated via access list eligibility reconsider.
-func setOwnersEligibility(accessList *accesslist.AccessList) {
-	if !accessList.Spec.OwnershipRequires.IsEmpty() {
-		// Owners eligibility needs to be calculated based on the user object.
-		// This is done by the eligibility reconsider.
-		return
-	}
-
-	for i := range accessList.Spec.Owners {
-		// If the ownership requirements are empty, all owners are eligible.
-		// There is no owner ineligibility expiration date
-		accessList.Spec.Owners[i].IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
-	}
+// ListUserAccessLists is not implemented in the local service.
+func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
 }

@@ -25,6 +25,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -67,11 +69,14 @@ func TestListRolesAnywhereProfiles(t *testing.T) {
 }
 
 func TestListRolesAnywhereProfilesPage(t *testing.T) {
-	rolesAnywhereProfileWithName := func(name string) ratypes.ProfileDetail {
+	rolesAnywhereProfileWithNameAndARN := func(name string, profileARN string) ratypes.ProfileDetail {
 		return ratypes.ProfileDetail{
 			Name:       aws.String(name),
-			ProfileArn: aws.String(uuid.NewString()),
+			ProfileArn: aws.String(profileARN),
 		}
+	}
+	rolesAnywhereProfileWithName := func(name string) ratypes.ProfileDetail {
+		return rolesAnywhereProfileWithNameAndARN(name, uuid.NewString())
 	}
 
 	for _, tt := range []struct {
@@ -157,6 +162,36 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 					profileNames = append(profileNames, profile.Name)
 				}
 				require.Contains(t, profileNames, "TeamA-subteam1")
+			},
+			expectedErrCheck: require.NoError,
+		},
+		{
+			name: "ignoring the sync profile",
+			req: listRolesAnywhereProfilesRequest{
+				ignoredProfileARNs: []string{"arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id1"},
+			},
+			clientMock: &mockIAMRolesAnywhere{
+				profilesByID: map[string]ratypes.ProfileDetail{
+					"id1": rolesAnywhereProfileWithNameAndARN("TeamA-subteam1", "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id1"),
+					"id2": rolesAnywhereProfileWithNameAndARN("TeamA-subteam2", "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id2"),
+					"id3": rolesAnywhereProfileWithNameAndARN("TeamA-subteam3", "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id3"),
+					"id4": rolesAnywhereProfileWithNameAndARN("TeamB-subteam1", "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id4"),
+					"id5": rolesAnywhereProfileWithNameAndARN("TeamB-subteam2", "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id5"),
+					"id6": rolesAnywhereProfileWithNameAndARN("TeamB-subteam3", "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id6"),
+				},
+			},
+			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
+				require.Len(t, page, 5)
+				cmpOpts := []cmp.Option{
+					cmpopts.IgnoreUnexported(integrationv1.RolesAnywhereProfile{}),
+				}
+				require.Empty(t, cmp.Diff(page, []*integrationv1.RolesAnywhereProfile{
+					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id2", Name: "TeamA-subteam2", Tags: make(map[string]string)},
+					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id3", Name: "TeamA-subteam3", Tags: make(map[string]string)},
+					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id4", Name: "TeamB-subteam1", Tags: make(map[string]string)},
+					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id5", Name: "TeamB-subteam2", Tags: make(map[string]string)},
+					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id6", Name: "TeamB-subteam3", Tags: make(map[string]string)},
+				}, cmpOpts...))
 			},
 			expectedErrCheck: require.NoError,
 		},

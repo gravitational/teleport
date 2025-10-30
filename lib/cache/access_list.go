@@ -17,7 +17,6 @@
 package cache
 
 import (
-	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -284,17 +283,21 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
-	start := cmp.Or(pageToken, accessListName)
-	end := sortcache.NextKey(accessListName + "/")
+	// The ending "/" is very important here, otherwise we can start listing members of access
+	// lists which names are prefixed with this access list name. E.g. we'd list members of
+	// "dev-suffix" for list "dev".
+	start := accessListName + "/"
+	current := start + pageToken
+	end := sortcache.NextKey(start)
 
 	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
 	}
 
 	var out []*accesslist.AccessListMember
-	for member := range rg.store.resources(accessListMemberNameIndex, start, end) {
+	for member := range rg.store.resources(accessListMemberNameIndex, current, end) {
 		if len(out) == pageSize {
-			return out, accessListName + "/" + member.GetName(), nil
+			return out, member.GetName(), nil
 		}
 
 		out = append(out, member.Clone())

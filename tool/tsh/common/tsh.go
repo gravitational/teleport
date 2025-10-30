@@ -1083,6 +1083,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
+	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
+	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
+	proxyMCP.Flag("port", "Specifies the listening port used by by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
@@ -1632,6 +1637,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		defer runtimetrace.Stop()
 	}
 
+	// print tsh version when --debug flag is set
+	// to diagnose potential client version mismatch
+	if cf.Debug && command != ver.FullCommand() {
+		logger.InfoContext(ctx, "Initializing tsh",
+			"version", slog.GroupValue(
+				slog.String("teleport", teleport.Version),
+				slog.String("teleport_git", teleport.Gitref),
+				slog.String("go", runtime.Version()),
+			),
+		)
+	}
+
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
@@ -1773,6 +1790,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case proxyDB.FullCommand():
 		err = onProxyCommandDB(&cf)
 	case proxyApp.FullCommand():
+		err = onProxyCommandApp(&cf)
+	case proxyMCP.FullCommand():
 		err = onProxyCommandApp(&cf)
 	case proxyAWS.FullCommand():
 		err = onProxyCommandAWS(&cf)
@@ -5232,19 +5251,26 @@ func onShow(cf *CLIConf) error {
 	return nil
 }
 
+func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock) string {
+	duration := clock.Until(validUntil)
+	switch {
+	case duration <= 0:
+		return "EXPIRED"
+	case duration < time.Minute:
+		return "valid for <1m"
+	default:
+		return fmt.Sprintf("valid for %s",
+			// Since duration is truncated to minute, duration.String() always
+			// ends with 0s.
+			strings.TrimRight(duration.Truncate(time.Minute).String(), "0s"),
+		)
+	}
+}
+
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+	clock := clockwork.NewRealClock()
 	var prefix string
-	humanDuration := "EXPIRED"
-	duration := time.Until(p.ValidUntil)
-	if duration.Nanoseconds() > 0 {
-		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
-		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
-		if duration < time.Minute {
-			humanDuration = "valid for <1m"
-		}
-	}
-
 	proxyURL := p.getProxyURLLine(isActive, env)
 	cluster := p.getClusterLine(isActive, env)
 	kubeCluster := p.getKubeClusterLine(isActive, env)
@@ -5334,7 +5360,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if p.GitHubIdentity != nil {
 		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
+	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {

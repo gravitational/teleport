@@ -92,9 +92,32 @@ message BotInstanceStatusHeartbeat {
   // and updater status.
   types.UpdaterV2Info updater_info = 12;
 
+  // Identifies whether the bot is running in the tbot binary or embedded in
+  // another component.
+  BotKind kind = 13;
+
   // In future iterations, additional information can be submitted here.
   // For example, the configuration of `tbot` or the health of individual
   // outputs.
+}
+
+// BotKind identifies whether the bot is the tbot binary or embedded in another
+// component.
+enum BotKind {
+  // The enum zero-value, it means no kind was included.
+  BOT_KIND_UNSPECIFIED = 0;
+
+  // Means the bot is running the tbot binary.
+  BOT_KIND_TBOT = 1;
+
+  // Means the bot is running inside one of our Terraform providers.
+  BOT_KIND_TERRAFORM_PROVIDER = 2;
+
+  // Means the bot is running inside the Teleport Kubernetes operator.
+  BOT_KIND_KUBERNETES_OPERATOR = 3;
+
+  // Means the bot is running inside tctl (e.g. `tctl terraform env`)
+  BOT_KIND_TCTL = 4;
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.
@@ -144,4 +167,47 @@ message BotInstanceStatus {
   BotInstanceStatusHeartbeat initial_heartbeat = 3;
   // The N most recent heartbeats for this bot instance.
   repeated BotInstanceStatusHeartbeat latest_heartbeats = 4;
+  // The health of the services/output `tbot` is running.
+  repeated BotInstanceServiceHealth service_health = 5;
+}
+
+// BotInstanceServiceHealth is a snapshot of a `tbot` service's health.
+message BotInstanceServiceHealth {
+  // Service identifies the service.
+  BotInstanceServiceIdentifier service = 1;
+
+  // Status describes the service's healthiness.
+  BotInstanceHealthStatus status = 2;
+
+  // Reason is a human-readable explanation for the service's status. It might
+  // include an error message.
+  optional string reason = 3;
+
+  // UpdatedAt is the time at which the service's health last changed.
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+// BotInstanceServiceIdentifier uniquely identifies a `tbot` service.
+message BotInstanceServiceIdentifier {
+  // Type of service (e.g. database-tunnel, ssh-multiplexer).
+  string type = 1;
+
+  // Name of the service, either given by the user or auto-generated.
+  string name = 2;
+}
+
+// BotInstanceHealthStatus describes the healthiness of a `tbot` service.
+enum BotInstanceHealthStatus {
+  // The enum zero-value, it means no status was included.
+  BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED = 0;
+
+  // Means the service is still "starting up" and hasn't reported its status.
+  BOT_INSTANCE_HEALTH_STATUS_INITIALIZING = 1;
+
+  // Means the service is healthy and ready to serve traffic, or it has
+  // recently succeeded in generating an output.
+  BOT_INSTANCE_HEALTH_STATUS_HEALTHY = 2;
+
+  // Means the service is failing to serve traffic or generate output.
+  BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY = 3;
 }

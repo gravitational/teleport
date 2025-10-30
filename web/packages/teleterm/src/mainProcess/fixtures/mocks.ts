@@ -25,6 +25,8 @@ import { AgentProcessState } from 'teleterm/mainProcess/types';
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { Cluster } from 'teleterm/services/tshd/types';
 import { MainProcessClient, RuntimeSettings } from 'teleterm/types';
 
 export class MockMainProcessClient implements MainProcessClient {
@@ -105,10 +107,6 @@ export class MockMainProcessClient implements MainProcessClient {
 
   fileStorage = createMockFileStorage();
 
-  removeKubeConfig(): Promise<void> {
-    return Promise.resolve(undefined);
-  }
-
   async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
@@ -172,8 +170,6 @@ export class MockMainProcessClient implements MainProcessClient {
     return this.frontendAppInit.promise;
   }
 
-  refreshClusterList() {}
-
   async selectDirectoryForDesktopSession() {
     return '';
   }
@@ -182,7 +178,6 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
   async changeAppUpdatesManagingCluster() {}
-  async maybeRemoveAppUpdatesManagingCluster() {}
   async checkForAppUpdates() {}
   async downloadAppUpdate() {}
   async cancelAppUpdateDownload() {}
@@ -201,6 +196,20 @@ export class MockMainProcessClient implements MainProcessClient {
     cleanup: () => void;
   } {
     return { cleanup: () => undefined };
+  }
+
+  subscribeToClusterStore(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  async logout(): Promise<void> {}
+  async syncCluster(): Promise<void> {}
+  async addCluster(): Promise<Cluster> {
+    return makeRootCluster();
+  }
+  async syncRootClusters(): Promise<Cluster[]> {
+    return [];
   }
 }
 

@@ -1,6 +1,7 @@
 ---
 title: Machine and Workload Identity Getting Started Guide
 description: Getting started with Teleport Machine and Workload Identity
+sidebar_label: Getting Started
 videoBanner: YzVK2tr6u-U
 tags:
  - get-started
@@ -292,7 +293,7 @@ onboarding:
 certificate_ttl: 5m
 storage:
   type: memory
-outputs:
+services:
   - type: identity
     destination:
       type: directory
@@ -377,7 +378,7 @@ onboarding:
 certificate_ttl: 5m
 storage:
   type: memory
-outputs:
+services:
   - type: kubernetes/v2
     selectors:
       - name: my-kubernetes-cluster

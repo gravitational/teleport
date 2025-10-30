@@ -251,6 +251,42 @@ describe('BotDetails', () => {
     ).toBeInTheDocument();
   });
 
+  describe('should show bot join tokens empty message', () => {
+    it('when an empty list is returned', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess({ tokens: [] });
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+      await waitForLoadingTokens();
+
+      const panel = screen
+        .getByRole('heading', { name: 'Join Tokens' })
+        .closest('section');
+      expect(panel).toBeInTheDocument();
+
+      expect(within(panel!).getByText('No join tokens')).toBeInTheDocument();
+    });
+
+    it('when null is returned', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess({ tokens: null });
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+      await waitForLoadingTokens();
+
+      const panel = screen
+        .getByRole('heading', { name: 'Join Tokens' })
+        .closest('section');
+      expect(panel).toBeInTheDocument();
+
+      expect(within(panel!).getByText('No join tokens')).toBeInTheDocument();
+    });
+  });
+
   it('should show bot instances', async () => {
     withFetchSuccess();
     withFetchJoinTokensSuccess();
@@ -728,8 +764,11 @@ const withFetchSuccess = () => {
   server.use(getBotSuccess());
 };
 
-const withFetchJoinTokensSuccess = () => {
-  server.use(listV2TokensSuccess());
+const withFetchJoinTokensSuccess = (options?: {
+  hasNextPage?: boolean;
+  tokens?: string[] | null;
+}) => {
+  server.use(listV2TokensSuccess(options));
 };
 
 const withFetchJoinTokensMfaError = () => {
@@ -752,20 +791,23 @@ const withFetchJoinTokensOutdatedProxy = () => {
 
 function withFetchInstancesSuccess() {
   server.use(
-    listBotInstancesSuccess({
-      bot_instances: [
-        {
-          bot_name: 'ansible-worker',
-          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
-          active_at_latest: '2025-07-22T10:54:00Z',
-          host_name_latest: 'svr-lon-01-ab23cd',
-          join_method_latest: 'github',
-          os_latest: 'linux',
-          version_latest: '4.4.16',
-        },
-      ],
-      next_page_token: '',
-    })
+    listBotInstancesSuccess(
+      {
+        bot_instances: [
+          {
+            bot_name: 'ansible-worker',
+            instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+            active_at_latest: '2025-07-22T10:54:00Z',
+            host_name_latest: 'svr-lon-01-ab23cd',
+            join_method_latest: 'github',
+            os_latest: 'linux',
+            version_latest: '4.4.16',
+          },
+        ],
+        next_page_token: '',
+      },
+      'v1'
+    )
   );
 }
 

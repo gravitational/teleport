@@ -59,7 +59,6 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -181,6 +180,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -714,7 +714,7 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
 
 	// state is the process state machine tracking if the process is healthy or not.
@@ -987,6 +987,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1078,14 +1084,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1646,7 +1648,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
+		if err := procutils.CreateLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
 	}
@@ -2196,6 +2198,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName:          cn,
 		AuthPreferenceGetter: clusterConfig,
 		FIPS:                 cfg.FIPS,
+		Clock:                cfg.Clock,
 	}
 
 	switch {
@@ -2673,7 +2676,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	// Register TLS endpoint of the auth service
-	tlsConfig, err := connector.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2852,6 +2855,9 @@ func (process *TeleportProcess) initAuthService() error {
 	process.RegisterFunc("auth.autoupdate_agent_rollout_controller", func() error {
 		return trace.Wrap(agentRolloutController.Run(process.GracefulExitContext()), "running autoupdate_agent_rollout controller")
 	})
+	process.RegisterFunc("auth.autoupdate_bot_instance_version_reporter", func() error {
+		return trace.Wrap(authServer.BotInstanceVersionReporter.Run(process.GracefulExitContext()))
+	})
 
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(auth.ReconcileServerInfos(process.GracefulExitContext(), authServer))
@@ -2982,7 +2988,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
-	cfg.AccessLists = services.AccessLists
+	cfg.AccessLists = services.AccessListsInternal
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Applications = services.Applications
@@ -3282,6 +3288,19 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
 		Inner: emitter,
 	})
+}
+
+// ServerTLSConfig returns a new server-side [*tls.Config] that presents the
+// connector's credentials as its certificate. The returned tls.Config doesn't
+// request or trust any client certificates, so the caller is responsible for
+// configuring it.
+func (process *TeleportProcess) ServerTLSConfig(conn *Connector) (*tls.Config, error) {
+	conf := utils.TLSConfig(process.Config.CipherSuites)
+	conf.Time = process.Clock.Now
+	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		return conn.serverGetCertificate()
+	}
+	return conf, nil
 }
 
 // initInstance initializes the pseudo-service "Instance" that is active on all teleport instances.
@@ -4240,11 +4259,7 @@ func (process *TeleportProcess) initTracingService() error {
 	return nil
 }
 
-// getAdditionalPrincipals returns a list of additional principals to add
-// to role's service certificates.
-func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) ([]string, []string, error) {
-	var principals []string
-	var dnsNames []string
+func (process *TeleportProcess) instanceAdditionalPrincipals() (principals []string, dnsNames []string) {
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
 		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
@@ -4252,12 +4267,25 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			principals = append(principals, lh)
 		}
 	}
-	var addrs []utils.NetAddr
-
 	// Add default DNSNames to the dnsNames list.
-	// For identities generated by teleport <= v6.1.6 the teleport.cluster.local DNS is not present
+	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(types.RoleInstance)...)
+	return principals, dnsNames
+}
+
+// getAdditionalPrincipals returns a list of additional principals to add
+// to role's service certificates.
+func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) (principals []string, dnsNames []string, err error) {
+	if process.Config.Hostname != "" {
+		principals = append(principals, process.Config.Hostname)
+		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
+			// openssh expects all hostnames to be lowercase
+			principals = append(principals, lh)
+		}
+	}
+	// Add default DNSNames to the dnsNames list.
 	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(role)...)
 
+	var addrs []utils.NetAddr
 	switch role {
 	case types.RoleProxy:
 		addrs = append(process.Config.Proxy.PublicAddrs,
@@ -4886,7 +4914,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	serverTLSConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	serverTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -6660,7 +6688,7 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+		tlsConfig, err := process.ServerTLSConfig(conn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -6998,7 +7026,11 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		}
 	}
 
-	creds, err := cert.GenerateSelfSignedCert(hosts, ips)
+	now := time.Now
+	if cfg.Clock != nil {
+		now = cfg.Clock.Now
+	}
+	creds, err := cert.GenerateSelfSignedCert(hosts, ips, nil, now)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7204,7 +7236,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		return nil, nil
 	}
 	clusterName := cfg.conn.ClusterName()
-	serverTLSConfig, err := cfg.conn.ServerTLSConfig(process.Config.CipherSuites)
+	serverTLSConfig, err := process.ServerTLSConfig(cfg.conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7365,36 +7397,4 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	}
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
-}
-
-// createLockedPIDFile creates a PID file in the path specified by pidFile
-// containing the current PID, atomically swapping it in the final place and
-// leaving it with an exclusive advisory lock that will get released when the
-// process ends, for the benefit of "pkill -L".
-func createLockedPIDFile(pidFile string) error {
-	pending, err := renameio.NewPendingFile(pidFile, renameio.WithPermissions(0o644))
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer pending.Cleanup()
-	if _, err := fmt.Fprintf(pending, "%v\n", os.Getpid()); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	const minimumDupFD = 3 // skip stdio
-	locker, err := unix.FcntlInt(pending.Fd(), unix.F_DUPFD_CLOEXEC, minimumDupFD)
-	runtime.KeepAlive(pending)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	if err := unix.Flock(locker, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		_ = unix.Close(locker)
-		return trace.ConvertSystemError(err)
-	}
-	// deliberately leak the fd to hold the lock until the process dies
-
-	if err := pending.CloseAtomicallyReplace(); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
 }

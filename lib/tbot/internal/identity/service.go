@@ -37,12 +37,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -372,7 +372,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 	s.mu.Unlock()
 
 	s.unblockWaiters()
-	s.cfg.StatusReporter.Report(readyz.Healthy)
 
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
@@ -401,8 +400,10 @@ func (s *Service) Run(ctx context.Context) error {
 	// etc)
 	storageDestination := s.cfg.Destination
 
-	// Keep retrying renewal if it failed on startup.
-	if !s.IsReady() {
+	if s.IsReady() {
+		s.cfg.StatusReporter.Report(readyz.Healthy)
+	} else {
+		// Keep retrying renewal if it failed on startup.
 		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 			Driver: retryutils.NewExponentialDriver(1 * time.Second),
 			Max:    1 * time.Minute,
@@ -709,7 +710,7 @@ func botIdentityFromToken(
 	}
 
 	expires := time.Now().Add(cfg.TTL)
-	params := join.RegisterParams{
+	params := joinclient.JoinParams{
 		Token: token,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -751,13 +752,13 @@ func botIdentityFromToken(
 
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
-		params.AzureParams = join.AzureParams{
+		params.AzureParams = joinclient.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	case types.JoinMethodTerraformCloud:
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
 	case types.JoinMethodGitLab:
-		params.GitlabParams = join.GitlabParams{
+		params.GitlabParams = joinclient.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
@@ -776,7 +777,7 @@ func botIdentityFromToken(
 		})
 	}
 
-	result, err := join.Register(ctx, params)
+	result, err := joinclient.Join(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

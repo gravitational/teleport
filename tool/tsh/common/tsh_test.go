@@ -51,6 +51,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -4357,9 +4358,7 @@ func TestSerializeDatabases(t *testing.T) {
         "docdb": {}
       },
       "mysql": {},
-      "oracle": {
-        "audit_user": ""
-      },
+      "oracle": {},
       "gcp": {
         "alloydb": {}
       },
@@ -7709,5 +7708,62 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 				tc.assertCommandEffect(t, testFile)
 			}
 		})
+	}
+}
+
+func Test_humanFriendlyValidUntilDuration(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	tests := []struct {
+		name   string
+		input  time.Time
+		expect string
+	}{
+		{
+			name:   "expired",
+			input:  clock.Now().Add(-time.Minute),
+			expect: "EXPIRED",
+		},
+		{
+			name:   "less than one minute",
+			input:  clock.Now().Add(time.Second * 30),
+			expect: "valid for <1m",
+		},
+		{
+			name:   "truncate",
+			input:  clock.Now().Add(time.Minute*5 + time.Second*50),
+			expect: "valid for 5m",
+		},
+		{
+			name:   "hours",
+			input:  clock.Now().Add(time.Hour*12 + time.Minute*34 + time.Second*10),
+			expect: "valid for 12h34m",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := humanFriendlyValidUntilDuration(test.input, clock)
+			require.Equal(t, test.expect, actual)
+		})
+	}
+}
+
+func TestDebugVersionOutput(t *testing.T) {
+	t.Setenv(tshBinMainTestEnv, "1")
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	output, err := exec.Command(testExecutable, "logout", "--debug").CombinedOutput()
+	require.NoError(t, err)
+
+	vers := []string{
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+	}
+
+	require.Contains(t, string(output), "Initializing tsh version")
+	for _, v := range vers {
+		require.Contains(t, string(output), v)
 	}
 }

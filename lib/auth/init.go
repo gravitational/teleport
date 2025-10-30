@@ -287,7 +287,7 @@ type InitConfig struct {
 	Okta services.Okta
 
 	// AccessLists is a service that manages access list resources.
-	AccessLists services.AccessLists
+	AccessLists services.AccessListsInternal
 
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
@@ -413,6 +413,9 @@ type InitConfig struct {
 	// It allows for late initialization of the summarizer in the enterprise
 	// plugin. The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+
+	// ScopedTokenService is a service that manages scoped join token resources.
+	ScopedTokenService services.ScopedTokenService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -679,12 +682,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			asrv.logger.WarnContext(ctx, "error creating preset database object import rules", "error", err)
 		}
 		span.AddEvent("completed creating database object import rules")
-
-		span.AddEvent("creating preset health check config")
-		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
-			return trace.Wrap(err)
-		}
-		span.AddEvent("completed creating preset health check config")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1486,27 +1483,6 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
-// createPresetHealthCheckConfig creates a default preset health check config
-// resource that enables health checks on all resources.
-func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
-	page, _, err := svc.ListHealthCheckConfigs(ctx, 0, "")
-	if err != nil {
-		return trace.Wrap(err, "failed listing available health check configs")
-	}
-	if len(page) > 0 {
-		return nil
-	}
-	preset := services.NewPresetHealthCheckConfig()
-	_, err = svc.CreateHealthCheckConfig(ctx, preset)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err,
-			"failed creating preset health_check_config %s",
-			preset.GetMetadata().GetName(),
-		)
-	}
-	return nil
-}
-
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
@@ -1609,7 +1585,7 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
