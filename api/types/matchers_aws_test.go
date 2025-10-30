@@ -367,6 +367,19 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			errCheck: isBadParameterErr,
 		},
+		{
+			name: "invalid proxy settings",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				Params: &InstallerParams{
+					HTTPProxySettings: &HTTPProxySettings{
+						HTTPProxy: "not a valid url",
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.preTest != nil {
