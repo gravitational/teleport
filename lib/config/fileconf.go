@@ -1019,6 +1019,12 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if roles.Include(types.RoleBot) {
+		slog.WarnContext(
+			context.Background(),
+			"Role 'Bot' is not supported in static token configurations and will not function as expected. In Teleport V19.0.0, this will become an error.",
+		)
+	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {

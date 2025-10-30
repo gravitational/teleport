@@ -304,8 +304,8 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 	var expires time.Time
 	switch req.JoinMethod {
-	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
-		// IAM, GCP, Oracle and GitHub tokens should never expire.
+	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub, types.JoinMethodGitLab:
+		// IAM, GCP, Oracle, GitHub and GitLab tokens should never expire.
 		expires = time.Time{}
 	default:
 		// Set expires time to default node join token TTL.

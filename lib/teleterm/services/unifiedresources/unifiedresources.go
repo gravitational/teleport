@@ -121,13 +121,18 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			})
 		case types.KubeServer:
 			kubeCluster := r.GetCluster()
-			response.Resources = append(response.Resources, UnifiedResource{
+			ur := UnifiedResource{
 				Kube: &clusters.Kube{
 					URI:               cluster.URI.AppendKube(kubeCluster.GetName()),
 					KubernetesCluster: kubeCluster,
 				},
 				RequiresRequest: requiresRequest,
-			})
+			}
+			targetHealth := r.GetTargetHealth()
+			if targetHealth != nil {
+				ur.Kube.TargetHealth = *targetHealth
+			}
+			response.Resources = append(response.Resources, ur)
 		case types.WindowsDesktop:
 			response.Resources = append(response.Resources, UnifiedResource{
 				WindowsDesktop: &clusters.WindowsDesktop{
