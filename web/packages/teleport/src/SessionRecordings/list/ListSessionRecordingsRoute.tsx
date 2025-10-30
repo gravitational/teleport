@@ -23,6 +23,7 @@ import { Danger } from 'design/Alert';
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
 import { Indicator } from 'design/Indicator';
+import { SortOrder } from 'shared/components/Controls/SortMenuV2';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { getErrorMessage } from 'shared/utils/error';
 
@@ -43,11 +44,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import type { ActionSlot } from './RecordingItem';
 import { RecordingsList } from './RecordingsList';
-import {
-  useRecordingsListState,
-  type RecordingsListFilterKey,
-  type RecordingsListSortKey,
-} from './state';
+import { useRecordingsListState, type RecordingsListFilterKey } from './state';
 
 interface ListSessionRecordingsRouteProps {
   actionSlot?: ActionSlot;
@@ -90,7 +87,7 @@ export function ListSessionRecordings({
   );
 
   const handleSortChange = useCallback(
-    (key: RecordingsListSortKey, direction: 'ASC' | 'DESC') =>
+    (key: string, direction: SortOrder) =>
       setState(prev => ({
         ...prev,
         sortKey: key,
