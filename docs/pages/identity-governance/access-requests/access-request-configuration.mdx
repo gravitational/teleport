@@ -311,6 +311,9 @@ Allowed values are:
 | `optional` | The default. The user does not need to provide a reason when making a request. |
 | `required` | The user must provide a non-empty reason when making a request. |
 
+You can specify a custom prompt to remind the user to provide a reason for specific requestable
+roles or resources using `spec.allow.request.reason.prompt`.
+
 Example:
 
 ```yaml
@@ -336,9 +339,10 @@ role set includes multiple roles governing Access Requests to the same roles and
 
 ## Custom request reason prompts
 
-As of right now it's only possible specify a custom prompt for all or none of the Access Requests
-for a particular user. A custom request prompt can be specified by assigned the user a role with
-`spec.options.request_prompt` set to non-empty string.
+It is possible to specify a custom prompt for all or none of the Access Requests for a particular user.
+This is achieved by setting the `spec.options.request_prompt` to a non-empty string. In order to
+specify a custom prompt for Access Requests for a particular requestable role or resource, set
+`spec.allow.request.reason.prompt` to a non-empty string.
 
 ## Review thresholds
 
