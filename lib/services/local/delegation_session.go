@@ -36,6 +36,8 @@ type DelegationSessionService struct {
 	service *generic.ServiceWrapper[*delegationv1.DelegationSession]
 }
 
+var _ services.DelegationSessions = (*DelegationSessionService)(nil)
+
 // NewDelegationSessionService creates a new DelegationSessionService.
 func NewDelegationSessionService(b backend.Backend) (*DelegationSessionService, error) {
 	service, err := generic.NewServiceWrapper(
