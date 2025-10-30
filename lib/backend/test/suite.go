@@ -198,6 +198,10 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("ConditionalDelete", func(t *testing.T) {
 		testConditionalDelete(t, newBackend)
 	})
+
+	t.Run("BatchWrite", func(t *testing.T) {
+		testBatchWrite(t, newBackend)
+	})
 }
 
 // RequireItems asserts that the supplied `actual` items collection matches
