@@ -2891,14 +2891,16 @@ func (process *TeleportProcess) initAuthService() error {
 
 	process.RegisterFunc("auth.aws-roles-anywhere.profile-sync.service", func() error {
 		return trace.Wrap(awsra.RunAWSRolesAnywhereProfileSyncerWhileLocked(process.GracefulExitContext(), awsra.AWSRolesAnywhereProfileSyncerParams{
-			Clock:             process.Clock,
-			Logger:            logger,
-			KeyStoreManager:   authServer.GetKeyStore(),
-			Cache:             authServer.Cache,
-			StatusReporter:    authServer.Services,
-			Backend:           process.backend,
-			AppServerUpserter: authServer.Services,
-			HostUUID:          hostUUID,
+			Clock:              process.Clock,
+			Logger:             logger,
+			KeyStoreManager:    authServer.GetKeyStore(),
+			Cache:              authServer.Cache,
+			StatusReporter:     authServer.Services,
+			Backend:            process.backend,
+			AppServerUpserter:  authServer.Services,
+			HostUUID:           hostUUID,
+			AccessListsEnabled: modules.GetModules().Features().GetEntitlement(entitlements.AccessLists).Enabled,
+			AccessListManager:  authServer.Services,
 		}))
 	})
 
