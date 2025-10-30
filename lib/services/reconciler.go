@@ -57,14 +57,17 @@ type GenericReconcilerConfig[K comparable, T any] struct {
 	OnDelete func(context.Context, T) error
 	// Logger emits log messages.
 	Logger *slog.Logger
-	// MetricsSubsystem is the subsystem used when creating the reconciler
-	// metrics. e.g. "entra_sync" will give metrics such as:
-	// "teleport_entra_sync_reconciliation_total"
-	// This must be set when MetricsRegistry is non-nil.
-	MetricsSubsystem string
-	// MetricsRegistry is used to register the reconciler metrics If nil,
-	// metrics are not registered. If non-nil, MetricsSubsystem must be set.
-	MetricsRegistry prometheus.Registerer
+	// Metrics is an optional ReconcilerMetrics created by the caller.
+	// The caller is responsible for registering the metrics.
+	// Metrics can be nil, in this case the generic reconciler will generate its
+	// own metrics, which won't be registered.
+	// Passing a metrics struct might look like a cumbersome API but we have 2 challenges:
+	// - some parts of Teleport are using one-shot reconcilers. Registering
+	//   metrics on every run would fail and we would lose the past reconciliation
+	//   data.
+	// - we have many reconcilers in Teleport and making the caller create the
+	//   metrics beforehand allows them to specify the metric subsystem.
+	Metrics *ReconcilerMetrics
 	// AllowOriginChanges is a flag that allows the reconciler to change the
 	// origin value of a reconciled resource. By default, origin changes are
 	// disallowed to enforce segregation between of resources from different
@@ -98,13 +101,17 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "reconciler")
 	}
-	if c.MetricsRegistry != nil && c.MetricsSubsystem == "" {
-		return trace.BadParameter("if MetricsRegistry is non-nil, MetricsSubsystem is required (this is a bug)")
+	if c.Metrics == nil {
+		// If we are not given metrics, we create our own so we don't
+		// panic when trying to increment/observe.
+		c.Metrics = NewReconcilerMetrics("")
 	}
 	return nil
 }
 
-type reconcilerMetrics struct {
+// ReconcilerMetrics is a set of metrics that the reconciler will update during
+// its reconciliation cycle.
+type ReconcilerMetrics struct {
 	reconciliationTotal    *prometheus.CounterVec
 	reconciliationDuration *prometheus.HistogramVec
 }
@@ -121,8 +128,11 @@ const (
 	metricLabelKind            = "kind"
 )
 
-func newReconcilerMetrics(subsystem string) *reconcilerMetrics {
-	return &reconcilerMetrics{
+// NewReconcilerMetrics creates subsystem-scoped metrics for the reconciler.
+// The caller is responsible for registering them into an appropriate registry.
+// The same ReconcilerMetrics can be used across different reconcilers.
+func NewReconcilerMetrics(subsystem string) *ReconcilerMetrics {
+	return &ReconcilerMetrics{
 		reconciliationTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: subsystem,
@@ -138,7 +148,9 @@ func newReconcilerMetrics(subsystem string) *reconcilerMetrics {
 	}
 }
 
-func (m *reconcilerMetrics) register(r prometheus.Registerer) error {
+// Register metrics in the specified [prometheus.Registerer], returns an error
+// if any metric fails, but still tries to register every metric before returning.
+func (m *ReconcilerMetrics) Register(r prometheus.Registerer) error {
 	return trace.NewAggregate(
 		r.Register(m.reconciliationTotal),
 		r.Register(m.reconciliationDuration),
@@ -150,16 +162,10 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m := newReconcilerMetrics(cfg.MetricsSubsystem)
-	if cfg.MetricsRegistry != nil {
-		if err := m.register(cfg.MetricsRegistry); err != nil {
-			return nil, trace.Wrap(err, "registering metrics")
-		}
-	}
 	return &GenericReconciler[K, T]{
 		cfg:     cfg,
 		logger:  cfg.Logger,
-		metrics: m,
+		metrics: cfg.Metrics,
 	}, nil
 }
 
@@ -171,7 +177,7 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 type GenericReconciler[K comparable, T any] struct {
 	cfg     GenericReconcilerConfig[K, T]
 	logger  *slog.Logger
-	metrics *reconcilerMetrics
+	metrics *ReconcilerMetrics
 }
 
 // Reconcile reconciles currently registered resources with new resources and
