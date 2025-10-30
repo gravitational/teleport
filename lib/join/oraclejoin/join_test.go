@@ -318,6 +318,8 @@ func TestJoinOracle(t *testing.T) {
 // TestInstanceKeyAlgorithms tests that the Oracle join method supports
 // multiple possible instance key algorithms and checks their parameters.
 func TestInstanceKeyAlgorithms(t *testing.T) {
+	t.Parallel()
+
 	cas, err := newCAChain()
 	require.NoError(t, err)
 
@@ -369,7 +371,15 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		instanceCert, err := cas.issueInstanceCert(claims, instanceKey.Public())
 		require.NoError(t, err)
 
-		signature, err := oracle.SignChallenge(instanceKey, challenge)
+		var signature []byte
+		switch instanceKey.Public().(type) {
+		case *rsa.PublicKey:
+			signature, err = oracle.SignChallenge(instanceKey, challenge)
+		case *ecdsa.PublicKey:
+			signature, err = crypto.SignMessage(instanceKey, rand.Reader, []byte(challenge), crypto.SHA256)
+		case ed25519.PublicKey:
+			signature, err = crypto.SignMessage(instanceKey, rand.Reader, []byte(challenge), crypto.Hash(0))
+		}
 		require.NoError(t, err)
 
 		// Make the root CA request but there's no need to actually sign it
@@ -399,65 +409,59 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 	rsa1024Key, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
 
-	ecdsaP224Key, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
-	require.NoError(t, err)
-
 	ecdsaP256Key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	ecdsaP384Key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	require.NoError(t, err)
-
-	ecdsaP521Key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	require.NoError(t, err)
 
 	_, ed25519Key, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
+	isAccessDenied := func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+		return assert.ErrorAs(t, err, new(*trace.AccessDeniedError), msgAndArgs...)
+	}
+
 	for _, tc := range []struct {
-		desc        string
-		instanceKey crypto.Signer
-		assertion   assert.ErrorAssertionFunc
+		desc         string
+		instanceKey  crypto.Signer
+		badSignature bool
+		assertion    assert.ErrorAssertionFunc
 	}{
 		{
 			// RSA key is too small.
 			desc:        "rsa1024",
 			instanceKey: rsa1024Key,
-			assertion:   assert.Error,
+			assertion:   isAccessDenied,
 		},
 		{
-			// ECDSA key is too small.
-			desc:        "ecdsaP224",
-			instanceKey: ecdsaP224Key,
-			assertion:   assert.Error,
+			// RSA key pass.
+			desc:        "rsa2048",
+			instanceKey: rsa2048Key(),
+			assertion:   assert.NoError,
 		},
 		{
-			// ECDSA key pass.
+			// ECDSA key rejected.
 			desc:        "ecdsaP256",
 			instanceKey: ecdsaP256Key,
-			assertion:   assert.NoError,
+			assertion:   isAccessDenied,
 		},
 		{
-			// ECDSA key pass.
-			desc:        "ecdsaP384",
-			instanceKey: ecdsaP384Key,
-			assertion:   assert.NoError,
-		},
-		{
-			// ECDSA key pass.
-			desc:        "ecdsaP521",
-			instanceKey: ecdsaP521Key,
-			assertion:   assert.NoError,
-		},
-		{
-			// Ed25519 key pass.
+			// Ed25519 key rejected.
 			desc:        "ed25519",
 			instanceKey: ed25519Key,
-			assertion:   assert.NoError,
+			assertion:   isAccessDenied,
+		},
+		{
+			desc:         "RSA key bad signature",
+			instanceKey:  rsa2048Key(),
+			badSignature: true,
+			assertion:    isAccessDenied,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			solution := makeChallengeSolution(t, tc.instanceKey)
+
+			if tc.badSignature {
+				solution.Signature[0] = solution.Signature[0] + 1
+			}
 
 			params := &oraclejoin.CheckChallengeSolutionParams{
 				Challenge:      challenge,
@@ -513,12 +517,7 @@ func newFakeIMDS() (*fakeIMDS, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	instanceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	instanceKey := rsa2048Key()
 	f := &fakeIMDS{
 		cas:         cas,
 		instanceKey: instanceKey,
@@ -666,4 +665,41 @@ func newX509Cert() *x509.Certificate {
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		BasicConstraintsValid: true,
 	}
+}
+
+// rsa2048Key returns a pre-generated 2048-bit RSA key (generating this key in
+// the test would be slow).
+func rsa2048Key() crypto.Signer {
+	const keyPemFixture = string(`-----BEGIN TEST RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAxYsUIrplZRkTS30Zh1O0DVVr40KVky+3EZKiH8OWKaVGlqVk
+pmggHpw8pCQwAmxFqLoQxOntCch4p0Vfk/BahtAq0NZ+4qSGX8BIv48ESPudIAY7
+iDdNUn+2Xd1Z2lzHMJ9tKUtceVmTlDpOFjXDPxFK2cUg4dY4l6PgM4lJq2kS/Sbd
+9YIR/+ekCStKzXt5qziuwMx+tSxDmZ2DbQkdhCyStKNhouyDPxDB6LBLqlU9IZb8
+1NpoDaaZ+rv5MmD7hb5Yb6qSuT56zxygd+ae4Qzr7y7/aYqhUK210GsnvHoyK4hF
+QP8sAWg0ljgu6lgisjphZdUJ4lSo8wE5SkfCDQIDAQABAoIBAAGeXx7duiD28KKI
+tuHV/L6zOXwWOpWHKY/aTLvH5X4X3Zk0Z7u5VLILg6+woDgU3QlB5QtIA2o2G077
+kYnryUIbiI5Hg6ilwngcYjw3lshmT2ZIxsoZ8edAJqVkP+07H2K1m7Zf6LUR19S6
+GZOzAxOMN7nLFLblA3eynw6tDE58PTtQFZ/DGiCGi7Ac9mKc7EQ1juF8J+ZpzoHC
+fvx+huRDu7Bu0jlI+mYNcZgbDDynQxyPUOHCf3pk07DThccz1gZjCC0HyfjUjuYM
+PaAIHg+8cnrMHqd6+PL7zhjyH8pdiH1BTy/3R+ovYr4HiGugVq/onwVszXHwoGG9
+C1XyrH0CgYEA71xgZH+Bfb27AdeGm+N/6Dd54hDlfXD27F6zrp9qeqeVztSHH1/2
+mD/MxsvniXB7LJ5sWrbNz55Y7uycUAD1sfDKXoRZ8c2V6tpqde22jrQhpgbJ8uvx
+r2EYksBz7iV8rtfx/KMBk+sf6t+DZnztzENmmsh2HamuXo2br9cEEaMCgYEA00aG
+JaGDuwzv/O8RnXpIYMNxDQYr8jd6Bt7nkZcHVMdQtX6dnUPRXHFHAnpke9BCGiG2
+GjciaUpzSfgXvsbRMpfJR5hhyhml1MqtjguAlbpDXSaPQwcSTfbZvxHEV2PToXYB
+z+AII4tpsXD5N22HvreeapXTyBz3Lhhw8WEk+I8CgYBPUSgsBUiOt1GB4b6cZ73Z
+4JBGBl1VvRpF53fZVMA/FsuAt1JzZiRb/UBJXAZEt/5JIdI8GTmIJCvKOKPvqvG/
+3k/hFDCN/RdBtND0dSo6jZxc3QEMu3ziJeWzs4x3DPsNIUfx9L4wGwj/lsN/McTH
+HEqi3eyuFa1PbdN6aGDTywKBgQC1L1bdsLyyze6FwFQf8/1cFl++JpvLdi4M9F4s
+6hNcbi3V6AatFrrWB0M5adMAp2H43Q45Py0glLt4JO3gKsq/E5KG9rRuSD6B1Wqv
+VUfpn7ojiWz0s3zMJbUo+ciilTap0fTN27e/G9EBXfwrv5/ZO8j8aQ8dH1IPUuCQ
+8JlvGwKBgGlRuhLXrP3Cg0rhaupR0gUZPjPs9AQiGFs186oCYs6PKSFJ/LekbNuq
+uOuLdl2Bwlo6XFlT7I4FfAgzO+l35ER2Gihr8hIb8cC1dBAIR1ejXUhoC18NN8GJ
+As9vlQ+UkBUy4/0pl7S/Eet7CI0WSwalvjd7bI2Xiau5rO3aT5pQ
+-----END RSA PRIVATE KEY-----`)
+	key, err := keys.ParsePrivateKey([]byte(strings.ReplaceAll(keyPemFixture, "TEST ", "")))
+	if err != nil {
+		panic(err)
+	}
+	return key.Signer
 }
