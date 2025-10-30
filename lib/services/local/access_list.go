@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -73,6 +74,7 @@ const (
 // consistent view to the rest of the Teleport application. It makes no decisions
 // about granting or withholding list membership.
 type AccessListService struct {
+	bk            backend.Backend
 	clock         clockwork.Clock
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
@@ -148,6 +150,7 @@ func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...Serv
 	}
 
 	return &AccessListService{
+		bk:            b,
 		clock:         clock,
 		service:       service,
 		memberService: memberService,
@@ -797,6 +800,10 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			}
 		}
 
+		if err := a.insertMembers(ctx, toSlice(membersMap)); err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Add any remaining members to the access list.
 		for _, member := range membersMap {
 			upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
@@ -859,6 +866,36 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	}
 
 	return accessList, membersIn, nil
+}
+
+func toSlice(m map[string]*accesslist.AccessListMember) []*accesslist.AccessListMember {
+	s := make([]*accesslist.AccessListMember, 0, len(m))
+	for _, v := range m {
+		s = append(s, v)
+	}
+	return s
+}
+
+func (a *AccessListService) insertMembers(ctx context.Context, members []*accesslist.AccessListMember) error {
+	if len(members) == 0 {
+		return nil
+	}
+	items := make([]backend.Item, 0, len(members))
+	for _, m := range members {
+		item, err := a.memberService.WithPrefix(m.Spec.AccessList).MakeBackendItem(m)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		items = append(items, item)
+	}
+	revs, err := backend.PutBatch(ctx, a.bk, items)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for i, rev := range revs {
+		members[i].SetRevision(rev)
+	}
+	return nil
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
