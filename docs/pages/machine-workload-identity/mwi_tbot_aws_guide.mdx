@@ -121,17 +121,6 @@ services:
     selector:
       # Replace with the actual name of your Workload Identity resource
       name: example-workload-identity
-    
-    # Optional workload attestation configuration to restrict which processes
-    # can obtain credentials from this service
-    unix:
-      enabled: true
-      # Optional: Restrict by user IDs (numeric)
-      uid:
-        equals: [1000]
-      # Optional: Restrict by group IDs (numeric)
-      gid:
-        equals: [1000]
 ```
 
 Replace:
@@ -297,7 +286,7 @@ Replace:
 
 Restart your `tbot` instance to apply the new configuration.
 
-## Step 9/9. Testing the Workload API with `tbot spiffe-inspect`
+## Step 8/9. Testing the Workload API with `tbot spiffe-inspect`
 
 Use `tbot spiffe-inspect` to verify that the Workload API endpoint is issuing SPIFFE credentials correctly.
 This command connects to the endpoint, requests SVIDs, and prints detailed debug information.
@@ -321,7 +310,7 @@ Trust Bundles
 ```
 This confirms that workloads can successfully connect to the Workload API and receive SPIFFE-compatible credentials issued by Teleport.
 
-## Step 10/10. Configuring your workload to use the Workload API
+## Step 9/9. Configuring your workload to use the Workload API
 
 Now that you know that the Workload API is behaving as expected, you can configure your workload to use it. 
 The exact steps will depend on the workload. In cases where you have used the SPIFFE SDKs, you can configure the`SPIFFE_ENDPOINT_SOCKET` 
