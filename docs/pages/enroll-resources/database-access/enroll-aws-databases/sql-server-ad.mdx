@@ -254,7 +254,7 @@ endpoint.
     --ad-spn=MSSQLSvc/sqlserver.example.com:1433 \
     --labels=env=dev
   ```
-  
+
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
@@ -408,7 +408,7 @@ following:
 +   tls:
 +     # Point it to your Database CA PEM certificate.
 +     ca_cert_file: "rdsca.pem"
-+     # If your database certificate has an empty CN filed, you must change
++     # If your database certificate has an empty CN field, you must change
 +     # the TLS mode to only verify the CA.
 +     mode: verify-ca
 ```
@@ -425,4 +425,3 @@ skipping TLS verification in production environments.
 
 - [Manually join a Linux instance](https://docs.aws.amazon.com/directoryservice/latest/admin-guide/join_linux_instance.html) in the AWS documentation.
 - [Introduction to `adutil`](https://docs.microsoft.com/en-us/sql/linux/sql-server-linux-ad-auth-adutil-introduction) in the Microsoft documentation.
-
