@@ -101,7 +101,7 @@ func (t *retryableTransport) makeRetryableWithMemory(req *http.Request) error {
 	buf := bytes.NewBuffer(make([]byte, 0, req.ContentLength))
 	req.Body = newTeeReadCloser(req.Body, buf)
 	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
+		return io.NopCloser(buf), nil
 	}
 	return nil
 }
