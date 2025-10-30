@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
@@ -369,7 +370,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(context.TODO())
+	keygen := keygen.New(t.Context(), keygen.SetClock(cfg.Clock))
 	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
@@ -383,10 +384,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	clock := cfg.Clock
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
 
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
@@ -395,15 +393,23 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	subject, err := identity.Subject()
 	fatalIf(err)
 
-	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{
+			CommonName:   cfg.ClusterName,
+			Organization: []string{cfg.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
 	fatalIf(err)
+
 	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
+
 	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
+
 	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: hostCryptoPubKey,
@@ -412,11 +418,17 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{
+			CommonName:   cfg.ClusterName,
+			Organization: []string{cfg.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
 	fatalIf(err)
+
 	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
 	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)

@@ -150,6 +150,9 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
 			"http://memory/notfound",
 			mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
+			mcpclienttransport.WithHTTPHeaders(map[string]string{
+				"test-header": "test-value",
+			}),
 		)
 		require.NoError(t, err)
 
@@ -165,8 +168,22 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, libevents.MCPSessionRequestEvent, lastEvent.GetType())
 		require.Equal(t, libevents.MCPSessionRequestFailureCode, lastEvent.GetCode())
+		require.NotEmpty(t, lastEvent.Headers)
+		require.Equal(t, "test-value", http.Header(lastEvent.Headers).Get("test-header"))
 		require.False(t, lastEvent.Success)
 		require.Equal(t, "HTTP 404 Not Found", lastEvent.Error)
+	})
+
+	t.Run("unsupported method", func(t *testing.T) {
+		emitter.Reset()
+		httpClient := listener.MakeHTTPClient()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodOptions, "http://localhost/", nil)
+		require.NoError(t, err)
+		response, err := httpClient.Do(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
+		require.Equal(t, libevents.MCPSessionInvalidHTTPRequest, emitter.LastEvent().GetType())
 	})
 }
 

@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.25.1
+go 1.25.3
 
 // TF provider dependencies
 require (
@@ -103,6 +103,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.40.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.50.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.31.0 // indirect

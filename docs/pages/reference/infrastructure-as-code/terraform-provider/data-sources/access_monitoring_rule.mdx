@@ -2,10 +2,6 @@
 title: Reference for the teleport_access_monitoring_rule Terraform data-source
 sidebar_label: access_monitoring_rule
 description: This page describes the supported values of the teleport_access_monitoring_rule data-source of the Teleport Terraform provider.
-tags:
- - infrastructure-as-code
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -76,7 +72,8 @@ Optional:
 
 Optional:
 
-- `shifts` (Attributes List) Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC. (see [below for nested schema](#nested-schema-for-specschedulestimeshifts))
+- `shifts` (Attributes List) Shifts contains a set of shifts that make up the schedule. (see [below for nested schema](#nested-schema-for-specschedulestimeshifts))
+- `timezone` (String) Timezone specifies the schedule timezone. This field is optional and defaults to "UTC". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or "Asia/Singapore".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.
 
 ### Nested Schema for `spec.schedules.time.shifts`
 

@@ -41,6 +41,126 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// BotKind identifies whether the bot is the tbot binary or embedded in another
+// component.
+type BotKind int32
+
+const (
+	// The enum zero-value, it means no kind was included.
+	BotKind_BOT_KIND_UNSPECIFIED BotKind = 0
+	// Means the bot is running the tbot binary.
+	BotKind_BOT_KIND_TBOT BotKind = 1
+	// Means the bot is running inside one of our Terraform providers.
+	BotKind_BOT_KIND_TERRAFORM_PROVIDER BotKind = 2
+	// Means the bot is running inside the Teleport Kubernetes operator.
+	BotKind_BOT_KIND_KUBERNETES_OPERATOR BotKind = 3
+	// Means the bot is running inside tctl (e.g. `tctl terraform env`)
+	BotKind_BOT_KIND_TCTL BotKind = 4
+)
+
+// Enum value maps for BotKind.
+var (
+	BotKind_name = map[int32]string{
+		0: "BOT_KIND_UNSPECIFIED",
+		1: "BOT_KIND_TBOT",
+		2: "BOT_KIND_TERRAFORM_PROVIDER",
+		3: "BOT_KIND_KUBERNETES_OPERATOR",
+		4: "BOT_KIND_TCTL",
+	}
+	BotKind_value = map[string]int32{
+		"BOT_KIND_UNSPECIFIED":         0,
+		"BOT_KIND_TBOT":                1,
+		"BOT_KIND_TERRAFORM_PROVIDER":  2,
+		"BOT_KIND_KUBERNETES_OPERATOR": 3,
+		"BOT_KIND_TCTL":                4,
+	}
+)
+
+func (x BotKind) Enum() *BotKind {
+	p := new(BotKind)
+	*p = x
+	return p
+}
+
+func (x BotKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BotKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_machineid_v1_bot_instance_proto_enumTypes[0].Descriptor()
+}
+
+func (BotKind) Type() protoreflect.EnumType {
+	return &file_teleport_machineid_v1_bot_instance_proto_enumTypes[0]
+}
+
+func (x BotKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BotKind.Descriptor instead.
+func (BotKind) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{0}
+}
+
+// BotInstanceHealthStatus describes the healthiness of a `tbot` service.
+type BotInstanceHealthStatus int32
+
+const (
+	// The enum zero-value, it means no status was included.
+	BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED BotInstanceHealthStatus = 0
+	// Means the service is still "starting up" and hasn't reported its status.
+	BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING BotInstanceHealthStatus = 1
+	// Means the service is healthy and ready to serve traffic, or it has
+	// recently succeeded in generating an output.
+	BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY BotInstanceHealthStatus = 2
+	// Means the service is failing to serve traffic or generate output.
+	BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY BotInstanceHealthStatus = 3
+)
+
+// Enum value maps for BotInstanceHealthStatus.
+var (
+	BotInstanceHealthStatus_name = map[int32]string{
+		0: "BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED",
+		1: "BOT_INSTANCE_HEALTH_STATUS_INITIALIZING",
+		2: "BOT_INSTANCE_HEALTH_STATUS_HEALTHY",
+		3: "BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY",
+	}
+	BotInstanceHealthStatus_value = map[string]int32{
+		"BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED":  0,
+		"BOT_INSTANCE_HEALTH_STATUS_INITIALIZING": 1,
+		"BOT_INSTANCE_HEALTH_STATUS_HEALTHY":      2,
+		"BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY":    3,
+	}
+)
+
+func (x BotInstanceHealthStatus) Enum() *BotInstanceHealthStatus {
+	p := new(BotInstanceHealthStatus)
+	*p = x
+	return p
+}
+
+func (x BotInstanceHealthStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BotInstanceHealthStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_machineid_v1_bot_instance_proto_enumTypes[1].Descriptor()
+}
+
+func (BotInstanceHealthStatus) Type() protoreflect.EnumType {
+	return &file_teleport_machineid_v1_bot_instance_proto_enumTypes[1]
+}
+
+func (x BotInstanceHealthStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BotInstanceHealthStatus.Descriptor instead.
+func (BotInstanceHealthStatus) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{1}
+}
+
 // A BotInstance
 type BotInstance struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -232,7 +352,10 @@ type BotInstanceStatusHeartbeat struct {
 	ExternalUpdaterVersion string `protobuf:"bytes,11,opt,name=external_updater_version,json=externalUpdaterVersion,proto3" json:"external_updater_version,omitempty"`
 	// Information provided by the external updater, including the update group
 	// and updater status.
-	UpdaterInfo   *types.UpdaterV2Info `protobuf:"bytes,12,opt,name=updater_info,json=updaterInfo,proto3" json:"updater_info,omitempty"`
+	UpdaterInfo *types.UpdaterV2Info `protobuf:"bytes,12,opt,name=updater_info,json=updaterInfo,proto3" json:"updater_info,omitempty"`
+	// Identifies whether the bot is running in the tbot binary or embedded in
+	// another component.
+	Kind          BotKind `protobuf:"varint,13,opt,name=kind,proto3,enum=teleport.machineid.v1.BotKind" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -349,6 +472,13 @@ func (x *BotInstanceStatusHeartbeat) GetUpdaterInfo() *types.UpdaterV2Info {
 		return x.UpdaterInfo
 	}
 	return nil
+}
+
+func (x *BotInstanceStatusHeartbeat) GetKind() BotKind {
+	if x != nil {
+		return x.Kind
+	}
+	return BotKind_BOT_KIND_UNSPECIFIED
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.
@@ -476,8 +606,10 @@ type BotInstanceStatus struct {
 	InitialHeartbeat *BotInstanceStatusHeartbeat `protobuf:"bytes,3,opt,name=initial_heartbeat,json=initialHeartbeat,proto3" json:"initial_heartbeat,omitempty"`
 	// The N most recent heartbeats for this bot instance.
 	LatestHeartbeats []*BotInstanceStatusHeartbeat `protobuf:"bytes,4,rep,name=latest_heartbeats,json=latestHeartbeats,proto3" json:"latest_heartbeats,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The health of the services/output `tbot` is running.
+	ServiceHealth []*BotInstanceServiceHealth `protobuf:"bytes,5,rep,name=service_health,json=serviceHealth,proto3" json:"service_health,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BotInstanceStatus) Reset() {
@@ -538,6 +670,142 @@ func (x *BotInstanceStatus) GetLatestHeartbeats() []*BotInstanceStatusHeartbeat 
 	return nil
 }
 
+func (x *BotInstanceStatus) GetServiceHealth() []*BotInstanceServiceHealth {
+	if x != nil {
+		return x.ServiceHealth
+	}
+	return nil
+}
+
+// BotInstanceServiceHealth is a snapshot of a `tbot` service's health.
+type BotInstanceServiceHealth struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Service identifies the service.
+	Service *BotInstanceServiceIdentifier `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	// Status describes the service's healthiness.
+	Status BotInstanceHealthStatus `protobuf:"varint,2,opt,name=status,proto3,enum=teleport.machineid.v1.BotInstanceHealthStatus" json:"status,omitempty"`
+	// Reason is a human-readable explanation for the service's status. It might
+	// include an error message.
+	Reason *string `protobuf:"bytes,3,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
+	// UpdatedAt is the time at which the service's health last changed.
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BotInstanceServiceHealth) Reset() {
+	*x = BotInstanceServiceHealth{}
+	mi := &file_teleport_machineid_v1_bot_instance_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BotInstanceServiceHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BotInstanceServiceHealth) ProtoMessage() {}
+
+func (x *BotInstanceServiceHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_machineid_v1_bot_instance_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BotInstanceServiceHealth.ProtoReflect.Descriptor instead.
+func (*BotInstanceServiceHealth) Descriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *BotInstanceServiceHealth) GetService() *BotInstanceServiceIdentifier {
+	if x != nil {
+		return x.Service
+	}
+	return nil
+}
+
+func (x *BotInstanceServiceHealth) GetStatus() BotInstanceHealthStatus {
+	if x != nil {
+		return x.Status
+	}
+	return BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
+}
+
+func (x *BotInstanceServiceHealth) GetReason() string {
+	if x != nil && x.Reason != nil {
+		return *x.Reason
+	}
+	return ""
+}
+
+func (x *BotInstanceServiceHealth) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+// BotInstanceServiceIdentifier uniquely identifies a `tbot` service.
+type BotInstanceServiceIdentifier struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Type of service (e.g. database-tunnel, ssh-multiplexer).
+	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	// Name of the service, either given by the user or auto-generated.
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BotInstanceServiceIdentifier) Reset() {
+	*x = BotInstanceServiceIdentifier{}
+	mi := &file_teleport_machineid_v1_bot_instance_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BotInstanceServiceIdentifier) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BotInstanceServiceIdentifier) ProtoMessage() {}
+
+func (x *BotInstanceServiceIdentifier) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_machineid_v1_bot_instance_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BotInstanceServiceIdentifier.ProtoReflect.Descriptor instead.
+func (*BotInstanceServiceIdentifier) Descriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *BotInstanceServiceIdentifier) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *BotInstanceServiceIdentifier) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_teleport_machineid_v1_bot_instance_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
@@ -554,7 +822,7 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
 	"instanceId\x120\n" +
-	"\x14previous_instance_id\x18\x04 \x01(\tR\x12previousInstanceIdJ\x04\b\x03\x10\x04R\x03ttl\"\xef\x03\n" +
+	"\x14previous_instance_id\x18\x04 \x01(\tR\x12previousInstanceIdJ\x04\b\x03\x10\x04R\x03ttl\"\xa3\x04\n" +
 	"\x1aBotInstanceStatusHeartbeat\x12;\n" +
 	"\vrecorded_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"recordedAt\x12\x1d\n" +
@@ -571,7 +839,8 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\x10external_updater\x18\n" +
 	" \x01(\tR\x0fexternalUpdater\x128\n" +
 	"\x18external_updater_version\x18\v \x01(\tR\x16externalUpdaterVersion\x127\n" +
-	"\fupdater_info\x18\f \x01(\v2\x14.types.UpdaterV2InfoR\vupdaterInfo\"\xf7\x02\n" +
+	"\fupdater_info\x18\f \x01(\v2\x14.types.UpdaterV2InfoR\vupdaterInfo\x122\n" +
+	"\x04kind\x18\r \x01(\x0e2\x1e.teleport.machineid.v1.BotKindR\x04kind\"\xf7\x02\n" +
 	"\x1fBotInstanceStatusAuthentication\x12E\n" +
 	"\x10authenticated_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0fauthenticatedAt\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -585,12 +854,34 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\n" +
 	"public_key\x18\x06 \x01(\fR\tpublicKey\x12F\n" +
 	"\n" +
-	"join_attrs\x18\b \x01(\v2'.teleport.workloadidentity.v1.JoinAttrsR\tjoinAttrsJ\x04\b\a\x10\bR\vfingerprint\"\xb1\x03\n" +
+	"join_attrs\x18\b \x01(\v2'.teleport.workloadidentity.v1.JoinAttrsR\tjoinAttrsJ\x04\b\a\x10\bR\vfingerprint\"\x89\x04\n" +
 	"\x11BotInstanceStatus\x12m\n" +
 	"\x16initial_authentication\x18\x01 \x01(\v26.teleport.machineid.v1.BotInstanceStatusAuthenticationR\x15initialAuthentication\x12m\n" +
 	"\x16latest_authentications\x18\x02 \x03(\v26.teleport.machineid.v1.BotInstanceStatusAuthenticationR\x15latestAuthentications\x12^\n" +
 	"\x11initial_heartbeat\x18\x03 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\x10initialHeartbeat\x12^\n" +
-	"\x11latest_heartbeats\x18\x04 \x03(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\x10latestHeartbeatsBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
+	"\x11latest_heartbeats\x18\x04 \x03(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\x10latestHeartbeats\x12V\n" +
+	"\x0eservice_health\x18\x05 \x03(\v2/.teleport.machineid.v1.BotInstanceServiceHealthR\rserviceHealth\"\x94\x02\n" +
+	"\x18BotInstanceServiceHealth\x12M\n" +
+	"\aservice\x18\x01 \x01(\v23.teleport.machineid.v1.BotInstanceServiceIdentifierR\aservice\x12F\n" +
+	"\x06status\x18\x02 \x01(\x0e2..teleport.machineid.v1.BotInstanceHealthStatusR\x06status\x12\x1b\n" +
+	"\x06reason\x18\x03 \x01(\tH\x00R\x06reason\x88\x01\x01\x129\n" +
+	"\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAtB\t\n" +
+	"\a_reason\"F\n" +
+	"\x1cBotInstanceServiceIdentifier\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name*\x8c\x01\n" +
+	"\aBotKind\x12\x18\n" +
+	"\x14BOT_KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rBOT_KIND_TBOT\x10\x01\x12\x1f\n" +
+	"\x1bBOT_KIND_TERRAFORM_PROVIDER\x10\x02\x12 \n" +
+	"\x1cBOT_KIND_KUBERNETES_OPERATOR\x10\x03\x12\x11\n" +
+	"\rBOT_KIND_TCTL\x10\x04*\xc4\x01\n" +
+	"\x17BotInstanceHealthStatus\x12*\n" +
+	"&BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED\x10\x00\x12+\n" +
+	"'BOT_INSTANCE_HEALTH_STATUS_INITIALIZING\x10\x01\x12&\n" +
+	"\"BOT_INSTANCE_HEALTH_STATUS_HEALTHY\x10\x02\x12(\n" +
+	"$BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY\x10\x03BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
 
 var (
 	file_teleport_machineid_v1_bot_instance_proto_rawDescOnce sync.Once
@@ -604,39 +895,49 @@ func file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP() []byte {
 	return file_teleport_machineid_v1_bot_instance_proto_rawDescData
 }
 
-var file_teleport_machineid_v1_bot_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_machineid_v1_bot_instance_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_machineid_v1_bot_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_machineid_v1_bot_instance_proto_goTypes = []any{
-	(*BotInstance)(nil),                     // 0: teleport.machineid.v1.BotInstance
-	(*BotInstanceSpec)(nil),                 // 1: teleport.machineid.v1.BotInstanceSpec
-	(*BotInstanceStatusHeartbeat)(nil),      // 2: teleport.machineid.v1.BotInstanceStatusHeartbeat
-	(*BotInstanceStatusAuthentication)(nil), // 3: teleport.machineid.v1.BotInstanceStatusAuthentication
-	(*BotInstanceStatus)(nil),               // 4: teleport.machineid.v1.BotInstanceStatus
-	(*v1.Metadata)(nil),                     // 5: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),           // 6: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),             // 7: google.protobuf.Duration
-	(*types.UpdaterV2Info)(nil),             // 8: types.UpdaterV2Info
-	(*structpb.Struct)(nil),                 // 9: google.protobuf.Struct
-	(*v11.JoinAttrs)(nil),                   // 10: teleport.workloadidentity.v1.JoinAttrs
+	(BotKind)(0),                            // 0: teleport.machineid.v1.BotKind
+	(BotInstanceHealthStatus)(0),            // 1: teleport.machineid.v1.BotInstanceHealthStatus
+	(*BotInstance)(nil),                     // 2: teleport.machineid.v1.BotInstance
+	(*BotInstanceSpec)(nil),                 // 3: teleport.machineid.v1.BotInstanceSpec
+	(*BotInstanceStatusHeartbeat)(nil),      // 4: teleport.machineid.v1.BotInstanceStatusHeartbeat
+	(*BotInstanceStatusAuthentication)(nil), // 5: teleport.machineid.v1.BotInstanceStatusAuthentication
+	(*BotInstanceStatus)(nil),               // 6: teleport.machineid.v1.BotInstanceStatus
+	(*BotInstanceServiceHealth)(nil),        // 7: teleport.machineid.v1.BotInstanceServiceHealth
+	(*BotInstanceServiceIdentifier)(nil),    // 8: teleport.machineid.v1.BotInstanceServiceIdentifier
+	(*v1.Metadata)(nil),                     // 9: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),           // 10: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),             // 11: google.protobuf.Duration
+	(*types.UpdaterV2Info)(nil),             // 12: types.UpdaterV2Info
+	(*structpb.Struct)(nil),                 // 13: google.protobuf.Struct
+	(*v11.JoinAttrs)(nil),                   // 14: teleport.workloadidentity.v1.JoinAttrs
 }
 var file_teleport_machineid_v1_bot_instance_proto_depIdxs = []int32{
-	5,  // 0: teleport.machineid.v1.BotInstance.metadata:type_name -> teleport.header.v1.Metadata
-	1,  // 1: teleport.machineid.v1.BotInstance.spec:type_name -> teleport.machineid.v1.BotInstanceSpec
-	4,  // 2: teleport.machineid.v1.BotInstance.status:type_name -> teleport.machineid.v1.BotInstanceStatus
-	6,  // 3: teleport.machineid.v1.BotInstanceStatusHeartbeat.recorded_at:type_name -> google.protobuf.Timestamp
-	7,  // 4: teleport.machineid.v1.BotInstanceStatusHeartbeat.uptime:type_name -> google.protobuf.Duration
-	8,  // 5: teleport.machineid.v1.BotInstanceStatusHeartbeat.updater_info:type_name -> types.UpdaterV2Info
-	6,  // 6: teleport.machineid.v1.BotInstanceStatusAuthentication.authenticated_at:type_name -> google.protobuf.Timestamp
-	9,  // 7: teleport.machineid.v1.BotInstanceStatusAuthentication.metadata:type_name -> google.protobuf.Struct
-	10, // 8: teleport.machineid.v1.BotInstanceStatusAuthentication.join_attrs:type_name -> teleport.workloadidentity.v1.JoinAttrs
-	3,  // 9: teleport.machineid.v1.BotInstanceStatus.initial_authentication:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
-	3,  // 10: teleport.machineid.v1.BotInstanceStatus.latest_authentications:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
-	2,  // 11: teleport.machineid.v1.BotInstanceStatus.initial_heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	2,  // 12: teleport.machineid.v1.BotInstanceStatus.latest_heartbeats:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	9,  // 0: teleport.machineid.v1.BotInstance.metadata:type_name -> teleport.header.v1.Metadata
+	3,  // 1: teleport.machineid.v1.BotInstance.spec:type_name -> teleport.machineid.v1.BotInstanceSpec
+	6,  // 2: teleport.machineid.v1.BotInstance.status:type_name -> teleport.machineid.v1.BotInstanceStatus
+	10, // 3: teleport.machineid.v1.BotInstanceStatusHeartbeat.recorded_at:type_name -> google.protobuf.Timestamp
+	11, // 4: teleport.machineid.v1.BotInstanceStatusHeartbeat.uptime:type_name -> google.protobuf.Duration
+	12, // 5: teleport.machineid.v1.BotInstanceStatusHeartbeat.updater_info:type_name -> types.UpdaterV2Info
+	0,  // 6: teleport.machineid.v1.BotInstanceStatusHeartbeat.kind:type_name -> teleport.machineid.v1.BotKind
+	10, // 7: teleport.machineid.v1.BotInstanceStatusAuthentication.authenticated_at:type_name -> google.protobuf.Timestamp
+	13, // 8: teleport.machineid.v1.BotInstanceStatusAuthentication.metadata:type_name -> google.protobuf.Struct
+	14, // 9: teleport.machineid.v1.BotInstanceStatusAuthentication.join_attrs:type_name -> teleport.workloadidentity.v1.JoinAttrs
+	5,  // 10: teleport.machineid.v1.BotInstanceStatus.initial_authentication:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
+	5,  // 11: teleport.machineid.v1.BotInstanceStatus.latest_authentications:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
+	4,  // 12: teleport.machineid.v1.BotInstanceStatus.initial_heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	4,  // 13: teleport.machineid.v1.BotInstanceStatus.latest_heartbeats:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	7,  // 14: teleport.machineid.v1.BotInstanceStatus.service_health:type_name -> teleport.machineid.v1.BotInstanceServiceHealth
+	8,  // 15: teleport.machineid.v1.BotInstanceServiceHealth.service:type_name -> teleport.machineid.v1.BotInstanceServiceIdentifier
+	1,  // 16: teleport.machineid.v1.BotInstanceServiceHealth.status:type_name -> teleport.machineid.v1.BotInstanceHealthStatus
+	10, // 17: teleport.machineid.v1.BotInstanceServiceHealth.updated_at:type_name -> google.protobuf.Timestamp
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_proto_init() }
@@ -644,18 +945,20 @@ func file_teleport_machineid_v1_bot_instance_proto_init() {
 	if File_teleport_machineid_v1_bot_instance_proto != nil {
 		return
 	}
+	file_teleport_machineid_v1_bot_instance_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_instance_proto_rawDesc), len(file_teleport_machineid_v1_bot_instance_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   5,
+			NumEnums:      2,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_machineid_v1_bot_instance_proto_goTypes,
 		DependencyIndexes: file_teleport_machineid_v1_bot_instance_proto_depIdxs,
+		EnumInfos:         file_teleport_machineid_v1_bot_instance_proto_enumTypes,
 		MessageInfos:      file_teleport_machineid_v1_bot_instance_proto_msgTypes,
 	}.Build()
 	File_teleport_machineid_v1_bot_instance_proto = out.File

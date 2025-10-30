@@ -24,8 +24,6 @@ import styled, { css } from 'styled-components';
 import { Alert } from 'design/Alert/Alert';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
-import { Question } from 'design/Icon';
-import Text from 'design/Text';
 import { SearchPanel } from 'shared/components/Search';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
@@ -39,6 +37,7 @@ import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
+import { BotInstancesDashboard } from './Dashboard/BotInstanceDashboard';
 import { BotInstanceDetails } from './Details/BotInstanceDetails';
 import { InfoGuide } from './InfoGuide';
 import {
@@ -55,6 +54,7 @@ export function BotInstances() {
   const sortField = queryParams.get('sort_field') || 'active_at_latest';
   const sortDir = queryParams.get('sort_dir') || 'DESC';
   const selectedItemId = queryParams.get('selected');
+  const activeTab = queryParams.get('tab');
 
   const listRef = useRef<BotInstancesListControls | null>(null);
 
@@ -145,7 +145,22 @@ export function BotInstances() {
         search.set('selected', `${item.bot_name}/${item.instance_id}`);
       } else {
         search.delete('selected');
+        search.delete('tab');
       }
+
+      history.push({
+        pathname: location.pathname,
+        search: search.toString(),
+      });
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const handleDetailsTabSelected = useCallback(
+    (tab: string) => {
+      const search = new URLSearchParams(location.search);
+
+      search.set('tab', tab);
 
       history.push({
         pathname: location.pathname,
@@ -163,6 +178,13 @@ export function BotInstances() {
     [data?.pages, isSuccess]
   );
 
+  const handleFilterSelected = useCallback(
+    (filter: string) => {
+      handleQueryChange(filter, true);
+    },
+    [handleQueryChange]
+  );
+
   if (!hasListPermission) {
     return (
       <FeatureBox>
@@ -176,9 +198,9 @@ export function BotInstances() {
   }
 
   return (
-    <FeatureBox>
-      <FeatureHeader justifyContent="space-between">
-        <FeatureHeaderTitle>Bot instances</FeatureHeaderTitle>
+    <FeatureBox hideBottomSpacing>
+      <FeatureHeader justifyContent="space-between" mb={0}>
+        <FeatureHeaderTitle>Bot Instances</FeatureHeaderTitle>
         <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
@@ -190,6 +212,7 @@ export function BotInstances() {
           }}
           updateSearch={query => handleQueryChange(query, false)}
           updateQuery={query => handleQueryChange(query, true)}
+          mb={2}
         />
         <ContentContainer>
           <ListAndDetailsContainer $listOnlyMode={!selectedItemId}>
@@ -206,6 +229,7 @@ export function BotInstances() {
               onLoadNextPage={fetchNextPage}
               selectedItem={selectedItemId}
               onItemSelected={handleItemSelected}
+              isFiltering={!!query}
             />
             {selectedItemId ? (
               <BotInstanceDetails
@@ -213,16 +237,13 @@ export function BotInstances() {
                 botName={selectedBotName}
                 instanceId={selectedInstanceId}
                 onClose={() => handleItemSelected(null)}
+                activeTab={activeTab}
+                onTabSelected={tab => handleDetailsTabSelected(tab)}
               />
             ) : undefined}
           </ListAndDetailsContainer>
           {!selectedItemId ? (
-            <DashboardContainer>
-              <QuestionIcon size={'extra-large'} />
-              <DashboardHelpText>
-                Select an instance to see full details.
-              </DashboardHelpText>
-            </DashboardContainer>
+            <BotInstancesDashboard onFilterSelected={handleFilterSelected} />
           ) : undefined}
         </ContentContainer>
       </Container>
@@ -234,7 +255,7 @@ const Container = styled(Flex)`
   flex-direction: column;
   flex: 1;
   overflow: auto;
-  gap: ${props => props.theme.space[2]}px;
+  padding-bottom: ${props => props.theme.space[3]}px;
 `;
 
 const ContentContainer = styled(Flex)`
@@ -257,21 +278,4 @@ const ListAndDetailsContainer = styled(CardTile)<{ $listOnlyMode: boolean }>`
           max-width: 400px;
         `
       : ''}
-`;
-
-const DashboardContainer = styled(Flex)`
-  flex-direction: column;
-  overflow: auto;
-  flex-basis: 100%;
-  align-items: center;
-  justify-content: center;
-`;
-
-const DashboardHelpText = styled(Text)`
-  color: ${props => props.theme.colors.text.muted};
-  text-align: center;
-`;
-
-const QuestionIcon = styled(Question)`
-  color: ${props => props.theme.colors.text.muted};
 `;

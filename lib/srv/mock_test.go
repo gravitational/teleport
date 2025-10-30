@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -121,11 +121,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 }
 
 func newMockServer(t *testing.T) *mockServer {
-	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bk, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
@@ -143,16 +141,15 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
-	authCfg := &auth.InitConfig{
+	authServer, err := auth.NewServer(&auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
-	}
-
-	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
+		Clock:          clock,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, authServer.Close())

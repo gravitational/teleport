@@ -25,25 +25,26 @@ import DialogConfirmation, {
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
 import { P } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
-import { useClusterLogout } from './useClusterLogout';
+import { logoutWithCleanup } from './logoutWithCleanup';
 
 export function ClusterLogout({
   clusterUri,
   onClose,
-  clusterTitle,
   hidden,
 }: {
-  clusterTitle: string;
   clusterUri: RootClusterUri;
   hidden?: boolean;
   onClose(): void;
 }) {
-  const { removeCluster, status, statusText } = useClusterLogout({
-    clusterUri,
-  });
+  const ctx = useAppContext();
+  const [{ status, statusText }, removeCluster] = useAsync(() =>
+    logoutWithCleanup(ctx, clusterUri)
+  );
 
   async function removeClusterAndClose(): Promise<void> {
     const [, err] = await removeCluster();
@@ -51,6 +52,8 @@ export function ClusterLogout({
       onClose();
     }
   }
+
+  const profileName = routing.parseClusterName(clusterUri);
 
   return (
     <DialogConfirmation
@@ -69,7 +72,7 @@ export function ClusterLogout({
         }}
       >
         <DialogHeader justifyContent="space-between">
-          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {clusterTitle}</H2>
+          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {profileName}</H2>
           <ButtonIcon
             type="button"
             disabled={status === 'processing'}

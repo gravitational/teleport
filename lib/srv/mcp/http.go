@@ -32,9 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
@@ -113,7 +111,7 @@ func (s *Server) makeStreamableHTTPTransport(session *sessionHandler) (http.Roun
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	targetTransport, err := s.makeHTTPTransport(session.App)
+	targetTransport, err := s.makeBasicHTTPTransport(session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,9 +141,13 @@ func (t *streamableHTTPTransport) RoundTrip(r *http.Request) (*http.Response, er
 
 	default:
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
+
+		statusText := http.StatusText(http.StatusMethodNotAllowed)
 		return &http.Response{
 			Request:    r,
+			Status:     statusText,
 			StatusCode: http.StatusMethodNotAllowed,
+			Body:       io.NopCloser(bytes.NewReader(nil)), // Body must not be nil.
 		}, nil
 	}
 }
@@ -169,16 +171,7 @@ func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request 
 		r.URL.Path = t.targetURI.Path
 	}
 
-	// Add in JWT headers. By default, JWT is not put into "Authorization"
-	// headers since the auth token can also come from the client and Teleport
-	// just pass it through. If the remote MCP server does verify the auth token
-	// signed by Teleport, the server can take the token from the
-	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
-	// as "Bearer" in "Authorization".
-	r.Header.Set(teleport.AppJWTHeader, t.jwt)
-	// Add headers from rewrite configuration.
-	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), t.App.GetRewrite(), t.logger)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traitsForRewriteHeaders, t.logger)
+	t.rewriteHTTPRequestHeaders(r)
 	return r
 }
 
@@ -189,13 +182,13 @@ func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.
 
 func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitEndEvent(t.parentCtx, convertHTTPResponseErrorForAudit(resp, err))
+	t.emitEndEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r))
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitListenSSEStreamEvent(t.parentCtx, convertHTTPResponseErrorForAudit(resp, err))
+	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r))
 	return resp, trace.Wrap(err)
 }
 
@@ -240,15 +233,15 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		if mcpRequest.Method == mcp.MethodInitialize && respErrForAudit == nil {
 			t.emitStartEvent(t.parentCtx)
 		}
-		t.emitRequestEvent(t.parentCtx, mcpRequest, respErrForAudit)
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r))
 	case baseMessage.IsNotification():
-		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), respErrForAudit)
+		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r))
 	}
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitRequestEvent(t.parentCtx, mcpRequest, authErr)
+	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r))
 
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {

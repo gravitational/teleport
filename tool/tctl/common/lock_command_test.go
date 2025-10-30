@@ -20,7 +20,6 @@ package common
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -54,9 +53,8 @@ func TestLocks(t *testing.T) {
 		},
 	}
 
-	timeNow := time.Now().UTC()
-	fakeClock := clockwork.NewFakeClockAt(timeNow)
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
+	clock := clockwork.NewFakeClock()
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(clock))
 	clt, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -79,7 +77,7 @@ func TestLocks(t *testing.T) {
 		expected.SetCreatedBy(string(types.RoleAdmin))
 
 		require.NoError(t, err)
-		expected.SetCreatedAt(timeNow)
+		expected.SetCreatedAt(clock.Now())
 
 		require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, out,
 			cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))

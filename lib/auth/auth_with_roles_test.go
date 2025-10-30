@@ -7246,6 +7246,66 @@ func TestGenerateHostCert(t *testing.T) {
 	}
 }
 
+// newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
+// for a given host
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
+	require.NoError(t, err)
+
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*ctxIdentity,
+	)
+
+	t.Cleanup(func() { authWithRole.Close() })
+
+	return authWithRole
+}
+
+func TestGenerateHostCertsScoped(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	scope := "/aa/bb"
+	hostID := "testhost"
+	roles := types.SystemRoles{types.RoleNode}
+
+	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+
+	_, sshPub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		PublicTLSKey: tlsPubPEM,
+		PublicSSHKey: sshPub,
+		HostID:       hostID,
+		Role:         types.RoleInstance,
+		SystemRoles:  roles,
+	})
+	require.NoError(t, err)
+
+	// ensure scope encoded in TLS cert matches the auth identity
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, scope, tlsIdent.AgentScope)
+
+	// ensure scope encoded in SSH cert matches the auth identity
+	sshCert, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
+	require.Equal(t, scope, sshIdent.AgentScope)
+}
+
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
 // builtin roles have permissions to execute the calls required by the uploader service.
 // This is because only one uploader service runs per Teleport process, and it will use
@@ -9007,6 +9067,56 @@ func TestGetSnowflakeSessions(t *testing.T) {
 			test.assertErr(t, err)
 		})
 	}
+}
+
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {

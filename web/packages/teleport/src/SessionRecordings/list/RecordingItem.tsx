@@ -163,7 +163,7 @@ export function RecordingItem({
             <ArrowRight size="small" color="text.slightlyMuted" />
 
             <ItemSpan>
-              <Server size="small" color="sessionRecording.resource" />
+              <Icon size="small" color="sessionRecording.resource" />
 
               <Text>{recording.hostname}</Text>
             </ItemSpan>
@@ -176,7 +176,7 @@ export function RecordingItem({
             <Box flex="1">
               <CopyButton value={recording.sid} ml={2} />
             </Box>
-            {actions}
+            {recording.playable && actions}
           </Flex>
         </RecordingDetails>
       </Flex>

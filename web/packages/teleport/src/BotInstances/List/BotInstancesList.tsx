@@ -49,6 +49,7 @@ function InternalBotInstancesList(
     onSortChanged: (sortField: string, sortDir: 'ASC' | 'DESC') => void;
     onLoadNextPage: () => void;
     onItemSelected: (item: BotInstanceSummary) => void;
+    isFiltering: boolean;
   },
   ref: React.RefObject<BotInstancesListControls | null>
 ) {
@@ -64,6 +65,7 @@ function InternalBotInstancesList(
     onSortChanged,
     onLoadNextPage,
     onItemSelected,
+    isFiltering,
   } = props;
 
   const contentRef = React.useRef<HTMLDivElement>(null);
@@ -86,7 +88,9 @@ function InternalBotInstancesList(
   return (
     <Container>
       <TitleContainer>
-        <TitleText>Currently Active</TitleText>
+        <TitleText>
+          {isFiltering ? 'Filtered Instances' : 'Active Instances'}
+        </TitleText>
         <SortMenu
           current={{
             fieldName: sortField,
@@ -131,7 +135,7 @@ function InternalBotInstancesList(
       {hasData ? (
         <>
           {data && data.length > 0 ? (
-            <ContentContainer ref={contentRef}>
+            <ContentContainer ref={contentRef} data-scrollbar="default">
               {data.map((instance, i) => (
                 <React.Fragment key={`${instance.instance_id}`}>
                   {i === 0 ? undefined : <Divider />}
@@ -168,11 +172,17 @@ function InternalBotInstancesList(
             </ContentContainer>
           ) : (
             <Box p={3}>
-              <EmptyText>No active instances</EmptyText>
-              <Info mt={5}>
-                Bot instances are ephemeral, and disappear once all issued
-                credentials have expired.
-              </Info>
+              <EmptyText>
+                {isFiltering
+                  ? 'No instances matching filter'
+                  : 'No active instances'}
+              </EmptyText>
+              {!isFiltering ? (
+                <Info mt={3}>
+                  Bot instances are ephemeral, and disappear once all issued
+                  credentials have expired.
+                </Info>
+              ) : undefined}
             </Box>
           )}
         </>

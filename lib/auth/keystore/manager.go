@@ -134,6 +134,7 @@ type Manager struct {
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
 	logger             *slog.Logger
+	clock              clockwork.Clock
 }
 
 // backend is an interface that holds private keys and provides signing and decryption
@@ -199,6 +200,7 @@ type Options struct {
 	// RSAKeyPairSource is an optional function used by the software keystore when
 	// generating RSA keys.
 	RSAKeyPairSource RSAKeyPairSource
+	Clock            clockwork.Clock
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -206,7 +208,6 @@ type Options struct {
 	kmsClient    *kms.KeyManagementClient
 	awsRGTClient rgtClient
 
-	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
 	faketimeOverride faketime.Clock
 }
@@ -221,6 +222,9 @@ func (opts *Options) CheckAndSetDefaults() error {
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
+	}
+	if opts.Clock == nil {
+		opts.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -275,6 +279,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
+		clock:              opts.Clock,
 	}, nil
 }
 
@@ -644,12 +649,20 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		&cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: m.backendForNewKeys.name()},
-		pkix.Name{
+
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: &cryptoCountSigner{
+			Signer:  signer,
+			keyType: keyTypeTLS,
+			store:   m.backendForNewKeys.name(),
+		},
+		Entity: pkix.Name{
 			CommonName:   clusterName,
 			Organization: []string{clusterName},
-		}, nil, defaults.CATTL)
+		},
+		TTL:   defaults.CATTL,
+		Clock: m.clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

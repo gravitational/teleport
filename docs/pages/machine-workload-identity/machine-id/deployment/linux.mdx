@@ -69,8 +69,8 @@ onboarding:
 storage:
   type: directory
   path: /var/lib/teleport/bot
-# outputs will be filled in during the completion of an access guide.
-outputs: []
+# services will be filled in during the completion of an access guide.
+services: []
 ```
 
 Replace:
@@ -88,31 +88,15 @@ run has completed, but there is no tangible security benefit to doing so.
 
 ### Prepare the storage directory
 
-When using the `token` join method, `tbot` must be able to persist its state
-across restarts. The destination used to persist this state is known as the
-bot's "storage destination". In this guide, the directory
-`/var/lib/teleport/bot` will be used.
-
-As this directory will store the bots sensitive credentials, it is important
-to protect it. To do this, you will configure the directory to only be
-accessible to the Linux user which `tbot` will run as.
-
-Execute the following, replacing `teleport` with the Linux user that you will
-run `tbot` as:
-
-```code
-# Make the bot directory and assign ownership to teleport user
-$ sudo mkdir -p /var/lib/teleport/bot
-$ sudo chown teleport:teleport /var/lib/teleport/bot
-```
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
 
 ### Create a systemd service
 
 (!docs/pages/includes/machine-id/daemon.mdx!)
 
-## Step 4/4. Configure outputs
+## Step 4/4. Configure services
 
-(!docs/pages/includes/machine-id/configure-outputs.mdx!)
+(!docs/pages/includes/machine-id/configure-services.mdx!)
 
 ## Next steps
 

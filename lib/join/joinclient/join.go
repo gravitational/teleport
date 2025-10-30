@@ -21,22 +21,32 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
-type JoinParams = authjoin.RegisterParams
-type JoinResult = authjoin.RegisterResult
+type (
+	JoinParams   = authjoin.RegisterParams
+	JoinResult   = authjoin.RegisterResult
+	AzureParams  = authjoin.AzureParams
+	GitlabParams = authjoin.GitlabParams
+)
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
 // provision token to get its initial certificates.
@@ -44,47 +54,107 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if params.AuthClient == nil && params.ID.HostUUID != "" {
+		// This check is skipped if AuthClient is provided because this is a
+		// re-join with an existing identity and the HostUUID will be
+		// maintained.
+		return nil, trace.BadParameter("HostUUID must not be provided to Join, it will be assigned by the Auth server")
+	}
+	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
+		return nil, trace.BadParameter("Only Instance and Bot roles may be used for direct join attempts")
+	}
 	slog.InfoContext(ctx, "Trying to join with the new join service")
 	result, err := joinNew(ctx, params)
-	if trace.IsNotImplemented(err) {
+	if trace.IsNotImplemented(err) || isConnectionError(err) {
 		// Fall back to joining via legacy service.
-		slog.InfoContext(ctx, "Falling back to joining via the legacy join service", "error", err)
-		result, err := authjoin.Register(ctx, params)
-		return result, trace.Wrap(err)
+		slog.InfoContext(ctx, "Joining via new join service failed, falling back to joining via the legacy join service", "error", err)
+		// Non-bots must provide their own host UUID when joining via legacy service.
+		if params.ID.HostUUID == "" && params.ID.Role != types.RoleBot {
+			hostID, err := hostid.Generate(ctx, params.JoinMethod)
+			if err != nil {
+				return nil, trace.Wrap(err, "generating host ID")
+			}
+			slog.InfoContext(ctx, "Generated host UUID for legacy join attempt", "host_uuid", hostID)
+			params.ID.HostUUID = hostID
+		}
+		result, err := LegacyJoin(ctx, params)
+		if err != nil {
+			return nil, trace.Wrap(&LegacyJoinError{err})
+		}
+		return result, nil
 	}
+	return result, trace.Wrap(err)
+}
+
+// LegacyJoin is used to join the cluster via the legacy service with client-chosen host UUIDs.
+func LegacyJoin(ctx context.Context, params JoinParams) (*JoinResult, error) {
+	if params.ID.Role != types.RoleBot && params.ID.HostUUID == "" {
+		return nil, trace.BadParameter("HostUUID is required for LegacyJoin")
+	}
+	//nolint:staticcheck // SA1019 falling back to deprecated method for compatibility.
+	result, err := authjoin.Register(ctx, params)
 	return result, trace.Wrap(err)
 }
 
 func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if params.AuthClient != nil {
+		slog.InfoContext(ctx, "Attempting to join cluster with existing Auth client")
 		return joinViaAuthClient(ctx, params, params.AuthClient)
 	}
 	if !params.ProxyServer.IsEmpty() {
+		slog.InfoContext(ctx, "Attempting to join cluster via Proxy")
 		return joinViaProxy(ctx, params, params.ProxyServer.String())
 	}
+
 	// params.AuthServers could contain auth or proxy addresses, try both.
 	// params.CheckAndSetDefaults() asserts that this list is not empty when
 	// AuthClient and ProxyServer are both unset.
-	if authjoin.LooksLikeProxy(params.AuthServers) {
-		proxyAddr := params.AuthServers[0].String()
-		slog.InfoContext(ctx, "Attempting to join cluster, address looks like a Proxy", "addr", proxyAddr)
-		result, proxyJoinErr := joinViaProxy(ctx, params, proxyAddr)
-		if proxyJoinErr == nil {
-			return result, nil
-		}
-		slog.InfoContext(ctx, "Joining via proxy failed, will try to join via Auth", "error", proxyJoinErr)
-		result, authJoinErr := joinViaAuth(ctx, params)
-		return result, trace.Wrap(authJoinErr)
-	}
 	addr := params.AuthServers[0].String()
-	slog.InfoContext(ctx, "Attempting to join cluster, address looks like an Auth server", "addr", addr)
-	result, authJoinErr := joinViaAuth(ctx, params)
-	if authJoinErr == nil {
-		return result, nil
+	slog := slog.With("addr", addr)
+
+	type strategy struct {
+		name string
+		fn   func() (*JoinResult, error)
 	}
-	slog.InfoContext(ctx, "Joining via auth failed, will try to join via Proxy", "error", authJoinErr)
-	result, proxyJoinErr := joinViaProxy(ctx, params, addr)
-	return result, trace.Wrap(proxyJoinErr)
+	proxyStrategy := strategy{
+		name: "proxy",
+		fn: func() (*JoinResult, error) {
+			return joinViaProxy(ctx, params, addr)
+		},
+	}
+	authStrategy := strategy{
+		name: "auth",
+		fn: func() (*JoinResult, error) {
+			return joinViaAuth(ctx, params)
+		},
+	}
+	var strategies []strategy
+	if authjoin.LooksLikeProxy(params.AuthServers) {
+		slog.InfoContext(ctx, "Attempting to join cluster, address looks like a Proxy")
+		strategies = []strategy{proxyStrategy, authStrategy}
+	} else {
+		slog.InfoContext(ctx, "Attempting to join cluster, address looks like an Auth server")
+		strategies = []strategy{authStrategy, proxyStrategy}
+	}
+
+	var errs []error
+	for i, strat := range strategies { //nolint:misspell // strat is an intentional abbreviation of strategy
+		result, err := strat.fn()
+		switch {
+		case err == nil:
+			return result, nil
+		case !isConnectionError(err):
+			// Non-connection errors are hard failures: return immediately.
+			return nil, trace.Wrap(err, "joining via %s", strat.name)
+		}
+		// Connection error: keep for aggregate and try next strategy (if any).
+		errs = append(errs, trace.Wrap(err, "joining via %s", strat.name))
+		if i+1 < len(strategies) {
+			slog.InfoContext(ctx, "Failed to join cluster with a connection error, will try next method",
+				"method", strat.name, "next_method", strategies[i+1].name)
+		}
+	}
+	return nil, trace.NewAggregate(errs...)
 }
 
 func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*JoinResult, error) {
@@ -100,7 +170,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, &connectionError{trace.Wrap(err, "building proxy client")}
 	}
 	defer conn.Close()
 	return joinWithClient(ctx, params, joinv1.NewClientFromConn(conn))
@@ -109,7 +179,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 func joinViaAuth(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	authClient, err := authjoin.NewAuthClient(ctx, params)
 	if err != nil {
-		return nil, trace.Wrap(err, "building auth client")
+		return nil, &connectionError{trace.Wrap(err, "building auth client")}
 	}
 	defer authClient.Close()
 	return joinViaAuthClient(ctx, params, authClient)
@@ -121,12 +191,16 @@ func joinViaAuthClient(ctx context.Context, params JoinParams, authClient authjo
 
 func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Client) (*JoinResult, error) {
 	// Clients may specify the join method or not, to let the server choose the
-	// method based on the provsion token.
+	// method based on the provision token.
 	var joinMethodPtr *string
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken:
+	case types.JoinMethodToken,
+		types.JoinMethodBoundKeypair,
+		types.JoinMethodIAM,
+		types.JoinMethodEC2,
+		types.JoinMethodEnv0:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -139,7 +213,10 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer cancel()
 	stream, err := client.Join(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Connection errors are usually delayed until the first request is
+		// attempted, wrap with a connectionError here to allow a fallback to
+		// the legacy join method.
+		return nil, &connectionError{trace.Wrap(err, "initiating join stream")}
 	}
 	defer stream.CloseSend()
 
@@ -160,7 +237,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	}
 
 	// Generate keys based on the signature algorithm suite from the ServerInit message.
-	signer, publicKeys, err := generateKeys(ctx, serverInit.SignatureAlgorithmSuite)
+	signer, publicKeys, err := GenerateKeys(ctx, serverInit.SignatureAlgorithmSuite)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,14 +278,36 @@ func joinWithMethod(
 	clientParams messages.ClientParams,
 	method string,
 ) (messages.Response, error) {
+	var err error
+
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodIAM:
+		return iamJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodEC2:
+		return ec2Join(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodEnv0:
+		// Tests may specify their own IDToken, so only overwrite it when empty.
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = env0.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
-		return nil, trace.NotImplemented("server selected join method %v which is not supported by this client", method)
+		sendGivingUpErr := stream.Send(&messages.GivingUp{
+			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
+			Msg:    "join method " + method + " is not supported by this client",
+		})
+		return nil, trace.NewAggregate(
+			trace.NotImplemented("server selected join method %v which is not supported by this client", method),
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 }
 
@@ -223,7 +322,7 @@ func tokenJoin(
 	// client->server Tokeninit
 	// client<-server Result
 	//
-	// At this point the ServerInit messages has already been received, all
+	// At this point the ServerInit message has already been received, all
 	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,
@@ -312,7 +411,9 @@ func pemEncodeTLSCert(rawCert []byte) []byte {
 	})
 }
 
-func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (crypto.Signer, *messages.PublicKeys, error) {
+// GenerateKeys generates host keys appropriate for a cluster join request
+// according to the cluster's configured signature algorithm suite.
+func GenerateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (crypto.Signer, *messages.PublicKeys, error) {
 	signer, err := cryptosuites.GenerateKey(
 		ctx,
 		cryptosuites.StaticAlgorithmSuite(suite),
@@ -333,4 +434,42 @@ func generateKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (cry
 		PublicTLSKey: tlsPub,
 		PublicSSHKey: sshPub.Marshal(),
 	}, nil
+}
+
+type connectionError struct {
+	wrapped error
+}
+
+func (e *connectionError) Error() string {
+	return e.wrapped.Error()
+}
+
+func (e *connectionError) Unwrap() error {
+	return e.wrapped
+}
+
+func isConnectionError(err error) bool {
+	var ce *connectionError
+	if errors.As(err, &ce) {
+		return true
+	}
+	// It's possible to hit a gRPC status error like this when reading the
+	// first response from the stream if connecting in insecure mode to a proxy
+	// address provided as an auth address.
+	statusErr, ok := status.FromError(err)
+	return ok && strings.Contains(statusErr.Message(), "unexpected HTTP status code")
+}
+
+// LegacyJoinError is returned when the join attempt failed while attempting to
+// join via the legacy join service.
+type LegacyJoinError struct {
+	wrapped error
+}
+
+func (e *LegacyJoinError) Error() string {
+	return e.wrapped.Error()
+}
+
+func (e *LegacyJoinError) Unwrap() error {
+	return e.wrapped
 }

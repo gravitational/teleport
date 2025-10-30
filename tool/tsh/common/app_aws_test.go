@@ -254,7 +254,7 @@ func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
 	awsConfigContents, err := os.ReadFile(awsConfigFile)
 	require.NoError(t, err)
 
-	expectedProfileConfig := `; Do not edit. Section managed by Teleport. Generated for accessing aws-profile
+	expectedProfileConfig := `; Do not edit. Section managed by Teleport.
 [profile aws-profile]
 credential_process=tsh apps config --format aws-credential-process aws-profile
 `

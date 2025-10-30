@@ -20,7 +20,6 @@ package trustv1
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -85,6 +84,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
 	}
@@ -154,52 +155,48 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	var scopedAuthCtx *authz.ScopedContext
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		if !errors.Is(err, authz.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-
-		if s.scopedAuthorizer == nil {
-			return nil, trace.AccessDenied("scoped authorization is not configured")
-		}
-
-		scopedAuthCtx, err = s.scopedAuthorizer.AuthorizeScoped(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
 
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
+	// for standard reads we do not enforce scope pinning. this ensures that CAs are readable for
+	// all scoped identities regardless of their current scope pinning. this pattern should not
+	// be used for any checks save essential global configuration reads that are necessary for basic
+	// teleport functionality.
+	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
 
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
 
-		if scopedAuthCtx != nil {
-			return nil, trace.AccessDenied("scoped identity cannot read CA secrets (admin action)")
-		}
+		// for queries that include secrets we must enforce standard scope pinning rules.
+		// NOTE: technically we have no plans to introduce scoped CA secrets. as of the time of writing,
+		// attempts to read CA secrets by scoped identities are always denied by virtue of the scoped
+		// role verb limits enforced in scopes/access. this, however, would be the correct pattern should
+		// we choose to introduce scoped CA secrets in the future.
+		decisionFn = authCtx.CheckerContext.Decision
 
-		// Require admin MFA to read secrets.
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
+		// Require admin MFA to read secrets (admin MFA is currently only supported for unscoped identities).
+		if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+			if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.AccessDenied("cannot perform admin action %s:%s as scoped identity", types.KindCertAuthority, types.VerbRead)
 		}
 	}
 
-	if scopedAuthCtx != nil {
-		_, err := services.DoScopedDecision[struct{}](
-			scopedAuthCtx.CheckerContext.RiskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
-			func(checker *services.ScopedAccessChecker) (struct{}, error) {
-				return struct{}{}, checker.CheckAccessToRules(types.KindCertAuthority, verbs...)
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// build rule context for where-clause evaluation once to avoid re-creation
+	// on each decision invocation.
+	ruleCtx := authCtx.RuleContext()
+
+	// perform access-control decision. all cert authorities can be considered as being "root" resources from
+	// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	cas, err := s.cache.GetCertAuthorities(ctx, types.CertAuthType(req.Type), req.IncludeKey)

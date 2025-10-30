@@ -73,20 +73,32 @@ export function checkClientCompatibility(
   const client = parse(clientVersion);
   const cluster = parse(clusterVersion);
   if (!client || !cluster) return null;
+  if (client.compare(cluster) === 0) {
+    return {
+      isCompatible: true,
+      reason: 'match',
+    };
+  }
+  if (client.compare(cluster) === 1) {
+    return {
+      isCompatible: false,
+      reason: 'too-new',
+    };
+  }
   if (client.major === cluster.major) {
     return {
       isCompatible: true,
-      reason: client.compare(cluster) === -1 ? 'upgrade-minor' : 'match',
+      reason: 'upgrade-minor',
     };
   }
-  if (Math.abs(client.major - cluster.major) == 1) {
+  if (client.major === cluster.major - 1) {
     return {
       isCompatible: true,
-      reason: client.major > cluster.major ? 'match' : 'upgrade-major',
+      reason: 'upgrade-major',
     };
   }
   return {
     isCompatible: false,
-    reason: client.major > cluster.major ? 'too-new' : 'too-old',
+    reason: 'too-old',
   };
 }

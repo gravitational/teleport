@@ -64,7 +64,16 @@ export function Instance(props: {
     <Container
       $isSelectable={!!isSelectable}
       $isSelected={!!isSelected}
-      onClick={() => onSelected?.()}
+      onClick={onSelected}
+      onKeyUp={
+        onSelected
+          ? event => {
+              if (event.key === 'Enter') {
+                onSelected();
+              }
+            }
+          : undefined
+      }
       role="listitem"
       tabIndex={0}
       aria-label={`${botName}/${id}`}
@@ -148,7 +157,8 @@ const Container = styled(Flex)<{
       ? css`
           border-left: ${p.theme.space[1]}px solid
             ${p.theme.colors.interactive.solid.primary.default};
-          background-color: ${p.theme.colors.interactive.tonal.neutral[0]};
+          padding-left: ${props => props.theme.space[3] - p.theme.space[1]}px;
+          background-color: ${p.theme.colors.levels.sunken};
         `
       : ''}
 
@@ -158,13 +168,17 @@ const Container = styled(Flex)<{
           cursor: pointer;
 
           &:hover {
-            background-color: ${p.theme.colors.interactive.tonal.neutral[0]};
+            background-color: ${p.theme.colors.levels.sunken};
           }
-          &:active {
-            background-color: ${p.theme.colors.interactive.tonal.neutral[1]};
+          &:active,
+          &:focus {
+            outline: none;
+            background-color: ${p.theme.colors.levels.deep};
           }
         `
       : ''}
+
+  transition: background-color 200ms linear;
 `;
 
 const TopRow = styled(Flex)`
@@ -242,8 +256,7 @@ function Version(props: { version: string | undefined }) {
         break;
       case 'too-new':
         Wrapper = DangerOutlined;
-        tooltip =
-          'Version is one or more major versions ahead, and is not compatible.';
+        tooltip = 'Version is ahead, and is not compatible.';
         break;
     }
   }

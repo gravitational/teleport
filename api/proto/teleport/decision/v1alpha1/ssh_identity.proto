@@ -164,6 +164,9 @@ message SSHIdentity {
   // ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
   // set, the Roles field must not be set.
   teleport.scopes.v1.Pin scope_pin = 35;
+
+  // The scope associated with a host identity.
+  string agent_scope = 36;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

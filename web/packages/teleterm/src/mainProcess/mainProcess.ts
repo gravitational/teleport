@@ -32,6 +32,7 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
+import { enableMapSet, enablePatches } from 'immer';
 
 import { AbortError } from 'shared/utils/error';
 
@@ -77,6 +78,8 @@ import {
 } from '../services/config';
 import { downloadAgent, FileDownloader, verifyAgent } from './agentDownloader';
 import { AgentRunner } from './agentRunner';
+import { AwaitableSender } from './awaitableSender';
+import { ClusterStore } from './clusterStore';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
@@ -127,8 +130,18 @@ export default class MainProcess {
     autoUpdateService: AutoUpdateClient;
   }>;
   private readonly appUpdater: AppUpdater;
+  public readonly clusterStore: ClusterStore;
 
-  private constructor(opts: Options) {
+  /**
+   * Starts necessary child processes such as tsh daemon and the shared process. It also sets
+   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
+   * servers.
+   *
+   * Might throw an error if spawning a child process fails, see initTshd for more details.
+   */
+  constructor(opts: Options) {
+    enablePatches();
+    enableMapSet();
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;
@@ -150,6 +163,13 @@ export default class MainProcess {
         );
       }
     );
+
+    this.updateAboutPanelIfNeeded();
+    this.setAppMenu();
+    this.initTshd();
+    this.initSharedProcess();
+    this.initResolvingChildProcessAddresses();
+    this.initIpc();
 
     const getClusterVersions = async () => {
       const { autoUpdateService } = await this.getTshdClients();
@@ -177,19 +197,10 @@ export default class MainProcess {
       },
       process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
     );
-  }
-
-  /**
-   * create starts necessary child processes such as tsh daemon and the shared process. It also sets
-   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
-   * servers.
-   *
-   * create might throw an error if spawning a child process fails, see initTshd for more details.
-   */
-  static create(opts: Options) {
-    const instance = new MainProcess(opts);
-    instance.init();
-    return instance;
+    this.clusterStore = new ClusterStore(
+      () => this.getTshdClients().then(c => c.terminalService),
+      this.windowsManager
+    );
   }
 
   async dispose(): Promise<void> {
@@ -209,16 +220,13 @@ export default class MainProcess {
     ]);
   }
 
-  private init() {
-    this.updateAboutPanelIfNeeded();
-    this.setAppMenu();
-    this.initTshd();
-    this.initSharedProcess();
-    this.initResolvingChildProcessAddresses();
-    this.initIpc();
-  }
-
-  async getTshdClients(): Promise<{
+  /**
+   * Returns the tshd client.
+   *
+   * If the client setup fails, the resulting error will propagate
+   * to callers of this method.
+   */
+  private async getTshdClients(): Promise<{
     terminalService: TshdClient;
     autoUpdateService: AutoUpdateClient;
   }> {
@@ -334,6 +342,16 @@ export default class MainProcess {
     );
   }
 
+  /**
+   * Initializes the resolution of child process addresses.
+   *
+   * Both the internal tshd client (in the main process) and the one in the renderer
+   * depend on this initialization promise.
+   *
+   * If the promise rejects, the error will propagate to the renderer via the IPC
+   * handler (causing the renderer to stop initialization and show the error)
+   * and also surface when attempting to access `getTshdClients()`.
+   */
   private initResolvingChildProcessAddresses(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(
@@ -375,33 +393,6 @@ export default class MainProcess {
     ipcMain.handle('main-process-get-resolved-child-process-addresses', () => {
       return this.resolvedChildProcessAddresses;
     });
-
-    // the handler can remove a single kube config file or entire directory for given cluster
-    ipcMain.handle(
-      'main-process-remove-kube-config',
-      (
-        _,
-        options: {
-          relativePath: string;
-          isDirectory?: boolean;
-        }
-      ) => {
-        const { kubeConfigsDir } = this.settings;
-        const filePath = path.join(kubeConfigsDir, options.relativePath);
-        const isOutOfRoot = filePath.indexOf(kubeConfigsDir) !== 0;
-
-        if (isOutOfRoot) {
-          return Promise.reject('Invalid path');
-        }
-        return fs
-          .rm(filePath, { recursive: !!options.isDirectory })
-          .catch(error => {
-            if (error.code !== 'ENOENT') {
-              throw error;
-            }
-          });
-      }
-    );
 
     ipcMain.handle('main-process-show-file-save-dialog', (_, filePath) =>
       dialog.showSaveDialog({
@@ -671,16 +662,6 @@ export default class MainProcess {
       ) => this.appUpdater.changeManagingCluster(args.clusterUri)
     );
 
-    ipcMain.handle(
-      MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
-      (
-        event,
-        args: {
-          clusterUri: RootClusterUri;
-        }
-      ) => this.appUpdater.maybeRemoveManagingCluster(args.clusterUri)
-    );
-
     ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () =>
       this.appUpdater.download()
     );
@@ -692,6 +673,33 @@ export default class MainProcess {
     ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
       this.appUpdater.quitAndInstall()
     );
+
+    ipcMain.handle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>
+      this.clusterStore.add(proxyAddress)
+    );
+
+    ipcMain.handle(MainProcessIpc.SyncRootClusters, () =>
+      this.clusterStore.syncRootClusters()
+    );
+
+    ipcMain.handle(MainProcessIpc.SyncCluster, (_, args) =>
+      this.clusterStore.sync(args.clusterUri)
+    );
+
+    ipcMain.handle(MainProcessIpc.Logout, async (_, args) => {
+      // This function checks for updates, do not wait for it.
+      this.appUpdater
+        .maybeRemoveManagingCluster(args.clusterUri)
+        .catch(error => {
+          this.logger.error('Failed to remove managing cluster', error);
+        });
+      await this.clusterStore.logoutAndRemove(args.clusterUri);
+    });
+
+    ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
+      const port = ev.ports[0];
+      this.clusterStore.registerSender(new AwaitableSender(port));
+    });
 
     subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent(
