@@ -378,8 +378,5 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 		default:
 			t.tlb.mu.Unlock()
 		}
-	default:
-		t.log.InfoContext(context.Background(), "UpdateState called for invalid balancer")
-		t.tlb.mu.Unlock()
 	}
 }
