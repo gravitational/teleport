@@ -86,10 +86,13 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetAzureDevopsIDTokenValidator(idTokenValidator)
-		return nil
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		MutateAuth: func(server *auth.Server) error {
+			server.SetAzureDevopsIDTokenValidator(idTokenValidator)
+			return nil
+		},
 	})
 	require.NoError(t, err)
 	auth := p.a

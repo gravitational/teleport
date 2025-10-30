@@ -203,7 +203,7 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer peerServer.Close()
 
-	transportTLSConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	transportTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
