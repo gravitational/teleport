@@ -36,7 +36,9 @@ service ScopedAccessService {
   // UpdateScopedRole updates a scoped role.
   rpc UpdateScopedRole(UpdateScopedRoleRequest) returns (UpdateScopedRoleResponse);
 
-  // DeleteScopedRole deletes a scoped role.
+  // DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
+  // conditional. Scoped roles cannot be deleted if referenced by any existing assignment
+  // and deletes may fail due to concurrent modification.
   rpc DeleteScopedRole(DeleteScopedRoleRequest) returns (DeleteScopedRoleResponse);
 
   // GetScopedRoleAssignment gets a scoped role assignment by name.
