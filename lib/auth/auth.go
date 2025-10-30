@@ -136,7 +136,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/terraformcloud"
@@ -7674,25 +7673,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
-		autoCreate, err := checker.DatabaseAutoUserMode(db)
-		switch {
-		case errors.Is(err, services.ErrSessionMFARequired):
-			noMFAAccessErr = err
-		case err != nil:
-			return nil, trace.Wrap(err)
-		default:
-			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-				Database:       db,
-				DatabaseUser:   t.Database.Username,
-				DatabaseName:   t.Database.GetDatabase(),
-				AutoCreateUser: autoCreate.IsEnabled(),
-			})
-			noMFAAccessErr = checker.CheckAccess(
-				db,
-				services.AccessState{},
-				dbRoleMatchers...,
-			)
-		}
+		// Note that we are not checking RoleMatchers for db user/name/roles.
+		// Per-session MFA requirement is only tested on the resource itself by
+		// db_labels/db_labels_expression, so db user/name/roles are irrelevant.
+		// Those will be enforced at protocol level on the database service.
+		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
