@@ -25,7 +25,7 @@ db_service:
     # 'memorydb' - discovers and registers Amazon MemoryDB databases.
     # 'opensearch' - discovers and registers Amazon OpenSearch databases.
     # 'docdb' - discovers and registers Amazon DocumentDB databases.
-  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch"]
+  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch", "docdb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # Optional AWS role that the Database Service will assume to discover
