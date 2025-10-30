@@ -20,7 +20,10 @@ package proxy
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -38,6 +41,7 @@ import (
 type retryableTransport struct {
 	inner http.RoundTripper
 	log   *slog.Logger
+	ctx   context.Context
 }
 
 // RoundTrip implements http.RoundTripper and makes requests retryable.
@@ -60,9 +64,9 @@ func (t *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error
 	if cleanup != nil {
 		defer func() {
 			// Cleanup may delete a temp file after roundtrip.
-			if err := cleanup(); err != nil && !os.IsNotExist(err) {
+			if err := cleanup(); err != nil && errors.Is(err, fs.ErrNotExist) {
 				if t.log != nil {
-					t.log.Warn("Unable to cleanup temp file", "error", err)
+					t.log.WarnContext(t.ctx, "Unable to cleanup temp file", "error", err)
 				}
 			}
 		}()
@@ -115,10 +119,10 @@ func (t *retryableTransport) makeRetryableWithDisk(req *http.Request) (func() er
 		Reader: tee,
 		onClose: func() {
 			if err := tee.Close(); err != nil {
-				t.log.Warn("Unable to close original request body", "error", err)
+				t.log.WarnContext(t.ctx, "Unable to close original request body", "error", err)
 			}
 			if err := tmpFile.Close(); err != nil {
-				t.log.Warn("Unable to close temp file", "error", err)
+				t.log.WarnContext(t.ctx, "Unable to close temp file", "error", err)
 			}
 		},
 	}
