@@ -170,7 +170,10 @@ will be used to configure the heartbeat interval used by Teleport auth and proxy
 respectively. We can use these to configure more frequent Proxy and Auth heartbeats
 to reduce the time to detect unhealthy instances.
 
-This will decrease the time it takes to detect an unhealthy Proxy or Auth server.
+These values will be used by proxy and auth services in place of the `ServerAnnounceTTL`
+for configuring the services heartbeat. So if you configure this to be `1m` the 
+services resource will be set to expire 1 minute from the time of the last heartbeat
+and the heartbeat will be sent at an interval of `1 minute/2 + utils.RandomDuration(1 minute/10)`.
 
 We will also add a `TTL` field to Proxy discovery requests. Agents can
 than use this field in favor of the `DefaultProxyExpiry` when its present.
