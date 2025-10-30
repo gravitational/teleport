@@ -400,3 +400,31 @@ func NewLease(item Item) *Lease {
 		Revision: item.Revision,
 	}
 }
+
+// PutBatcher is an optional interface that backends can implement
+// to support batched PutBatch operations for improved performance when writing
+// multiple items at once.
+type PutBatcher interface {
+	// PutBatch puts multiple items into the backend in a single batch operation.
+	// Returns a revision item for each item in the same order.
+	PutBatch(context.Context, []Item) ([]string, error)
+}
+
+// PutBatch is an implementation of PutBatch that by default calls Put for each item.
+// Backends can overwrite this behavior providing optimized PutBatch implementation.
+func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
+	if v, ok := bk.(PutBatcher); ok {
+		revs, err := v.PutBatch(ctx, items)
+		return revs, trace.Wrap(err)
+	}
+
+	revisions := make([]string, 0, len(items))
+	for _, item := range items {
+		rev, err := bk.Put(ctx, item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		revisions = append(revisions, rev.Revision)
+	}
+	return revisions, nil
+}
