@@ -226,8 +226,12 @@ function detectChanges(
 }
 
 /**
- * Creates a cluster containing only the properties that can be read from the profile.
+ * Creates a cluster containing only the properties that can be read from
+ * the profile from disk.
  * All other properties are initialized with empty values.
+ *
+ * Listing all fields ensures TypeScript will force us to handle new fields
+ * by specifying whether they come from the profile or the server.
  */
 function makeClusterWithOnlyProfileProperties(a: Cluster): Cluster {
   return {
