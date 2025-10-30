@@ -1042,6 +1042,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 
 	// Create and start a process with only the Proxy service enabled using the proxy-only token.
 	process := newStartedProcess(proxyToken.GetName(), false)
+
 	// Sanity check the Instance identity looks as expected with only the Proxy system role.
 	connector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
 	require.NoError(t, err)
@@ -1049,7 +1050,9 @@ func TestInstanceSelfRepair(t *testing.T) {
 	id := connector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, id.ID.Role)
 	require.Equal(t, []string{types.RoleProxy.String()}, id.SystemRoles)
-	// Close the process.
+	originalHostID := id.ID.HostID()
+
+	// Close the original process.
 	require.NoError(t, process.Close())
 	require.NoError(t, process.Wait())
 
@@ -1057,6 +1060,7 @@ func TestInstanceSelfRepair(t *testing.T) {
 	// the previous Instance and Proxy certs, but enable the SSH service and
 	// provide the token that allows only role Node.
 	process = newStartedProcess(sshToken.GetName(), true)
+
 	// Get the new Instance identity and make sure it includes both the Proxy
 	// and Node system roles.
 	instanceConnector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
@@ -1065,21 +1069,24 @@ func TestInstanceSelfRepair(t *testing.T) {
 	instanceID := instanceConnector.clientState.Load().identity
 	require.Equal(t, types.RoleInstance, instanceID.ID.Role)
 	assert.ElementsMatch(t, []string{types.RoleProxy.String(), types.RoleNode.String()}, instanceID.SystemRoles)
+	// Make sure the host ID has not changed.
+	assert.Equal(t, instanceID.ID.HostID(), originalHostID)
+
 	// Make sure the SSH identity becomes available.
 	sshConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
 	require.NoError(t, err)
 	require.NotNil(t, sshConnector)
 	sshID := sshConnector.clientState.Load().identity
 	require.Equal(t, types.RoleNode, sshID.ID.Role)
+	// Make sure the host ID matches the original instance host ID.
+	assert.Equal(t, sshID.ID.HostID(), originalHostID)
+	// Make sure the SSH cert has all expected principals.
+	expectSSHPrincipals := expectedSSHPrincipals(sshID.ID.HostID(), hostName, clusterName)
+	require.ElementsMatch(t, expectSSHPrincipals, sshID.Cert.ValidPrincipals)
+
 	// Close the process to clean up.
 	require.NoError(t, process.Close())
 	require.NoError(t, process.Wait())
-
-	nodeConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
-	require.NoError(t, err)
-	nodeID := nodeConnector.clientState.Load().identity
-	expectSSHPrincipals := expectedSSHPrincipals(nodeID.ID.HostID(), hostName, clusterName)
-	require.ElementsMatch(t, expectSSHPrincipals, nodeID.Cert.ValidPrincipals)
 }
 
 func TestSSHPrincipals(t *testing.T) {
@@ -1228,11 +1235,12 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 
 func TestProxyGRPCServers(t *testing.T) {
 	hostID := uuid.NewString()
+	clock := clockwork.NewFakeClock()
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now()),
+		Clock: clock,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1287,7 +1295,9 @@ func TestProxyGRPCServers(t *testing.T) {
 					Enabled: true,
 				},
 			},
+			Clock: clock,
 		},
+		Clock:  clock,
 		logger: logtest.NewLogger(),
 	}
 
@@ -1381,7 +1391,7 @@ func TestProxyGRPCServers(t *testing.T) {
 					return tlsCert, nil
 				}
 				tlsConfig.InsecureSkipVerify = true
-				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
+				tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, testConnector.ClientGetPool)
 				return credentials.NewTLS(tlsConfig)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
@@ -1392,7 +1402,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 			t.Cleanup(cancel)
 			_, err := grpc.DialContext(
 				ctx,

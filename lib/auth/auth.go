@@ -117,8 +117,10 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/env0"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -246,6 +248,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			ClusterName:          cfg.ClusterName,
 			AuthPreferenceGetter: cfg.ClusterConfiguration,
 			FIPS:                 cfg.FIPS,
+			Clock:                cfg.Clock,
 		}
 		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -615,7 +618,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		UserTasks:                       cfg.UserTasks,
 		DiscoveryConfigs:                cfg.DiscoveryConfigs,
 		Okta:                            cfg.Okta,
-		AccessLists:                     cfg.AccessLists,
+		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
@@ -804,6 +807,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if as.env0IDTokenValidator == nil {
+		validator, err := env0.NewIDTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.env0IDTokenValidator = validator
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
@@ -879,7 +891,7 @@ type Services struct {
 	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
-	services.AccessLists
+	services.AccessListsInternal
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
@@ -1289,6 +1301,10 @@ type Server struct {
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
 	createBoundKeypairValidator joinboundkeypair.CreateBoundKeypairValidator
+
+	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
+	// override the implementation used in tests.
+	env0IDTokenValidator join.Env0TokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -2301,16 +2317,7 @@ func (a *Server) Close() error {
 }
 
 func (a *Server) GetClock() clockwork.Clock {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
 	return a.clock
-}
-
-// SetClock sets clock, used in tests
-func (a *Server) SetClock(clock clockwork.Clock) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.clock = clock
 }
 
 // SetBcryptCost sets bcryptCostOverride, used in tests
@@ -5113,7 +5120,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5247,6 +5254,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 			ClusterName: clusterName.GetClusterName(),
 			SystemRole:  req.Role,
 			Principals:  req.AdditionalPrincipals,
+			AgentScope:  scope,
 		},
 	})
 	if err != nil {
@@ -5268,6 +5276,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
+		AgentScope:      scope,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5300,6 +5309,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &proto.Certs{
 		SSH:        hostSSHCert,
 		TLS:        hostTLSCert,
@@ -5724,7 +5734,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListsInternal, promotions)
 
 		if req.GetRequestKind().IsLongTerm() {
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)

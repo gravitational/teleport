@@ -802,7 +802,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		if err := s.watchWebSessionsOnce(ctx, linear.Reset); err != nil && !errors.Is(err, context.Canceled) {
 			const msg = "" +
 				"sessionCache: WebSession watcher aborted, re-connecting. " +
-				"This may have an impact in device trust web sessions."
+				"This may have an impact on Device Trust web sessions."
 			s.log.WarnContext(ctx, msg, "error", err)
 		}
 	}

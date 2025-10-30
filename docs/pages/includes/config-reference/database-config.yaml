@@ -117,6 +117,13 @@ db_service:
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
 
+    # Oracle only options.
+    oracle:
+      # Randomize host order per connection attempt to spread load. Optional.
+      shuffle_hostnames: true
+      # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
+      retry_count: 5            
+
     # Optional admin user configuration for Automatic User Provisioning.
     admin_user:
       # Name of the admin user.
