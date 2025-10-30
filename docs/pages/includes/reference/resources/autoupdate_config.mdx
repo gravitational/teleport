@@ -55,6 +55,11 @@ spec:
           # Default: 0
           wait_hours: 24
 
+          # canary_count specifies the number of agents to update and verify before the rest
+          # of the group. Only valid for the halt-on-error schedule.
+          # Default: 0
+          canary_count: 5
+
   tools:
     # mode allows users to enable or disable client tool updates at the
     # cluster level. Disable client tool automatic updates only if self-managed
