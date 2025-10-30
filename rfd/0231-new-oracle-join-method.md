@@ -176,15 +176,9 @@ The private key is made available via IMDS at `http://169.254.169.254/opc/v2/ide
 It is a 2048-bit RSA key.
 The instance retrieves the key from the IMDS and generates an RSA-PSS
 signature over the challenge, using SHA-256 as the message digest algorithm.
-For future compatibility we will also support ECDSA and Ed25519 signatures if
-key.pem happens to be an ECDSA or ED25519 private key.
 
 When verifying the signature, the Auth service will require the instance public
-key is one of:
-
-* an RSA key of size >=2048
-* an ECDSA key on curve P-256, P-384, or P-521
-* an Ed25519 key
+key is an RSA key of size >=2048 and <=4096 bits.
 
 The Auth service will verify the challenge signature within the context of the
 streaming RPC, which has a number of implicit benefits:
