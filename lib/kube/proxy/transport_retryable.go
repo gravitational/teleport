@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -41,7 +40,6 @@ import (
 type retryableTransport struct {
 	inner http.RoundTripper
 	log   *slog.Logger
-	ctx   context.Context
 }
 
 // RoundTrip implements http.RoundTripper and makes requests retryable.
@@ -66,7 +64,7 @@ func (t *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error
 			// Cleanup may delete a temp file after roundtrip.
 			if err := cleanup(); err != nil && errors.Is(err, fs.ErrNotExist) {
 				if t.log != nil {
-					t.log.WarnContext(t.ctx, "Unable to cleanup temp file", "error", err)
+					t.log.WarnContext(req.Context(), "Unable to cleanup temp file", "error", err)
 				}
 			}
 		}()
@@ -77,10 +75,6 @@ func (t *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 // makeRetryable buffers the request body to enable retry on HTTP/2 GOAWAY.
 func (t *retryableTransport) makeRetryable(req *http.Request) (func() error, error) {
-	// Skip if the request is already retryable
-	if req.Body == nil || req.GetBody != nil {
-		return nil, nil
-	}
 
 	// Limit the body buffer size to a large 5X for most cases.
 	// ConfigMaps and Secrets have 1MB limits with kube etcd.
@@ -106,9 +100,8 @@ func (t *retryableTransport) makeRetryableWithMemory(req *http.Request) error {
 	return nil
 }
 
-const tmpFilePattern = "teleport-kube-proxy-*.tmp"
-
 func (t *retryableTransport) makeRetryableWithDisk(req *http.Request) (func() error, error) {
+	const tmpFilePattern = "teleport-kube-proxy-*.tmp"
 	tmpFile, err := os.CreateTemp("", tmpFilePattern)
 	if err != nil {
 		return nil, nil
@@ -119,10 +112,10 @@ func (t *retryableTransport) makeRetryableWithDisk(req *http.Request) (func() er
 		Reader: tee,
 		onClose: func() {
 			if err := tee.Close(); err != nil {
-				t.log.WarnContext(t.ctx, "Unable to close original request body", "error", err)
+				t.log.WarnContext(req.Context(), "Unable to close original request body", "error", err)
 			}
 			if err := tmpFile.Close(); err != nil {
-				t.log.WarnContext(t.ctx, "Unable to close temp file", "error", err)
+				t.log.WarnContext(req.Context(), "Unable to close temp file", "error", err)
 			}
 		},
 	}
