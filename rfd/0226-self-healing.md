@@ -227,7 +227,7 @@ or there are excess connections to the desired Proxy set.
 
 > [!NOTE]
 > Periodic Auth Reconnects was discussed but no decision was made. We will revisit
-> this after implementing [Auth Reconnects](#auth-reconnects) for failover purposes described above. **
+> this after implementing [Auth Reconnects](#auth-reconnects) for failover purposes described above.
 
 The custom load balancer policy described in [Auth Reconnects](#auth-reconnects)
 could be extended to support periodic auth reconnects. This would help to balance
@@ -249,7 +249,7 @@ graceful than the option described above.
 
 > [!NOTE]
 > Periodic tunnel teconnects was discussed but no decision was made. We will revisit
-> this after implementing [Proxy Reconnects](#proxy-reconnects) as described above. **
+> this after implementing [Proxy Reconnects](#proxy-reconnects) as described above.
 
 Reconnecting reversetunnels during a failure can lead to imbalanced and suboptimal
 routing that should be addressed when the Teleport cluster recovers. To address
