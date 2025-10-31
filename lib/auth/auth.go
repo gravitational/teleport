@@ -119,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/ec2join"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -767,7 +768,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 	if as.k8sOIDCValidator == nil {
-		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+		validator, err := kubetoken.NewKubernetesOIDCTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.k8sOIDCValidator = validator
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -1258,7 +1264,7 @@ type Server struct {
 	k8sJWKSValidator k8sJWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
-	k8sOIDCValidator k8sOIDCValidator
+	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -1292,6 +1298,10 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// ec2ClientForEC2JoinMethod overrides the default client used for making
+	// requests to the AWS ec2 service during EC2 join attempt verification.
+	ec2ClientForEC2JoinMethod ec2join.EC2Client
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool
@@ -2656,7 +2666,12 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
-	return services.GetUserOrLoginState(ctx, a, username)
+	// use Services (real backend instead of cache) to make sure that the GetUserOrLoginState function
+	// return always the up-to-date user state.
+	// During Login webhooks evaluation the user state is created an upserted into backend where next Login steps
+	// fetches the state from store and relies to have the latest version.
+	// TODO(smallinsky): Get rid of sharing user state via backend and use the proper param forwarding instead.
+	return services.GetUserOrLoginState(ctx, a.Services, username)
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
@@ -5264,7 +5279,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	certRequest.DNSNames = append(certRequest.DNSNames, DefaultDNSNamesForRole(req.Role)...)
 	// Unlike additional principals, DNS Names is x509 specific and is limited
 	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
-	if (types.SystemRoles{req.Role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleWindowsDesktop) {
+	if (types.SystemRoles{req.Role}).IncludeAny(
+		types.RoleAuth,
+		types.RoleAdmin,
+		types.RoleProxy,
+		types.RoleRelay,
+		types.RoleKube,
+		types.RoleWindowsDesktop,
+	) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -5312,6 +5334,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			DatabaseCleanup:               true,
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
+			RelayServerHeartbeatsCleanup:  true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {

@@ -43,7 +43,7 @@ import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
-import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
+import { traitDescriptions } from 'shared/components/TraitsEditor/TraitsEditor';
 
 import {
   FeatureBox,
@@ -435,22 +435,6 @@ const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
-  aws_role_arns: 'List of allowed AWS role ARNS',
-  azure_identities: 'List of Azure identities',
-  db_names: 'List of allowed database names',
-  db_roles: 'List of allowed database roles',
-  db_users: 'List of allowed database users',
-  gcp_service_accounts: 'List of GCP service accounts',
-  kubernetes_groups: 'List of allowed Kubernetes groups',
-  kubernetes_users: 'List of allowed Kubernetes users',
-  logins: 'List of allowed logins',
-  windows_logins: 'List of allowed Windows logins',
-  host_user_gid: 'The group ID to use for auto-host-users',
-  host_user_uid: 'The user ID to use for auto-host-users',
-  github_orgs: 'List of allowed GitHub organizations for git command proxy',
-};
-
 function Trait(props: { traitName: string }) {
   const theme = useTheme();
 
@@ -538,7 +522,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
 
         {isSuccess ? (
           <>
-            {data.items.length ? (
+            {data.items?.length ? (
               <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))

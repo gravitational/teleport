@@ -1,0 +1,36 @@
+---
+title: JWT Authentication to MCP Server
+sidebar_position: 6
+description: How to use Teleport JWT to authenticate your MCP servers
+tags:
+- conceptual
+- mcp
+- zero-trust
+---
+
+(!docs/pages/includes/application-access/jwt-intro.mdx appType="MCP server" !)
+
+## Inject JWT
+
+(!docs/pages/includes/application-access/jwt-inject.mdx!)
+
+For example:
+
+```yaml
+- name: "my-mcp-server"
+  uri: mcp+http://localhost:4321
+  rewrite:
+    headers:
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+## Validate JWT
+
+(!docs/pages/includes/application-access/jwt-validate.mdx!)
+
+See the example Go program used to validate Teleport's JWT tokens on our
+[GitHub](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/mcp-servers/).
+
+## Troubleshooting
+
+(!docs/pages/includes/application-access/jwt-configure-claims.mdx appType="MCP server" appScheme="mcp+http" !)

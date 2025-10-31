@@ -22,11 +22,11 @@ We plan to release the following versions in the coming months:
 
 We continue to support the following major versions of Teleport:
 
-| Release | Release Date      | EOL            | Minimum `tsh` version |
-|---------|-------------------|----------------|-----------------------|
-| v18.x   | July 3, 2025      | August 2026    | v17.0.0               |
-| v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
-| v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
+| Release | Release Date      | EOL              | Minimum `tsh` version |
+|---------|-------------------|------------------|-----------------------|
+| v18.x   | July 3, 2025      | August 2027      | v17.0.0               |
+| v17.x   | November 16, 2024 | August 2026      | v16.0.0               |
+| v16.x   | June 14, 2024     | October 31 2025  | v15.0.0               |
 
 ### 18.3.0
 
@@ -37,7 +37,7 @@ Teleport's web UI will list all workload identity resources registered in the cl
 #### Relay Service
 
 Teleport will ship with a new relay service that acts as a lightweight proxy service,
-receiving connections from both SSH clients and agents. 
+receiving connections from both SSH clients and agents.
 
 The relay service can be used to avoid routing SSH connections through the broader Teleport
 control plane, providing the ability to optimize network flows in large or complex deployments.
@@ -49,11 +49,20 @@ discover the same EC2 instances without interfering with each other.
 
 #### Kubernetes Health Checks
 
-The Kubernetes service will perform regular health checks for registered Kubernetes clusters. 
+The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
 Health status will be reported in the Teleport web UI and reflected in kube_server resources.
 Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
 
+#### ElastiCache Serverless
+
+Teleport Database Access will support connecting to ElastiCache Serverless databases.
+
 ### 18.4.0
+
+#### Streamable-HTTP and SSE support for MCP Zero-Trust Access
+
+MCP Zero-Trust Access users will be able to secure and audit connections to MCP
+servers that use HTTP-based transport protocols in addition to stdio.
 
 #### Improved Bot Instances Dashboard
 
@@ -72,8 +81,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| October 20, 2025 | Teleport 18.3 will begin rollout on Cloud.                   |
-| October 20, 2025 | Teleport 18.3 agents will begin rollout to eligible tenants. |
+| October 20, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
+| October 20, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

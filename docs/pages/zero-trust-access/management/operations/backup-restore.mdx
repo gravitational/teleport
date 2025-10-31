@@ -130,10 +130,6 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
      # parallel is the amount of backend data cloned in parallel.
      # If a clone operation is taking too long consider increasing this value.
      parallel: 100
-     # force, if set to true, will continue cloning data to a destination
-     # regardless of whether data is already present. By default this is false
-     # to protect against overwriting the data of an existing Teleport cluster.
-     force: false
    ```
 
    This example clones backend data in Amazon DynamoDB to a SQLite database.
@@ -157,3 +153,39 @@ You can run the `teleport backend clone` command on an Auth Service instance
 without stopping your cluster. The command retrieves each item from the source
 backend and writes it to the destination backend. Any items created on the
 source backend after the initial retrieval will not be included in the clone.
+
+
+## Rollbacks
+
+Rollbacks can be performed without any backend corruption or data loss by leveraging
+`teleport backend clone` to create a copy of an existing backend. For example, prior
+to upgrading a cluster from Teleport v18 to v19 the following clone configuration can
+be used to make a full clone of the Teleport backend state to a different key range of
+the same etcd cluster using the `prefix` field. See the etcd storage backend
+[configuration reference](../../../reference/deployment/backends.mdx#etcd) for an explanation:
+
+```yaml
+src:
+  type: etcd
+  prefix: teleport
+  peers: [https://peer.example.com:2379]
+dst:
+  type: etcd
+  prefix: teleport-v18-backup
+  peers: [https://peer.example.com:2379]
+parallel: 100
+```
+
+Teleport major releases may alter the backend state in a way that
+previous versions cannot reconcile. If the upgrade to v19 fails
+and requires a rollback, this can be achieved by editing the
+Auth Service configuration to point it at the prefix containing
+the v18 backup.
+
+```yaml
+teleport:
+  storage:
+    type: etcd
+    prefix: teleport-v18-backup
+    peers: [https://peer.example.com:2379]
+```

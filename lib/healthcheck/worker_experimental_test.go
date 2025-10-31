@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -78,19 +79,25 @@ func TestGetTargetHealth(t *testing.T) {
 				worker, err := newWorker(ctx, workerConfig{
 					HealthCheckCfg: test.healthCheckConfig,
 					Target: Target{
+						HealthChecker: &TargetDialer{
+							Resolver: func(ctx context.Context) ([]string, error) {
+								return []string{"localhost:1234"}, nil
+							},
+							dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+								time.Sleep(5*time.Second - time.Nanosecond)
+								synctest.Wait()
+								return fakeConn{}, test.dialErr
+							},
+						},
 						GetResource: func() types.ResourceWithLabels { return nil },
-						ResolverFn: func(ctx context.Context) ([]string, error) {
-							return []string{"localhost:1234"}, nil
-						},
-						dialFn: func(ctx context.Context, network, addr string) (net.Conn, error) {
-							time.Sleep(5*time.Second - time.Nanosecond)
-							synctest.Wait()
-							return fakeConn{}, test.dialErr
-						},
 					},
 				})
 				assert.NoError(t, err)
 				defer worker.Close()
+				require.Eventually(t, func() bool {
+					health := worker.GetTargetHealth()
+					return health.TransitionReason != string(types.TargetHealthTransitionReasonInit)
+				}, 10*time.Second, 100*time.Millisecond, "health check did not complete")
 				health := worker.GetTargetHealth()
 				assert.Equal(t, test.wantStatus, types.TargetHealthStatus(health.Status))
 				assert.Equal(t, test.wantReason, types.TargetHealthTransitionReason(health.TransitionReason))

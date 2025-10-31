@@ -128,6 +128,14 @@ func compareServers(a, b types.Server) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+
 	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
 		return Different
 	}
@@ -159,6 +167,12 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -217,6 +231,12 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -247,6 +267,12 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -268,6 +294,12 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 		return Different
 	}
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.

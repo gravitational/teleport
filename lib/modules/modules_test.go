@@ -62,10 +62,11 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 
 	s, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
-			AuthServer: testServer.AuthServer,
-			Authorizer: testServer.Authorizer,
-			AuditLog:   testServer.AuditLog,
-			Emitter:    testServer.AuditLog,
+			AuthServer:       testServer.AuthServer,
+			Authorizer:       testServer.Authorizer,
+			ScopedAuthorizer: testServer.ScopedAuthorizer,
+			AuditLog:         testServer.AuditLog,
+			Emitter:          testServer.AuditLog,
 		},
 		AuthServer: testServer,
 	})

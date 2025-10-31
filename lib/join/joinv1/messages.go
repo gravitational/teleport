@@ -36,6 +36,8 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return boundKeypairInitToMessage(msg.BoundKeypairInit)
 	case *joinv1.JoinRequest_IamInit:
 		return iamInitToMessage(msg.IamInit)
+	case *joinv1.JoinRequest_Ec2Init:
+		return ec2InitToMessage(msg.Ec2Init)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
 	case *joinv1.JoinRequest_GivingUp:
@@ -83,6 +85,16 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 		return &joinv1.JoinRequest{
 			Payload: &joinv1.JoinRequest_IamInit{
 				IamInit: iamInit,
+			},
+		}, nil
+	case *messages.EC2Init:
+		ec2Init, err := ec2InitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_Ec2Init{
+				Ec2Init: ec2Init,
 			},
 		}, nil
 	case *messages.BoundKeypairChallengeSolution,

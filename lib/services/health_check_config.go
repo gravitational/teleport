@@ -71,8 +71,6 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 		return trace.BadParameter("spec is missing")
 	case s.Spec.Match == nil:
 		return trace.BadParameter("spec.match is missing")
-	case len(s.Spec.Match.DbLabels) == 0 && len(s.Spec.Match.DbLabelsExpression) == 0:
-		return trace.BadParameter("at least one of spec.match.db_labels or spec.match.db_labels_expression must be set")
 	}
 
 	for _, label := range s.Spec.Match.DbLabels {
@@ -83,6 +81,17 @@ func ValidateHealthCheckConfig(s *healthcheckconfigv1.HealthCheckConfig) error {
 	if expr := s.Spec.Match.DbLabelsExpression; len(expr) > 0 {
 		if _, err := parseLabelExpression(expr); err != nil {
 			return trace.BadParameter("invalid spec.db_labels_expression: %v", err)
+		}
+	}
+
+	for _, label := range s.Spec.Match.KubernetesLabels {
+		if err := validateLabel(label); err != nil {
+			return trace.BadParameter("invalid spec.kubernetes_labels: %v", err)
+		}
+	}
+	if expr := s.Spec.Match.KubernetesLabelsExpression; len(expr) > 0 {
+		if _, err := parseLabelExpression(expr); err != nil {
+			return trace.BadParameter("invalid spec.kubernetes_labels_expression: %v", err)
 		}
 	}
 

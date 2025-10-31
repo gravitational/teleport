@@ -29,6 +29,7 @@ import { proxyHostname } from 'teleterm/services/tshd/cluster';
 import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { routing } from 'teleterm/ui/uri';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -100,7 +101,9 @@ test.each(tests)(
 
     render(<App ctx={ctx} />);
 
-    await user.click(await screen.findByText(rootCluster.name));
+    await user.click(
+      await screen.findByText(routing.parseClusterName(rootCluster.uri))
+    );
     act(mio.enterAll);
 
     expect(
@@ -198,7 +201,9 @@ test.each(tests)(
 
     render(<App ctx={ctx} />);
 
-    await user.click(await screen.findByText(rootCluster.name));
+    await user.click(
+      await screen.findByText(routing.parseClusterName(rootCluster.uri))
+    );
     act(mio.enterAll);
 
     expect(
@@ -261,7 +266,9 @@ test('launching VNet for the first time from the connections panel does not open
 
   render(<App ctx={ctx} />);
 
-  await user.click(await screen.findByText(rootCluster.name));
+  await user.click(
+    await screen.findByText(routing.parseClusterName(rootCluster.uri))
+  );
   act(mio.enterAll);
 
   // Start VNet.

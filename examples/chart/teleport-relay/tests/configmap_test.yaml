@@ -1,0 +1,95 @@
+suite: Test ConfigMap
+templates:
+  - configmap.yaml
+
+tests:
+  - it: creates a config map
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: RELEASE-NAME-teleport-relay
+      - isNotNull:
+          path: data.teleport\.yaml
+  - it: includes extraLabels and annotations
+    values:
+      - ../.lint/simple.yaml
+    set:
+      extraLabels:
+        config:
+          labelName1: labelValue1
+          labelName2: labelValue2
+      annotations:
+        config:
+          annotationName1: annotationValue1
+          annotationName2: annotationValue2
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            labelName1: labelValue1
+            labelName2: labelValue2
+      - equal:
+          path: metadata.annotations
+          value:
+            annotationName1: annotationValue1
+            annotationName2: annotationValue2
+
+  - it: fails if joinParams.method is missing
+    values:
+      - ../.lint/simple.yaml
+    set:
+      joinParams:
+        method: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: joinParams.method is required in chart values
+  - it: fails if proxyAddr is missing
+    values:
+      - ../.lint/simple.yaml
+    set:
+      proxyAddr: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: proxyAddr is required in chart values
+  - it: fails if relayGroup is missing
+    values:
+      - ../.lint/simple.yaml
+    set:
+      relayGroup: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: relayGroup is required in chart values
+  - it: fails if targetConnectionCount is not positive
+    values:
+      - ../.lint/simple.yaml
+    set:
+      targetConnectionCount: -3
+    asserts:
+      - failedTemplate:
+          errorMessage: targetConnectionCount must be greater than 0
+  - it: fails if publicHostnames is empty
+    values:
+      - ../.lint/simple.yaml
+    set:
+      publicHostnames: []
+    asserts:
+      - failedTemplate:
+          errorMessage: publicHostnames cannot be empty in chart values
+
+  - it: teleport.yaml matches the snapshot (simple)
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml
+  - it: teleport.yaml matches the snapshot (exercise-configmap)
+    values:
+      - ../.lint/exercise-configmap.yaml
+    asserts:
+      - matchSnapshot:
+          path: data.teleport\.yaml

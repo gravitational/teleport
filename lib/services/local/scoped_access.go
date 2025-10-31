@@ -277,6 +277,9 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 	// disallow change of resource scope via update. use of scopes.Compare directly is generally discouraged,
 	// but that is due to ease of misuse, which isn't really a concern for a simple equivalence check.
 	if scopes.Compare(role.GetScope(), extant.GetRole().GetScope()) != scopes.Equivalent {
+		// XXX: the current implementation of our access-control logic relies upon this invarient being enforced. if we ever
+		// relax this restriction here we *must* first modify the outer access-control logic to understand the concept of
+		// scope changing and correctly validate the transition.
 		return nil, trace.BadParameter("cannot modify the resource scope of scoped role %q (%q -> %q)", role.GetMetadata().GetName(), extant.GetRole().GetScope(), role.GetScope())
 	}
 
