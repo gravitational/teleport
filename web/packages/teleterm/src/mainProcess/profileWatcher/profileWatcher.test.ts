@@ -277,9 +277,9 @@ test('watcher stops when consumer throws', async () => {
     debounceMs: testDebounceMs,
   });
 
-  await expect(() =>
-    watcher.throw(new Error('Consumer failure'))
-  ).rejects.toThrow('Consumer failure');
+  await expect(watcher.throw(new Error('Consumer failure'))).rejects.toThrow(
+    'Consumer failure'
+  );
 
   await tshClientMock.insertOrUpdateCluster(makeRootCluster());
 
@@ -340,7 +340,7 @@ test('max file system events count is restricted', async () => {
   const firstEvent = watcher.next();
   await tshClientMock.insertOrUpdateCluster(cluster);
 
-  await expect(async () => await firstEvent).rejects.toThrow(
+  await expect(firstEvent).rejects.toThrow(
     `Exceeded file system event limit: more than 2 events detected within 50 ms`
   );
 });
