@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
@@ -232,34 +233,10 @@ func readDelimitedMessage(r *bufio.Reader) ([]byte, error) {
 	return msgBytes, nil
 }
 
-// ageEncryptionPrefix is the prefix used to identify age-encrypted data.
-// age always uses "age-encryption.org/v1" as the prefix for its encrypted files.
-const ageEncryptionPrefix = "age-encryption.org"
-
-var ageEncryptionPrefixBytes = []byte(ageEncryptionPrefix)
-
 // decryptIfNeeded decrypts the data if it is age-encrypted by checking for the age encryption prefix
 // [age-encryption.org/v1].
 // If the data is not age-encrypted, it is returned as-is.
 func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
-	if !bytes.HasPrefix(data, ageEncryptionPrefixBytes) {
-		return data, nil
-	}
-
-	if r.decrypter == nil {
-		return nil, trace.BadParameter("recording metadata decrypter is not configured")
-	}
-
-	decryptedReader, err := r.decrypter.WithDecryption(ctx, bytes.NewReader(data))
-	if err != nil {
-		return nil, trace.Wrap(err, "decrypting recording metadata")
-	}
-
-	var decryptedBuf bytes.Buffer
-	_, err = io.Copy(&decryptedBuf, decryptedReader)
-	if err != nil {
-		return nil, trace.Wrap(err, "reading decrypted recording metadata")
-	}
-
-	return decryptedBuf.Bytes(), nil
+	unencrypted, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, r.decrypter)
+	return unencrypted, trace.Wrap(err)
 }
