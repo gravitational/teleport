@@ -117,7 +117,9 @@ func makeSignedRootCAReq(client utils.HTTPDoClient) ([]byte, error) {
 	}
 
 	signer := common.DefaultRequestSigner(provider)
-	signer.Sign(req)
+	if err := signer.Sign(req); err != nil {
+		return nil, trace.Wrap(err, "signing request")
+	}
 
 	reqBytes, err := httputil.DumpRequestOut(req, false /*body*/)
 	if err != nil {
