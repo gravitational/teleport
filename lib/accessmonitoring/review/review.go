@@ -34,6 +34,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Client aggregates the parts of Teleport API client interface
@@ -42,7 +43,7 @@ import (
 type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+	services.UserLoginStatesGetter
 	client.ListResourcesClient
 }
 
@@ -312,7 +313,7 @@ func isAlreadyReviewedError(err error) bool {
 
 func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
 	const withSecretsFalse = false
-	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	userLoginState, err := handler.Client.GetUserLoginState(ctx, req.GetUser())
 	if err != nil {
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
@@ -331,6 +332,6 @@ func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRe
 		RequestReason:      req.GetRequestReason(),
 		CreationTime:       req.GetCreationTime(),
 		Expiry:             req.Expiry(),
-		UserTraits:         user.GetTraits(),
+		UserTraits:         userLoginState.GetTraits(),
 	}, nil
 }
