@@ -2429,6 +2429,11 @@
       "source": "/linux-demo/",
       "destination": "/get-started/deploy-community/",
       "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
     }
   ]
 }
