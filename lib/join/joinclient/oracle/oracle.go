@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -66,7 +67,7 @@ func SolveChallenge(ctx context.Context, httpClient utils.HTTPDoClient, challeng
 		return nil, trace.Wrap(err, "parsing instance private key")
 	}
 
-	signature, err := SignChallenge(key, challenge.Challenge)
+	signature, err := SignChallenge(key.Signer, challenge.Challenge)
 	if err != nil {
 		return nil, trace.Wrap(err, "signing challenge")
 	}
@@ -81,12 +82,13 @@ func SolveChallenge(ctx context.Context, httpClient utils.HTTPDoClient, challeng
 
 // SignChallenge signs a challenge with a given instance private key.
 func SignChallenge(key crypto.Signer, challenge string) ([]byte, error) {
-	if _, ok := key.Public().(*rsa.PublicKey); !ok {
+	rsaKey, ok := key.(*rsa.PrivateKey)
+	if !ok {
 		return nil, trace.BadParameter("only RSA keys are supported")
-
 	}
-	signerOpts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}
-	signature, err := crypto.SignMessage(key, rand.Reader, []byte(challenge), signerOpts)
+	digest := sha256.Sum256([]byte(challenge))
+	pssOpts := &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash, Hash: crypto.SHA256}
+	signature, err := rsa.SignPSS(rand.Reader, rsaKey, crypto.SHA256, digest[:], pssOpts)
 	return signature, trace.Wrap(err)
 }
 
