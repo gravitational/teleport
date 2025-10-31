@@ -310,7 +310,7 @@ Allowed values are:
 | `optional` | The default. The user does not need to provide a reason when making a request. |
 | `required` | The user must provide a non-empty reason when making a request. |
 
-You can specify a custom prompt to remind the user to provide a reason for specific requestable
+You can specify a scoped prompt to remind the user to provide a reason for specific requestable
 roles or resources using `spec.allow.request.reason.prompt`.
 
 Example:
@@ -329,6 +329,7 @@ spec:
         - 'root-node-access'
       reason:
         mode: 'required'
+        prompt: 'I am a reason prompt specific to a requested role or resource'
 ```
 
 If a user with "node-requester" role assigned makes an Access Request for "node-access" role or any
@@ -338,10 +339,15 @@ role set includes multiple roles governing Access Requests to the same roles and
 
 ## Custom request reason prompts
 
-It is possible to specify a custom prompt for all or none of the Access Requests for a particular user.
-This is achieved by setting the `spec.options.request_prompt` to a non-empty string. In order to
-specify a custom prompt for Access Requests for a particular requestable role or resource, set
-`spec.allow.request.reason.prompt` to a non-empty string.
+It is possible to specify a global prompt for all or none of the Access Requests for a particular user.
+This is achieved by setting the `spec.options.request_prompt` to a non-empty string.
+
+In order to specify a scoped prompt rule for a particular requestable role or resource, set
+`spec.allow.request.reason.prompt` to a non-empty string. This will affect only Access Requests that
+contain the specific role or resource.
+
+If both global prompt rules and multiple scoped prompt rules apply to the same Access Request, all
+prompts will be listed in order within the reason box.
 
 ## Review thresholds
 
