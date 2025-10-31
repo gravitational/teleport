@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -252,6 +253,7 @@ func matchersToEC2InstanceFetchers(matcherParams MatcherToEC2FetcherParams, getE
 	for _, matcher := range matcherParams.Matchers {
 		for _, region := range matcher.Regions {
 			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+				AccountIDs:            matcher.AccountIDs,
 				ProxyPublicAddrGetter: matcherParams.PublicProxyAddrGetter,
 				Matcher:               matcher,
 				Region:                region,
@@ -272,6 +274,7 @@ func matchersToEC2InstanceFetchers(matcherParams MatcherToEC2FetcherParams, getE
 
 type ec2FetcherConfig struct {
 	Matcher             types.AWSMatcher
+	AccountIDs          []string
 	Region              string
 	Document            string
 	InstallSuffix       string
@@ -526,12 +529,68 @@ func chunkInstances(insts EC2Instances) []Instances {
 
 // GetInstances fetches all EC2 instances matching configured filters.
 func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
-	ssmRunParams, err := ssmRunCommandParameters(context.Background(), f.ec2FetcherConfig)
+	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ec2Client, err := f.EC2ClientGetter(ctx, f.Region)
+	var allInstances []Instances
+
+	awsConfig := aws.NewConfig()
+	var accountIDs []string
+
+	switch {
+	case len(f.AccountIDs) == 0:
+		accountIDs = append(accountIDs, "")
+	case f.AccountIDs[0] != "*":
+		accountIDs = append(accountIDs, f.AccountIDs...)
+	default:
+		orgsClient := organizations.NewFromConfig(*awsConfig)
+		// iterate over all pages
+
+		var nextToken *string
+		for {
+			out, err := orgsClient.ListAccounts(ctx, &organizations.ListAccountsInput{
+				NextToken: nextToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, acct := range out.Accounts {
+				accountIDs = append(accountIDs, aws.ToString(acct.Id))
+			}
+			if out.NextToken == nil {
+				break
+			}
+			nextToken = out.NextToken
+		}
+		slog.DebugContext(ctx, "Fetched account IDs from organizations.ListAccounts", "account_count", len(accountIDs))
+	}
+
+	for _, accountID := range accountIDs {
+		accountInstances, err := f.getInstancesForAccount(ctx, rotation, accountID, ssmRunParams)
+
+		switch {
+		case err == nil:
+			allInstances = append(allInstances, accountInstances...)
+
+		case trace.IsNotFound(err):
+			slog.DebugContext(ctx, "No EC2 instances found", "account_id", accountID, "region", f.Region)
+
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return allInstances, nil
+}
+
+func (f *ec2InstanceFetcher) getInstancesForAccount(ctx context.Context, rotation bool, accountID string, ssmRunParams map[string]string) ([]Instances, error) {
+	assumeRole := strings.ReplaceAll(f.Matcher.AssumeRole.RoleARN, "*", accountID)
+	ec2Client, err := f.EC2ClientGetter(ctx, f.Region, awsconfig.WithAssumeRole(assumeRole, f.Matcher.AssumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
