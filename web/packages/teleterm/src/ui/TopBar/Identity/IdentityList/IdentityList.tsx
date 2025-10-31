@@ -141,7 +141,7 @@ function DeviceTrustMessage(props: { status: DeviceTrustStatus }) {
       message = (
         <>
           <ShieldCheck color="success.main" size="small" mb="2px" />
-          <P3>Access secured with device trust.</P3>
+          <P3>Access secured with Device Trust.</P3>
         </>
       );
       break;
