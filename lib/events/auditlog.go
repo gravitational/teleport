@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
+	sessionpostprocessing "github.com/gravitational/teleport/lib/events/postprocessing"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -686,60 +687,22 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "completing upload")
 	}
 
-	sessionEnd, err := l.findSessionEndEvent(ctx, upload.SessionID)
+	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
 	if err != nil || sessionEnd == nil {
 		return nil
 	}
-
-	summarizer := l.AuditLogConfig.SessionSummarizerProvider.SessionSummarizer()
-	switch o := sessionEnd.(type) {
-	case *apievents.SessionEnd:
-		if err := summarizer.SummarizeSSH(ctx, o); err != nil {
-			l.log.WarnContext(ctx, "failed to summarize upload", "error", err)
-		}
-		metadataSvc := l.AuditLogConfig.RecordingMetadataProvider.Service()
-		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
-			duration := o.EndTime.Sub(o.StartTime)
-			if err := metadataSvc.ProcessSessionRecording(ctx, upload.SessionID, duration); err != nil {
-				l.log.WarnContext(ctx, "failed to process session recording metadata", "error", err)
-			}
-		}
-	case *apievents.DatabaseSessionEnd:
-		if err := summarizer.SummarizeDatabase(ctx, o); err != nil {
-			l.log.WarnContext(ctx, "failed to summarize upload", "error", err)
-		}
+	if err := sessionpostprocessing.SessionPostProcessor(
+		ctx,
+		sessionpostprocessing.SessionPostProcessorConfig{
+			SessionEnd:                sessionEnd,
+			SessionID:                 upload.SessionID,
+			SessionSummarizerProvider: l.SessionSummarizerProvider,
+			RecordingMetadataProvider: l.RecordingMetadataProvider,
+		},
+	); err != nil {
+		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
 	}
-
 	return nil
-}
-
-// findSessionEndEvent streams session events to find the session end event for the given session ID.
-// It returns either a SessionEnd or DatabaseSessionEnd event, or nil if none is found.
-// TODO(tigrato): Revisit this approach for large sessions, as it's highly inefficient.
-// Instead, consider downloading the last few parts of the recording to find the session end event.
-func (l *AuditLog) findSessionEndEvent(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	eventsCh, errCh := l.StreamSessionEvents(ctx, sessionID, 0)
-
-	for {
-		select {
-		case event, ok := <-eventsCh:
-			if !ok {
-				return nil, nil
-			}
-			switch e := event.(type) {
-			case *apievents.SessionEnd:
-				return e, nil
-			case *apievents.DatabaseSessionEnd:
-				return e, nil
-			}
-		case err := <-errCh:
-			return nil, trace.Wrap(err)
-		case <-ctx.Done():
-			return nil, trace.Wrap(ctx.Err())
-		}
-	}
 }
 
 // getLocalLog returns the local (file based) AuditLogger.
