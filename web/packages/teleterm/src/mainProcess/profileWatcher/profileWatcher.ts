@@ -19,16 +19,12 @@
 import { watch } from 'node:fs';
 import { access } from 'node:fs/promises';
 
-import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
-import {
-  Cluster,
-  LoggedInUser_UserType,
-  ShowResources,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { debounce } from 'shared/utils/highbar';
 import { wait } from 'shared/utils/wait';
 
 import { isTshdRpcError } from 'teleterm/services/tshd';
+import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 interface TshClient {
@@ -259,8 +255,14 @@ function detectChanges(
     } else if (
       // Ensure we are comparing only profile properties.
       !Cluster.equals(
-        makeClusterWithOnlyProfileProperties(previous),
-        makeClusterWithOnlyProfileProperties(next)
+        mergeClusterProfileWithDetails({
+          profile: previous,
+          details: Cluster.create(),
+        }),
+        mergeClusterProfileWithDetails({
+          profile: next,
+          details: Cluster.create(),
+        })
       )
     ) {
       changes.push({
@@ -272,39 +274,4 @@ function detectChanges(
   }
 
   return changes;
-}
-
-/**
- * Creates a cluster containing only the properties that can be read from
- * the profile from disk.
- * All other properties are initialized with empty values.
- *
- * Listing all fields ensures TypeScript will force us to handle new fields
- * by specifying whether they come from the profile or the server.
- */
-function makeClusterWithOnlyProfileProperties(a: Cluster): Cluster {
-  return {
-    uri: a.uri,
-    connected: a.connected,
-    leaf: a.leaf,
-    profileStatusError: a.profileStatusError,
-    proxyHost: a.proxyHost,
-    ssoHost: a.ssoHost,
-    name: '',
-    showResources: ShowResources.UNSPECIFIED,
-    features: undefined,
-    authClusterId: '',
-    proxyVersion: '',
-    loggedInUser: a.loggedInUser && {
-      name: a.loggedInUser.name,
-      activeRequests: a.loggedInUser.activeRequests,
-      roles: a.loggedInUser.roles,
-      isDeviceTrusted: a.loggedInUser.isDeviceTrusted,
-      userType: LoggedInUser_UserType.UNSPECIFIED,
-      trustedDeviceRequirement: TrustedDeviceRequirement.UNSPECIFIED,
-      requestableRoles: [],
-      suggestedReviewers: [],
-      acl: undefined,
-    },
-  };
 }
