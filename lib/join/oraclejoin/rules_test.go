@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -45,6 +46,9 @@ func makeInstanceID(region, id string) string {
 
 func TestCheckOracleAllowRules(t *testing.T) {
 	t.Parallel()
+	isAccessDenied := func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError), msgAndArgs...)
+	}
 	tests := []struct {
 		name       string
 		claims     oraclejoin.Claims
@@ -63,6 +67,23 @@ func TestCheckOracleAllowRules(t *testing.T) {
 					Tenancy:            makeTenancyID("foo"),
 					ParentCompartments: []string{makeCompartmentID("bar")},
 					Regions:            []string{"us-phoenix-1"},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "ok with instance",
+			claims: oraclejoin.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+					Instances:          []string{makeInstanceID("us-phoenix-1", "baz")},
 				},
 			},
 			assert: require.NoError,
@@ -141,9 +162,10 @@ func TestCheckOracleAllowRules(t *testing.T) {
 					Tenancy:            makeTenancyID("foo"),
 					ParentCompartments: []string{makeCompartmentID("bar")},
 					Regions:            []string{"us-phoenix-1"},
+					Instances:          []string{makeInstanceID("us-phoenix-1", "baz")},
 				},
 			},
-			assert: require.Error,
+			assert: isAccessDenied,
 		},
 		{
 			name: "wrong compartment",
@@ -157,9 +179,10 @@ func TestCheckOracleAllowRules(t *testing.T) {
 					Tenancy:            makeTenancyID("foo"),
 					ParentCompartments: []string{makeCompartmentID("bar")},
 					Regions:            []string{"us-phoenix-1"},
+					Instances:          []string{makeInstanceID("us-phoenix-1", "baz")},
 				},
 			},
-			assert: require.Error,
+			assert: isAccessDenied,
 		},
 		{
 			name: "wrong region",
@@ -173,9 +196,27 @@ func TestCheckOracleAllowRules(t *testing.T) {
 					Tenancy:            makeTenancyID("foo"),
 					ParentCompartments: []string{makeCompartmentID("bar")},
 					Regions:            []string{"us-phoenix-1"},
+					Instances:          []string{makeInstanceID("us-phoenix-1", "baz")},
 				},
 			},
-			assert: require.Error,
+			assert: isAccessDenied,
+		},
+		{
+			name: "wrong instance",
+			claims: oraclejoin.Claims{
+				TenancyID:     makeTenancyID("foo"),
+				CompartmentID: makeCompartmentID("bar"),
+				InstanceID:    makeInstanceID("us-phoenix-1", "notallowed"),
+			},
+			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy:            makeTenancyID("foo"),
+					ParentCompartments: []string{makeCompartmentID("bar")},
+					Regions:            []string{"us-phoenix-1"},
+					Instances:          []string{makeInstanceID("us-phoenix-1", "allowed")},
+				},
+			},
+			assert: isAccessDenied,
 		},
 		{
 			name: "block match across rules",
@@ -193,7 +234,7 @@ func TestCheckOracleAllowRules(t *testing.T) {
 					Tenancy: makeTenancyID("something-else"),
 				},
 			},
-			assert: require.Error,
+			assert: isAccessDenied,
 		},
 	}
 	for _, tc := range tests {
