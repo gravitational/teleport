@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -64,19 +65,32 @@ type Conn struct {
 	// is received on the wire.
 	OnRecv func(m Message)
 
+	decoder Decoder
+
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
 	localAddr  net.Addr
 	remoteAddr net.Addr
 }
 
+type Decoder interface {
+	Decode(*bufio.Reader) (Message, error)
+}
+
+type DecoderFunc func(*bufio.Reader) (Message, error)
+
+func (d DecoderFunc) Decode(rdr *bufio.Reader) (Message, error) {
+	return d(rdr)
+}
+
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rwc io.ReadWriteCloser) *Conn {
+func NewConn(rwc io.ReadWriteCloser, decoder Decoder) *Conn {
 	c := &Conn{
-		rwc:  rwc,
-		bufr: bufio.NewReader(rwc),
+		rwc:     rwc,
+		bufr:    bufio.NewReader(rwc),
+		decoder: decoder,
 	}
 
 	if tc, ok := rwc.(srvTrackingConn); ok {
@@ -121,7 +135,7 @@ func (c *Conn) NextMessageType() (MessageType, error) {
 
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
-	m, err := decode(c.bufr)
+	m, err := c.decoder.Decode(c.bufr)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
 	}
@@ -301,20 +315,24 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeI
 func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 	var err error
 	var out []Message
-	if i.writeInterceptor != nil {
-		out, err = i.writeInterceptor(m)
-		if err == nil {
-			for _, msg := range removeNilMessages(out) {
-				err = i.src.WriteMessage(msg)
-				if err != nil {
-					break
-				}
-			}
-		}
+	if i.writeInterceptor == nil {
+		// No interceptor found
+		return i.src.WriteMessage(m)
+	}
+
+	out, err = i.writeInterceptor(m)
+	if err != nil {
 		return err
 	}
-	// No interceptor found
-	return i.src.WriteMessage(m)
+
+	for _, msg := range removeNilMessages(out) {
+		err = i.src.WriteMessage(msg)
+		if err != nil {
+			break
+		}
+	}
+	return err
+
 }
 
 // ReadMessage reads from the underlying reader and passes them to the
@@ -337,11 +355,12 @@ func messageCopy(dst MessageWriter, src MessageReader) error {
 	var m Message
 	for err == nil {
 		m, err = src.ReadMessage()
-		if err == nil {
+		if err == nil && m != nil {
 			err = dst.WriteMessage(m)
 		}
 	}
 
+	slog.Error("message copy exiting with error", "error", err)
 	if errors.Is(err, io.EOF) {
 		err = nil
 	}

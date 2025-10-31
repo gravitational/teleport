@@ -592,7 +592,7 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	tdpConn := tdp.NewConn(proxyConn)
+	tdpConn := tdp.NewConn(proxyConn, tdp.DecoderFunc(tdp.DecodeTDP))
 	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.

@@ -123,7 +123,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 
 	// Now that we have a connection to the desktop service, we can
 	// send the username.
-	tdpConn := tdp.NewConn(conn)
+	tdpConn := tdp.NewConn(conn, tdp.DecoderFunc(tdp.DecodeTDP))
 	defer tdpConn.Close()
 	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: s.login})
 	if err != nil {
@@ -144,8 +144,8 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		directoryAccessProvider: s,
 	}
 
-	serverConn := tdp.NewConn(conn)
-	tdpConnProxy := tdp.NewConnProxy(tdp.NewConn(downstreamRW), tdp.NewReadWriteInterceptor(serverConn, func(message tdp.Message) ([]tdp.Message, error) {
+	serverConn := tdp.NewConn(conn, tdp.DecoderFunc(tdp.DecodeTDP))
+	tdpConnProxy := tdp.NewConnProxy(tdp.NewConn(downstreamRW, tdp.DecoderFunc(tdp.DecodeTDP)), tdp.NewReadWriteInterceptor(serverConn, func(message tdp.Message) ([]tdp.Message, error) {
 		msg, intErr := fsHandle.process(message, func(message tdp.Message) error {
 			return trace.Wrap(serverConn.WriteMessage(message))
 		})

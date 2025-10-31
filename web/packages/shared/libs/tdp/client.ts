@@ -18,7 +18,7 @@
 
 import { EventEmitter } from 'events';
 import {MessageInfo, MessageType, readFieldOption, IMessageType, readMessageOption} from "@protobuf-ts/runtime";
-import { Buffer } from 'buffer';
+//import { Buffer } from 'buffer';
 
 import { useEffect } from 'react';
 
@@ -63,6 +63,7 @@ import {MFAAuthenticateChallenge, MFAAuthenticateResponse} from 'gen-proto-ts/te
 import {CredentialAssertionResponse} from 'gen-proto-ts/teleport/legacy/types/webauthn/webauthn_pb';
 //import { Any } from "@protobuf-ts/runtime";
 import { Any } from 'gen-proto-ts/google/protobuf/any_pb';
+import {decode, encodingLength, encode} from 'varint';
 
 
 
@@ -356,66 +357,70 @@ export class TdpClient extends EventEmitter<EventMap> {
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBufferLike): Promise<void>  {
-    let envelope = tdp.TDPEnvelope.fromBinary(new Uint8Array(buffer))
-    
-    switch (envelope.type) {
-      case tdp.TDPMessageType.TDP_MESSAGE_PNG_FRAME:
-        this.handlePngFrame(tdp.PNGFrame.fromBinary(envelope.message.value));
+
+    let inBuf = new DataView(buffer);
+    let messageType = inBuf.getUint32(0, false)
+    let messageLength = inBuf.getUint32(4, false);
+    let messageData = new Uint8Array(buffer.slice(8, 8 + messageLength));
+
+    switch (messageType) {
+      case tdp.MessageType.MESSAGE_PNG_FRAME:
+        this.handlePngFrame(tdp.PNGFrame.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_CONNECTION_ACTIVATED:
-        this.handleRdpConnectionActivated(tdp.ConnectionActivated.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_CONNECTION_ACTIVATED:
+        this.handleRdpConnectionActivated(tdp.ConnectionActivated.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_FASTPATH_PDU:
-        this.handleRdpFastPathPdu(tdp.FastPathPDU.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_FASTPATH_PDU:
+        this.handleRdpFastPathPdu(tdp.FastPathPDU.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_CLIPBOARD_DATA:
-        this.handleClipboardData(tdp.ClipboardData.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_CLIPBOARD_DATA:
+        this.handleClipboardData(tdp.ClipboardData.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_ERROR:
-        throw new Error(tdp.Error.fromBinary(envelope.message.value).message)
-      case tdp.TDPMessageType.TDP_MESSAGE_ALERT:
-        this.handleTdpAlert(tdp.Alert.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_ERROR:
+        throw new Error(tdp.Error.fromBinary(messageData).message)
+      case tdp.MessageType.MESSAGE_ALERT:
+        this.handleTdpAlert(tdp.Alert.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_MFA:
-        this.handleMfaChallenge(tdp.MFA.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_MFA:
+        this.handleMfaChallenge(tdp.MFA.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE:
-        this.handleSharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE:
+        this.handleSharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_INFO_REQUEST:
-        await this.handleSharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_INFO_REQUEST:
+        await this.handleSharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST:
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST:
         // A typical sequence is that we receive a SharedDirectoryCreateRequest
         // immediately followed by a SharedDirectoryWriteRequest. It's important
         // that we await here so that this client doesn't field the SharedDirectoryWriteRequest
         // until the create has successfully completed, or else we might get an error
         // trying to write to a file that hasn't been created yet.
-        await this.handleSharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest.fromBinary(envelope.message.value));
+        await this.handleSharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST:
-        await this.handleSharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST:
+        await this.handleSharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_READ_REQUEST:
-        await this.handleSharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_READ_REQUEST:
+        await this.handleSharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST:
-        await this.handleSharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST:
+        await this.handleSharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST:
-        this.handleSharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST:
+        this.handleSharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_LIST_REQUEST:
-        await this.handleSharedDirectoryListRequest(tdp.SharedDirectoryListRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_LIST_REQUEST:
+        await this.handleSharedDirectoryListRequest(tdp.SharedDirectoryListRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST:
-        await this.handleSharedDirectoryTruncateRequest(tdp.SharedDirectoryTruncateRequest.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST:
+        await this.handleSharedDirectoryTruncateRequest(tdp.SharedDirectoryTruncateRequest.fromBinary(messageData));
         break;
-      case tdp.TDPMessageType.TDP_MESSAGE_LATENCY_STATS:
-        this.handleLatencyStats(tdp.LatencyStats.fromBinary(envelope.message.value));
+      case tdp.MessageType.MESSAGE_LATENCY_STATS:
+        this.handleLatencyStats(tdp.LatencyStats.fromBinary(messageData));
         break;
       default:
-        this.logger.warn(`received unsupported message type`, envelope.type);
+        this.logger.warn(`received unsupported message type`, messageType);
     }
   }
 
@@ -427,7 +432,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     const encoder = new TextEncoder()
     this.emit(
       TdpClientEvent.TDP_CLIPBOARD_DATA,
-      this.codec.decodeClipboardData(encoder.encode(msg.data).buffer)
+      this.codec.decodeClipboardData(msg.data.buffer)
     );
   }
 
@@ -690,11 +695,18 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    let opt = readMessageOption(type, "tdp_type", tdp.TDPOptions);
-    let msg = Any.pack(data, type);
-    let envelope = tdp.TDPEnvelope.create({type: opt.tdpType, message: msg});
+    let marshalledMessage = type.toBinary(data);
+    let typeOption = tdp.MessageType[readMessageOption(type, "teleport.desktop.tdp_type_option").toString()];
+    console.log("sending message type: " + readMessageOption(type, "teleport.desktop.tdp_type_option").toString())
 
-    this.transport.send(tdp.TDPEnvelope.toBinary(envelope).buffer);
+    
+   let buf = new Uint8Array(marshalledMessage.length + 8);
+   let outbuf = new DataView(buf.buffer);
+   outbuf.setUint32(0, typeOption, false)
+   outbuf.setUint32(4, marshalledMessage.length, false) 
+
+   buf.set(marshalledMessage, 8);
+   this.transport.send(buf.buffer);
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
@@ -763,10 +775,10 @@ export class TdpClient extends EventEmitter<EventMap> {
         oneofKind: "webauthn", webauthn: CredentialAssertionResponse.create(
           {
             response: {
-              clientDataJson: Buffer.from(data.webauthn_response.response.clientDataJSON, 'utf8'),
-              authenticatorData: Buffer.from(data.webauthn_response.response.authenticatorData, 'utf8'),
-              signature: Buffer.from(data.webauthn_response.response.signature, 'utf8'),
-              userHandle: Buffer.from(data.webauthn_response.response.userHandle, 'utf8'),
+              //clientDataJson: Buffer.from(data.webauthn_response.response.clientDataJSON, 'utf8'),
+              //authenticatorData: Buffer.from(data.webauthn_response.response.authenticatorData, 'utf8'),
+              //signature: Buffer.from(data.webauthn_response.response.signature, 'utf8'),
+              //userHandle: Buffer.from(data.webauthn_response.response.userHandle, 'utf8'),
             },
           }
         )

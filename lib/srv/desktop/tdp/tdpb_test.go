@@ -18,8 +18,21 @@ func TestEncodeUnsupportedMessage(t *testing.T) {
 	fso := tdpb.FileSystemObject{
 		LastModified: 1,
 	}
-	_, err := WireCapable(&fso)
+	_, err := WireCapable(&fso, true)
 	require.Error(t, err)
+}
+
+func TestAs(t *testing.T) {
+	msg := Message(&TDPBMessage{Message: &tdpb.ClientUsername{Username: "name"}})
+
+	//var usernameMsg *tdpb.ClientUsername
+	usernameMsg, ok := To[*tdpb.ClientUsername](msg)
+	require.True(t, ok)
+	//require.True(t, As(msg, &usernameMsg))
+	require.Equal(t, "name", usernameMsg.Username)
+
+	kbLayout := &tdpb.ClientKeyboardLayout{}
+	require.False(t, AsProto(msg, kbLayout))
 }
 
 func TestStreamProtos(t *testing.T) {
@@ -28,13 +41,16 @@ func TestStreamProtos(t *testing.T) {
 			Message: "oh no!",
 		},
 		&tdpb.ClientScreenSpec{
-			Width:  1,
-			Height: 2,
+			Width:  1459,
+			Height: 720,
 		},
 		&tdpb.ClientUsername{
 			Username: "bob",
 		},
 	}
+
+	dec, err := NewMessageDecoder()
+	require.NoError(t, err)
 
 	rdr, writer := net.Pipe()
 	// Need 'ReadByte()'
@@ -44,40 +60,54 @@ func TestStreamProtos(t *testing.T) {
 	go func() {
 		defer writer.Close()
 		for _, msg := range inMessages {
-			var encodable io.Reader
-			encodable, writerError = WireCapable(msg)
+			tmsg := &TDPBMessage{Message: msg}
+			data, err := tmsg.Encode()
+			if err != nil {
+				return
+			}
+			_, writerError = writer.Write(data)
 			if writerError != nil {
 				return
 			}
 
-			_, writerError = io.Copy(writer, encodable)
-			if writerError != nil {
-				return
-			}
+			//var encodable io.Reader
+			//encodable, writerError = WireCapable(msg)
+			//if writerError != nil {
+			//	return
+			//}
+			//
+			//_, writerError = io.Copy(writer, encodable)
+			//if writerError != nil {
+			//	return
+			//}
 		}
 
 	}()
 
 	var readerError error
-	type output struct {
-		Type tdpb.MessageType
-		Data []byte
-	}
-	outMessages := []output{}
+	outMessages := []Message{}
 
-	var mType tdpb.MessageType
-	var data []byte
 	for readerError == nil {
-		mType, data, readerError = ReadTDPBMessage(reader)
+		var msg Message
+		msg, readerError = dec.Decode(reader)
 		if readerError == nil {
-			outMessages = append(outMessages, output{mType, data})
+			outMessages = append(outMessages, msg)
 		}
 	}
 	rdr.Close()
 
 	require.ErrorIs(t, readerError, io.EOF)
 	assert.Len(t, outMessages, 3)
-	assert.Equal(t, outMessages[0].Type, tdpb.MessageType_MESSAGE_ALERT)
-	assert.Equal(t, outMessages[1].Type, tdpb.MessageType_MESSAGE_CLIENT_SCREEN_SPEC)
-	assert.Equal(t, outMessages[2].Type, tdpb.MessageType_MESSAGE_CLIENT_USERNAME)
+
+	alertMsg := tdpb.Alert{}
+	require.True(t, As(outMessages[0], &alertMsg))
+	screenSpecMsg := tdpb.ClientScreenSpec{}
+	require.True(t, As(outMessages[1], &screenSpecMsg))
+	assert.Equal(t, (inMessages[1].(*tdpb.ClientScreenSpec)).Height, screenSpecMsg.Height)
+	assert.Equal(t, (inMessages[1].(*tdpb.ClientScreenSpec)).Width, screenSpecMsg.Width)
+	usernameMsg := tdpb.ClientUsername{}
+	require.True(t, As(outMessages[2], &usernameMsg))
+	//assert.Equal(t, outMessages[0].Type, tdpb.MessageType_MESSAGE_ALERT)
+	//assert.Equal(t, outMessages[1].Type, tdpb.MessageType_MESSAGE_CLIENT_SCREEN_SPEC)
+	//assert.Equal(t, outMessages[2].Type, tdpb.MessageType_MESSAGE_CLIENT_USERNAME)
 }

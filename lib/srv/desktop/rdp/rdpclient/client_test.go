@@ -55,7 +55,7 @@ func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
 	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	conn := tdp.NewConn(&f)
+	conn := tdp.NewConn(&f, tdp.DecoderFunc(tdp.DecodeTDP))
 
 	_, err = New(createConfig(conn))
 	require.EqualError(t, err, "EOF")
@@ -76,7 +76,7 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f)
+	conn := tdp.NewConn(&f, tdp.DecoderFunc(tdp.DecodeTDP))
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestClientNew_KeyboardLayout(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f)
+	conn := tdp.NewConn(&f, tdp.DecoderFunc(tdp.DecodeTDP))
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)

@@ -1,22 +1,146 @@
 package tdp
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/desktop"
 	tdpb "github.com/gravitational/teleport/desktop"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+type messageDecoder struct {
+	key map[tdpb.MessageType]protoreflect.MessageType
+}
+
+func To[T proto.Message](msg Message) (T, bool) {
+	var zero T
+	var m *TDPBMessage
+	var ok bool
+	if m, ok = msg.(*TDPBMessage); !ok {
+		return zero, false
+	}
+	source := m.Proto()
+	if source == nil {
+		return zero, false
+	}
+
+	fmt.Printf("%T, %T\n", zero, source)
+	if reflect.TypeOf(zero) == reflect.TypeOf(source) {
+		return source.(T), true
+	}
+	return zero, false
+}
+
+func As(msg Message, p proto.Message) bool {
+	var m *TDPBMessage
+	var ok bool
+	if m, ok = msg.(*TDPBMessage); !ok {
+		return false
+	}
+
+	source := m.Proto()
+	if source == nil {
+		return false
+	}
+
+	if p.ProtoReflect().Type() == source.ProtoReflect().Type() {
+		reflect.ValueOf(p).Elem().Set(reflect.ValueOf(source).Elem())
+		return true
+	}
+
+	return false
+}
+
+func AsProto(msg Message, p proto.Message) bool {
+	if m, ok := msg.(*TDPBMessage); ok {
+
+		candidate := m.Proto()
+		if candidate.ProtoReflect().Type() != p.ProtoReflect().Type() {
+			return false
+		}
+
+		candidateDesc := candidate.ProtoReflect().Descriptor()
+		pdesc := p.ProtoReflect().Descriptor()
+		pmsg := p.ProtoReflect()
+
+		for i := 0; i < p.ProtoReflect().Descriptor().Fields().Len(); i++ {
+			pmsg.Set(pdesc.Fields().Get(i), candidate.ProtoReflect().Get(candidateDesc.Fields().Get(i)))
+		}
+		return true
+	}
+	return false
+}
+
+func (m *messageDecoder) Decode(rdr *bufio.Reader) (Message, error) {
+	mType, mBytes, err := ReadTDPBMessageFixed(rdr)
+	if err != nil {
+		return nil, err
+	}
+
+	if protoType, ok := m.key[mType]; ok {
+		msg := protoType.New().Interface()
+		err = proto.Unmarshal(mBytes, msg)
+		return &TDPBMessage{Message: msg}, nil
+	}
+	return nil, trace.Errorf("unknown TDPB message type")
+}
+
+func NewMessageDecoder() (*messageDecoder, error) {
+	key := map[tdpb.MessageType]protoreflect.MessageType{}
+	descriptors := tdpb.File_teleport_desktop_tdp_proto.Messages()
+	for i := 0; i < descriptors.Len(); i++ {
+		desc := descriptors.Get(i)
+		mtype, err := protoregistry.GlobalTypes.FindMessageByName(desc.FullName())
+		if err != nil {
+			return &messageDecoder{}, err
+		}
+
+		options := desc.Options().(*descriptorpb.MessageOptions)
+		typeOption := proto.GetExtension(options, tdpb.E_TdpTypeOption).(desktop.MessageType)
+		if typeOption == tdpb.MessageType_MESSAGE_UNKNOWN {
+			continue
+			//return &messageDecoder{}, trace.BadParameter("Cannot encode TDPB messages without a valid message type extension")
+		}
+		key[typeOption] = mtype
+	}
+
+	return &messageDecoder{
+		key: key,
+	}, nil
+}
+
 const MAX_MESSAGE_LENGTH = 1024 * 1024
+
+func ReadTDPBMessageFixed(in byteReader) (tdpb.MessageType, []byte, error) {
+	header := [8]byte{}
+	_, err := io.ReadFull(in, header[:])
+	if err != nil {
+		return 0, nil, err
+	}
+
+	mType := binary.BigEndian.Uint32(header[0:4])
+	mLength := binary.BigEndian.Uint32(header[4:])
+
+	mData := make([]byte, mLength)
+	_, err = io.ReadFull(in, mData)
+	if err != nil {
+		return 0, nil, err
+	}
+	return tdpb.MessageType(mType), mData, err
+}
 
 func ReadTDPBMessage(in byteReader) (tdpb.MessageType, []byte, error) {
 	mType, err := binary.ReadVarint(in)
@@ -39,6 +163,7 @@ func ReadTDPBMessage(in byteReader) (tdpb.MessageType, []byte, error) {
 	messageData := make([]byte, length)
 	_, err = io.ReadFull(in, messageData)
 
+	slog.Warn("TDPB message header", "type", mType, "length", length)
 	return tdpb.MessageType(mType), messageData, nil
 }
 
@@ -55,14 +180,36 @@ func (e *encodableTDP) Read(buf []byte) (int, error) {
 	return e.inner.Read(buf)
 }
 
+type TDPBMessage struct {
+	MessageType tdpb.MessageType
+	Message     proto.Message
+}
+
+func (t *TDPBMessage) Type() tdpb.MessageType {
+	return t.MessageType
+}
+
+func (t *TDPBMessage) Proto() proto.Message {
+	return t.Message
+}
+
+func (t *TDPBMessage) Encode() ([]byte, error) {
+	encodable, err := WireCapable(t.Message, true)
+	if err == nil {
+		var data []byte
+		data, err = encodable.Encode()
+		return data, err
+	}
+	return nil, err
+}
+
 // WireCapable marshals the given protobuf message
 // and prepends a varint message length for framing purposes.
 // Returns an intermediary type that can be treated as an io.Reader or tdp.Message
-func WireCapable(msg proto.Message) (*encodableTDP, error) {
-	// Allocate enough space to varint encode a 32-bit integer
-	length := [binary.MaxVarintLen32]byte{}
-	messageType := [binary.MaxVarintLen32]byte{}
-
+func WireCapable(msg proto.Message, fixed bool) (*encodableTDP, error) {
+	if msg == nil {
+		return nil, trace.Errorf("nil message is not wire capable")
+	}
 	// Grab the TDPOptions extension on the message
 	options := msg.ProtoReflect().Descriptor().Options().(*descriptorpb.MessageOptions)
 	typeOption := proto.GetExtension(options, tdpb.E_TdpTypeOption).(desktop.MessageType)
@@ -79,17 +226,35 @@ func WireCapable(msg proto.Message) (*encodableTDP, error) {
 		return nil, trace.LimitExceeded("Teleport Desktop Protocol message exceeds maximum allowed length")
 	}
 
-	// Safe cast of int -> int64
-	lengthCount := binary.PutVarint(length[:], int64(len(messageData)))
-	typeCount := binary.PutVarint(messageType[:], int64(typeOption))
+	var length []byte
+	var messageType []byte
+	if fixed {
+		header := [8]byte{}
+		binary.BigEndian.PutUint32(header[:4], uint32(typeOption))
+		binary.BigEndian.PutUint32(header[4:], uint32(len(messageData)))
+
+		messageType = header[:4]
+		length = header[4:]
+	} else {
+		// Allocate enough space to varint encode a 32-bit integer
+		varLen := [binary.MaxVarintLen32]byte{}
+		varTyp := [binary.MaxVarintLen32]byte{}
+
+		// Safe cast of int -> int64
+		typeCount := binary.PutVarint(varTyp[:], int64(typeOption))
+		lengthCount := binary.PutVarint(varLen[:], int64(len(messageData)))
+		length = varLen[:lengthCount]
+		messageType = varTyp[:typeCount]
+
+	}
 
 	// Messages follow the format:
 	// message_type varint | length varint | message_data []byte
 	// where 'length' is the length of the 'message_data'
 	return &encodableTDP{
 		inner: io.MultiReader(
-			bytes.NewBuffer(messageType[:typeCount]),
-			bytes.NewBuffer(length[:lengthCount]),
+			bytes.NewBuffer(messageType),
+			bytes.NewBuffer(length),
 			bytes.NewBuffer(messageData),
 		)}, nil
 }
@@ -117,6 +282,7 @@ func boolToButtonState(b bool) ButtonState {
 
 // Converts a TDPB (Modern) message to one or more TDP (Legacy) messages
 func TranslateToLegacy(msg proto.Message) []Message {
+	slog.Warn("translating TDPB to TDP")
 	messages := make([]Message, 0, 1)
 	switch m := msg.(type) {
 	case *tdpb.PNGFrame:
@@ -333,7 +499,7 @@ func TranslateToLegacy(msg proto.Message) []Message {
 			ServerLatency: m.ServerLatency,
 		})
 	case *tdpb.Ping: //MessageType_MESSAGE_PING:
-		id, err := uuid.FromBytes(m.Uuid)
+		id, err := uuid.FromBytes(m.UUID)
 		if err != nil {
 			slog.Warn("Cannot parse uuid bytes from ping", "error", err)
 		} else {
@@ -351,7 +517,8 @@ func TranslateToLegacy(msg proto.Message) []Message {
 }
 
 // Converts a TDP (Legacy) message to one or more TDPB (Modern) messages
-func TranslateToModern(msg Message) []proto.Message {
+func TranslateToModern(msg Message) []Message {
+	slog.Warn("translating TDP to TDPB")
 	messages := make([]proto.Message, 0, 1)
 	switch m := msg.(type) {
 	case ClientScreenSpec:
@@ -462,7 +629,7 @@ func TranslateToModern(msg Message) []proto.Message {
 		})
 	case Ping:
 		messages = append(messages, &tdpb.Ping{
-			Uuid: m.UUID[:],
+			UUID: m.UUID[:],
 		})
 	case ClientKeyboardLayout:
 		messages = append(messages, &tdpb.ClientKeyboardLayout{
@@ -489,6 +656,9 @@ func TranslateToModern(msg Message) []proto.Message {
 	//case TypeSharedDirectoryListResponse:
 	//case TypeSharedDirectoryTruncateRequest:
 	//case TypeSharedDirectoryTruncateResponse:
-
-	return messages
+	out := []Message{}
+	for _, msg := range messages {
+		out = append(out, &TDPBMessage{Message: msg})
+	}
+	return out
 }

@@ -27,7 +27,7 @@ import "teleport/legacy/client/proto/authservice.proto";
 option go_package = "github.com/gravitational/teleport/desktop";
 
 extend google.protobuf.MessageOptions {
-  optional MessageType tdp_type_option = 50000;
+  optional MessageType tdp_type_option = 61111;
 }
 
 enum MessageType {
@@ -69,6 +69,23 @@ enum MessageType {
   MESSAGE_LATENCY_STATS = 36;
   MESSAGE_PING = 37;
   MESSAGE_CLIENT_KEYBOARD_LAYOUT = 38;
+  MESSAGE_CLIENT_HELLO = 39;
+  MESSAGE_SERVER_HELLO = 40;
+}
+
+message Envelope {
+  MessageType type = 1;
+  bytes Message = 2;
+}
+
+message ClientHello {
+  option (tdp_type_option) = MESSAGE_CLIENT_HELLO;
+  ClientScreenSpec screen_spec = 1;
+  ClientKeyboardLayout keyboard_layout = 2;
+}
+
+message ServerHello {
+  option (tdp_type_option) = MESSAGE_SERVER_HELLO;
 }
 
 message Rectangle {
@@ -341,7 +358,7 @@ message LatencyStats {
 message Ping {
   option (tdp_type_option) = MESSAGE_PING;
   // UUID is used to correlate message send by proxy and received from the Windows Desktop Service
-  bytes uuid = 1;
+  bytes UUID = 1;
 }
 
 message ClientKeyboardLayout {

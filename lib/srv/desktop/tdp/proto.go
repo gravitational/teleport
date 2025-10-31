@@ -25,6 +25,7 @@ package tdp
 // use them yet.
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -104,6 +105,10 @@ func Decode(buf []byte) (Message, error) {
 type byteReader interface {
 	io.Reader
 	io.ByteReader
+}
+
+func DecodeTDP(rdr *bufio.Reader) (Message, error) {
+	return decode(rdr)
 }
 
 func decode(in byteReader) (Message, error) {
@@ -1672,6 +1677,15 @@ type Ping struct {
 
 	// UUID is used to correlate message send by proxy and received from the Windows Desktop Service
 	UUID uuid.UUID
+}
+
+func (p Ping) GetUUID() []byte {
+	return p.UUID[:]
+}
+
+func (p Ping) SetUUID(b []byte) {
+	// TODO: Fix this
+	p.UUID, _ = uuid.FromBytes(b)
 }
 
 func (p Ping) Encode() ([]byte, error) {

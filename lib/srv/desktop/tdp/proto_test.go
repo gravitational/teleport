@@ -122,7 +122,7 @@ func TestBadDecode(t *testing.T) {
 
 func TestMFA(t *testing.T) {
 	var buff bytes.Buffer
-	c := NewConn(&fakeConn{Buffer: &buff})
+	c := NewConn(&fakeConn{Buffer: &buff}, DecoderFunc(DecodeTDP))
 
 	mfaWant := &MFA{
 		Type: defaults.WebsocketMFAChallenge[0],
