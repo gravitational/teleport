@@ -2556,16 +2556,15 @@ func onLogout(cf *CLIConf) error {
 	switch {
 	// Proxy and username for key to remove.
 	case proxyHost != "":
-
 		// In the event --user flag is not supplied, and there is only one identity,
 		// we can simply log out the single identity.
-		// Extract the list of identities (usernames) currently in keystore.
-		clientStore := cf.getClientStore()
-		usernames, err := clientStore.GetIdentities(proxyHost)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		if cf.Username == "" {
+			clientStore := cf.getClientStore()
+			usernames, err := clientStore.GetIdentities(proxyHost)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			logger.DebugContext(cf.Context, "No --user flag provided, but identities found for proxy",
 				"proxy_host", proxyHost,
 				"users", usernames)

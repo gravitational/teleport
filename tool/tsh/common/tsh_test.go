@@ -7790,46 +7790,46 @@ func TestLogoutOneIdentity(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--proxy", proxyAddr.String()},
-		setHomePath(tmpHomePath),
-		setMockSSOLogin(authServer, alice, connector.GetName()))
-	require.NoError(t, err)
+	tests := []struct {
+		name    string
+		command []string
+		envMap  map[string]string
+	}{
+		{
+			name:    "--proxy flag set",
+			command: []string{"logout", "--proxy", proxyAddr.String()},
+		},
+		{
+			name:    "TELEPORT_PROXY set",
+			command: []string{"logout"},
+			envMap: map[string]string{
+				proxyEnvVar: proxyAddr.String(),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
 
-	// logout with one identity with --proxy flag set
-	buf := bytes.NewBuffer([]byte{})
-	err = Run(context.Background(), []string{
-		"logout",
-		"--proxy", proxyAddr.String()},
-		setHomePath(tmpHomePath),
-		func(cf *CLIConf) error {
-			cf.OverrideStdout = buf
-			return nil
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String()},
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+
+			buf := bytes.NewBuffer([]byte{})
+			err := Run(context.Background(), tc.command,
+				setHomePath(tmpHomePath),
+				func(cf *CLIConf) error {
+					cf.OverrideStdout = buf
+					return nil
+				})
+			require.NoError(t, err)
+			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
 		})
-	require.NoError(t, err)
-	require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
-
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--proxy", proxyAddr.String()},
-		setHomePath(tmpHomePath),
-		setMockSSOLogin(authServer, alice, connector.GetName()))
-	require.NoError(t, err)
-
-	// logout with TELEPORT_PROXY set
-	t.Setenv(proxyEnvVar, proxyAddr.String())
-
-	buf.Reset()
-	err = Run(context.Background(), []string{
-		"logout"},
-		setHomePath(tmpHomePath),
-		func(cf *CLIConf) error {
-			cf.OverrideStdout = buf
-			return nil
-		})
-	require.NoError(t, err)
-	require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+	}
 }
