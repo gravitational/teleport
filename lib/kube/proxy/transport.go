@@ -180,7 +180,7 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 	// Use retryableTransport to retry on HTTP/2 GOAWAY errors.
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		&retryableTransport{internal.NewImpersonatorRoundTripper(h2Transport), f.log},
+		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
@@ -282,7 +282,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 	// Use retryableTransport to retry on HTTP/2 GOAWAY errors.
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		&retryableTransport{internal.NewImpersonatorRoundTripper(h2Transport), f.log},
+		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
