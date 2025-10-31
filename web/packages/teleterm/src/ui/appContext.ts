@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getErrorMessage } from 'shared/utils/error';
+
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
 import {
@@ -23,6 +25,7 @@ import {
   MainProcessClient,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
+import { logoutWithCleanup } from 'teleterm/ui/ClusterLogout/logoutWithCleanup';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
@@ -152,6 +155,9 @@ export default class AppContext implements IAppContext {
       tshClient,
       this.configService
     );
+
+    this.registerClusterLifecycleHandler();
+    this.subscribeToProfileWatcherErrors();
   }
 
   async pullInitialState(): Promise<void> {
@@ -193,5 +199,42 @@ export default class AppContext implements IAppContext {
   // directly on appContext, we use a getter which exposes a private property.
   get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
     return this._unexpectedVnetShutdownListener;
+  }
+
+  private registerClusterLifecycleHandler(): void {
+    this.mainProcessClient.registerClusterLifecycleHandler(
+      async ({ uri, op }) => {
+        switch (op) {
+          case 'did-add-cluster':
+            return this.workspacesService.addWorkspace(uri);
+          case 'will-logout':
+            return logoutWithCleanup(this, uri, { removeWorkspace: false });
+          case 'will-logout-and-remove':
+            return logoutWithCleanup(this, uri, { removeWorkspace: true });
+        }
+      }
+    );
+  }
+
+  private subscribeToProfileWatcherErrors(): void {
+    this.mainProcessClient.subscribeToProfileWatcherErrors(
+      ({ error, reason }) => {
+        let title: string;
+        switch (reason) {
+          case 'processing-error':
+            title = 'An error occurred while handling a file system change';
+            break;
+          case 'exited':
+            title =
+              'Monitoring file system changes the tsh directory stopped due to an error.';
+            break;
+        }
+
+        this.notificationsService.notifyError({
+          title,
+          description: getErrorMessage(error),
+        });
+      }
+    );
   }
 }

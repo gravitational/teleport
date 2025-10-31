@@ -19,6 +19,10 @@
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import type {
+  ClusterLifecycleEvent,
+  ProfileWatcherError,
+} from 'teleterm/mainProcess/clusterLifecycleManager';
 import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
@@ -234,6 +238,16 @@ export type MainProcessClient = {
   subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
     cleanup: () => void;
   };
+  registerClusterLifecycleHandler(
+    listener: (event: ClusterLifecycleEvent) => Promise<void>
+  ): {
+    cleanup: () => void;
+  };
+  subscribeToProfileWatcherErrors(
+    listener: (args: ProfileWatcherError) => void
+  ): {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -342,6 +356,7 @@ export enum RendererIpc {
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
   IsInBackgroundMode = 'renderer-is-in-background-mode',
+  ProfileWatcherError = 'renderer-profile-watcher-error',
 }
 
 export enum MainProcessIpc {
@@ -363,6 +378,7 @@ export enum MainProcessIpc {
   AddCluster = 'main-process-add-cluster',
   SyncRootClusters = 'main-process-sync-root-clusters',
   Logout = 'main-process-logout',
+  RegisterClusterLifecycleHandler = 'main-process-register-cluster-lifecycle-handler',
 }
 
 export enum WindowsManagerIpc {

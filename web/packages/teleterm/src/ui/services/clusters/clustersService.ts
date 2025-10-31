@@ -72,10 +72,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     this.subscribeToClusterStore();
   }
 
-  async addRootCluster(proxyAddress: string) {
-    return this.mainProcessClient.addCluster(proxyAddress);
-  }
-
   async authenticateWebDevice(
     rootClusterUri: uri.RootClusterUri,
     {
