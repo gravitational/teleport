@@ -24,12 +24,15 @@ import {
   useContext,
 } from 'react';
 
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
 
 const WorkspaceContext = createContext<{
+  rootCluster: Cluster;
   rootClusterUri: RootClusterUri;
   localClusterUri: ClusterUri;
   documentsService: DocumentsService;
@@ -58,7 +61,23 @@ export const WorkspaceContextProvider: FC<
       [props.value.rootClusterUri]
     )
   );
-  return <WorkspaceContext.Provider {...props} />;
+  const rootCluster = useStoreSelector(
+    'clustersService',
+    useCallback(
+      state => state.clusters.get(props.value.rootClusterUri),
+      [props.value.rootClusterUri]
+    )
+  );
+
+  if (!rootCluster) {
+    return;
+  }
+
+  return (
+    <WorkspaceContext.Provider value={{ ...props.value, rootCluster }}>
+      {props.children}
+    </WorkspaceContext.Provider>
+  );
 };
 
 export const useWorkspaceContext = () => {
