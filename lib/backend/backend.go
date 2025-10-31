@@ -401,12 +401,18 @@ func NewLease(item Item) *Lease {
 	}
 }
 
-// PutBatcher is an optional interface that backends can implement
+// BatchPutter is an optional interface that backends can implement
 // to support batched PutBatch operations for improved performance when writing
 // multiple items at once.
-type PutBatcher interface {
-	// PutBatch puts multiple items into the backend in a single batch operation.
-	// Returns a revision item for each item in the same order.
+type BatchPutter interface {
+	// PutBatch upserts multiple items into the backend in a single call, in a way
+	// that is equivalent to a loop around multiple invocations of [backend.Put],
+	// but with the potential to be more efficient or faster, depending on the
+	// implementation. Returns a revision item for each item in the same order.
+	// Revisions are not guaranteed to be different nor they are guaranteed to be
+	// the same between items of the same batch. If an error is returned, it's
+	// possible for some of the items to have been persisted to the storage. The
+	// order in which items are internally persisted is an implementation detail.
 	PutBatch(context.Context, []Item) ([]string, error)
 }
 
@@ -419,8 +425,7 @@ func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
 	// Many Backend implementations rely on unique keys for correct operation.
 	// Where it is up to the caller to ensure this to remove duplication keys
 	// Just in case we will fallback to single Put calls if duplicates are detected.
-	hasDuplicates := hasDuplicateKeys(items)
-	if v, ok := bk.(PutBatcher); ok && !hasDuplicates {
+	if v, ok := bk.(BatchPutter); ok && !hasDuplicateKeys(items) {
 		revs, err := v.PutBatch(ctx, items)
 		return revs, trace.Wrap(err)
 	}
