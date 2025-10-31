@@ -439,6 +439,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 			h.log.WarnContext(ctx, "Failed to append Trace to ConnectionDiagnostic", "error", err)
 		}
 
+		// If the target of the auth attempt is a Teleport SSH server, we want
+		// to return node info in the audit event.
+		var hostID, hostName string
+		if h.c.TargetServer != nil {
+			hostID = h.c.TargetServer.GetHostname()
+			hostName = h.c.TargetServer.GetName()
+		}
+
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -454,8 +462,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 				RemoteAddr: conn.RemoteAddr().String(),
 			},
 			ServerMetadata: apievents.ServerMetadata{
-				ServerID:       h.c.TargetServer.GetName(),
-				ServerHostname: h.c.TargetServer.GetHostname(),
+				ServerID:       hostID,
+				ServerHostname: hostName,
 			},
 			Status: apievents.Status{
 				Success: false,
