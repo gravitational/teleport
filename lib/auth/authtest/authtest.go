@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -96,6 +97,8 @@ type AuthServerConfig struct {
 	// SessionSummarizerProvider allows a test to configure its own session
 	// summarizer provider.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider allows a test to configure its own recording
+	RecordingMetadataProvider *recordingmetadata.Provider
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -330,6 +333,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		KeyStoreConfig:            cfg.KeystoreConfig,
 		MultipartHandler:          cfg.UploadHandler,
 		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: cfg.RecordingMetadataProvider,
 	},
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),

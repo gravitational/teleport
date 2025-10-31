@@ -21,6 +21,7 @@ package recordingmetadatav1
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"math"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
@@ -65,6 +67,7 @@ type RecordingMetadataService struct {
 	streamer           player.Streamer
 	uploadHandler      UploadHandler
 	concurrencyLimiter *semaphore.Weighted
+	encrypter          events.EncryptionWrapper
 }
 
 // RecordingMetadataServiceConfig defines the configuration for the RecordingMetadataService.
@@ -73,6 +76,8 @@ type RecordingMetadataServiceConfig struct {
 	Streamer player.Streamer
 	// UploadHandler is used to upload session metadata and thumbnails.
 	UploadHandler UploadHandler
+	// Encrypter is used to encrypt session metadata and thumbnails.
+	Encrypter events.EncryptionWrapper
 }
 
 const (
@@ -100,6 +105,7 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 		uploadHandler:      cfg.UploadHandler,
 		logger:             slog.With(teleport.ComponentKey, "recording_metadata"),
 		concurrencyLimiter: semaphore.NewWeighted(concurrencyLimit),
+		encrypter:          cfg.Encrypter,
 	}, nil
 }
 
@@ -152,7 +158,11 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	var finish sync.Once
 
 	w, cancelUpload, uploadErrs := s.startUpload(ctx, sessionID)
-
+	select {
+	case err := <-uploadErrs:
+		return trace.Wrap(err)
+	default:
+	}
 	defer func() {
 		finish.Do(func() {
 			cancelUpload()
@@ -396,7 +406,27 @@ func (s *RecordingMetadataService) startUpload(ctx context.Context, sessionID se
 	uploadCtx, cancel := context.WithCancel(ctx)
 	r, w := io.Pipe()
 	errs := make(chan error, 1)
-
+	var writer io.WriteCloser = w
+	if s.encrypter != nil {
+		// wrap the pipe writer with encryption
+		// WithEncryption will never close the underlying writer when the returned
+		// WriteCloser is closed, so we need to create a multiCloser to close both
+		// the encrypted writer and the pipe writer.
+		encrypted, err := s.encrypter.WithEncryption(uploadCtx, w)
+		switch {
+		case err == nil:
+			writer = &multiCloser{
+				WriteCloser: encrypted,
+				pipeCloser:  w,
+			}
+		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
+			// if encryption isn't enabled, do nothing
+		default:
+			cancel()
+			errs <- trace.Wrap(err, "starting recording encrypter")
+			return nil, nil, errs
+		}
+	}
 	go func() {
 		defer r.Close()
 
@@ -410,7 +440,21 @@ func (s *RecordingMetadataService) startUpload(ctx context.Context, sessionID se
 		errs <- nil
 	}()
 
-	return w, cancel, errs
+	return writer, cancel, errs
+}
+
+// multiCloser is an io.WriteCloser that closes the underlying
+// WriteCloser and an additional Closer.
+type multiCloser struct {
+	io.WriteCloser
+	pipeCloser io.Closer
+}
+
+func (m *multiCloser) Close() error {
+	// flush the encryption writer and close the pipe
+	errEncryption := m.WriteCloser.Close()
+	errPipe := m.pipeCloser.Close()
+	return trace.NewAggregate(errEncryption, errPipe)
 }
 
 func (s *RecordingMetadataService) uploadThumbnail(ctx context.Context, sessionID session.ID, thumbnail *pb.SessionRecordingThumbnail) error {
@@ -423,13 +467,42 @@ func (s *RecordingMetadataService) uploadThumbnail(ctx context.Context, sessionI
 		return trace.Wrap(err)
 	}
 
-	path, err := s.uploadHandler.UploadThumbnail(ctx, sessionID, bytes.NewReader(b))
+	var buf io.Reader = bytes.NewReader(b)
+	if s.encrypter != nil {
+		writeBuffer := bytes.NewBuffer(nil)
+		encryptedWriter, err := s.encrypter.WithEncryption(ctx, &nopCloser{writeBuffer})
+		switch {
+		case err == nil:
+			if _, err := io.Copy(encryptedWriter, buf); err != nil {
+				encryptedWriter.Close()
+				return trace.Wrap(err)
+			}
+			if err := encryptedWriter.Close(); err != nil {
+				return trace.Wrap(err)
+			}
+			buf = writeBuffer
+		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
+			// if encryption isn't enabled, do nothing
+		default:
+			return trace.Wrap(err, "starting recording encrypter")
+		}
+	}
+
+	path, err := s.uploadHandler.UploadThumbnail(ctx, sessionID, buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	s.logger.DebugContext(ctx, "Uploaded session recording thumbnail", "path", path)
 
+	return nil
+}
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (n nopCloser) Close() error {
 	return nil
 }
 

@@ -5170,7 +5170,6 @@ func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end stri
 				return
 			}
 		}
-
 	}
 }
 
@@ -5190,7 +5189,6 @@ func (g *GRPCServer) ListInstallers(ctx context.Context, req *authpb.ListInstall
 		int(req.PageSize),
 		types.Installer.GetName,
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6204,10 +6202,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	userloginstatev1pb.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Uploader:   cfg.AuthServer.Services,
-		KeyRotater: cfg.AuthServer.Services,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		Authorizer:                cfg.Authorizer,
+		Uploader:                  cfg.AuthServer.Services,
+		KeyRotater:                cfg.AuthServer.Services,
+		Logger:                    cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
+		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
+		SessionStreamer:           cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6338,6 +6339,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		Streamer:        cfg.AuthServer,
 		DownloadHandler: cfg.AuthServer,
+		Decrypter:       cfg.AuthServer.EncryptedIO,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating recording metadata service")
