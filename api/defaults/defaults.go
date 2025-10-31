@@ -59,7 +59,7 @@ const (
 	MaxInstanceHeartbeatInterval = 18 * time.Minute
 
 	// SessionTrackerTTL defines the default base ttl of a session tracker.
-	SessionTrackerTTL = 30 * time.Minute
+	SessionTrackerTTL = 60 * time.Second
 
 	// BreakerInterval is the period in time the circuit breaker will
 	// tally metrics for

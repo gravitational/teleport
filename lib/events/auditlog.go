@@ -107,11 +107,11 @@ const (
 
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
-	AbandonedUploadPollingRate = apidefaults.SessionTrackerTTL / 6
+	AbandonedUploadPollingRate = 30 * time.Second
 
 	// UploadCompleterGracePeriod is the default period after which an upload's
 	// session tracker will be checked to see if it's an abandoned upload.
-	UploadCompleterGracePeriod = 24 * time.Hour
+	UploadCompleterGracePeriod = 90 * time.Second
 )
 
 var (

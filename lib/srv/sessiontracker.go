@@ -119,9 +119,9 @@ func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwo
 func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock) error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Clock:  clock,
-		Max:    3 * time.Minute,
-		First:  time.Minute,
-		Step:   time.Minute,
+		Max:    apidefaults.SessionTrackerTTL / 2,
+		First:  apidefaults.SessionTrackerTTL / 4,
+		Step:   apidefaults.SessionTrackerTTL / 4,
 		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
