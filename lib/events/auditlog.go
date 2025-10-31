@@ -715,6 +715,8 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 
 // findSessionEndEvent streams session events to find the session end event for the given session ID.
 // It returns either a SessionEnd or DatabaseSessionEnd event, or nil if none is found.
+// TODO(tigrato): Revisit this approach for large sessions, as it's highly inefficient.
+// Instead, consider downloading the last few parts of the recording to find the session end event.
 func (l *AuditLog) findSessionEndEvent(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
