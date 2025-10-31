@@ -113,7 +113,9 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 	var classicErr error
 
 	wg := &sync.WaitGroup{}
-	wg.Go(func() {
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
 		tok, err := s.cfg.ScopedTokenService.UseScopedToken(ctx, name)
 		if err != nil {
 			scopedErr = err
@@ -121,11 +123,12 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 		}
 
 		scoped, scopedErr = joining.NewToken(tok)
-	})
-	wg.Go(func() {
+	}()
+	go func() {
+		defer wg.Done()
 		// Fetch the provision token and validate that it is not expired.
 		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
-	})
+	}()
 	wg.Wait()
 
 	// we explicitly disallow a join if the provided token name returns both a scoped and classic provision token
