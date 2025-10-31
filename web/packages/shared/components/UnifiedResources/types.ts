@@ -29,6 +29,8 @@ import { ResourceLabel } from 'teleport/services/agents';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
 
+import { SortOrder } from '../Controls/SortMenuV2';
+
 // "mixed" indicates the resource has a mix of health
 // statuses. This can happen when multiple agents proxy the same resource.
 export type ResourceHealthStatus =
@@ -173,7 +175,7 @@ export type UnifiedResourcesQueryParams = {
   search?: string;
   sort?: {
     fieldName: string;
-    dir: 'ASC' | 'DESC';
+    dir: SortOrder;
   };
   pinnedOnly?: boolean;
   statuses?: ResourceHealthStatus[];

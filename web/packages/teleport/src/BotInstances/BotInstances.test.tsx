@@ -598,8 +598,11 @@ describe('BotInstances', () => {
       expect.anything()
     );
 
-    const dirAction = screen.getByRole('button', { name: 'Sort direction' });
-    await user.click(dirAction);
+    const sortFieldAction = screen.getByRole('button', { name: 'Sort by' });
+    await user.click(sortFieldAction);
+
+    const ascendingAction = screen.getByRole('menuitem', { name: 'Oldest' });
+    await user.click(ascendingAction);
 
     expect(listBotInstances).toHaveBeenCalledTimes(2);
     expect(listBotInstances).toHaveBeenLastCalledWith(
@@ -614,7 +617,6 @@ describe('BotInstances', () => {
       expect.anything()
     );
 
-    const sortFieldAction = screen.getByRole('button', { name: 'Sort by' });
     await user.click(sortFieldAction);
     const option = screen.getByRole('menuitem', { name: 'Bot name' });
     await user.click(option);

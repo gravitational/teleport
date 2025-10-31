@@ -334,12 +334,11 @@ describe('sorting', () => {
     const typeOption = await screen.findByText('Type');
     await userEvent.click(typeOption);
 
-    expect(mockHandlers.onSortChange).toHaveBeenCalledWith('type', 'DESC');
+    expect(mockHandlers.onSortChange).toHaveBeenCalledWith('type', 'ASC');
 
-    const sortDirectionButton = screen.getByRole('button', {
-      name: 'Sort direction',
-    });
-    await userEvent.click(sortDirectionButton);
+    await userEvent.click(sortButton);
+    const sortAscending = await screen.findByText('Oldest');
+    await userEvent.click(sortAscending);
 
     // The sort direction is still the default (Date, DESC), so we expect
     // the direction change to be called with Date, ASC.
