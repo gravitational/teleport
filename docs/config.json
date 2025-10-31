@@ -801,6 +801,36 @@
       "permanent": true
     },
     {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/admin-guide/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/admin-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/concepts/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/concepts/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/static-keys/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/static-keys/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/",
+      "permanent": true
+    },
+    {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
       "permanent": true
