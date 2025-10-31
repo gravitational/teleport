@@ -170,11 +170,6 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
-	// If there are no parts to complete, move to cleanup
-	if len(parts) == 0 {
-		return h.cleanupUpload(ctx, upload)
-	}
-
 	uploadPath := h.recordingPath(upload.SessionID)
 
 	// Prevent other processes from accessing this file until the write is completed
@@ -183,6 +178,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.ConvertSystemError(err)
 	}
 	unlock, err := utils.FSTryWriteLock(uploadPath)
+
+	// If there are no parts to complete, move to cleanup
+	if len(parts) == 0 {
+		return h.cleanupUpload(ctx, upload)
+	}
+
 Loop:
 	for i := 0; i < 3; i++ {
 		switch {
