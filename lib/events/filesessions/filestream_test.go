@@ -172,3 +172,48 @@ func TestCompleteUpload(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanupEmptyUpload(t *testing.T) {
+	ctx := context.Background()
+
+	handler, err := NewHandler(Config{
+		Directory: t.TempDir(),
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	sessionID := session.NewID()
+
+	// Create a completed upload.
+	upload, err := handler.CreateUpload(ctx, sessionID)
+	require.NoError(t, err)
+
+	err = handler.ReserveUploadPart(ctx, *upload, 1)
+	require.NoError(t, err)
+
+	content := []byte("hello world")
+	part, err := handler.UploadPart(ctx, *upload, 1, bytes.NewReader(content))
+	require.NoError(t, err)
+
+	err = handler.CompleteUpload(ctx, *upload, []events.StreamPart{*part})
+	require.NoError(t, err)
+
+	// Create an empty upload with the same session ID and try to complete it.
+	emptyUpload, err := handler.CreateUpload(ctx, sessionID)
+	require.NoError(t, err)
+
+	err = handler.CompleteUpload(ctx, *emptyUpload, []events.StreamPart{})
+	require.NoError(t, err)
+
+	// The empty upload should be cleaned up without impacting the original completed upload.
+	uploadPath := handler.recordingPath(upload.SessionID)
+	f, err := os.Open(uploadPath)
+	require.NoError(t, err)
+
+	gotContent, err := io.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, content, gotContent)
+
+	require.NoDirExists(t, handler.uploadRootPath(*upload))
+	require.NoDirExists(t, handler.uploadRootPath(*emptyUpload))
+}
