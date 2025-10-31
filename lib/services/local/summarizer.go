@@ -316,7 +316,7 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 	}
 
 	return &SummarizerService{
-		backend:       b,
+		backend:       cfg.Backend,
 		modelService:  modelService,
 		secretService: secretService,
 		policyService: policyService,
