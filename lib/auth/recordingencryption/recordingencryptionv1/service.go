@@ -70,6 +70,10 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("key rotater is required")
 	case cfg.SessionStreamer == nil:
 		return nil, trace.BadParameter("session streamer is required")
+	case cfg.RecordingMetadataProvider == nil:
+		return nil, trace.BadParameter("recording metadata provider is required")
+	case cfg.SessionSummarizerProvider == nil:
+		return nil, trace.BadParameter("session summarizer provider is required")
 	}
 
 	if cfg.Logger == nil {

@@ -451,10 +451,10 @@ type multiCloser struct {
 }
 
 func (m *multiCloser) Close() error {
-	// flush the age writer and close the pipe
-	errAge := m.WriteCloser.Close()
+	// flush the encryption writer and close the pipe
+	errEncryption := m.WriteCloser.Close()
 	errPipe := m.pipeCloser.Close()
-	return trace.NewAggregate(errAge, errPipe)
+	return trace.NewAggregate(errEncryption, errPipe)
 }
 
 func (s *RecordingMetadataService) uploadThumbnail(ctx context.Context, sessionID session.ID, thumbnail *pb.SessionRecordingThumbnail) error {

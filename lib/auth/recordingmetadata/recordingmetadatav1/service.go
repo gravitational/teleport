@@ -233,9 +233,7 @@ func readDelimitedMessage(r *bufio.Reader) ([]byte, error) {
 	return msgBytes, nil
 }
 
-// decryptIfNeeded decrypts the data if it is age-encrypted by checking for the age encryption prefix
-// [age-encryption.org/v1].
-// If the data is not age-encrypted, it is returned as-is.
+// decryptIfNeeded decrypts the data if it is encrypted. If the data is not encrypted, it is returned as-is.
 func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
 	unencrypted, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, r.decrypter)
 	return unencrypted, trace.Wrap(err)

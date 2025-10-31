@@ -69,11 +69,13 @@ func TestRotateKey(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer:      &fakeAuthorizer{},
-				Logger:          logtest.NewLogger(),
-				Uploader:        fakeUploader{},
-				KeyRotater:      rotater,
-				SessionStreamer: &fakeSessionStreamer{},
+				Authorizer:                &fakeAuthorizer{},
+				Logger:                    logtest.NewLogger(),
+				Uploader:                  fakeUploader{},
+				KeyRotater:                rotater,
+				SessionStreamer:           &fakeSessionStreamer{},
+				RecordingMetadataProvider: recordingmetadata.NewProvider(),
+				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -88,7 +90,6 @@ func TestRotateKey(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, rotater.keys, 2)
 			}
-
 		})
 	}
 }
@@ -115,11 +116,13 @@ func TestCompleteRotation(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer:      &fakeAuthorizer{},
-				Logger:          logtest.NewLogger(),
-				Uploader:        fakeUploader{},
-				KeyRotater:      rotater,
-				SessionStreamer: &fakeSessionStreamer{},
+				Authorizer:                &fakeAuthorizer{},
+				Logger:                    logtest.NewLogger(),
+				Uploader:                  fakeUploader{},
+				KeyRotater:                rotater,
+				SessionStreamer:           &fakeSessionStreamer{},
+				RecordingMetadataProvider: recordingmetadata.NewProvider(),
+				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -163,11 +166,13 @@ func TestRollbackRotation(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer:      &fakeAuthorizer{},
-				Logger:          logtest.NewLogger(),
-				Uploader:        fakeUploader{},
-				KeyRotater:      rotater,
-				SessionStreamer: &fakeSessionStreamer{},
+				Authorizer:                &fakeAuthorizer{},
+				Logger:                    logtest.NewLogger(),
+				Uploader:                  fakeUploader{},
+				KeyRotater:                rotater,
+				SessionStreamer:           &fakeSessionStreamer{},
+				RecordingMetadataProvider: recordingmetadata.NewProvider(),
+				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
@@ -210,11 +215,13 @@ func TestGetRotationState(t *testing.T) {
 			ctx := withAuthCtx(t.Context(), c.ctx)
 			rotater := newFakeKeyRotater()
 			cfg := recordingencryptionv1.ServiceConfig{
-				Authorizer:      &fakeAuthorizer{},
-				Logger:          logtest.NewLogger(),
-				Uploader:        fakeUploader{},
-				KeyRotater:      rotater,
-				SessionStreamer: &fakeSessionStreamer{},
+				Authorizer:                &fakeAuthorizer{},
+				Logger:                    logtest.NewLogger(),
+				Uploader:                  fakeUploader{},
+				KeyRotater:                rotater,
+				SessionStreamer:           &fakeSessionStreamer{},
+				RecordingMetadataProvider: recordingmetadata.NewProvider(),
+				SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
 			}
 
 			service, err := recordingencryptionv1.NewService(cfg)
