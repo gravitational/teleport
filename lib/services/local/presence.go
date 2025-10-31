@@ -884,6 +884,70 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 	return sems, nil
 }
 
+func semaphoreToPageToken(sem types.Semaphore) string {
+	return sem.GetSubKind() + backend.SeparatorString + sem.GetName()
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (s *PresenceService) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(semaphoresPrefix).AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(backend.NewKey(semaphoresPrefix))
+
+	filterKind := filter.GetSemaphoreKind()
+	filterName := filter.GetSemaphoreName()
+
+	// If the filter is set we optimize the ranges to avoid fetching items that will be filtered.
+	if filterKind != "" && filterName != "" {
+		// Special case when both kind and name are set the result should yield only a single item.
+		startKey = backend.NewKey(semaphoresPrefix, filterKind, filterName)
+		endKey = startKey
+	} else if filterKind != "" {
+		// Terminate range early as we know the only kind requested.
+		endKey = backend.RangeEnd(backend.NewKey(semaphoresPrefix, filterKind))
+		if start == "" {
+			// We are not resuming previous list, skip to the start of the correct kind range
+			startKey = backend.NewKey(semaphoresPrefix, filterKind)
+		}
+	}
+
+	// Note the range is fetched without limit, this is because the results are filtered.
+	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.Semaphore, 0, len(result.Items))
+
+	for _, item := range result.Items {
+		sem, err := services.UnmarshalSemaphore(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling Semaphore")
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, semaphoreToPageToken(sem), nil
+		}
+
+		if filter.Match(sem) {
+			out = append(out, sem)
+		}
+	}
+
+	return out, "", nil
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter
 func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if filter.SemaphoreKind == "" || filter.SemaphoreName == "" {

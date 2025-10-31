@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 	libtestutils "github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -507,7 +508,7 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 		Onboarding:      *onboarding,
 		InternalStorage: destination.NewMemory(),
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
+			trustBundleCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Listen: socketPath,
@@ -543,6 +544,11 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 									},
 								},
 							},
+						},
+					},
+					Attestors: workloadattest.Config{
+						Unix: workloadattest.UnixAttestorConfig{
+							BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
 						},
 					},
 				},
@@ -722,7 +728,7 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 		Onboarding:      *onboarding,
 		InternalStorage: destination.NewMemory(),
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
+			trustBundleCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Listen: socketPath,
@@ -758,6 +764,11 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 									},
 								},
 							},
+						},
+					},
+					Attestors: workloadattest.Config{
+						Unix: workloadattest.UnixAttestorConfig{
+							BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
 						},
 					},
 				},
