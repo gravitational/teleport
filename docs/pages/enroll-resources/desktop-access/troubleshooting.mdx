@@ -492,6 +492,27 @@ To fix this error, ensure that either:
 
 See [Computer Name](./active-directory.mdx#computer-name) for more information.
 
+### LDAP connection failing periodically
+
+You see Teleport failing to contact your LDAP server periodically and an error in Teleport logs that looks similar to this:
+
+```
+... "error":"connecting to LDAP server. no LDAP servers responded successfully for domain "example.com" ...
+```
+
+When Teleport attempts to authenticate using LDAP to a Domain Controller, the Domain Controller then attempts
+to validate certificates by downloading Microsoft's Certificate Trust List from `ctldl.windowsupdate.com`.
+If the Domain Controller request timeout (default 15 seconds) takes longer than Teleport's LDAP request timeout
+(30 seconds for v18.2.5 and above or 15 seconds for v18.2.4 and earlier), the request will fail and the Domain
+Controller will cache the failed retrieval for 35 minutes.
+
+**Solution:** Decrease the Domain Controller's timeouts in Certificate Path Validation Settings Properties
+
+Setting **Default URL retrieval timeout** and **Default path validation cumulative retrieval timeout** to less than that
+of Teleport's LDAP request timeout will fix this issue. These settings can be found in the Local Group Policy in Computer
+Configuration > Windows Settings > Security Settings > Public Key Policies > Certificate Path Validation Settings Properties
+then under the Network Retrieval tab.
+
 ## Directory Sharing
 
 ### Failed to share directory
