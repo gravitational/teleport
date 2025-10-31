@@ -1,4 +1,4 @@
-.version: &version "18.2.10-dev.scim.version.1"
+.version: &version "18.2.10-dev.scim.version.2"
 
 name: teleport-kube-agent
 apiVersion: v2
