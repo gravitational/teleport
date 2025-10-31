@@ -69,7 +69,7 @@ type UploaderConfig struct {
 	EncryptedRecordingUploader events.EncryptedRecordingUploader
 	// EncryptedRecordingUploadTargetSize is the target size used when aggregating
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
-	// encrypted uploads should slightly exceed this target size unless limited by the maximum.
+	// Encrypted uploads should slightly exceed this target size unless limited by the maximum.
 	EncryptedRecordingUploadTargetSize int
 	// EncryptedRecordingUploadTargetSize is the maximum size used when aggregating
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
@@ -413,7 +413,7 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 	return nil
 }
 
-// encryptedUploadAggregateIter returns an iterator that aggregates upload parts from the given reader into
+// encryptedUploadAggregateIter returns an iterator that aggregates upload parts from the given reader
 // into larger upload with size greater than targetSize, or as near targetSize as possible without exceeding
 // the maxSize.
 func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) iter.Seq2[[]byte, error] {
