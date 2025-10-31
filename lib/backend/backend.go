@@ -419,13 +419,15 @@ type BatchPutter interface {
 // PutBatch is an implementation of PutBatch that by default calls Put for each item.
 // Backends can overwrite this behavior providing optimized PutBatch implementation.
 //
-// WARNING: Make sure that items have unique keys when calling PutBatch to avoid fallback
-// to single Put calls.
+// WARNING: Make sure that items have unique keys when calling PutBatch.
 func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
+	if v, hasDuplicate := hasDuplicateKeys(items); hasDuplicate {
+		return nil, trace.BadParameter("duplicate key detected in PutBatch: %q", v)
+	}
 	// Many Backend implementations rely on unique keys for correct operation.
 	// Where it is up to the caller to ensure this to remove duplication keys
 	// Just in case we will fallback to single Put calls if duplicates are detected.
-	if v, ok := bk.(BatchPutter); ok && !hasDuplicateKeys(items) {
+	if v, ok := bk.(BatchPutter); ok {
 		revs, err := v.PutBatch(ctx, items)
 		return revs, trace.Wrap(err)
 	}
@@ -441,14 +443,14 @@ func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
 	return revisions, nil
 }
 
-func hasDuplicateKeys(items Items) bool {
+func hasDuplicateKeys(items Items) (string, bool) {
 	seen := make(map[string]struct{})
 	for _, ca := range items {
 		keyStr := ca.Key.String()
 		if _, ok := seen[keyStr]; ok {
-			return true
+			return keyStr, true
 		}
 		seen[keyStr] = struct{}{}
 	}
-	return false
+	return "", false
 }
