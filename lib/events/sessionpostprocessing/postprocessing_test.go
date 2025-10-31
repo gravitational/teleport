@@ -1,4 +1,21 @@
-package postprocessing_test
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package sessionpostprocessing_test
 
 import (
 	"context"
@@ -13,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/events/postprocessing"
+	"github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -47,14 +64,14 @@ func TestSessionPostProcessor(t *testing.T) {
 		PrintData: []string{"net", "stat"},
 	})
 
-	cfg := postprocessing.SessionPostProcessorConfig{
+	cfg := sessionpostprocessing.Config{
 		SessionEnd:                events[len(events)-1],
 		RecordingMetadataProvider: metadataProvider,
 		SessionSummarizerProvider: summarizerProvider,
 		SessionID:                 sessionID,
 	}
 
-	err := postprocessing.SessionPostProcessor(t.Context(), cfg)
+	err := sessionpostprocessing.Process(t.Context(), cfg)
 	require.NoError(t, err)
 
 	recorderMetadata.AssertExpectations(t)

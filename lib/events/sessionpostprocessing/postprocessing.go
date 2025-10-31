@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package postprocessing
+package sessionpostprocessing
 
 import (
 	"context"
@@ -28,8 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// SessionPostProcessorConfig is the configuration for the session post-processor.
-type SessionPostProcessorConfig struct {
+// Config is the configuration for the session post-processor.
+type Config struct {
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
@@ -42,9 +42,9 @@ type SessionPostProcessorConfig struct {
 	SessionID session.ID
 }
 
-// SessionPostProcessor processes session end events after the session recording upload is complete.
+// Process processes session end events after the session recording upload is complete.
 // It summarizes the session recording and processes the recording metadata.
-func SessionPostProcessor(ctx context.Context, cfg SessionPostProcessorConfig) error {
+func Process(ctx context.Context, cfg Config) error {
 	switch {
 	case cfg.SessionSummarizerProvider == nil:
 		return trace.BadParameter("session summarizer provider is not set")

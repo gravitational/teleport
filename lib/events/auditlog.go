@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
-	sessionpostprocessing "github.com/gravitational/teleport/lib/events/postprocessing"
+	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -691,9 +691,9 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 	if err != nil || sessionEnd == nil {
 		return nil
 	}
-	if err := sessionpostprocessing.SessionPostProcessor(
+	if err := sessionpostprocessing.Process(
 		ctx,
-		sessionpostprocessing.SessionPostProcessorConfig{
+		sessionpostprocessing.Config{
 			SessionEnd:                sessionEnd,
 			SessionID:                 upload.SessionID,
 			SessionSummarizerProvider: l.SessionSummarizerProvider,
