@@ -65,7 +65,7 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 	if sess.kubeAPICreds != nil {
 		// If agent is running in agent mode, get the transport from the configured cluster
 		// credentials. Use retryableTransport to retry on HTTP/2 GOAWAY errors.
-		return &retryableTransport{sess.kubeAPICreds.getTransport(), f.log}, sess.kubeAPICreds.getTLSConfig(), nil
+		return newRetryableTransport(sess.kubeAPICreds.getTransport(), f.log), sess.kubeAPICreds.getTLSConfig(), nil
 	}
 
 	// If the cluster is remote, the key is the teleport cluster name.

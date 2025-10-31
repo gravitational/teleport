@@ -20,137 +20,160 @@ package proxy
 
 import (
 	"bytes"
-	"errors"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/semaphore"
 )
 
 // retryableTransport wraps an http.RoundTripper to enable automatic retry
-// on HTTP/2 GOAWAY frames.
+// on HTTP/2 GOAWAY frames by buffering request bodies in memory.
 //
 // Kubernetes API servers send GOAWAY on HTTP/2 connections to redistribute
 // load across replicas. Go's http2.Transport automatically retries if
-// req.GetBody is set. Request bodies are buffered in memory for up to 5MB,
-// and buffered on disk beyond 5MB.
+// req.GetBody is set.
+//
+// A global semaphore limits total buffered memory to 500 MiB across all
+// concurrent requests, preventing OOM. Individual requests have a maximum
+// body size of 50 MiB. Requests are blocked if required memory cannot be
+// acquired from the semaphore.
+//
+// Requests that are not made retryable are:
+// 1. HTTP/1.1 protocol upgrades (exec/attach/portforward), which won't
+// receive an HTTP/2.0 GOAWAY.
+// 2. Requests with body sizes greater than 50 MiB.
+// 3. Requests with unknown body sizes used with chunked encoding
+// cannot safely acquire the semaphore.
 type retryableTransport struct {
-	inner http.RoundTripper
-	log   *slog.Logger
+	inner     http.RoundTripper
+	log       *slog.Logger
+	semaphore *semaphore.Weighted
+}
+
+const (
+	// maxTotalBufferSize limits total memory used for buffering request bodies
+	// across all concurrent requests to prevent OOM at scale.
+	maxTotalBufferSize = 500 * 1024 * 1024 // 500 MiB
+
+	// maxBufferPerRequest limits individual request body size to allow
+	// balanced memory usage across requests. Kubernetes ConfigMaps and Secrets
+	// have 1 MiB etcd limits, so 50 MiB is generous.
+	maxBufferPerRequest = 50 * 1024 * 1024 // 50 MiB
+)
+
+var retryBufferSemaphore = semaphore.NewWeighted(maxTotalBufferSize)
+
+// newRetryableTransport creates a retryableTransport that wraps the provided
+// HTTP/2 transport to enable automatic retry on GOAWAY frames.
+//
+// Intended to wrap transports created via newH2Transport() or equivalent
+// HTTP/2-configured transports. Wrapping non-HTTP/2 transports would add
+// unnecessary buffering.
+func newRetryableTransport(inner http.RoundTripper, log *slog.Logger) *retryableTransport {
+	return &retryableTransport{
+		inner:     inner,
+		log:       log,
+		semaphore: retryBufferSemaphore,
+	}
 }
 
 // RoundTrip implements http.RoundTripper and makes requests retryable.
-func (t *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Skip streaming protocols which aren't retryable.
-	if t.isStreamingProtocol(req) {
-		return t.inner.RoundTrip(req)
+func (rt *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Detect HTTP/1.1 protocol upgrades that won't receive HTTP/2 GOAWAY.
+	if rt.isUpgrade(req) {
+		// Perform roundtrip, no retry available.
+		return rt.inner.RoundTrip(req)
 	}
 
-	// Retry is ok with no body, or buffered in call to GetBody.
 	if req.Body == nil || req.GetBody != nil {
-		return t.inner.RoundTrip(req)
+		// Perform roundtrip, retry available.
+		return rt.inner.RoundTrip(req)
 	}
 
-	// Make retryable by buffering and setting GetBody.
-	cleanup, err := t.makeRetryable(req)
+	// Buffer body to make retryable.
+	releaseSemaphore, err := rt.makeRetryable(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cleanup != nil {
-		defer func() {
-			// Cleanup may delete a temp file after roundtrip.
-			if err := cleanup(); err != nil && errors.Is(err, fs.ErrNotExist) {
-				if t.log != nil {
-					t.log.WarnContext(req.Context(), "Unable to cleanup temp file", "error", err)
-				}
-			}
-		}()
+	if releaseSemaphore != nil {
+		// Release semaphore after roundtrip completes.
+		defer releaseSemaphore()
 	}
 
-	return t.inner.RoundTrip(req)
+	// Perform roundtrip, retry available.
+	return rt.inner.RoundTrip(req)
 }
 
 // makeRetryable buffers the request body to enable retry on HTTP/2 GOAWAY.
-func (t *retryableTransport) makeRetryable(req *http.Request) (func() error, error) {
-
-	// Limit the body buffer size to a large 5X for most cases.
-	// ConfigMaps and Secrets have 1MB limits with kube etcd.
-	// Large bodies might come from a custom CRD or batch operation,
-	// and is likely rare.
-	const maxBufferSize = 5 * 1024 * 1024 // 5MB
-
-	// Buffer on disk when unknown size or body > 5MB.
-	if req.ContentLength < 0 || req.ContentLength > maxBufferSize {
-		return t.makeRetryableWithDisk(req)
+func (rt *retryableTransport) makeRetryable(req *http.Request) (func(), error) {
+	// Chunked request are not retried due to unknown size.
+	if req.ContentLength < 0 {
+		rt.log.DebugContext(req.Context(),
+			"Skipping retry buffer for chunked encoding, request will not be retryable on GOAWAY",
+			"method", req.Method,
+			"path", req.URL.Path)
+		return nil, nil
 	}
 
-	// Buffer body in memory up to 5MB.
-	return nil, t.makeRetryableWithMemory(req)
-}
+	// Request body is too large to retry.
+	// Allows balanced use of memory budget across requests.
+	if req.ContentLength > maxBufferPerRequest {
+		rt.log.InfoContext(req.Context(),
+			"Request body too large for retry buffer, request will not be retryable on GOAWAY",
+			"size", req.ContentLength,
+			"limit", maxBufferPerRequest,
+			"method", req.Method,
+			"path", req.URL.Path)
+		return nil, nil
+	}
 
-func (t *retryableTransport) makeRetryableWithMemory(req *http.Request) error {
+	// Acquire memory, blocks if unavailable.
+	if err := rt.semaphore.Acquire(req.Context(), req.ContentLength); err != nil {
+		rt.log.InfoContext(req.Context(),
+			"Unable to acquire retry buffer semaphore, request will not be retryable on GOAWAY",
+			"size", req.ContentLength,
+			"method", req.Method,
+			"path", req.URL.Path,
+			"error", err)
+		return nil, nil
+	}
+	releaseSemaphore := func() { rt.semaphore.Release(req.ContentLength) }
+
 	buf := bytes.NewBuffer(make([]byte, 0, req.ContentLength))
 	req.Body = newTeeReadCloser(req.Body, buf)
 	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(buf), nil
+		// Return a fresh reader for retry (bytes.NewReader resets read position)
+		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
 	}
-	return nil
+
+	return releaseSemaphore, nil
 }
 
-func (t *retryableTransport) makeRetryableWithDisk(req *http.Request) (func() error, error) {
-	const tmpFilePattern = "teleport-kube-proxy-*.tmp"
-	tmpFile, err := os.CreateTemp("", tmpFilePattern)
-	if err != nil {
-		return nil, nil
-	}
-	filePath := tmpFile.Name()
-	tee := newTeeReadCloser(req.Body, tmpFile)
-	req.Body = &fileCloser{
-		Reader: tee,
-		onClose: func() {
-			if err := tee.Close(); err != nil {
-				t.log.WarnContext(req.Context(), "Unable to close original request body", "error", err)
-			}
-			if err := tmpFile.Close(); err != nil {
-				t.log.WarnContext(req.Context(), "Unable to close temp file", "error", err)
-			}
-		},
-	}
-	req.GetBody = func() (io.ReadCloser, error) {
-		f, err := os.Open(filePath)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return f, nil
-	}
-
-	return func() error {
-		return os.Remove(filePath)
-	}, nil
-}
-
-// isStreamingProtocol detects HTTP/1.1 protocol upgrades (WebSocket, SPDY)
-// that cannot be retried because of unbounded or bidirectional request bodies.
-// This includes Kubernetes exec, attach, and portforward operations.
-func (*retryableTransport) isStreamingProtocol(req *http.Request) bool {
-	// Detect HTTP/1.1 protocol upgrades
+// isUpgrade detects HTTP/1.1 protocol upgrades (WebSocket, SPDY) that won't
+// receive HTTP/2 GOAWAY frames.
+//
+// We cannot check req.Proto to detect HTTP/2 because modifyRequest() sets it
+// to "HTTP/1.1" for all outgoing requests. Instead, we rely on the fact that
+// all transports wrapped by retryableTransport are created via newH2Transport(),
+// which configures HTTP/2. Requests without Upgrade headers will use HTTP/2 and
+// may receive GOAWAY.
+func (rt *retryableTransport) isUpgrade(req *http.Request) bool {
 	return req.Header.Get("Connection") == "Upgrade" ||
 		req.Header.Get("Upgrade") != "" ||
 		req.Header.Get("X-Stream-Protocol-Version") != ""
 }
 
 // CloseIdleConnections closes idle connections in the inner transport.
-func (t *retryableTransport) CloseIdleConnections() {
-	if ci, ok := t.inner.(interface{ CloseIdleConnections() }); ok {
+func (rt *retryableTransport) CloseIdleConnections() {
+	if ci, ok := rt.inner.(interface{ CloseIdleConnections() }); ok {
 		ci.CloseIdleConnections()
 	}
 }
 
 // teeReadCloser wraps an io.TeeReader to allow the
-// Closer to be be explicitly called.
+// Closer to be explicitly called.
 type teeReadCloser struct {
 	io.Reader
 	closer io.Closer
@@ -165,16 +188,4 @@ func newTeeReadCloser(r io.ReadCloser, w io.Writer) io.ReadCloser {
 
 func (t *teeReadCloser) Close() error {
 	return t.closer.Close()
-}
-
-type fileCloser struct {
-	io.Reader
-	onClose func()
-}
-
-func (f *fileCloser) Close() error {
-	if f.onClose != nil {
-		f.onClose()
-	}
-	return nil
 }
