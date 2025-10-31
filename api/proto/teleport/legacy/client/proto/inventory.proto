@@ -20,6 +20,7 @@ package proto;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/presence/v1/relay_server.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -169,6 +170,8 @@ message DownstreamInventoryHello {
     bool KubernetesHeartbeats = 17;
     // KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
     bool KubernetesCleanup = 18;
+    // Indicates that the ICS supports heartbeating relay_server entries as well as deleting them on disconnect if UpstreamInventoryGoodbye.DeleteResources is set.
+    bool relay_server_heartbeats_cleanup = 19;
     // DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
     bool database_heartbeat_graceful_stop = 20;
   }
@@ -222,6 +225,8 @@ message InventoryHeartbeat {
   types.DatabaseServerV3 DatabaseServer = 3;
   // KubeServer is a complete kube server spec to be heartbeated.
   types.KubernetesServerV3 KubernetesServer = 4;
+  // A relay_server to be heartbeated.
+  teleport.presence.v1.RelayServer relay_server = 5;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

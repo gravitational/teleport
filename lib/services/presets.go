@@ -853,24 +853,50 @@ func NewPresetMCPUserRole() types.Role {
 	return role
 }
 
-// NewPresetHealthCheckConfig returns a preset default health_check_config that
-// enables health checks for all resources.
-func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
+// VirtualDefaultHealthCheckConfigDB returns a health_check_config enabling
+// health checks for all databases resources, and is intended to be used as a
+// virtual default resource. Its name is "default" for historical reasons.
+func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
 	return &healthcheckconfigv1.HealthCheckConfig{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:        teleport.PresetDefaultHealthCheckConfigName,
-			Description: "Enables all health checks by default",
-			Namespace:   apidefaults.Namespace,
-			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.PresetResource,
-			},
+			Name:        teleport.VirtualDefaultHealthCheckConfigDBName,
+			Description: "Enables health checks for all databases by default",
+			// this revision MUST be changed every time we change the contents
+			// of the preset so that conditional updates can check against it
+			Revision: "af391615-1e42-4237-aa2b-155e6abbd41a",
 		},
 		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
 				// match all databases
 				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
+			},
+		},
+	}
+}
+
+// VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
+// health checks for all Kubernetes resources. It's intended to be used as a
+// virtual default resource.
+func VirtualDefaultHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
+	return &healthcheckconfigv1.HealthCheckConfig{
+		Kind:    types.KindHealthCheckConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:        teleport.VirtualDefaultHealthCheckConfigKubeName,
+			Description: "Enables health checks for all Kubernetes clusters by default.",
+			// this revision MUST be changed every time we change the contents
+			// of the preset so that conditional updates can check against it
+			Revision: "d796f007-e60c-4747-8dde-f479aff6b743",
+		},
+		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
+				// match all kubernetes clusters
+				KubernetesLabels: []*labelv1.Label{{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
 				}},

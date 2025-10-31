@@ -2,7 +2,7 @@
 title: Machine ID Configuration Reference
 sidebar_label: Configuration
 description: Configuration reference for Teleport Machine ID.
-tocDepth: 4
+toc_max_heading_level: 4
 tags:
  - infrastructure-as-code
  - reference
@@ -128,8 +128,17 @@ onboarding:
   # bound_keypair holds parameters specific to the "bound_keypair" join method
   bound_keypair:
     # registration_secret is an optional secret to use on first join in lieu of
-    # a preregistered keypair.
+    # a preregistered keypair. You can also set this in the
+    # `TBOT_REGISTRATION_SECRET` environment variable.
     registration_secret: "secret"
+
+    # registration_secret_path is an optional path to a file containing a
+    # registration secret; conflicts with `registration_secret`
+    registration_secret_path: ./path/to/secret
+
+    # static_key_path is an optional path to a file containing a static private
+    # key.
+    static_key_path: ./path/to/secret
 
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
@@ -1156,6 +1165,8 @@ This differs to using `identity` output for SSH in a few ways:
   SSH connections to be established and to continue running.
 - Resource consumption is significantly reduced by multiplexing SSH connections
   through a fewer number of upstream connections to the Teleport Proxy Service.
+- It's possible to configure the `ssh-multiplexer` service to connect to SSH
+  servers through a [Teleport Relay](../../architecture/relay.mdx).
 
 Additionally, the `ssh-multiplexer` opens a socket that implements the SSH
 agent protocol. This allows the SSH client to authenticate without writing the
@@ -1194,6 +1205,15 @@ proxy_command:
 #
 # If unspecified, proxy templates will not be used.
 proxy_templates_path: /etc/my-proxy-templates.yaml
+# relay_server specifies the Relay service address that tbot should use to route
+# SSH traffic instead of going through the Teleport control plane. When set, all
+# SSH connections are sent via this Relay; only servers reachable through the
+# specified Relay will be accessible and tbot will not fall back to the control
+# plane. Provide either a hostname or host:port (e.g. relay.example.com or
+# relay.example.com:443).
+#
+# Use of the relay_server option requires `tbot` 18.3.0 or later.
+relay_server: relay.example.com
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.

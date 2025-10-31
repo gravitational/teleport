@@ -76,6 +76,13 @@ type Server interface {
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 
+	// GetRelayGroup returns the name of the Relay group that the server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the server is
+	// connected to.
+	GetRelayIDs() []string
+
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
@@ -382,6 +389,22 @@ func (s *ServerV2) GetProxyIDs() []string {
 // SetProxyID sets the proxy ids this server is connected to.
 func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetRelayGroup implements [Server].
+func (s *ServerV2) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [Server].
+func (s *ServerV2) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
 }
 
 // GetAllLabels returns the full key:value map of both static labels and

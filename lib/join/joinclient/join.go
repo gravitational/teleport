@@ -194,7 +194,10 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken, types.JoinMethodBoundKeypair, types.JoinMethodIAM:
+	case types.JoinMethodToken,
+		types.JoinMethodBoundKeypair,
+		types.JoinMethodIAM,
+		types.JoinMethodEC2:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -279,9 +282,18 @@ func joinWithMethod(
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodEC2:
+		return ec2Join(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
-		return nil, trace.NotImplemented("server selected join method %v which is not supported by this client", method)
+		sendGivingUpErr := stream.Send(&messages.GivingUp{
+			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
+			Msg:    "join method " + method + " is not supported by this client",
+		})
+		return nil, trace.NewAggregate(
+			trace.NotImplemented("server selected join method %v which is not supported by this client", method),
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 }
 
@@ -296,7 +308,7 @@ func tokenJoin(
 	// client->server Tokeninit
 	// client<-server Result
 	//
-	// At this point the ServerInit messages has already been received, all
+	// At this point the ServerInit message has already been received, all
 	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,

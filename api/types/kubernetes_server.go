@@ -58,6 +58,20 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetTargetHealth gets health details for a target Kubernetes cluster.
+	GetTargetHealth() *TargetHealth
+	// SetTargetHealth sets health details for a target Kubernetes cluster.
+	SetTargetHealth(h *TargetHealth)
+	// GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
+	GetTargetHealthStatus() TargetHealthStatus
+	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
+	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetRelayGroup returns the name of the Relay group that the kube server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the kube server is
+	// connected to.
+	GetRelayIDs() []string
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -241,6 +255,22 @@ func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [KubeServer].
+func (s *KubernetesServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [KubeServer].
+func (s *KubernetesServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
 func (s *KubernetesServerV3) GetLabel(key string) (value string, ok bool) {
@@ -307,6 +337,55 @@ func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
 		return deriveTeleportEqualKubernetesServerV3(k, other)
 	}
 	return false
+}
+
+// GetTargetHealth gets health details for a target Kubernetes cluster.
+func (s *KubernetesServerV3) GetTargetHealth() *TargetHealth {
+	return s.GetStatus().GetTargetHealth()
+}
+
+// SetTargetHealth sets health details for a target Kubernetes cluster.
+func (s *KubernetesServerV3) SetTargetHealth(h *TargetHealth) {
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
+	s.Status.TargetHealth = h
+}
+
+// GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
+func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
+	health := s.GetStatus().GetTargetHealth()
+	if health == nil {
+		return TargetHealthStatusUnknown
+	}
+	return TargetHealthStatus(health.Status)
+}
+
+// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
+func (s *KubernetesServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
+	if s.Status.TargetHealth == nil {
+		s.Status.TargetHealth = &TargetHealth{}
+	}
+	s.Status.TargetHealth.Status = string(status)
+}
+
+// GetStatus gets the Kubernetes server status.
+func (s *KubernetesServerV3) GetStatus() *KubernetesServerStatusV3 {
+	if s == nil {
+		return nil
+	}
+	return s.Status
+}
+
+// GetTargetHealth gets the health of a Kubernetes cluster.
+func (s *KubernetesServerStatusV3) GetTargetHealth() *TargetHealth {
+	if s == nil {
+		return nil
+	}
+	return s.TargetHealth
 }
 
 // KubeServers represents a list of kube servers.

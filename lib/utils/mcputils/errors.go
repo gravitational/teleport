@@ -43,3 +43,26 @@ func isFileClosedError(err error) bool {
 	}
 	return errors.Is(pathErr.Err, fs.ErrClosed)
 }
+
+type readerParseError struct {
+	Err error
+}
+
+func (e *readerParseError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *readerParseError) Unwrap() error {
+	return e.Err
+}
+
+func isReaderParseError(err error) bool {
+	var parseError *readerParseError
+	return errors.As(err, &parseError)
+}
+
+func newReaderParseError(err error) error {
+	return &readerParseError{
+		Err: err,
+	}
+}

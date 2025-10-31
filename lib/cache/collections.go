@@ -32,6 +32,7 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -139,6 +140,7 @@ type collections struct {
 	auditQueries                       *collection[*secreports.AuditQuery, auditQueryIndex]
 	secReports                         *collection[*secreports.Report, securityReportIndex]
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
+	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
@@ -735,6 +737,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.secReportsStates = collect
 			out.byKind[resourceKind] = out.secReportsStates
+		case types.KindRelayServer:
+			collect, err := newRelayServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.relayServers = collect
+			out.byKind[resourceKind] = out.relayServers
 		case types.KindBotInstance:
 			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
 			if err != nil {
