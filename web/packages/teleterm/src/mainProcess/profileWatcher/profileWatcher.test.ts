@@ -321,3 +321,26 @@ test('removing tsh directory does not break watcher', async () => {
   jest.useRealTimers();
   expect((await secondEvent).value).toEqual([{ op: 'added', cluster }]);
 });
+
+test('max file system events count is restricted', async () => {
+  const tshDir = await makePerTestDir();
+  const cluster = makeRootCluster();
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
+  const clusterStoreMock = mockClusterStore({ clusters: [] });
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
+    signal: abortController.signal,
+    debounceMs: 50,
+    maxFileSystemEvents: 2,
+  });
+
+  // Start the watcher by pulling the first value.
+  const firstEvent = watcher.next();
+  await tshClientMock.insertOrUpdateCluster(cluster);
+
+  await expect(async () => await firstEvent).rejects.toThrow(
+    `Exceeded file system event limit: more than 2 events detected within 50 ms`
+  );
+});

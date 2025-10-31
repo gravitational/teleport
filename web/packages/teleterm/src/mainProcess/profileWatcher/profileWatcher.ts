@@ -28,6 +28,7 @@ import {
 import { debounce } from 'shared/utils/highbar';
 import { wait } from 'shared/utils/wait';
 
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 interface TshClient {
@@ -52,18 +53,33 @@ export async function* watchProfiles({
   tshClient,
   clusterStore,
   debounceMs = 200,
+  maxFileSystemEvents = 4096,
   signal,
 }: {
   tshDirectory: string;
   tshClient: TshClient;
   clusterStore: ClusterStore;
   debounceMs?: number;
+  /**
+   * Maximum number of file system events that can accumulate while debouncing.
+   *
+   * Note: On Windows, removing a watched directory can trigger an infinite stream
+   * of events. Setting this limit helps mitigate that issue.
+   *
+   * Default 4096.
+   * */
+  maxFileSystemEvents?: number;
   signal?: AbortSignal;
 }): AsyncGenerator<ProfileChangeSet, void, void> {
   while (!signal?.aborted) {
     try {
       // eslint-disable-next-line unused-imports/no-unused-vars
-      for await (const _ of debounceWatch(tshDirectory, debounceMs, signal)) {
+      for await (const _ of debounceWatch(
+        tshDirectory,
+        debounceMs,
+        maxFileSystemEvents,
+        signal
+      )) {
         const clusters = await tshClient.listRootClusters();
         const newClusters = new Map(clusters.map(c => [c.uri, c]));
         const oldClusters = new Map(
@@ -76,24 +92,37 @@ export async function* watchProfiles({
         }
       }
     } catch (error) {
-      // Check if the error is caused by the tshDirectory being removed.
-      // Detecting directory removal via fs.watch is unreliable:
-      //   - On macOS/Linux, it emits a 'rename' event.
-      //   - On Windows, it may throw an EPERM error.
+      // Check if the error is caused by removing the watched directory.
+      // Removing that directory emits different events, depending on a platform:
+      // - On macOS/Linux, it emits a 'rename' event.
+      // - On Windows, it may throw an EPERM error, or emit thousands of events
+      // (so that we check FileSystemEventsOverflowError).
       // To reliably detect removal on macOS/Linux, we expect tshClient.listRootClusters()
       // to fail with a filesystem-related error, allowing us to catch all relevant cases here.
-      const ok = await pathExists(tshDirectory);
-      if (!ok) {
-        // Directory doesn't exist, remove all clusters.
-        yield clusterStore
-          .getRootClusters()
-          .map(cluster => ({ op: 'removed', cluster }));
-        // Wait for the path to appear, and then start the next loop iteration.
-        await waitForPath(tshDirectory, signal);
-      } else {
-        throw error;
+      if (
+        isTshdRpcError(error, 'NOT_FOUND') ||
+        error instanceof FileSystemEventsOverflowError ||
+        error?.code === 'EPERM'
+      ) {
+        const ok = await pathExists(tshDirectory);
+        if (!ok) {
+          yield clusterStore
+            .getRootClusters()
+            .map(cluster => ({ op: 'removed', cluster }));
+          await waitForPath(tshDirectory, signal);
+          continue;
+        }
       }
+      throw error;
     }
+  }
+}
+
+class FileSystemEventsOverflowError extends Error {
+  constructor(maxCount: number, debounceMs: number) {
+    super(
+      `Exceeded file system event limit: more than ${maxCount} events detected within ${debounceMs} ms`
+    );
   }
 }
 
@@ -155,17 +184,27 @@ export type ProfileChangeSet = ProfileChange[];
 async function* debounceWatch(
   path: string,
   debounceMs: number,
+  maxFileSystemEvents: number,
   abortSignal: AbortSignal | undefined
 ): AsyncGenerator<void> {
   let signal = Promise.withResolvers<void>();
   let closed = false;
-  const scheduleYield = debounce(() => signal.resolve(), debounceMs);
+  let eventsToDebounce = 0;
+  const scheduleYield = debounce(() => {
+    eventsToDebounce = 0;
+    signal.resolve();
+  }, debounceMs);
 
-  const watcher = watch(
-    path,
-    { signal: abortSignal, recursive: true },
-    scheduleYield
-  );
+  const watcher = watch(path, { signal: abortSignal, recursive: true }, () => {
+    ++eventsToDebounce;
+    if (eventsToDebounce > maxFileSystemEvents) {
+      signal.reject(
+        new FileSystemEventsOverflowError(maxFileSystemEvents, debounceMs)
+      );
+      return;
+    }
+    scheduleYield();
+  });
 
   const closeHandler = () => {
     closed = true;
