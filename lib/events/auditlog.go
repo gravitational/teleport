@@ -648,17 +648,34 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "creating upload")
 	}
 
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
 	var streamParts []StreamPart
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
 	// configured for the auth service
 	var partNumber int64 = 1
-	for part, err := range parts {
+	for {
+		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		nextPart, err, hasNext := next()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
-			return trace.Wrap(err, "reserving upload part")
+		// If the upload part is not at least the minimum upload part size, and this isn't
+		// the last part, add padding to meet the minimum upload size.
+		if hasNext && len(part) < MinUploadPartSizeBytes {
+			part = PadUploadPart(part, MinUploadPartSizeBytes)
 		}
 
 		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
@@ -666,6 +683,12 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 			return trace.Wrap(err, "uploading part")
 		}
 		streamParts = append(streamParts, *streamPart)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
 		partNumber++
 	}
 
@@ -787,4 +810,21 @@ func sessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback,
 	}
 
 	return cb, nil
+}
+
+// PadUploadPart adds padding to the given upload part to reach the minimum size.
+func PadUploadPart(uploadPart []byte, minSize int) []byte {
+	// Create padding to reach the target size. Note that the padding cannot
+	// be shorter than the header size.
+	paddingBytes := max(minSize-len(uploadPart), ProtoStreamV2PartHeaderSize)
+	paddedPart := make([]byte, paddingBytes)
+
+	paddedPartHeader := PartHeader{
+		ProtoVersion: ProtoStreamV2,
+		PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
+		PartSize:     0,
+	}
+	copy(paddedPart, paddedPartHeader.Bytes())
+
+	return append(uploadPart, paddedPart...)
 }
