@@ -101,9 +101,9 @@ func exportAWSCredentials(credentialsAsJsonString string, stdout io.Writer) erro
 	}
 
 	_, err := fmt.Fprintf(stdout,
-		`export AWS_ACCESS_KEY_ID=%q
-export AWS_SECRET_ACCESS_KEY=%q
-export AWS_SESSION_TOKEN=%q
+		`export AWS_ACCESS_KEY_ID=%s
+export AWS_SECRET_ACCESS_KEY=%s
+export AWS_SESSION_TOKEN=%s
 # Export the above variables in your current shell to start using the AWS credentials.
 `,
 		shsprintf.EscapeDefaultContext(credentials.AccessKeyID),
