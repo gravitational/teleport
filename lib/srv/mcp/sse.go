@@ -106,7 +106,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	// TODO(greedy52) capture client info then emit start event with client
 	// information.
 	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext, nil)
+	defer session.emitEndEvent(s.cfg.ParentContext)
 
 	// Wait until reader finishes.
 	clientRequestReader.Run(ctx)

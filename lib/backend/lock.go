@@ -40,6 +40,7 @@ func lockKey(parts ...string) Key {
 		components: append([]string{locksPrefix}, parts...),
 	}
 	key.s = strings.Join(key.components, SeparatorString)
+	key.exactKey = key.s[len(key.s)-1] == Separator
 
 	return key
 }

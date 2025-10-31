@@ -42,8 +42,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -71,8 +69,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
-	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -150,8 +146,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
-		types.KindDatabaseObjectImportRule:    rc.createDatabaseObjectImportRule,
-		types.KindDatabaseObject:              rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
@@ -524,52 +518,6 @@ func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *au
 		return trace.Wrap(err)
 	}
 	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rule, err := databaseobjectimportrule.UnmarshalJSON(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if rc.IsForced() {
-		_, err = client.DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpsertDatabaseObjectImportRuleRequest{
-			Rule: rule,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
-		return nil
-	}
-	_, err = client.DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.CreateDatabaseObjectImportRuleRequest{
-		Rule: rule,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createDatabaseObject(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	object, err := databaseobject.UnmarshalJSON(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if rc.IsForced() {
-		_, err = client.DatabaseObjectsClient().UpsertDatabaseObject(ctx, object)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
-		return nil
-	}
-	_, err = client.DatabaseObjectsClient().CreateDatabaseObject(ctx, object)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("object %q has been created\n", object.GetMetadata().GetName())
 	return nil
 }
 
@@ -1645,16 +1593,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabaseObjectImportRule:
-		if _, err := client.DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.DeleteDatabaseObjectImportRuleRequest{Name: rc.ref.Name}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Rule %q has been deleted\n", rc.ref.Name)
-	case types.KindDatabaseObject:
-		if err := client.DatabaseObjectsClient().DeleteDatabaseObject(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Object %q has been deleted\n", rc.ref.Name)
 	case types.KindAccessMonitoringRule:
 		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1937,10 +1875,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
 	case types.KindSemaphore:
-		sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
+		filter := types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
-		})
+		}
+		sems, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, pageSize int, pageToken string) ([]types.Semaphore, string, error) {
+				return client.ListSemaphores(ctx, pageSize, pageToken, &filter)
+			},
+			func(ctx context.Context) ([]types.Semaphore, error) {
+				return client.GetSemaphores(ctx, filter)
+			},
+		)
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2230,45 +2177,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		})
 
 		return &deviceCollection{devices: devs}, nil
-	case types.KindDatabaseObjectImportRule:
-		remote := client.DatabaseObjectImportRuleClient()
-		if rc.ref.Name != "" {
-			rule, err := remote.GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: rc.ref.Name})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &databaseObjectImportRuleCollection{rules: []*dbobjectimportrulev1.DatabaseObjectImportRule{rule}}, nil
-		}
-
-		rules, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, string, error) {
-			resp, err := remote.ListDatabaseObjectImportRules(ctx, &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{
-				PageSize:  int32(limit),
-				PageToken: token,
-			})
-
-			return resp.GetRules(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &databaseObjectImportRuleCollection{rules: rules}, nil
-	case types.KindDatabaseObject:
-		remote := client.DatabaseObjectsClient()
-		if rc.ref.Name != "" {
-			object, err := remote.GetDatabaseObject(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &databaseObjectCollection{objects: []*dbobjectv1.DatabaseObject{object}}, nil
-		}
-
-		objects, err := stream.Collect(clientutils.Resources(ctx, remote.ListDatabaseObjects))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &databaseObjectCollection{objects: objects}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)

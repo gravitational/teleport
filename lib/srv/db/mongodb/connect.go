@@ -69,17 +69,15 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	err = top.Connect()
-	if err != nil {
+	if err := top.Connect(); err != nil {
+		e.Log.DebugContext(e.Context, "Failed to connect topology", "error", err)
 		return nil, nil, trace.Wrap(err)
 	}
-	server, err := top.SelectServer(ctx, selector)
+	conn, err := e.selectServerConn(ctx, top, selector)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	e.Log.DebugContext(e.Context, "Connecting to cluster.", "topology", top, "server", server)
-	conn, err := server.Connection(ctx)
-	if err != nil {
+		if err := top.Disconnect(ctx); err != nil {
+			e.Log.WarnContext(e.Context, "Failed to close topology", "error", err)
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -92,6 +90,23 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 		}
 	}
 	return conn, closeFn, nil
+}
+
+func (e *Engine) selectServerConn(ctx context.Context, top *topology.Topology, selector description.ServerSelector) (driver.Connection, error) {
+	e.Log.DebugContext(e.Context, "Selecting server from topology", "topology", top)
+	server, err := top.SelectServer(ctx, selector)
+	if err != nil {
+		e.Log.DebugContext(e.Context, "failed to select server", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	e.Log.DebugContext(e.Context, "Connecting to server", "server", server)
+	conn, err := server.Connection(ctx)
+	if err != nil {
+		e.Log.DebugContext(e.Context, "failed to connect to server", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.

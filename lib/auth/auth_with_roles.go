@@ -82,6 +82,12 @@ type ServerWithRoles struct {
 	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
 	context authz.Context
+
+	// scopedContext is an authz context that may or may not be scoped, some methods which have been
+	// converted to support scoped identities will be supplied with this context instead of the standard
+	// context field above. Only one of the two is non-nil at a time, so care must be taken to ensure
+	// that the correct one is used for a given method.
+	scopedContext *authz.ScopedContext
 }
 
 // CloseContext is closed when the auth server shuts down
@@ -654,7 +660,8 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
-	return a.authServer.GenerateHostCerts(ctx, req)
+	identity := a.context.Identity.GetIdentity()
+	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope)
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -5578,6 +5585,14 @@ func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter types.Semaph
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetSemaphores(ctx, filter)
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (a *ServerWithRoles) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	if err := a.authorizeAction(types.KindSemaphore, types.VerbReadNoSecrets, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.authServer.ListSemaphores(ctx, limit, start, filter)
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
