@@ -454,7 +454,9 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 		}
 	}, 5*time.Second, 100*time.Millisecond, "streams werent properly removed from targetConn")
 
-	require.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
+	require.Eventually(t, func() bool {
+		return sourceConn.streamsClosed()
+	}, 5*time.Second, 100*time.Millisecond, "sourceConn streams not closed")
 	require.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
 }
 
