@@ -529,6 +529,7 @@ func (f *fakeIMDS) serve(lis net.Listener) error {
 	mux.HandleFunc("/opc/v2/identity/cert.pem", f.handleCert)
 	mux.HandleFunc("/opc/v2/identity/key.pem", f.handleKey)
 	mux.HandleFunc("/opc/v2/identity/intermediate.pem", f.handleIntermediate)
+	mux.HandleFunc("/v1/x509", f.handleX509)
 	return trace.Wrap(http.Serve(lis, mux))
 }
 
@@ -558,6 +559,16 @@ func (f *fakeIMDS) handleKey(w http.ResponseWriter, r *http.Request) {
 
 func (f *fakeIMDS) handleIntermediate(w http.ResponseWriter, r *http.Request) {
 	w.Write(f.cas.intermediateCertPEM)
+}
+
+func (f *fakeIMDS) handleX509(w http.ResponseWriter, r *http.Request) {
+	type token struct {
+		Token string `json:"token"`
+	}
+	resp := token{
+		Token: testJWT,
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 // fakeOracleAPI implements the subset of the HTTP interface of the OCI auth
@@ -727,3 +738,5 @@ JnKk+4N1PAV4hzYeOX0J+Tl6ugUyMCXQ9u62gw+a80Xn
 	}
 	return key.Signer
 }
+
+const testJWT = `eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0IiwiaWF0IjoxNzYxODY4ODAwLCJleHAiOjMzMzE4Nzc3NjAwLCJhdWQiOiJ0ZWxlcG9ydC5leGFtcGxlLmNvbSIsInN1YiI6InRlc3QifQ.JRMX4mUsTbBQWNCz5HI543ZIaqMUPfVhQ7qWgg8l3cY`
