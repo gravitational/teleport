@@ -25,7 +25,7 @@ db_service:
     # 'memorydb' - discovers and registers Amazon MemoryDB databases.
     # 'opensearch' - discovers and registers Amazon OpenSearch databases.
     # 'docdb' - discovers and registers Amazon DocumentDB databases.
-  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch"]
+  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch", "docdb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # Optional AWS role that the Database Service will assume to discover
@@ -116,6 +116,13 @@ db_service:
       # The default MySQL server version reported by Teleport Proxy.
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
+
+    # Oracle only options.
+    oracle:
+      # Randomize host order per connection attempt to spread load. Optional.
+      shuffle_hostnames: true
+      # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
+      retry_count: 5            
 
     # Optional admin user configuration for Automatic User Provisioning.
     admin_user:

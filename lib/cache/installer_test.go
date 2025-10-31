@@ -26,7 +26,7 @@ import (
 func TestInstallers(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForProxy)
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 	t.Run("GetInstallers", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Installer]{

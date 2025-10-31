@@ -20,6 +20,7 @@ package generic
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"strings"
 	"time"
@@ -194,6 +195,41 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 	}
 
 	return out, nil
+}
+
+// Resources returns a stream of resources within the range [startKey, endKey].
+// If both keys are empty, then the entire range is returned.
+func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
+	params := backend.ItemsParams{
+		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(startKey)),
+	}
+	if endKey == "" {
+		params.EndKey = backend.RangeEnd(s.backendPrefix.ExactKey())
+	} else {
+		params.EndKey = s.backendPrefix.AppendKey(backend.KeyFromString(endKey))
+	}
+	return func(yield func(T, error) bool) {
+		for item, err := range s.backend.Items(ctx, params) {
+			if err != nil {
+				var t T
+				yield(t, trace.Wrap(err))
+				return
+			}
+
+			resource, err := s.unmarshalFunc(item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision))
+			if err != nil {
+				// unmarshal errors are logged and skipped
+				slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				return
+			}
+
+			if !yield(resource, nil) {
+				return
+			}
+		}
+	}
 }
 
 // ListResources returns a paginated list of resources.

@@ -187,13 +187,13 @@ func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.
 
 func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitEndEvent(t.parentCtx, convertHTTPResponseErrorForAudit(resp, err))
+	t.emitEndEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r))
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitListenSSEStreamEvent(t.parentCtx, convertHTTPResponseErrorForAudit(resp, err))
+	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r))
 	return resp, trace.Wrap(err)
 }
 
@@ -238,15 +238,15 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		if mcpRequest.Method == mcp.MethodInitialize && respErrForAudit == nil {
 			t.emitStartEvent(t.parentCtx)
 		}
-		t.emitRequestEvent(t.parentCtx, mcpRequest, respErrForAudit)
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r))
 	case baseMessage.IsNotification():
-		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), respErrForAudit)
+		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r))
 	}
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitRequestEvent(t.parentCtx, mcpRequest, authErr)
+	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r))
 
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {

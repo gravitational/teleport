@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.2.10
+VERSION=18.3.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -2006,8 +2006,24 @@ cli-docs-tsh:
 	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
 
+# audit-event-reference generates audit event reference docs using the Web UI
+# source.
+.PHONY: audit-event-reference
+audit-event-reference:
+	pnpm run -C ./web/packages/teleport event-reference
+
+# audit-event-reference-up-to-date ensures the audit event reference
+# documentation reflects the Web UI source.
+.PHONY: audit-event-reference-up-to-date
+audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "audit event reference docs" "make audit-event-reference"; \
+		exit 1; \
+	fi
+
 .PHONY: gen-docs
 gen-docs:
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
+	$(MAKE) audit-event-reference

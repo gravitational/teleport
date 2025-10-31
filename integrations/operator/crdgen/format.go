@@ -47,7 +47,6 @@ func formatAsCRD(crd apiextv1.CustomResourceDefinition, groupName, pluralName st
 var crdDocTmpl string = `---
 title: {{.Title}}
 description: {{.Description}}
-tocDepth: 3
 ---
 
 {/*Auto-generated file. Do not edit.*/}

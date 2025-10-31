@@ -171,7 +171,6 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -191,6 +190,7 @@ const cfg = {
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -314,6 +314,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
+    kubernetesServer: {
+      list: `/v1/webapi/sites/:clusterId/kubernetesservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
 
     // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
@@ -846,6 +849,10 @@ const cfg = {
     return generatePath(cfg.routes.botInstances);
   },
 
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
+  },
+
   getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
     return generatePath(cfg.routes.botInstance, params);
   },
@@ -1300,6 +1307,13 @@ const cfg = {
 
   getKubernetesResourcesUrl(clusterId: string, params: UrlKubeResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesResourcesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getKubernetesServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesServer.list, {
       clusterId,
       ...params,
     });

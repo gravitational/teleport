@@ -152,6 +152,9 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
 			"http://memory/notfound",
 			mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
+			mcpclienttransport.WithHTTPHeaders(map[string]string{
+				"test-header": "test-value",
+			}),
 		)
 		require.NoError(t, err)
 
@@ -167,6 +170,8 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, libevents.MCPSessionRequestEvent, lastEvent.GetType())
 		require.Equal(t, libevents.MCPSessionRequestFailureCode, lastEvent.GetCode())
+		require.NotEmpty(t, lastEvent.Headers)
+		require.Equal(t, "test-value", http.Header(lastEvent.Headers).Get("test-header"))
 		require.False(t, lastEvent.Success)
 		require.Equal(t, "HTTP 404 Not Found", lastEvent.Error)
 	})
