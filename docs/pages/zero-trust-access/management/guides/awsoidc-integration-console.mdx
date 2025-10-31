@@ -1,0 +1,222 @@
+---
+title: AWS CLI/Console Access Wizard
+description: Access AWS CLI and Console using an enrollment wizard.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
+---
+
+The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard is available in your Teleport cluster Web UI as part of the [AWS OIDC integration](./awsoidc-integration.mdx).
+
+The enrollment wizard configures Teleport and AWS IAM resources to allow AWS Console and CLI access for your users.
+
+## How it works
+
+### AWS OIDC Integration
+
+The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard depends on the [AWS OIDC integration](./awsoidc-integration.mdx).
+The AWS OIDC integration creates and configures an AWS IAM OpenID Connect Identity Provider (OIDC IdP) and an AWS IAM role that your Teleport cluster can assume.
+
+The enrollment wizard adds permissions to the AWS OIDC integration IAM role to assume other existing IAM Roles.
+
+## Prerequisites
+
+- A running Teleport cluster
+- An AWS account and permissions to create IAM Identity Providers and roles
+
+## Step 1/2. Configure RBAC
+
+The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard is a part of the AWS OIDC integration.
+You will need the following allow rules in one of your Teleport roles.
+These are available by default in the preset `editor` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example
+spec:
+  allow:
+    rules:
+    - resources:
+      - integration
+      verbs:
+      - create
+      - update
+      - list
+      - read
+    - resources:
+      - app_server
+      verbs:
+      - read
+      - list
+      - create
+      - update
+      - delete
+```
+
+## Step 2/2. Configure access using the wizard
+
+The enrollment wizard is available in the "Add New Resource" panel of the Teleport Web UI:
+
+![Screenshot of AWS CLI/Console Access via AWS OIDC IdP enrollment wizard tile](../../../../img/aws/enroll-aws-access-awsoidc.png)
+
+The Teleport Web UI walks you through the steps to set up an AWS OIDC integration (if you don't have one already), configure IAM permissions and set up access to AWS IAM Roles.
+
+Set the <Var name="integration-iam-role"/> field to the IAM Role name created by the AWS OIDC integration.
+
+### Allow Integration to assume other IAM Roles
+
+The wizard instructs you to run a script, which will configure the necessary permissions for the AWS OIDC integration IAM role to assume other IAM Roles:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:ResourceTag/teleport.dev/integration": "true"
+                }
+            }
+        }
+    ]
+}
+```
+
+### Requirements for other IAM Roles to be accessible from Teleport
+
+Only AWS IAM Roles with the tag `teleport.dev/integration=true` and whose Trust Relationship allows the integration role to assume them, can be used by Teleport users to access AWS Console and CLI.
+
+The Trust Relationship of all the target IAM Roles must include the following statement:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="integration-iam-role"/>"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+
+### Create AWS CLI/Console App in Teleport
+
+The enrollment wizard creates an AWS App resource in Teleport which allows users to access the AWS Console and CLI.
+You can do it manually by creating the resource using `tctl`:
+
+  1. Set the <Var name="teleport-url"/> to the public address of your Teleport cluster (eg, `teleport.example.com`).
+  1. Set the <Var name="random-uuid"/> with a randomly generated UUID.
+  1. Write the following contents to a file called `<Var name="integration-name"/>_app_access.yaml`:
+    ```yaml
+    kind: app_server
+    metadata:
+      name: <Var name="integration-name"/>
+    spec:
+      app:
+        kind: app
+        metadata:
+          labels:
+            aws_account_id: "<Var name="aws-account-id"/>"
+          name: <Var name="integration-name"/>
+        spec:
+          cloud: AWS
+          uri: https://console.aws.amazon.com/
+          integration: <Var name="integration-name"/>
+          public_addr: <Var name="integration-name"/>.<Var name="teleport-url"/>
+        version: v3
+      host_id: <Var name="random-uuid"/>
+    version: v3
+    ```
+
+  1. Create the AWS App with the following command:
+    ```code
+    $ tctl create -f <Var name="integration-name"/>_app_access.yaml
+    ```
+
+You can add other labels in `spec.app.metadata.labels` in order to further customize access controls.
+
+### Set up access
+
+The next step will ask you to enter any AWS Role ARNs you would like to access using Teleport.
+
+This will add the AWS Role ARNs to your Teleport user profile, allowing you to assume them when accessing the AWS App.
+
+In order to provide access to other users, you must create a Teleport Role that:
+- includes the list of AWS Role ARNs in the `aws_role_arns` field
+- includes the appropriate `app_labels` matcher to allow access to the AWS App created in the previous step (ie, `aws_account_id: <Var name="aws-account-id"/>`)
+
+As an example, if you want to provide access to the AWS Role `<Var name="aws-iam-target-role"/>`:
+
+  1. Write the following contents to a file called `aws_access_<Var name="aws-iam-target-role"/>.yaml`:
+    ```yaml
+    kind: role
+    metadata:
+      name: aws_access_<Var name="aws-iam-target-role"/>
+    spec:
+      allow:
+        app_labels:
+          aws_account_id: "<Var name="aws-account-id"/>"
+        aws_role_arns:
+        - arn:aws:iam::<Var name="aws-account-id"/>:role/<Var name="aws-iam-target-role"/>
+    version: v8
+    ```
+
+  1. Create the AWS App with the following command:
+    ```code
+    $ tctl create -f aws_access_<Var name="aws-iam-target-role"/>.yaml
+    ```
+
+Assign this role to users and they will be able to assume the <Var name="aws-iam-target-role"/> AWS IAM Role using the CLI or the Management Console.
+
+### Access AWS Console and CLI
+
+You can now access the AWS Console using the Teleport Web UI by clicking on the AWS App created in the previous step.
+
+## Troubleshooting
+
+### AWS App is not listed or IAM Roles list is empty
+
+Your user must have both RBAC permissions to access the AWS Console:
+- App Labels (`app_labels`) must match the labels defined in the AWS App
+- AWS Role ARNs (`aws_role_arns`) must include at least one of the allowed IAM Roles
+
+### Failure when trying to access a specific IAM Role
+
+This can happen when the target IAM Role (the role that you chose when accessing the AWS App) does not meet the requirements mentioned above:
+- it must have the tag `teleport.dev/integration=true`
+- its Trust Relationship must allow the AWS OIDC integration IAM Role to assume it
+
+See (Requirements for other IAM Roles to be accessible from Teleport)[#requirements-for-other-iam-roles-to-be-accessible-from-teleport] for more details.
+
+## Next steps
+
+Now that you know how to set up Teleport to protect access to the AWS Management Console and APIs, you can tailor your setup to the needs of your organization.
+
+### Refine your AWS IAM role mapping
+
+The `aws_role_arns` field supports template variables so they can be populated dynamically when a user authenticates to Teleport.
+
+For example, you can configure your identity provider to define a SAML attribute or OIDC claim called `aws_role_arns`, then use this field to list each user's permitted AWS role ARNs on your IdP.
+If you define a Teleport role to mention the `{{external.aws_role_arns}}` variable, the Auth Service will fill in the user's permitted ARNs based on data from the IdP:
+
+```yaml
+    aws_role_arns:
+    - {{external.aws_role_arns}}
+```
+
+### Create Roles to grant access to a specific profile and IAM roles
+
+You can create multiple Teleport roles to grant access to the profiles and IAM roles for each Profile.
+
+See [Role Access Requests](../../../identity-governance/access-requests/role-requests.mdx) to learn more about creating Roles and how to access them using Access Requests.
