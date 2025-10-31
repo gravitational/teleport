@@ -97,8 +97,7 @@ func TestFindSessionEndEvent(t *testing.T) {
 			name:        "No session end event",
 			sessionID:   session.NewID(),
 			auditEvents: eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 10})[:9],
-			want:        nil,
-			assertErr:   require.NoError,
+			assertErr:   require.Error,
 		},
 		{
 			name:      "missing session ID",

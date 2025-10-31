@@ -52,7 +52,7 @@ func FindSessionEndEvent(ctx context.Context, streamer SessionStreamer, sessionI
 		select {
 		case event, ok := <-eventsCh:
 			if !ok {
-				return nil, nil
+				return nil, trace.NotFound("session end event not found")
 			}
 			switch e := event.(type) {
 			case *apievents.WindowsDesktopSessionEnd:
