@@ -123,7 +123,7 @@ const ItemContainer = styled(Flex)`
   gap: ${({ theme }) => theme.space[3]}px;
 `;
 
-const HealthStatusDot = styled.div<{
+export const HealthStatusDot = styled.div<{
   $status: BotInstanceServiceHealthStatus | undefined;
 }>`
   width: ${({ theme }) => theme.space[3] - theme.space[1]}px;
