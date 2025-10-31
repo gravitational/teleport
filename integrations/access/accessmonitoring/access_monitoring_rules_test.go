@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,6 +43,15 @@ type mockTeleportClient struct {
 func (m *mockTeleportClient) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
 	args := m.Called(ctx, name, withSecrets)
 	return args.Get(0).(types.User), args.Error(1)
+}
+
+func (m *mockTeleportClient) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	args := m.Called(ctx, name)
+	userLoginState, ok := args.Get(0).(*userloginstate.UserLoginState)
+	if ok {
+		return userLoginState, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *mockTeleportClient) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -63,10 +73,11 @@ func TestRecipients(t *testing.T) {
 	)
 
 	teleportClient := &mockTeleportClient{}
+
 	teleportClient.
-		On("GetUser", mock.Anything, requester, mock.Anything).
-		Return(&types.UserV2{
-			Spec: types.UserSpecV2{
+		On("GetUserLoginState", mock.Anything, requester).
+		Return(&userloginstate.UserLoginState{
+			Spec: userloginstate.Spec{
 				Traits: map[string][]string{
 					"team": {"example"},
 				},
@@ -74,9 +85,9 @@ func TestRecipients(t *testing.T) {
 		}, nil)
 
 	teleportClient.
-		On("GetUser", mock.Anything, noTraits, mock.Anything).
-		Return(&types.UserV2{
-			Spec: types.UserSpecV2{
+		On("GetUserLoginState", mock.Anything, noTraits).
+		Return(&userloginstate.UserLoginState{
+			Spec: userloginstate.Spec{
 				Traits: map[string][]string{},
 			},
 		}, nil)
@@ -143,8 +154,8 @@ func TestRecipientsWithResources(t *testing.T) {
 
 	teleportClient := &mockTeleportClient{}
 	teleportClient.
-		On("GetUser", mock.Anything, mock.Anything, mock.Anything).
-		Return(&types.UserV2{}, nil)
+		On("GetUserLoginState", mock.Anything, mock.Anything).
+		Return(&userloginstate.UserLoginState{}, nil)
 
 	teleportClient.
 		On("ListResources", mock.Anything, mock.Anything).
@@ -215,8 +226,8 @@ func TestRecipientsWithSchedules(t *testing.T) {
 
 	teleportClient := &mockTeleportClient{}
 	teleportClient.
-		On("GetUser", mock.Anything, mock.Anything, mock.Anything).
-		Return(&types.UserV2{}, nil)
+		On("GetUserLoginState", mock.Anything, mock.Anything).
+		Return(&userloginstate.UserLoginState{}, nil)
 
 	amrh := NewRuleHandler(RuleHandlerConfig{
 		Client:     teleportClient,
