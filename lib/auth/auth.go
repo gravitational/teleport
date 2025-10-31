@@ -530,7 +530,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserTasks:                       cfg.UserTasks,
 		DiscoveryConfigs:                cfg.DiscoveryConfigs,
 		Okta:                            cfg.Okta,
-		AccessLists:                     cfg.AccessLists,
+		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
@@ -778,7 +778,7 @@ type Services struct {
 	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
-	services.AccessLists
+	services.AccessListsInternal
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
@@ -5425,7 +5425,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListsInternal, promotions)
 		// Return before creating the request if this is a dry run.
 		return req, nil
 	}

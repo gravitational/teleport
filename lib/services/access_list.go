@@ -77,6 +77,16 @@ type AccessLists interface {
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
 }
 
+// AccessListsInternal extends the public AccessList interface with internal-only
+// methods.
+type AccessListsInternal interface {
+	AccessLists
+
+	// UpdateAccessListAndOverwriteMembers conditionally updates the access list,
+	// overwriting the list's members if successful.
+	UpdateAccessListAndOverwriteMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+}
+
 // MarshalAccessList marshals the access list resource to JSON.
 func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption) ([]byte, error) {
 	if err := accessList.CheckAndSetDefaults(); err != nil {
