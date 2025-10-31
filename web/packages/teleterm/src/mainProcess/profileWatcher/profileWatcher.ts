@@ -40,7 +40,9 @@ interface ClusterStore {
 
 /**
  * Watches the specified `tshDirectory` for profile changes.
- * File system events are debounced with a 200 ms delay.
+ * File system events are debounced with a default 200 ms delay.
+ * The watcher should be started only after the initial cluster store sync completes,
+ * to prevent unnecessary profile change events.
  *
  * When the watched directory is removed, the watcher emits a profile change
  * and enters polling mode (with 1 second interval) until the directory reappears.
