@@ -18,6 +18,12 @@
 
 import * as whatwg from 'whatwg-url';
 
+import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import {
+  Cluster,
+  LoggedInUser_UserType,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 /**
  * Accepts a proxy host in the form of "cluster-address.example.com:3090" and returns the host as
  * understood by browsers.
@@ -64,4 +70,47 @@ export function proxyHostname(proxyHost: string) {
   }
 
   return whatwgURL.hostname;
+}
+
+/**
+ * Creates a cluster by merging properties that can be read from
+ * the profile from disk with properties from details.
+ *
+ * Listing all fields ensures TypeScript will force us to handle new fields
+ * by specifying whether they come from the profile or the details.
+ */
+export function mergeClusterProfileWithDetails({
+  profile,
+  details,
+}: {
+  profile: Cluster;
+  details: Cluster;
+}): Cluster {
+  return {
+    uri: profile.uri,
+    connected: profile.connected,
+    leaf: profile.leaf,
+    profileStatusError: profile.profileStatusError,
+    proxyHost: profile.proxyHost,
+    ssoHost: profile.ssoHost,
+    name: details.name,
+    showResources: details.showResources,
+    features: details.features,
+    authClusterId: details.authClusterId,
+    proxyVersion: details.proxyVersion,
+    loggedInUser: profile.loggedInUser && {
+      name: profile.loggedInUser.name,
+      activeRequests: profile.loggedInUser.activeRequests,
+      roles: profile.loggedInUser.roles,
+      isDeviceTrusted: profile.loggedInUser.isDeviceTrusted,
+      userType:
+        details.loggedInUser?.userType || LoggedInUser_UserType.UNSPECIFIED,
+      trustedDeviceRequirement:
+        details.loggedInUser?.trustedDeviceRequirement ||
+        TrustedDeviceRequirement.UNSPECIFIED,
+      requestableRoles: details.loggedInUser?.requestableRoles || [],
+      suggestedReviewers: details.loggedInUser?.suggestedReviewers || [],
+      acl: details.loggedInUser?.acl || undefined,
+    },
+  };
 }
