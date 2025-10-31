@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/constraints"
@@ -34,7 +35,6 @@ import (
 	"github.com/gravitational/teleport"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
-	utils "github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -257,7 +257,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 		reg.Register(m.rolloutState),
 		reg.Register(m.rolloutGroupState),
 	)
-	m.buildInfoMajor.Set(float64(teleport.SemVer().Major))
+	m.buildInfoMajor.Set(float64(teleport.SemVersion.Major))
 
 	return &m, errs
 }
@@ -329,7 +329,7 @@ func (m *metrics) observeVersion(version *autoupdatepb.AutoUpdateVersion, now ti
 	}
 
 	if tools := version.GetSpec().GetTools(); tools != nil {
-		if target, err := utils.EnsureSemver(tools.GetTargetVersion()); err == nil {
+		if target, err := semver.NewVersion(tools.GetTargetVersion()); err == nil {
 			m.clientVersionTargetMajor.Set(float64(target.Major))
 		}
 	}
@@ -369,7 +369,7 @@ func (m *metrics) observeRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, n
 		m.setVersionMetric(rollout.GetSpec().GetStartVersion(), m.rolloutStart, now)
 		m.setVersionMetric(rollout.GetSpec().GetTargetVersion(), m.rolloutTarget, now)
 
-		if target, err := utils.EnsureSemver(rollout.GetSpec().GetTargetVersion()); err == nil {
+		if target, err := semver.NewVersion(rollout.GetSpec().GetTargetVersion()); err == nil {
 			m.rolloutTargetMajor.Set(float64(target.Major))
 		}
 	}
