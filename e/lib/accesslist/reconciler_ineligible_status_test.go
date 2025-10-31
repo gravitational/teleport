@@ -150,6 +150,81 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 	})
 }
 
+// TestIneligibleStatusReconcilerFlowForNotExistingUsers verifies that the reconciler
+// correctly handles access list members and owners that reference non-existent users.
+//
+// This is important to prevent continues ineligibility status updates when dealing with external user
+// references that may not exist in Teleport's identity system.
+func TestIneligibleStatusReconcilerFlowForNotExistingUsers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := clockwork.NewRealClock()
+		c := initSvc(t, withClock(clock))
+		synctest.Wait()
+
+		// Helper to trigger reconciliation by waiting for the force reconcile duration
+		waitForReconciliation := func() {
+			time.Sleep(forceReconcileDuration * 2)
+			synctest.Wait()
+		}
+
+		const (
+			accessListName  = "test-access-list"
+			nonExistentUser = "not_existing_user"
+		)
+
+		// Create an access list with no eligibility requirements and a non-existent owner
+		accessList := newAccessList(t, accessListName, c.clock)
+		accessList.Spec.OwnershipRequires = accesslist.Requires{}
+		accessList.Spec.MembershipRequires = accesslist.Requires{}
+		accessList.Spec.Owners = []accesslist.Owner{{Name: nonExistentUser}}
+
+		memberForNonExistentUser := newAccessListMember(t, accessList.GetName(), nonExistentUser, accesslist.MembershipKindUser, c.clock)
+
+		_, _, err := c.testEnv.accessLists.UpsertAccessListWithMembers(
+			t.Context(),
+			accessList,
+			[]*accesslist.AccessListMember{memberForNonExistentUser},
+		)
+		require.NoError(t, err)
+
+		waitForReconciliation()
+
+		accessList, err = c.testEnv.accessLists.GetAccessList(t.Context(), accessListName)
+		require.NoError(t, err)
+		initialAccessListRevision := accessList.GetRevision()
+
+		member, err := c.testEnv.accessLists.GetAccessListMember(t.Context(), accessList.GetName(), nonExistentUser)
+		require.NoError(t, err)
+		initialMemberRevision := member.GetRevision()
+
+		verifyStatusAndRevisionsUnchanged := func() {
+			list, err := c.testEnv.accessLists.GetAccessList(t.Context(), accessListName)
+			require.NoError(t, err)
+			require.Len(t, list.Spec.Owners, 1, "should have exactly one owner")
+			require.Equal(t, "INELIGIBLE_STATUS_UNSPECIFIED", list.Spec.Owners[0].IneligibleStatus,
+				"owner referencing non-existent user should have UNSPECIFIED status")
+			require.Equal(t, initialAccessListRevision, list.GetRevision(),
+				"access list revision should not change on subsequent reconciliations")
+
+			m, err := c.testEnv.accessLists.GetAccessListMember(t.Context(), list.GetName(), nonExistentUser)
+			require.NoError(t, err)
+			require.Equal(t, "INELIGIBLE_STATUS_USER_NOT_EXIST", m.Spec.IneligibleStatus,
+				"member referencing non-existent user should be marked as USER_NOT_EXIST")
+			require.Equal(t, initialMemberRevision, m.GetRevision(),
+				"member revision should not change on subsequent reconciliations")
+		}
+
+		// Run multiple reconciliation cycles to ensure stability
+		// This verifies that the reconciler doesn't continuously update resources
+		// when the ineligible status is already correctly set
+		const reconciliationCycles = 5
+		for i := 0; i < reconciliationCycles; i++ {
+			waitForReconciliation()
+			verifyStatusAndRevisionsUnchanged()
+		}
+	})
+}
+
 // TestIneligibleStatusReconcilerBatcher triggers multiple changes within the batch window
 // and test the StateOverloaded state where no reconciliation action taken till the events thought settle down.
 func TestIneligibleStatusReconcilerBatcher(t *testing.T) {
