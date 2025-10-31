@@ -1,9 +1,10 @@
 ---
 title: Running an HA Teleport cluster using Microsoft Azure, AKS, and Helm
 description: Install and configure an HA Teleport cluster using a Microsoft Azure AKS cluster.
-labels:
+tags:
  - how-to
  - platform-wide
+ - aws
 ---
 
 In this guide, we'll go through how to set up a High Availability Teleport
@@ -27,7 +28,7 @@ Proxy Service on your Azure Kubernetes Service cluster. The chart requires the
 following resources, which we show you how to create in this guide:
 
 - **IAM permissions for the Teleport Auth Service**. The Auth Service requires
-  permissions to manage resources on its backend. 
+  permissions to manage resources on its backend.
 - **cert-manager** for obtaining and renewing TLS credentials that the Proxy
   Service uses to run its HTTPS server.
 - **IAM permissions for cert-manager**. In the setup we show in this guide,
@@ -97,12 +98,12 @@ availability, or you might have to use `SameZone` high availability.
 
 ```code
 $ az postgres flexible-server create --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-pg" /> \
-    --active-directory-auth Enabled --password-auth Disabled \
+    --microsoft-entra-auth Enabled --password-auth Disabled \
     --version 15 --high-availability SameZone --public-access All
-$ az postgres flexible-server parameter set --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-pg" /> \
+$ az postgres flexible-server parameter set --resource-group <Var name="teleport-rg" /> --server-name <Var name="teleport-pg" /> \
     --name wal_level --value logical
 $ az postgres flexible-server restart --resource-group <Var name="teleport-rg" /> --name <Var name="teleport-pg" />
-$ az postgres flexible-server ad-admin create --resource-group <Var name="teleport-rg" /> --server-name <Var name="teleport-pg" /> \
+$ az postgres flexible-server microsoft-entra-admin create --resource-group <Var name="teleport-rg" /> --server-name <Var name="teleport-pg" /> \
     --display-name <Var name="pguser" /> --type ServicePrincipal \
     --object-id "$(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query principalId -o tsv)"
 ```
@@ -112,11 +113,11 @@ access can be restricted to just the AKS outbound address, or the account can be
 made part of the virtual network that the AKS cluster is using.
 
 ```code
-$ az storage account create --resource-group <Var name="teleport-rg" /> --name "teleport-blob" \
+$ az storage account create --resource-group <Var name="teleport-rg" /> --name <Var name="teleportblob" /> \
     --allow-blob-public-access false
 $ az role assignment create --role "Storage Blob Data Owner" --assignee-principal-type ServicePrincipal \
     --assignee-object-id "$(az identity show --resource-group <Var name="teleport-rg" /> --name teleport-id --query principalId -o tsv)" \
-    --scope "$(az storage account show --resource-group <Var name="teleport-rg" /> --name <Var name="teleportblob" /> --query id -o tsv)""
+    --scope "$(az storage account show --resource-group <Var name="teleport-rg" /> --name <Var name="teleportblob" /> --query id -o tsv)"
 ```
 
 We'll use Workload Identity to authenticate to those services, so we'll add

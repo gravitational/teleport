@@ -34,6 +34,7 @@ import {
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
+  ButtonSelect,
   Link as ExternalLink,
   Flex,
   H2,
@@ -43,7 +44,6 @@ import {
   P3,
   Subtitle2,
   Text,
-  Toggle,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
@@ -265,14 +265,14 @@ export function RequestCheckout<T extends PendingListItem>({
     if (!isResourceRequest) {
       return [
         true,
-        'Long-term access is only supported for resource-based requests.',
+        'Permanent access is only supported for resource-based requests.',
       ];
     }
     // If canProceed is false on initial dryRun, show validation msg and disable until req is re-run.
     if (dryRunResponse?.longTermResourceGrouping?.canProceed === false) {
       return [
         true,
-        'Long-term access is unavailable. ' +
+        'Permanent access is unavailable. ' +
           dryRunResponse.longTermResourceGrouping.validationMessage || '',
       ];
     }
@@ -552,29 +552,27 @@ export function RequestCheckout<T extends PendingListItem>({
                     <>
                       <Flex flexDirection="column" gap={2} mt={4}>
                         <Text bold>Request Type</Text>
-                        <HoverTooltip
-                          tipContent={longTermDisabledReason}
-                          placement="left"
-                        >
-                          <Toggle
-                            isToggled={isLongTerm}
-                            onToggle={() =>
-                              setRequestKind(
-                                isLongTerm
-                                  ? RequestKind.ShortTerm
-                                  : RequestKind.LongTerm
-                              )
-                            }
-                            disabled={longTermDisabled}
-                          >
-                            <Flex flexDirection="column" ml={3}>
-                              <Text>Long-Term Access</Text>
-                              <Text color="text.slightlyMuted" fontSize={1}>
-                                Granted via an Access List
-                              </Text>
-                            </Flex>
-                          </Toggle>
-                        </HoverTooltip>
+                        <ButtonSelect
+                          options={[
+                            {
+                              value: RequestKind.ShortTerm,
+                              label: 'Temporary',
+                            },
+                            {
+                              value: RequestKind.LongTerm,
+                              label: 'Permanent',
+                              disabled: longTermDisabled,
+                              tooltip: longTermDisabledReason,
+                            },
+                          ]}
+                          activeValue={
+                            isLongTerm
+                              ? RequestKind.LongTerm
+                              : RequestKind.ShortTerm
+                          }
+                          onChange={setRequestKind}
+                          fullWidth
+                        />
                       </Flex>
                       <Divider />
                     </>

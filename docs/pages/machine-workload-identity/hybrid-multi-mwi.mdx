@@ -1,0 +1,54 @@
+---
+title: Hybrid & Multi-Cloud with Machine & Workload Identity
+description: Managing hybrid and multi-cloud systems with Machine & Workload Identity
+tags:
+ - conceptual
+ - mwi
+ - infrastructure-identity
+---
+
+Teleport Machine & Workload Identity streamlines hybrid and multi-cloud operations while reducing management costs. 
+It integrates with Terraform, Pulumi, AWS, GCP, Azure, and also provides solutions for on-premises environments.
+
+## Choose your cloud provider
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="awsIdentity" size="xl" />,
+      to: "/docs/machine-workload-identity/workload-identity/aws-roles-anywhere",
+      name: "AWS Roles Anywhere and Workload Identity",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "/docs/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt",
+      name: "Google Cloud Workload Identity Federation",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "/docs/machine-workload-identity/workload-identity/azure-federated-credentials",
+      name: "Azure Federated Credentials",
+    },
+    {
+      icon: <Icon name="oracle" size="xl" />,
+      name: "Oracle Cloud Infrastructure and Workload Identity (Guide coming soon!)",
+    }
+  ]}
+/>
+
+## Manage access for all clouds with one credential
+
+Managing IAM for machines and applications in one cloud is doable. But when organizations move outside one cloud provider, either to a hybrid on-prem architecture or multiple cloud providers (or both), complexity grows quickly. Distributing, managing, and rotating cloud credentials for on-premises servers or for services that span multiple clouds introduces operational complexity and increases the risk of mismanagement.
+
+Teleport issues credentials compatible with all major cloud providers that can also be used for mTLS between applications, making securing communication between clouds easier.
+
+## Secure and auditable access with ephemeral credentials
+
+Teleport generates a credential in x.509 or JWT form, compatible with:
+
+- AWS IAM Roles Anywhere
+- Google Cloud Workload Identity Federation
+- Microsoft Entra Workload ID
+- OCI Workload Identity Federation
+
+You can use these credentials with Infrastructure-as-Code like Terraform and Pulumi, applications that need to access a cloud provider API from outside that cloud (i.e. sending logs to an AWS S3 bucket from GCP), and with human users authenticating with cloud providers via CLI. The credentials are ephemeral, with a custom time-to-live set, and Teleport automatically rotates them. Teleport provides a comprehensive audit log of every credential issued to make compliance reporting easy.

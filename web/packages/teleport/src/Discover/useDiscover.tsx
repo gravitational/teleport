@@ -298,7 +298,7 @@ export function DiscoverProvider({
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
-    if (resource.unguidedLink || resource.isDialog) {
+    if (resource.unguidedLink || resource.guidedLink || resource.isDialog) {
       emitEvent(
         { stepStatus: DiscoverEventStatus.Success },
         {

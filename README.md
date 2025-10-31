@@ -144,20 +144,11 @@ versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
 1. [`Go`](https://golang.org/dl/)
 1. [`Rust`](https://www.rust-lang.org/tools/install)
 1. [`Node.js`](https://nodejs.org/en/download/)
-1. [`wasm-pack`](https://github.com/rustwasm/wasm-pack)
 1. [`libfido2`](https://github.com/Yubico/libfido2)
 1. [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/)
 
 For an example of Dev Environment setup on a Mac, see [these
 instructions](/BUILD_macos.md).
-
-##### Linux 64-bit ARM Dependencies
-
-1. On Linux aarch64 (64-bit ARM), you may need to manually install
-   [`binaryen`](https://github.com/WebAssembly/binaryen). Check with `which
-   wasm-opt`. If not found, install with `apt-get install binaryen`
-   (Debian-based systems). On other platforms, `wasm-pack` installs it
-   automatically.
 
 #### Perform a build
 
@@ -329,28 +320,6 @@ Why is a specific module imported?
 Why is a specific version of a module imported?
 
 `go mod graph | grep $modname`
-
-### Devbox Build (experimental)
-
-**Note**: Devbox support is still experimental. It's very possible things may not work as intended.
-
-Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
-the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
-then run:
-
-`devbox shell`
-
-This will install Teleport's various build dependencies and drop you into a shell with these
-dependencies. From here, you can build Teleport normally.
-
-#### flake.nix
-
-A nix flake is located in `build.assets/flake` that allows for installation of Teleport's less
-common build tooling. If this flake is updated, run:
-
-`devbox install`
-
-in order to make sure the changes in the flake are reflected in the local devbox shell.
 
 ## Why did We Build Teleport?
 

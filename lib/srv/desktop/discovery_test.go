@@ -278,16 +278,12 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, desktops, testCase.expected) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, desktops, testCase.expected)
 
 				if testCase.expected > 0 {
-					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
-					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+					require.Equal(t, desktop.GetName(), desktops[0].GetName())
+					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
@@ -297,15 +293,11 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, desktops, testCase.expected) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, desktops, testCase.expected)
 				if testCase.expected > 0 {
-					assert.Equal(t, desktop.GetName(), desktops[0].GetName())
-					assert.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
+					require.Equal(t, desktop.GetName(), desktops[0].GetName())
+					require.Equal(t, desktop.GetAddr(), desktops[0].GetAddr())
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
@@ -313,8 +305,8 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-				assert.NoError(t, err)
-				assert.Empty(t, desktops)
+				require.NoError(t, err)
+				require.Empty(t, desktops)
 			}, 5*time.Second, 50*time.Millisecond)
 		})
 	}

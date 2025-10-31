@@ -1,0 +1,61 @@
+---
+title: Infrastructure-as-Code with Machine & Workload Identity
+description: Configuring IaC with Machine & Workload Identity
+tags:
+ - conceptual
+ - mwi
+ - infrastructure-identity
+---
+
+Teleport Machine & Workload Identity replaces long-lived static secrets in Infrastructure-as-Code (IaC) tools with short-lived, 
+automatically generated certificates. Machine & Workload Identity supports Terraform and Pulumi, and has native integrations with 
+AWS, GCP and Azure, as well as solutions for on-prem configuration.
+
+## Choose your cloud provider
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="awsIdentity" size="xl" />,
+      to: "/docs/machine-workload-identity/workload-identity/aws-roles-anywhere",
+      name: "AWS Roles Anywhere and Workload Identity",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "/docs/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt",
+      name: "Google Cloud Workload Identity Federation",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "/docs/machine-workload-identity/workload-identity/azure-federated-credentials",
+      name: "Azure Federated Credentials and Workload Identity",
+    },
+    {
+      icon: <Icon name="oracle" size="xl" />,
+      name: "Oracle Cloud Infrastructure and Workload Identity (Guide coming soon!)",
+    }
+  ]}
+/>
+
+## Eliminate secrets from your Infrastructure-as-Code
+
+IaC repositories require credentials with wide-ranging privileges in order to create, delete and manage all manner of infrastructure, 
+from networks to Kubernetes clusters to cloud IAM resources. Exfiltration of these credentials, in the form of AWS key pairs, GCP service key 
+files, Azure service principals, etc, can be catastrophic.
+
+Best practices for managing these secrets include very controlled chains of access, and regular rotation, which causes drag on platform, security and developer teams.
+Teleport eliminates the need for these static, long-lived secrets by issuing short-lived, identity-based credentials when your IaC runs.
+
+## Secure and auditable access with ephemeral credentials
+
+When your IaC runs, Teleport generates a short-lived credential compatible with:
+
+- AWS IAM Roles Anywhere
+- Google Cloud Workload Identity Federation
+- Microsoft Entra Workload ID
+- OCI Workload Identity Federation
+
+The cloud provider issues a temporary credential linked to an IAM role, which allows the IaC workflow to perform its tasks. This credential exists only for the duration of the run and automatically expires once it completes. 
+By design, this minimizes the risk of credential exposure and eliminates the need for manual rotation or long-term management. Because all major cloud providers support this method of authentication, IaC pipelines that manage resources across multiple clouds can rely on a single mechanism instead of juggling separate credential processes. 
+
+Teleport further enhances this model by recording every credential issuance in a comprehensive [audit log](../reference/deployment/monitoring/audit.mdx), simplifying compliance and reporting.

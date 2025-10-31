@@ -48,7 +48,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 	}
 
 	// Agent auto updates section.
-	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
+	agentVersion, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to resolve AgentVersion", "error", err)
 		// Defaulting to current version
@@ -57,7 +57,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 	// If the source of truth is RFD 109 configuration (channels + CMC) we must emulate the
 	// RFD109 agent maintenance window behavior by looking up the CMC and checking if
 	// we are in a maintenance window.
-	shouldUpdate, err := h.autoUpdateAgentShouldUpdate(ctx, group, updaterUUID, true /* window lookup */)
+	shouldUpdate, err := h.autoUpdateResolver.ShouldUpdate(ctx, group, updaterUUID, true /* window lookup */)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to resolve AgentAutoUpdate", "error", err)
 		// Failing open

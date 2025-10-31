@@ -2,9 +2,10 @@
 title: tbot Chart Reference
 sidebar_label: tbot
 description: Values that can be set using the tbot Helm chart
-labels:
+tags:
  - reference
  - mwi
+ - infrastructure-identity
 ---
 
 This chart deploys an instance of the [MachineID](../../machine-workload-identity/machine-id/introduction.mdx) agent,
@@ -24,13 +25,11 @@ you use the `token` join method with this chart.
 ## Minimal configuration
 
 This basic configuration will write a Teleport identity file to a secret in
-the deployment namespace called `test-output`.
+the deployment namespace called `<helm-release-name>-out`. For example `tbot-out`.
 
 ```yaml
 clusterName: "test.teleport.sh"
 teleportProxyAddress: "test.teleport.sh:443"
-defaultOutput:
-  secretName: "test-output"
 token: "my-token"
 ```
 

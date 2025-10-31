@@ -34,16 +34,16 @@ import (
 
 	"github.com/gravitational/teleport"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/asciitable"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 )
 
 // REPL implements [dbrepl.REPLInstance] for MySQL.
 type REPL struct {
+	*term.Terminal
+
 	client     io.ReadWriteCloser
 	serverConn net.Conn
 	route      clientproto.RouteToDatabase
-	term       *term.Terminal
 	parser     *parser
 	myConn     mysqlConn
 
@@ -61,6 +61,7 @@ type REPL struct {
 
 type mysqlConn interface {
 	Execute(command string, args ...any) (*mysql.Result, error)
+	ExecuteSelectStreaming(command string, result *mysql.Result, perRowCallback client.SelectPerRowCallback, perResultCallback client.SelectPerResultCallback) error
 	UseDB(dbName string) error
 	GetServerVersion() string
 }
@@ -72,10 +73,10 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 		return nil, trace.Wrap(err)
 	}
 	return &REPL{
+		Terminal:   term.NewTerminal(cfg.Client, ""),
 		client:     cfg.Client,
 		serverConn: cfg.ServerConn,
 		route:      cfg.Route,
-		term:       term.NewTerminal(cfg.Client, ""),
 		parser:     parser,
 	}, nil
 }
@@ -150,7 +151,7 @@ func withClientCapabilities(caps ...uint32) client.Option {
 
 func (r *REPL) presentBanner() error {
 	_, err := fmt.Fprintf(
-		r.term,
+		r.Terminal,
 		`Teleport MySQL interactive shell (v%s)
 Connected to instance %q as user %q.
 Type 'help' or '\h' for help.
@@ -163,8 +164,8 @@ Type 'help' or '\h' for help.
 }
 
 func (r *REPL) readLine() (string, error) {
-	r.term.SetPrompt(r.getPrompt())
-	return r.term.ReadLine()
+	r.Terminal.SetPrompt(r.getPrompt())
+	return r.Terminal.ReadLine()
 }
 
 func (r *REPL) getPrompt() string {
@@ -205,7 +206,7 @@ func (r *REPL) print(reply string) error {
 	if reply == "" {
 		return nil
 	}
-	_, err := r.term.Write([]byte(lineBreak + reply + lineBreak + lineBreak))
+	_, err := r.Terminal.Write([]byte(lineBreak + reply + lineBreak + lineBreak))
 	return trace.Wrap(err)
 }
 
@@ -223,11 +224,11 @@ func rewriteTermError(ctx context.Context, err error) error {
 	return err
 }
 
-// formatResult formats a query result.
-func formatResult(result *mysql.Result, elapsed *time.Duration) string {
+// summarizeResult summarizes a query result.
+func summarizeResult(result *mysql.Result, numRows int, elapsed *time.Duration) string {
 	var out string
-	if result.Resultset != nil {
-		out = formatResultset(result.Resultset)
+	if result.Resultset != nil && len(result.Resultset.Fields) > 0 {
+		out = summarizeResultset(numRows)
 	} else {
 		out = fmt.Sprintf("%v warnings, %v rows affected", result.Warnings, result.AffectedRows)
 	}
@@ -237,34 +238,16 @@ func formatResult(result *mysql.Result, elapsed *time.Duration) string {
 	return out
 }
 
-// formatResultset formats a query result that contains rows.
-func formatResultset(set *mysql.Resultset) string {
-	if set == nil || len(set.Values) == 0 {
+// summarizeResultset summarizes a query result that contains rows.
+func summarizeResultset(numRows int) string {
+	switch numRows {
+	case 0:
 		return "Empty set"
+	case 1:
+		return "1 row in set"
+	default:
+		return fmt.Sprintf("%d rows in set", numRows)
 	}
-	var sb strings.Builder
-	columns := make([]string, 0, len(set.Fields))
-	for _, f := range set.Fields {
-		columns = append(columns, string(f.Name))
-	}
-	table := asciitable.MakeTable(columns)
-	for _, rowValues := range set.Values {
-		row := make([]string, 0, len(rowValues))
-		for _, val := range rowValues {
-			row = append(row, val.String())
-		}
-		table.AddRow(row)
-	}
-	table.WriteTo(&sb)
-	sb.WriteString(lineBreak)
-
-	if numRows := len(set.Values); numRows == 1 {
-		sb.WriteString("1 row in set")
-	} else {
-		// pluralize 0 or multiple rows
-		fmt.Fprintf(&sb, "%d rows in set", numRows)
-	}
-	return sb.String()
 }
 
 const (

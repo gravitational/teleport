@@ -87,8 +87,15 @@ type DatabaseAdminUser struct {
 
 // OracleOptions are additional Oracle options.
 type OracleOptions struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -156,6 +163,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID: d.AWS.ElastiCache.ReplicationGroupID,
 			},
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: d.AWS.ElastiCacheServerless.CacheName,
+			},
 			MemoryDB: types.MemoryDB{
 				ClusterName: d.AWS.MemoryDB.ClusterName,
 			},
@@ -192,7 +202,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 
 func convOracleOptions(o OracleOptions) types.OracleOptions {
 	return types.OracleOptions{
-		AuditUser: o.AuditUser,
+		AuditUser:        o.AuditUser,
+		RetryCount:       o.RetryCount,
+		ShuffleHostnames: o.ShuffleHostnames,
 	}
 }
 
@@ -226,6 +238,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
+	// ElastiCacheServerless contains ElastiCacheServerless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
@@ -268,6 +282,12 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string
+}
+
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string
 }
 
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.

@@ -606,6 +606,7 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -747,7 +748,7 @@ type Auth struct {
 
 	// SessionRecordingConfig configures how session recording should be handled including things like
 	// encryption and key management.
-	SessionRecordingConfig *types.SessionRecordingConfigSpecV2 `yaml:"session_recording_config,omitempty"`
+	SessionRecordingConfig *SessionRecordingConfig `yaml:"session_recording_config,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
@@ -1017,6 +1018,9 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	roles, err := types.ParseTeleportRoles(parts[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if roles.Include(types.RoleBot) {
+		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
 	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
@@ -1825,6 +1829,14 @@ type InstallParams struct {
 	// Valid values: script, eice.
 	// Optional.
 	EnrollMode string `yaml:"enroll_mode"`
+	// Suffix indicates the installation suffix for the teleport installation.
+	// Set this value if you want multiple installations of Teleport.
+	// See --install-suffix flag in teleport-update program.
+	Suffix string `yaml:"suffix,omitempty"`
+	// UpdateGroup indicates the update group for the teleport installation.
+	// This value is used to group installations in order to update them in batches.
+	// See --group flag in teleport-update program.
+	UpdateGroup string `yaml:"update_group,omitempty"`
 }
 
 const (
@@ -1842,6 +1854,8 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:          ip.Suffix,
+		UpdateGroup:     ip.UpdateGroup,
 	}
 
 	switch ip.EnrollMode {
@@ -1998,8 +2012,15 @@ type DatabaseMySQL struct {
 
 // DatabaseOracle are an additional Oracle database options.
 type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32 `yaml:"retry_count,omitempty"`
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool `yaml:"shuffle_hostnames,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -2020,6 +2041,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// ElastiCacheServerless contains ElastiCache Serverless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless `yaml:"elasticache_serverless"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
@@ -2054,6 +2077,13 @@ type DatabaseAWSRDS struct {
 type DatabaseAWSElastiCache struct {
 	// ReplicationGroupID is the ElastiCache replication group ID.
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
+}
+
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless
+// databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string `yaml:"cache_name,omitempty"`
 }
 
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
@@ -2562,6 +2592,8 @@ type WindowsDesktopService struct {
 	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
 	// DiscoveryInterval controls how frequently the discovery process runs.
 	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
+	// PublishCRLInterval determines how frequently CRLs should be published.
+	PublishCRLInterval time.Duration `yaml:"publish_crl_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2925,7 +2957,82 @@ type Relay struct {
 	// enabled.
 	RelayGroup string `yaml:"relay_group"`
 
-	// APIPublicHostnames is the list of DNS names and IP addresses that the
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int `yaml:"target_connection_count"`
+
+	// PublicHostnames is the list of DNS names and IP addresses that the
 	// Relay service credentials should be authoritative for.
-	APIPublicHostnames []string `yaml:"api_public_hostnames"`
+	PublicHostnames []string `yaml:"public_hostnames"`
+
+	// TransportListenAddr is the listen address for the transport listener, in
+	// addr:port format.
+	TransportListenAddr string `yaml:"transport_listen_addr"`
+
+	// TransportPROXYProtocol is set if the transport listener should expect a
+	// PROXY protocol header in incoming connections.
+	TransportPROXYProtocol bool `yaml:"transport_proxy_protocol"`
+
+	// PeerListenAddr is the listen address for the peer listener, in addr:port
+	// format.
+	PeerListenAddr string `yaml:"peer_listen_addr"`
+
+	// PeerPublicAddr, if set, is the public address for the peer listener, in
+	// host:port format.
+	PeerPublicAddr string `yaml:"peer_public_addr"`
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format.
+	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
+
+	// TunnelPROXYProtocol is set if the tunnel listener should expect a PROXY
+	// protocol header in incoming connections.
+	TunnelPROXYProtocol bool `yaml:"tunnel_proxy_protocol"`
+}
+
+// SessionRecordingEncryptionConfig is the session_recording_config.encryption
+// section of the Teleport config file. It maps directly to [types.SessionRecordingEncryptionConfig]
+type SessionRecordingEncryptionConfig struct {
+	Enabled             bool `yaml:"enabled,omitempty"`
+	ManualKeyManagement *struct {
+		Enabled     bool              `yaml:"enabled,omitempty"`
+		ActiveKeys  []*types.KeyLabel `yaml:"active_keys,omitempty"`
+		RotatedKeys []*types.KeyLabel `yaml:"rotated_keys,omitempty"`
+	} `yaml:"manual_key_management,omitempty"`
+}
+
+// SessionRecordingConfig is the session_recording_config section of the Teleport config file.
+// It maps directly to [types.SessionRecordingConfigSpecV2]
+type SessionRecordingConfig struct {
+	Mode                string                            `yaml:"mode"`
+	ProxyChecksHostKeys *types.BoolOption                 `yaml:"proxy_checks_host_keys,omitempty"`
+	Encryption          *SessionRecordingEncryptionConfig `yaml:"encryption,omitempty"`
+}
+
+// toSpec converts SessionRecordingConfig into a types.SessionRecordingConfigSpecV2 so it can
+// be used to initialize session recording.
+func (src *SessionRecordingConfig) toSpec() types.SessionRecordingConfigSpecV2 {
+	if src == nil {
+		return types.SessionRecordingConfigSpecV2{}
+	}
+
+	var encryption *types.SessionRecordingEncryptionConfig
+	if src.Encryption != nil {
+		encryption = &types.SessionRecordingEncryptionConfig{
+			Enabled: src.Encryption.Enabled,
+		}
+		if src.Encryption.ManualKeyManagement != nil {
+			encryption.ManualKeyManagement = &types.ManualKeyManagementConfig{
+				Enabled:     src.Encryption.ManualKeyManagement.Enabled,
+				ActiveKeys:  src.Encryption.ManualKeyManagement.ActiveKeys,
+				RotatedKeys: src.Encryption.ManualKeyManagement.RotatedKeys,
+			}
+		}
+	}
+
+	return types.SessionRecordingConfigSpecV2{
+		Mode:                src.Mode,
+		ProxyChecksHostKeys: src.ProxyChecksHostKeys,
+		Encryption:          encryption,
+	}
 }

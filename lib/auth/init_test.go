@@ -45,7 +45,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -66,8 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -142,7 +140,7 @@ func TestBadIdentity(t *testing.T) {
 
 	// bad cert type
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// missing authority domain
 	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -159,7 +157,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// missing host uuid
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -176,7 +174,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// unrecognized role
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -193,7 +191,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
@@ -959,24 +957,17 @@ func TestPresets(t *testing.T) {
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
+		teleport.PresetMCPUserRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
-		require.NoError(t, err)
-
 		// Second call should not fail
 		err = auth.CreatePresetRoles(ctx, as)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -984,17 +975,11 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
-
-		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
@@ -1015,31 +1000,9 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
 
-	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// an existing health check config should not be modified by init
-		cfg := services.NewPresetHealthCheckConfig()
-		cfg.Spec.Interval = durationpb.New(42 * time.Second)
-		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
-		require.NoError(t, err)
-
-		// Preset was created. Ensure it didn't overwrite the existing config
-		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
-		require.NoError(t, err)
-		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
-	})
-
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1090,8 +1053,6 @@ func TestPresets(t *testing.T) {
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1333,8 +1294,6 @@ func TestPresets(t *testing.T) {
 
 		t.Run("EmptyCluster", func(t *testing.T) {
 			as := newTestAuthServer(ctx, t)
-			clock := clockwork.NewFakeClock()
-			as.SetClock(clock)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
@@ -1510,7 +1469,7 @@ func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
 func setupConfig(t *testing.T) auth.InitConfig {
 	tempDir := t.TempDir()
 
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
 	processStorage, err := storage.NewProcessStorage(

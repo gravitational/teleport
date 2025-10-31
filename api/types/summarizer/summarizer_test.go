@@ -28,66 +28,96 @@ import (
 
 func TestValidateInferenceModel(t *testing.T) {
 	t.Parallel()
-	valid := NewInferenceModel("my-model", &summarizerv1.InferenceModelSpec{
+	validOpenAI := NewInferenceModel("my-model", &summarizerv1.InferenceModelSpec{
 		Provider: &summarizerv1.InferenceModelSpec_Openai{
 			Openai: &summarizerv1.OpenAIProvider{
 				OpenaiModelId: "gpt-4o",
 			},
 		},
 	})
-	require.NoError(t, ValidateInferenceModel(valid))
+	validBedrock := NewInferenceModel("my-model", &summarizerv1.InferenceModelSpec{
+		Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+			Bedrock: &summarizerv1.BedrockProvider{
+				BedrockModelId: "amazon.nova-lite-v1:0",
+				Region:         "us-west-2",
+			},
+		},
+	})
+	require.NoError(t, ValidateInferenceModel(validOpenAI))
+	require.NoError(t, ValidateInferenceModel(validBedrock))
 
 	cases := []struct {
-		fn  func(m *summarizerv1.InferenceModel)
-		msg string
+		base *summarizerv1.InferenceModel
+		fn   func(m *summarizerv1.InferenceModel)
+		msg  string
 	}{
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Kind = "other" },
-			msg: "kind must be inference_model, got other",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Kind = "other" },
+			msg:  "kind must be inference_model, got other",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.SubKind = "foo" },
-			msg: "subkind must be empty",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.SubKind = "foo" },
+			msg:  "subkind must be empty",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Version = "" },
-			msg: "version is required",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Version = "" },
+			msg:  "version is required",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Version = types.V2 },
-			msg: "unsupported version v2, supported: v1",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Version = types.V2 },
+			msg:  "unsupported version v2, supported: v1",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Metadata = nil },
-			msg: "metadata is required",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Metadata = nil },
+			msg:  "metadata is required",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Metadata.Name = "" },
-			msg: "metadata.name is required",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Metadata.Name = "" },
+			msg:  "metadata.name is required",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Metadata.Name = "teleport-cloud-default" },
-			msg: "metadata.name \"teleport-cloud-default\" is reserved",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Metadata.Name = "teleport-cloud-default" },
+			msg:  "metadata.name \"teleport-cloud-default\" is reserved",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Spec = nil },
-			msg: "spec is required",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Spec = nil },
+			msg:  "spec is required",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Spec.Provider = nil },
-			msg: "missing or unsupported inference provider in spec, supported providers: openai",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.Provider = nil },
+			msg:  "missing or unsupported inference provider in spec, supported providers: openai",
 		},
 		{
-			fn:  func(m *summarizerv1.InferenceModel) { m.Spec.GetOpenai().OpenaiModelId = "" },
-			msg: "spec.openai.openai_model_id is required",
+			base: validOpenAI,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.GetOpenai().OpenaiModelId = "" },
+			msg:  "spec.openai.openai_model_id is required",
+		},
+		{
+			base: validBedrock,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.GetBedrock().BedrockModelId = "" },
+			msg:  "spec.bedrock.bedrock_model_id is required",
+		},
+		{
+			base: validBedrock,
+			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.GetBedrock().Region = "" },
+			msg:  "spec.bedrock.region is required",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.msg, func(t *testing.T) {
-			m := proto.CloneOf(valid)
+			m := proto.CloneOf(tc.base)
 			tc.fn(m)
-			assert.ErrorIs(t, ValidateInferenceModel(m), trace.BadParameter(tc.msg))
+			assert.ErrorIs(t, ValidateInferenceModel(m), &trace.BadParameterError{Message: tc.msg})
 		})
 	}
 }
@@ -141,7 +171,7 @@ func TestValidateInferenceSecret(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			s := proto.CloneOf(valid)
 			tc.fn(s)
-			assert.ErrorIs(t, ValidateInferenceSecret(s), trace.BadParameter(tc.msg))
+			assert.ErrorIs(t, ValidateInferenceSecret(s), &trace.BadParameterError{Message: tc.msg})
 		})
 	}
 }

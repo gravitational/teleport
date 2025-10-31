@@ -236,7 +236,7 @@ export function RequestView({
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          is requesting long-term access to resources:
+                          is requesting permanent access to resources:
                         </Text>
                         <ResourcesRequested resources={request.resources} />
                       </>
@@ -440,7 +440,7 @@ export function Timestamp({
           )
         ) : (
           <span>
-            {verb} this request to long-term access with access list{' '}
+            {verb} this request to permanent access with access list{' '}
             <b>{promotedAccessListTitle}</b> {createdDuration}
           </span>
         )}

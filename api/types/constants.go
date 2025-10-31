@@ -289,6 +289,9 @@ const (
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
+	// KindScopedToken is a provisioning token resource
+	KindScopedToken = "scoped_token"
+
 	// KindCertAuthority is a certificate authority resource
 	KindCertAuthority = "cert_authority"
 
@@ -357,6 +360,12 @@ const (
 
 	// KindAutoUpdateAgentReport is the resource that tracks connected agents.
 	KindAutoUpdateAgentReport = "autoupdate_agent_report"
+
+	// KindAutoUpdateBotInstanceReport is the resource that tracks connected bots.
+	KindAutoUpdateBotInstanceReport = "autoupdate_bot_instance_report"
+
+	// MetaNameAutoUpdateBotInstanceReport is the name of the singleton auto update bot report.
+	MetaNameAutoUpdateBotInstanceReport = "autoupdate-bot-instance-report"
 
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
@@ -678,6 +687,9 @@ const (
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
+	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
+	KindClientIPRestriction = "client_ip_restriction"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -925,6 +937,8 @@ const (
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
+	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
+	DiscoveryDescription = TeleportNamespace + "/description"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -952,6 +966,14 @@ const (
 	SchemeMCPSSEHTTPS = "mcp+sse+https"
 	// MCPTransportSSE indicates the MCP server uses SSE transport.
 	MCPTransportSSE = "SSE"
+	// SchemeMCPHTTP is a URI scheme for MCP servers using HTTP with streamable
+	// HTTP transport.
+	SchemeMCPHTTP = "mcp+http"
+	// SchemeMCPHTTPS is a URI scheme for MCP servers using HTTPS with
+	// streamable HTTP transport.
+	SchemeMCPHTTPS = "mcp+https"
+	// MCPTransportHTTP indicates the MCP server uses SSE transport.
+	MCPTransportHTTP = "Streamable HTTP"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1238,6 +1260,9 @@ const (
 
 	// GitHubOrgLabel is the label for GitHub organization.
 	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
+
+	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
+	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 )
 
 const (

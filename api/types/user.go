@@ -129,6 +129,8 @@ type User interface {
 	SetHostUserGID(gid string)
 	// SetMCPTools sets a list of allowed MCP tools for the user
 	SetMCPTools(mcpTools []string)
+	// SetDefaultRelayAddr sets the trait for the default relay address.
+	SetDefaultRelayAddr(addr string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -426,6 +428,18 @@ func (u *UserV2) SetHostUserGID(uid string) {
 // SetMCPTools sets a list of allowed MCP tools for the user
 func (u *UserV2) SetMCPTools(mcpTools []string) {
 	u.setTrait(constants.TraitMCPTools, mcpTools)
+}
+
+// SetDefaultRelayAddr implements [User].
+func (u *UserV2) SetDefaultRelayAddr(addr string) {
+	if addr == "" {
+		delete(u.Spec.Traits, constants.TraitDefaultRelayAddr)
+		return
+	}
+	if u.Spec.Traits == nil {
+		u.Spec.Traits = make(map[string][]string)
+	}
+	u.Spec.Traits[constants.TraitDefaultRelayAddr] = []string{addr}
 }
 
 // GetStatus returns login status of the user

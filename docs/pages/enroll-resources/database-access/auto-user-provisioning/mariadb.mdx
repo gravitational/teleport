@@ -2,9 +2,10 @@
 title: MariaDB Automatic User Provisioning 
 sidebar_label: MariaDB
 description: Configure automatic user provisioning for MariaDB.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -155,6 +156,8 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 ## Step 3/3. Connect to the database
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MariaDB"!)
 
 ## Troubleshooting
 

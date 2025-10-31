@@ -85,7 +85,7 @@ export const RadioButtonStory = () => (
         </td>
       </tr>
       <tr>
-        <th rowSpan={4}>Disabled</th>
+        <th rowSpan={3}>Disabled</th>
         <th>Default</th>
         <td>
           <RadioButton name="dis-def-lg" disabled />
@@ -116,6 +116,40 @@ export const RadioButtonStory = () => (
         <td>
           <RadioButton name="dis-act-sm" size="small" disabled />
           <RadioButton name="dis-act-sm" size="small" disabled checked />
+        </td>
+      </tr>
+      <tr>
+        <th rowSpan={3}>Read Only</th>
+        <th>Default</th>
+        <td>
+          <RadioButton name="ro-def-lg" readOnly />
+          <RadioButton name="ro-def-lg" readOnly checked />
+        </td>
+        <td>
+          <RadioButton name="ro-def-sm" size="small" readOnly />
+          <RadioButton name="ro-def-sm" size="small" readOnly checked />
+        </td>
+      </tr>
+      <tr className="teleport-radio-button__force-hover">
+        <th>Hover</th>
+        <td>
+          <RadioButton name="ro-hov-lg" readOnly />
+          <RadioButton name="ro-hov-lg" readOnly checked />
+        </td>
+        <td>
+          <RadioButton name="ro-hov-sm" size="small" readOnly />
+          <RadioButton name="ro-hov-sm" size="small" readOnly checked />
+        </td>
+      </tr>
+      <tr className="teleport-radio-button__force-active">
+        <th>Active</th>
+        <td>
+          <RadioButton name="ro-act-lg" readOnly />
+          <RadioButton name="ro-act-lg" readOnly checked />
+        </td>
+        <td>
+          <RadioButton name="ro-act-sm" size="small" readOnly />
+          <RadioButton name="ro-act-sm" size="small" readOnly checked />
         </td>
       </tr>
     </Table>

@@ -26,7 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
@@ -75,6 +75,12 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
 func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
+	return c.ListScopedRoleAssignmentsWithFilter(ctx, req, func(*scopedaccessv1.ScopedRoleAssignment) bool { return true })
+}
+
+// ListScopedRoleAssignmentsWithFilter returns a paginated list of scoped role assignments filtered by the provided filter
+// function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc method.
+func (c *AssignmentCache) ListScopedRoleAssignmentsWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest, externalFilter func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
@@ -99,6 +105,12 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *sc
 			}
 		}
 
+		// apply the external filter after the basic request filter as the externally provided filter
+		// is often more expensive to evaluate.
+		if !externalFilter(assignment) {
+			return false
+		}
+
 		return true
 	}
 
@@ -117,9 +129,9 @@ func (c *AssignmentCache) ListScopedRoleAssignments(ctx context.Context, req *sc
 	if req.GetResourceScope() != nil {
 		// a resource-scope based filter has been provided
 		switch req.GetResourceScope().GetMode() {
-		case scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
+		case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
 			getter = c.cache.ResourcesSubjectToPolicyScope
-		case scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
+		case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
 			getter = c.cache.PoliciesApplicableToResourceScope
 		default:
 			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role assignment resource scope filter", req.GetResourceScope().GetMode())

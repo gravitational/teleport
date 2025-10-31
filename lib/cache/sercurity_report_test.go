@@ -23,8 +23,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestAuditQuery tests that CRUD operations on access list rule resources are
@@ -44,17 +42,15 @@ func TestAuditQuery(t *testing.T) {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:     p.secReports.GetSecurityAuditQueries,
-			cacheGet: p.cache.GetSecurityAuditQuery,
-			cacheList: func(ctx context.Context, pageSize int) ([]*secreports.AuditQuery, error) {
-				return p.cache.GetSecurityAuditQueries(ctx)
-			},
+			list:      getAllAdapter(p.secReports.GetSecurityAuditQueries),
+			cacheGet:  p.cache.GetSecurityAuditQuery,
+			cacheList: getAllAdapter(p.cache.GetSecurityAuditQueries),
 			update: func(ctx context.Context, item *secreports.AuditQuery) error {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
 			},
 			deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListSecurityAuditQueries", func(t *testing.T) {
@@ -66,17 +62,15 @@ func TestAuditQuery(t *testing.T) {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:     p.secReports.GetSecurityAuditQueries,
-			cacheGet: p.cache.GetSecurityAuditQuery,
-			cacheList: func(ctx context.Context, pageSize int) ([]*secreports.AuditQuery, error) {
-				return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListSecurityAuditQueries, pageSize))
-			},
+			list:      getAllAdapter(p.secReports.GetSecurityAuditQueries),
+			cacheGet:  p.cache.GetSecurityAuditQuery,
+			cacheList: p.cache.ListSecurityAuditQueries,
 			update: func(ctx context.Context, item *secreports.AuditQuery) error {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
 			},
 			deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
-		})
+		}, withSkipPaginationTest())
 	})
 
 }
@@ -98,17 +92,15 @@ func TestSecurityReports(t *testing.T) {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:     p.secReports.GetSecurityReports,
-			cacheGet: p.cache.GetSecurityReport,
-			cacheList: func(ctx context.Context, pageSize int) ([]*secreports.Report, error) {
-				return p.cache.GetSecurityReports(ctx)
-			},
+			list:      getAllAdapter(p.secReports.GetSecurityReports),
+			cacheGet:  p.cache.GetSecurityReport,
+			cacheList: getAllAdapter(p.cache.GetSecurityReports),
 			update: func(ctx context.Context, item *secreports.Report) error {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
 			},
 			deleteAll: p.secReports.DeleteAllSecurityReports,
-		})
+		}, withSkipPaginationTest())
 	})
 	t.Run("ListSecurityReports", func(t *testing.T) {
 		testResources(t, p, testFuncs[*secreports.Report]{
@@ -119,11 +111,9 @@ func TestSecurityReports(t *testing.T) {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:     p.secReports.GetSecurityReports,
-			cacheGet: p.cache.GetSecurityReport,
-			cacheList: func(ctx context.Context, pageSize int) ([]*secreports.Report, error) {
-				return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListSecurityReports, pageSize))
-			},
+			list:      p.secReports.ListSecurityReports,
+			cacheGet:  p.cache.GetSecurityReport,
+			cacheList: p.cache.ListSecurityReports,
 			update: func(ctx context.Context, item *secreports.Report) error {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
@@ -150,13 +140,9 @@ func TestSecurityReportState(t *testing.T) {
 			err := p.secReports.UpsertSecurityReportsState(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*secreports.ReportState, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.secReports.ListSecurityReportsStates))
-		},
-		cacheGet: p.cache.GetSecurityReportState,
-		cacheList: func(ctx context.Context, pageSize int) ([]*secreports.ReportState, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListSecurityReportsStates, pageSize))
-		},
+		list:      p.secReports.ListSecurityReportsStates,
+		cacheGet:  p.cache.GetSecurityReportState,
+		cacheList: p.cache.ListSecurityReportsStates,
 		update: func(ctx context.Context, item *secreports.ReportState) error {
 			err := p.secReports.UpsertSecurityReportsState(ctx, item)
 			return trace.Wrap(err)

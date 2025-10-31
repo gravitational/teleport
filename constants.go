@@ -464,6 +464,14 @@ const (
 )
 
 const (
+	// CertExtensionScopePin is used to pin a user certificate to a specific scope and
+	// set of scoped roles. This constrains a user's access to resources based on both
+	// the scoping rules and scoped roles defined.
+	CertExtensionScopePin = "scope-pin@goteleport.com"
+	// CertExtensionAgentScope is used to pin an agent/host certificate to a specific scope.
+	// This constrains other identities' access to the agent itself as well as the agent's
+	// access to other resources based on scoping rules.
+	CertExtensionAgentScope = "agent-scope@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -596,6 +604,10 @@ const MaxHTTPRequestSize = 10 * 1024 * 1024
 // a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
 // to prevent resource exhaustion attacks.
 const MaxHTTPResponseSize = 10 * 1024 * 1024
+
+// MaxUsernameLength is the maximum allowed length (characters) for usernames.
+// This limit prevents sending extremely long usernames that could clog up logs or exhaust resources.
+const MaxUsernameLength = 1000
 
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
@@ -759,14 +771,27 @@ const (
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
+
+	// PresetMCPUserRoleName is a name of a preset role that allows
+	// accessing MCP servers.
+	PresetMCPUserRoleName = "mcp-user"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
-	// PresetDefaultHealthCheckConfigName is the name of a preset
-	// default health_check_config that enables health checks for all resources.
-	PresetDefaultHealthCheckConfigName = "default"
+	// VirtualDefaultHealthCheckConfigDBName is the name of a virtual
+	// health_check_config that enables health checks for all database
+	// resources. For historical reasons, it's value is "default" even
+	// though it applies to databases only.
+	VirtualDefaultHealthCheckConfigDBName = "default"
+	// VirtualDefaultHealthCheckConfigKubeName is the name of a virtual
+	// health_check_config that enables health checks for all Kubernetes
+	// resources.
+	VirtualDefaultHealthCheckConfigKubeName = "default-kube"
+	// VirtualDefaultHealthCheckConfigCount is the number of virtual
+	// health_check_config resources.
+	VirtualDefaultHealthCheckConfigCount = 2
 )
 
 const (

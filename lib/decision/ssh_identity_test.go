@@ -24,7 +24,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -34,12 +36,20 @@ import (
 
 func TestSSHIdentityConversion(t *testing.T) {
 	ident := &sshca.Identity{
-		ValidAfter:              1,
-		ValidBefore:             2,
-		CertType:                ssh.UserCert,
-		ClusterName:             "some-cluster",
-		SystemRole:              types.RoleNode,
-		Username:                "user",
+		ValidAfter:  1,
+		ValidBefore: 2,
+		CertType:    ssh.UserCert,
+		ClusterName: "some-cluster",
+		SystemRole:  types.RoleNode,
+		Username:    "user",
+		ScopePin: &scopesv1.Pin{
+			Scope: "/foo",
+			Assignments: map[string]*scopesv1.PinnedAssignments{
+				"/": {
+					Roles: []string{"role1", "role2"},
+				},
+			},
+		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
 		PermitX11Forwarding:     true,
@@ -78,6 +88,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 		DeviceCredentialID:     "cred",
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
+		AgentScope:             "/foo",
 	}
 
 	ignores := []string{
@@ -98,5 +109,5 @@ func TestSSHIdentityConversion(t *testing.T) {
 
 	ident2 := SSHIdentityToSSHCA(proto)
 
-	require.Empty(t, cmp.Diff(ident, ident2))
+	require.Empty(t, cmp.Diff(ident, ident2, protocmp.Transform()))
 }

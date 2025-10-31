@@ -227,9 +227,8 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("server: missing server")
 	}
 
-	if t.Term.W <= 0 || t.Term.H <= 0 ||
-		t.Term.W >= 4096 || t.Term.H >= 4096 {
-		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
+	if err := t.Term.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if t.UserAuthClient == nil {
@@ -866,9 +865,14 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		}()
 	}
 
+	var joinSessionID string
+	if t.tracker != nil {
+		joinSessionID = t.tracker.GetSessionID()
+	}
+
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, nil, beforeStart); err != nil {
+	if err = nc.RunInteractiveShell(ctx, joinSessionID, t.participantMode, beforeStart); err != nil {
 		if !t.closedByClient.Load() {
 			t.stream.WriteError(ctx, err.Error())
 		}

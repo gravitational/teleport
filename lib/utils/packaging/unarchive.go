@@ -35,6 +35,11 @@ const (
 	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
 	// to remain available after extracting Teleport binaries.
 	reservedFreeDisk = 10 * 1024 * 1024
+	// directoryPerm defines the permissions used when creating the directory
+	// structure, matching those from the archive.
+	directoryPerm = 0o755
+	// binaryPerm defines the permissions applied to extracted binaries.
+	binaryPerm = 0o755
 )
 
 // RemoveWithSuffix removes all that matches the provided suffix, except for file or directory with `skipName`.
@@ -118,8 +123,12 @@ func replaceZip(archivePath string, extractDir string, execNames []string) (map[
 			}
 			defer file.Close()
 
-			dest := filepath.Join(extractDir, baseName)
-			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+			dest := filepath.Join(extractDir, zipFile.Name)
+			// Preserve the archive directory structure.
+			if err := os.MkdirAll(filepath.Dir(dest), directoryPerm); err != nil {
+				return trace.Wrap(err)
+			}
+			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, binaryPerm)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -130,7 +139,7 @@ func replaceZip(archivePath string, extractDir string, execNames []string) (map[
 		}(zipFile); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		execPaths[baseName] = baseName
+		execPaths[baseName] = zipFile.Name
 	}
 
 	return execPaths, nil

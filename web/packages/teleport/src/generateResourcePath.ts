@@ -38,6 +38,10 @@ export default function generateResourcePath(
       processedParams[param] = (params[param] ?? []).join('&status=');
     } else if (param === 'regions') {
       processedParams[param] = (params[param] ?? []).join('&regions=');
+    } else if (param === 'owners') {
+      processedParams[param] = (params[param] ?? []).join('&owners=');
+    } else if (param === 'roles') {
+      processedParams[param] = (params[param] ?? []).join('&roles=');
     } else
       processedParams[param] = params[param]
         ? encodeURIComponent(params[param])
@@ -71,6 +75,8 @@ export default function generateResourcePath(
     .replace(':sort?', processedParams.sort || '')
     .replace(':startKey?', params.startKey || '')
     .replace(':regions?', processedParams.regions || '')
+    .replace(':owners?', processedParams.owners || '')
+    .replace(':roles?', processedParams.roles || '')
     .replace(
       ':includedResourceMode?',
       processedParams.includedResourceMode || ''

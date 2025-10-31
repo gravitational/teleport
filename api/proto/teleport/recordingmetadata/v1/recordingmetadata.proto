@@ -62,6 +62,8 @@ enum SessionRecordingType {
   SESSION_RECORDING_TYPE_UNSPECIFIED = 0;
   // SessionRecordingTypeSsh is an interactive SSH session recording.
   SESSION_RECORDING_TYPE_SSH = 1;
+  // SessionRecordingTypeKubernetes is an interactive Kubernetes session recording.
+  SESSION_RECORDING_TYPE_KUBERNETES = 2;
 }
 
 // SessionRecordingMetadata contains metadata for a session recording.
@@ -104,4 +106,6 @@ message SessionRecordingThumbnail {
   google.protobuf.Duration start_offset = 6;
   // EndOffset is the end time of the thumbnail, relative to the start of the session.
   google.protobuf.Duration end_offset = 7;
+  // CursorVisible indicates whether the cursor is visible.
+  bool cursor_visible = 8;
 }

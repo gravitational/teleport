@@ -36,7 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-const insecureParamName = "insecure"
+const (
+	insecureParamName = "insecure"
+	groupParamName    = "group"
+)
 
 // installScriptHandle handles calls for "/scripts/install.sh" and responds with a bash script installing Teleport
 // by downloading and running `teleport-update`. This installation script does not start the agent, join it,
@@ -62,6 +65,9 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 		}
 		opts.Insecure = v
 	}
+	if group := r.URL.Query().Get(groupParamName); group != "" {
+		opts.Group = group
+	}
 
 	script, err := scripts.GetInstallScript(r.Context(), opts)
 	if err != nil {
@@ -86,7 +92,7 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScriptOptions, error) {
 	const defaultGroup, defaultUpdater = "", ""
 
-	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
+	version, err := h.autoUpdateResolver.GetVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
 		version = teleport.SemVer()

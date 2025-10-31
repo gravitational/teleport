@@ -62,7 +62,7 @@ func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (typ
 }
 
 // UpdatePresence updates the presence status of a user in a session.
-func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user, userTeleportCluster string) error {
 	for range updateRetryLimit {
 		sessionItem, err := s.bk.Get(ctx, backend.NewKey(sessionPrefix, sessionID))
 		if err != nil {
@@ -74,7 +74,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		if err := session.UpdatePresence(user, s.bk.Clock().Now().UTC()); err != nil {
+		if err := session.UpdatePresence(user, userTeleportCluster, s.bk.Clock().Now().UTC()); err != nil {
 			return trace.Wrap(err)
 		}
 

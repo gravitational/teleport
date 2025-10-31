@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
-
 import type { AgentStepProps } from '../../types';
 import { Finished as Component } from './Finished';
 
@@ -59,7 +57,10 @@ export const FinishedWithMessageProps = () => (
     {...props}
     title="Resource Added Custom Message"
     resourceText="Custom completion details"
-    redirect={cfg.routes.discover}
+    primaryButtonText="Custom primary button"
+    primaryButtonAction={() => console.info('primary action')}
+    secondaryButtonText="Custom secondary button"
+    secondaryButtonAction={() => console.info('secondary action')}
   />
 );
 

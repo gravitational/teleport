@@ -1,7 +1,8 @@
 ---
 title: teleport CLI Reference
+sidebar_label: teleport
 description: Comprehensive reference of subcommands, flags, and arguments for the teleport CLI tool.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -22,7 +23,7 @@ The primary commands for the `teleport` CLI are as follows:
 | Command | Description |
 | - | - |
 | `teleport app start` | Starts the Teleport Application Service. |
-| `teleport configure` | Generates and writes a [configuration YAML file](../config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
+| `teleport configure` | Generates and writes a [configuration YAML file](../deployment/config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport db configure aws create-iam` | Generates, creates, and attaches desired IAM policies to a Teleport-managed database. |
 | `teleport db configure aws print-iam` | Generates and outputs current IAM policies for a Teleport-managed database. |
 | `teleport db configure bootstrap` | Used to bootstrap a configuration to the Teleport Database Service by reading a provided configuration. |
@@ -32,7 +33,7 @@ The primary commands for the `teleport` CLI are as follows:
 | `teleport install systemd` | Creates a systemd unit file, used to configure and install a `teleport` service daemon. |
 | `teleport join openssh` | Registers an OpenSSH server with Teleport. |
 | `teleport node configure` | Generates a configuration YAML file for a Teleport Node accessed via SSH. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
-| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../config.mdx). |
+| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../deployment/config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
 | `teleport debug set-log-level` | Changes instance log level. |
@@ -48,7 +49,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 The `teleport start` command includes a large number of optional configuration flags.
 
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](../config.mdx) in production.
+we recommend using a [configuration file](../deployment/config.mdx) in production.
 
 ### Flags
 

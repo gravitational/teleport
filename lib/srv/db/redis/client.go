@@ -235,7 +235,7 @@ func memorydbIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fet
 
 func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCredentialsFunc, error) {
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
+	case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
 		return elasticacheIAMTokenFetchFunc(sessionCtx, auth), nil
 	case types.DatabaseTypeMemoryDB:
 		return memorydbIAMTokenFetchFunc(sessionCtx, auth), nil

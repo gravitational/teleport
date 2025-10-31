@@ -1,0 +1,94 @@
+---
+title: Rotating Manual Session Recording Encryption Keys
+description: How to rotate automatically provisioned session recording encryption keys.
+tags:
+  - session-recording
+  - how-to
+  - zero-trust
+  - resiliency
+---
+
+This guide explains how to rotate encryption keys for session recordings.
+
+For instructions on using the automatic approach, see [Rotating Session
+Recording Encryption Keys](rotating-keys.mdx).
+
+## How it works
+
+In the manual approach to session recording key management, a user provides the
+Auth Service with the types and labels of keys used to encrypt Teleport session
+recordings. In this way, the user has control over the keys the Auth Service
+uses to encrypt session recordings, as well as rotated keys that the Auth
+Service no longer uses for encryption, but that are available for decrypting
+stored session recordings.
+
+## Prerequisites
+
+This guide assumes that you have followed the setup instructions in [Encrypted
+Session Recordings](encrypted-session-recordings.mdx).
+
+Although Manual Key Management leaves key rotation entirely up to the
+administrator, the `manual_key_management` configuration can be leveraged to help facilitate rotations.
+
+As an example, we will assume an existing Teleport Auth Service configured to
+use a PKCS#11 compatible HSM with an active key identified by the label
+`session_recording_001`:
+
+<Admonition type="note">
+All configuration examples are reduced to the `encryption` configuration block
+for brevity since the available options are identical between the Teleport Auth
+Service configuration file and the dynamic `session_recording_config` resource.
+</Admonition>
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+## Step 1/2. Add the new key
+
+A new key can be added to the the list of active keys:
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_002'
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+This configuration expects a second key to be accessible using the
+`session_recordings_002` label. Teleport maintains a cache of references to
+accessible keys that is periodically updated, but it is best practice to ensure
+the key exists prior to updating the `manual_key_management` configuration.
+
+## Step 2/2. Rotate the old key
+
+The old key can be moved out of the active set of encryption keys and into the
+set of rotated keys:
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_002'
+    rotated_keys:
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+All new recordings will now be encrypted using the key labeled by
+`session_recordings_002`, and historical recordings encrypted using
+`session_recordings_001` will remain replayable.

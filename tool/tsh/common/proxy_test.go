@@ -332,12 +332,10 @@ func TestWithRsync(t *testing.T) {
 
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
-					if !assert.NoError(t, err) {
-						return
-					}
+					require.NoError(t, err)
 					w, err := pref.GetWebauthn()
-					assert.NoError(t, err)
-					assert.NotNil(t, w)
+					require.NoError(t, err)
+					require.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
@@ -1755,4 +1753,62 @@ func mustDialLocalAppProxy(t *testing.T, port string, expectedName string) {
 		require.Equal(t, 200, r.StatusCode)
 		require.Equal(t, expectedName, r.Header.Get("Server"), "the response header \"Server\" does not have the expected value")
 	}, 5*time.Second, 50*time.Millisecond)
+}
+
+func Test_checkProxyMCPCompatibility(t *testing.T) {
+	tests := []struct {
+		name        string
+		command     string
+		appURI      string
+		checkResult require.ErrorAssertionFunc
+	}{
+		{
+			name:        "streamable HTTP allowed for tsh proxy app",
+			command:     "proxy app",
+			appURI:      "mcp+http://example.com/mcp",
+			checkResult: require.NoError,
+		},
+		{
+			name:        "streamable HTTP allowed for tsh proxy mcp",
+			command:     "proxy mcp",
+			appURI:      "mcp+http://example.com/mcp",
+			checkResult: require.NoError,
+		},
+		{
+			name:        "unsupported transport fails for tsh proxy app",
+			command:     "proxy app",
+			appURI:      "mcp+sse+http://example.com/sse",
+			checkResult: require.Error,
+		},
+		{
+			name:        "unsupported transport fails for tsh proxy mcp",
+			command:     "proxy mcp",
+			appURI:      "mcp+sse+http://example.com/sse",
+			checkResult: require.Error,
+		},
+		{
+			name:        "regular app allowed for tsh proxy app",
+			command:     "proxy app",
+			appURI:      "http://example.com",
+			checkResult: require.NoError,
+		},
+		{
+			name:        "regular app fails for tsh proxy mcp",
+			command:     "proxy mcp",
+			appURI:      "http://example.com",
+			checkResult: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app, err := types.NewAppV3(types.Metadata{
+				Name: t.Name(),
+			}, types.AppSpecV3{
+				URI: tt.appURI,
+			})
+			require.NoError(t, err)
+			tt.checkResult(t, checkProxyMCPCompatibility(tt.command, app))
+		})
+	}
 }

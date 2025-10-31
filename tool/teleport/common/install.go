@@ -19,10 +19,12 @@ package common
 import (
 	"context"
 	"log/slog"
+	"os"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
@@ -73,6 +75,7 @@ func onInstallAutoDiscoverNode(cfg installAutoDiscoverNodeFlags) error {
 		AutoUpgrades:      autoUpgrades,
 		AzureClientID:     cfg.AzureClientID,
 		TokenName:         cfg.TokenName,
+		InstallationManagedByTeleportUpdateWithSuffix: os.Getenv(autoupdate.InstallSuffixEnvVar),
 	})
 	if err != nil {
 		return trace.Wrap(err)

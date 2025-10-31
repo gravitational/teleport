@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // newBotInstance creates (but does not insert) a bot instance that is ready for
@@ -159,7 +160,7 @@ func createInstances(t *testing.T, ctx context.Context, service *BotInstanceServ
 }
 
 // listInstances fetches all instances from the BotInstanceService matching the botName filter
-func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, searchTerm string, sort *types.SortBy) []*machineidv1.BotInstance {
+func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, options *services.ListBotInstancesRequestOptions) []*machineidv1.BotInstance {
 	t.Helper()
 
 	var resources []*machineidv1.BotInstance
@@ -168,7 +169,7 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	var err error
 
 	for {
-		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey, searchTerm, sort)
+		bis, nextKey, err = service.ListBotInstances(ctx, 0, nextKey, options)
 		require.NoError(t, err)
 
 		resources = append(resources, bis...)
@@ -235,7 +236,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -258,7 +259,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 func TestBotInstanceInvalidGetters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -282,7 +283,7 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 func TestBotInstanceCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -307,7 +308,9 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, patched, bi2)
 	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
 
-	resources := listInstances(t, ctx, service, "example", "", nil)
+	resources := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "example",
+	})
 
 	require.Len(t, resources, 1, "must list only 1 bot instance")
 	require.EqualExportedValues(t, patched, resources[0])
@@ -338,7 +341,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -354,14 +357,18 @@ func TestBotInstanceList(t *testing.T) {
 	bIds := createInstances(t, ctx, service, "b", 4)
 
 	// listing "a" should only return known "a" instances
-	aInstances := listInstances(t, ctx, service, "a", "", nil)
+	aInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "a",
+	})
 	require.Len(t, aInstances, 3)
 	for _, ins := range aInstances {
 		require.Contains(t, aIds, ins.Spec.InstanceId)
 	}
 
 	// listing "b" should only return known "b" instances
-	bInstances := listInstances(t, ctx, service, "b", "", nil)
+	bInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "b",
+	})
 	require.Len(t, bInstances, 4)
 	for _, ins := range bInstances {
 		require.Contains(t, bIds, ins.Spec.InstanceId)
@@ -376,14 +383,16 @@ func TestBotInstanceList(t *testing.T) {
 	}
 
 	// Listing an empty bot name ("") should return all instances.
-	allInstances := listInstances(t, ctx, service, "", "", nil)
+	allInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "",
+	})
 	require.Len(t, allInstances, 7)
 	for _, ins := range allInstances {
 		require.Contains(t, allIds, ins.Spec.InstanceId)
 	}
 }
 
-// TestBotInstanceListWithSearchFilter verifies list and filtering wit39db3c10-870c-4544-aeec-9fc2e961eca3h search
+// TestBotInstanceListWithSearchFilter verifies list and filtering with search
 // term functionality for bot instances.
 func TestBotInstanceListWithSearchFilter(t *testing.T) {
 	t.Parallel()
@@ -402,7 +411,7 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 		},
 		{
 			name:       "match on instance id",
-			searchTerm: "cb2c352",
+			searchTerm: "CB2C352",
 			instance:   newBotInstance("test-bot", withBotInstanceId("cb2c3523-01f6-4258-966b-ace9f38f9862")),
 		},
 		{
@@ -429,7 +438,7 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -445,12 +454,43 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 			_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
 			require.NoError(t, err)
 
-			instances := listInstances(t, ctx, service, "", tc.searchTerm, nil)
+			instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+				FilterSearchTerm: tc.searchTerm,
+			})
 
 			require.Len(t, instances, 1)
 			require.Equal(t, tc.instance.Spec.InstanceId, instances[0].Spec.InstanceId)
 		})
 	}
+}
+
+// TestBotInstanceListWithQuery verifies list and filtering with query
+// functionality for bot instances.
+func TestBotInstanceListWithQuery(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	instance := newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a"))
+	_, err = service.CreateBotInstance(ctx, instance)
+	require.NoError(t, err)
+	_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
+	require.NoError(t, err)
+
+	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterQuery: `status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`,
+	})
+
+	require.Len(t, instances, 1)
+	require.Equal(t, instance.Spec.InstanceId, instances[0].Spec.InstanceId)
 }
 
 // TestBotInstanceListWithSort verifies sorting returns a not-implemented error.
@@ -459,7 +499,7 @@ func TestBotInstanceListWithSort(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
@@ -470,13 +510,20 @@ func TestBotInstanceListWithSort(t *testing.T) {
 	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
 	require.NoError(t, err)
 
-	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", &types.SortBy{
-		Field:  "test_field",
-		IsDesc: true,
+	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		SortField: "test_field",
+		SortDesc:  false,
 	})
 	require.Error(t, err)
-	require.Equal(t, "unsupported sort, only bot_name:asc is supported, but got \"test_field\" (desc = true)", err.Error())
+	require.ErrorContains(t, err, "unsupported sort, only bot_name field is supported, but got \"test_field\"")
 
-	_, _, err = service.ListBotInstances(ctx, "", 0, "", "", nil)
+	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		SortField: "bot_name",
+		SortDesc:  true,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
+
+	_, _, err = service.ListBotInstances(ctx, 0, "", nil)
 	require.NoError(t, err)
 }

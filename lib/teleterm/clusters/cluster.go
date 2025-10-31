@@ -390,8 +390,10 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 
 // Server describes an SSH node.
 type Server struct {
-	// URI is the database URI
+	// URI is the cluster URI
 	URI uri.ResourceURI
+	// Subset of logins allowed by the certificate and RBAC rules.
+	Logins []string
 
 	types.Server
 }

@@ -18,6 +18,7 @@
 
 import cfg from 'teleport/config';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { getHostName } from 'teleport/services/api';
 
 import {
   SessionRecordingMessageType,
@@ -50,7 +51,7 @@ export function fetchSessionRecordingMetadata(
     }
 
     const ws = new AuthenticatedWebSocket(
-      cfg.getSessionRecordingMetadataUrl(clusterId, sessionId)
+      cfg.getSessionRecordingMetadataUrl(clusterId, sessionId, getHostName())
     );
 
     let metadata: SessionRecordingMetadata | null = null;

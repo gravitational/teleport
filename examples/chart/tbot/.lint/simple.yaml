@@ -1,5 +1,3 @@
 clusterName: "test.teleport.sh"
 teleportProxyAddress: "test.teleport.sh:443"
-defaultOutput:
-  secretName: "test-output"
 token: "my-token"

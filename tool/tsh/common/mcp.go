@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 )
 
 type mcpCommands struct {
@@ -52,8 +52,10 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) *mcpCommands {
 }
 
 type mcpClientConfigFlags struct {
-	clientConfig string
-	jsonFormat   string
+	clientConfig          string
+	jsonFormat            string
+	configFormat          string
+	configFormatSetByUser bool
 }
 
 const (
@@ -61,11 +63,14 @@ const (
 	mcpClientConfigCursor = "cursor"
 )
 
+// cursorConfigFormatAlias is an alias for Cursor config format.
+const cursorConfigFormatAlias = "cursor"
+
 func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 	cmd.Flag(
 		"client-config",
 		fmt.Sprintf(
-			"If specified, update the specified client config. %q for default Claude Desktop config, %q for global Cursor MCP servers config, or specify a JSON file path. Can also be set with environment variable %s.",
+			"If specified, update the specified client config, assuming its format. %q for default Claude Desktop config, %q for global Cursor MCP servers config, or specify a JSON file path. Can also be set with environment variable %s.",
 			mcpClientConfigClaude,
 			mcpClientConfigCursor,
 			mcpClientConfigEnvVar,
@@ -79,50 +84,147 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 			"Format the JSON file (%s). auto saves in compact if the file is already compact, otherwise pretty. Can also be set with environment variable %s. Default is %s.",
 			strings.Join(m.jsonFormatOptions(), ", "),
 			mcpConfigJSONFormatEnvVar,
-			claude.FormatJSONAuto,
+			mcpconfig.FormatJSONAuto,
 		)).
 		Envar(mcpConfigJSONFormatEnvVar).
-		Default(string(claude.FormatJSONAuto)).
+		Default(string(mcpconfig.FormatJSONAuto)).
 		EnumVar(&m.jsonFormat, m.jsonFormatOptions()...)
+
+	cmd.Flag(
+		"format",
+		fmt.Sprintf(
+			"Format specifies the configuration format (%s, %s, %s). If not provided it will assume format from the configuration file, When no configuration file is provided it defaults to %q.",
+			string(mcpconfig.ConfigFormatClaude),
+			string(mcpconfig.ConfigFormatVSCode),
+			cursorConfigFormatAlias,
+			string(mcpconfig.DefaultConfigFormat),
+		)).
+		IsSetByUser(&m.configFormatSetByUser).
+		StringVar(&m.configFormat)
 }
 
-func (m *mcpClientConfigFlags) isSet() bool {
-	return m.clientConfig != ""
-}
-
-func (m *mcpClientConfigFlags) loadConfig() (*claude.FileConfig, error) {
+func (m *mcpClientConfigFlags) loadConfig(configFormat mcpconfig.ConfigFormat) (*mcpconfig.FileConfig, error) {
 	switch m.clientConfig {
 	case mcpClientConfigClaude:
-		return claude.LoadConfigFromDefaultPath()
+		return mcpconfig.LoadClaudeConfigFromDefaultPath()
 	case mcpClientConfigCursor:
-		return claude.LoadConfigFromGlobalCursor()
+		return mcpconfig.LoadConfigFromGlobalCursor()
 	default:
-		return claude.LoadConfigFromFile(m.clientConfig)
+		return mcpconfig.LoadConfigFromFile(m.clientConfig, configFormat)
 	}
 }
 
 func (m *mcpClientConfigFlags) jsonFormatOptions() []string {
 	return []string{
-		string(claude.FormatJSONPretty),
-		string(claude.FormatJSONCompact),
-		string(claude.FormatJSONAuto),
-		string(claude.FormatJSONNone),
+		string(mcpconfig.FormatJSONPretty),
+		string(mcpconfig.FormatJSONCompact),
+		string(mcpconfig.FormatJSONAuto),
+		string(mcpconfig.FormatJSONNone),
 	}
 }
 
-func (m *mcpClientConfigFlags) printHint(w io.Writer) error {
+func (m *mcpClientConfigFlags) printFooterNotes(w io.Writer) error {
+	if m.configFormatSetByUser {
+		return nil
+	}
+
 	_, err := fmt.Fprintln(w, mcpConfigHint)
 	return trace.Wrap(err)
 }
 
-// claudeConfig defines a subset of functions from claude.Config.
-type claudeConfig interface {
-	PutMCPServer(string, claude.MCPServer) error
-	GetMCPServers() map[string]claude.MCPServer
+func (m *mcpClientConfigFlags) format() (mcpconfig.ConfigFormat, error) {
+	var (
+		configFormat mcpconfig.ConfigFormat
+		flagFormat   mcpconfig.ConfigFormat
+	)
+
+	switch m.clientConfig {
+	case mcpClientConfigClaude, mcpClientConfigCursor:
+		configFormat = mcpconfig.ConfigFormatClaude
+	case "":
+	default:
+		configFormat = mcpconfig.ConfigFormatFromPath(m.clientConfig)
+	}
+
+	if m.configFormat != "" {
+		// Solve alias.
+		if m.configFormat == cursorConfigFormatAlias {
+			m.configFormat = string(mcpconfig.ConfigFormatClaude)
+		}
+
+		var err error
+		flagFormat, err = mcpconfig.ParseConfigFormat(m.configFormat)
+		if err != nil {
+			return mcpconfig.ConfigFormatUnspecified, trace.Wrap(err)
+		}
+	}
+
+	// If both the format and config file path are presented, we must ensure
+	// both have the same format.
+	if configFormat.IsSpecified() && flagFormat.IsSpecified() {
+		if configFormat == flagFormat {
+			return configFormat, nil
+		}
+
+		return mcpconfig.ConfigFormatUnspecified, trace.BadParameter(
+			"Configuration format mismatch. --client-config=%s option uses %s config format, but --format=%s was set. You can drop one of the flags or adjust the values to match.",
+			m.clientConfig,
+			configFormat,
+			m.configFormat,
+		)
+	}
+
+	if configFormat.IsSpecified() {
+		return configFormat, nil
+	}
+
+	if flagFormat.IsSpecified() {
+		return flagFormat, nil
+	}
+
+	// In case of unspecified format, use default value.
+	return mcpconfig.DefaultConfigFormat, nil
 }
 
-func makeLocalMCPServer(cf *CLIConf, args []string) claude.MCPServer {
-	s := claude.MCPServer{
+// runMCPConfig runs the MCP config based on flags.
+func runMCPConfig(cf *CLIConf, flags *mcpClientConfigFlags, exec mcpConfigExec) error {
+	// Ensure the format options are correct, otherwise return error to the
+	// user instead of ignoring the values.
+	format, err := flags.format()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch flags.clientConfig {
+	case "":
+		return trace.Wrap(exec.printInstructions(cf.Stdout(), format))
+	default:
+		config, err := flags.loadConfig(format)
+		if err != nil {
+			return trace.BadParameter("failed to load mcp configuration file at %q: %v", flags.clientConfig, err)
+		}
+		return trace.Wrap(exec.updateConfig(cf.Stdout(), config))
+	}
+}
+
+// mcpConfig defines a subset of functions from mcpconfig.Config.
+type mcpConfig interface {
+	PutMCPServer(string, mcpconfig.MCPServer) error
+	GetMCPServers() map[string]mcpconfig.MCPServer
+}
+
+// mcpConfigExec defines the interface for generating install instructions and
+// directly updating the MCP config.
+type mcpConfigExec interface {
+	// printInstructions prints instructions on how to configure the MCP server.
+	printInstructions(io.Writer, mcpconfig.ConfigFormat) error
+	// updateConfig directly updates the client config. It might also print
+	// information.
+	updateConfig(io.Writer, *mcpconfig.FileConfig) error
+}
+
+func makeLocalMCPServer(cf *CLIConf, args []string) mcpconfig.MCPServer {
+	s := mcpconfig.MCPServer{
 		Command: cf.executablePath,
 		Args:    args,
 	}
@@ -157,5 +259,5 @@ func getLoggingOptsForMCPServer(cf *CLIConf) loggingOpts {
 const mcpConfigHint = `Tip: You can use this command to update your MCP servers configuration file automatically.
 - For Claude Desktop, use --client-config=claude to update the default configuration.
 - For Cursor, use --client-config=cursor to update the global MCP servers configuration.
-In addition, you can use --client-config=<path> to specify a config file location that is compatible with the "mcpServers" mapping.
-For example, you can update a Cursor project using --client-config=<path-to-project>/.cursor/mcp.json`
+In addition, you can use --client-config=<path> to specify a config file location to directly update configuration of the supported clients.
+For example, you can update a VSCode project using --client-config=<path-to-project>/.vscode/mcp.json`

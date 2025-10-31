@@ -21,11 +21,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestAccessListMemberDefaults(t *testing.T) {
@@ -58,4 +60,13 @@ func TestAccessListMemberDefaults(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, MembershipKindUser, uut.Spec.MembershipKind)
 	})
+}
+
+func TestAccessListMemberClone(t *testing.T) {
+	item := &AccessListMember{}
+	err := structfill.Fill(item)
+	require.NoError(t, err)
+	cpy := item.Clone()
+	require.Empty(t, cmp.Diff(item, cpy))
+	require.NotSame(t, item, cpy)
 }

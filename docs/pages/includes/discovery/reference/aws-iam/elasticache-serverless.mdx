@@ -1,0 +1,27 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ElastiCacheServerlessDiscovery",
+            "Effect": "Allow",
+            "Action": "elasticache:DescribeServerlessCaches",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ElastiCacheServerlessFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeSubnets",
+                "elasticache:ListTagsForResource"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `ElastiCacheServerlessDiscovery` | Discover ElastiCache Serverless caches. |
+| `ElastiCacheServerlessFetchMetadata` | Import AWS tags and other metadata for each database as Teleport database labels. |

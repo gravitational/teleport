@@ -23,10 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 const (
@@ -119,7 +118,16 @@ func (c *CompareAndSwap[T]) Update(
 	emptyData := *new(T)
 	var failedAttempts []error
 
-	backoff := backoff.NewDecorr(c.backoffBase, c.backoffMax, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(c.backoffBase),
+		First:  c.backoffBase,
+		Max:    c.backoffMax,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return emptyData, trace.Wrap(err)
+	}
+
 	for {
 		// Get existing data
 		oldData, err := c.getPluginData(ctx, resource)
@@ -134,14 +142,13 @@ func (c *CompareAndSwap[T]) Update(
 		newData, err := modifyT(cbData)
 		if trace.IsCompareFailed(err) {
 			failedAttempts = append(failedAttempts, trace.Wrap(err))
-			backoffErr := backoff.Do(ctx)
-			// backoffErr is not nil when the context has expired and we must return
-			if backoffErr != nil {
-				failedAttempts = append(failedAttempts, trace.Wrap(backoffErr))
+			select {
+			case <-ctx.Done():
+				failedAttempts = append(failedAttempts, trace.Wrap(ctx.Err()))
 				return emptyData, trace.NewAggregate(failedAttempts...)
+			case <-retry.After():
+				continue
 			}
-
-			continue
 		} else if err != nil {
 			return emptyData, trace.Wrap(err)
 		}
@@ -156,12 +163,13 @@ func (c *CompareAndSwap[T]) Update(
 		}
 		// A conflict happened, we register the failed attempt and wait before retrying
 		failedAttempts = append(failedAttempts, trace.Wrap(err))
-		backoffErr := backoff.Do(ctx)
-		// backoffErr is not nil when the context has expired and we must return
-		if backoffErr != nil {
-			failedAttempts = append(failedAttempts, trace.Wrap(backoffErr))
+		select {
+		case <-ctx.Done():
+			failedAttempts = append(failedAttempts, trace.Wrap(ctx.Err()))
 			return emptyData, trace.NewAggregate(failedAttempts...)
+		case <-retry.After():
 		}
+
 	}
 }
 

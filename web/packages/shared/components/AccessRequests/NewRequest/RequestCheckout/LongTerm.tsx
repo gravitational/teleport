@@ -51,11 +51,11 @@ export const LongTermGroupingErrors = <
         kind="danger"
         details={
           grouping.validationMessage ||
-          'No resources are available for long-term access'
+          'No resources are available for permanent access'
         }
         wrapContents
       >
-        Long-term access unavailable
+        Permanent access unavailable
       </Alert>
     );
   }
@@ -94,7 +94,7 @@ const LongTermUnavailableError = <T extends PendingListItem = PendingListItem>({
   }
 
   const plural = uncoveredResources.length > 1;
-  const message = `${joinResourceNames(uncoveredResources)} ${plural ? 'are' : 'is'} not available for long-term access. Remove ${plural ? 'them' : 'it'} or switch to a short-term request.`;
+  const message = `${joinResourceNames(uncoveredResources)} ${plural ? 'are' : 'is'} not available for permanent access. Remove ${plural ? 'them' : 'it'} or switch to a temporary request.`;
 
   return (
     <Alert
@@ -113,7 +113,7 @@ const LongTermUnavailableError = <T extends PendingListItem = PendingListItem>({
       details={message}
       wrapContents
     >
-      Long-term access is not available for{' '}
+      Permanent access is not available for{' '}
       {plural ? 'some selected resources' : 'a selected resource'}
     </Alert>
   );
@@ -137,7 +137,7 @@ const GroupingResourcesError = <T extends PendingListItem = PendingListItem>({
   }
 
   const plural = incompatibleResources.length > 1;
-  const message = `Remove ${joinResourceNames(incompatibleResources)} and request ${plural ? 'them' : 'it'} separately, or switch to a short-term request.`;
+  const message = `Remove ${joinResourceNames(incompatibleResources)} and request ${plural ? 'them' : 'it'} separately, or switch to a temporary request.`;
 
   return (
     <Alert
@@ -156,7 +156,7 @@ const GroupingResourcesError = <T extends PendingListItem = PendingListItem>({
       details={message}
       wrapContents
     >
-      {plural ? 'Resources' : 'Resource'} cannot be grouped for long-term access
+      {plural ? 'Resources' : 'Resource'} cannot be grouped for permanent access
     </Alert>
   );
 };

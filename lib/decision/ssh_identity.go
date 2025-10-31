@@ -38,6 +38,7 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		ClusterName:             id.ClusterName,
 		SystemRole:              types.SystemRole(id.SystemRole),
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Principals:              id.Principals,
 		PermitX11Forwarding:     id.PermitX11Forwarding,
@@ -66,6 +67,7 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		DeviceCredentialID:      id.DeviceCredentialId,
 		GitHubUserID:            id.GithubUserId,
 		GitHubUsername:          id.GithubUsername,
+		AgentScope:              id.AgentScope,
 	}
 }
 
@@ -81,6 +83,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		ClusterName:             id.ClusterName,
 		SystemRole:              string(id.SystemRole),
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Principals:              id.Principals,
 		PermitX11Forwarding:     id.PermitX11Forwarding,
@@ -109,6 +112,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		GithubUserId:            id.GitHubUserID,
 		GithubUsername:          id.GitHubUsername,
 		JoinToken:               id.JoinToken,
+		AgentScope:              id.AgentScope,
 	}
 }
 

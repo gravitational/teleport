@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,6 +53,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 
 	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
 	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).Default("true").BoolVar(&cmd.autoReconnect)
+	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
 	return cmd
 }
 
@@ -83,6 +84,7 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
+	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
 	return cmd
 }
 
@@ -299,6 +301,7 @@ type mcpConfigCommand struct {
 	cf                     *CLIConf
 	autoReconnect          bool
 	autoReconnectSetByUser bool
+	httpHeaders            []string
 
 	mcpServerApps []types.Application
 
@@ -311,12 +314,7 @@ func (c *mcpConfigCommand) run() error {
 	if err := c.checkSelectorFlags(); err != nil {
 		return trace.Wrap(err)
 	}
-	switch {
-	case c.clientConfig.isSet():
-		return trace.Wrap(c.updateClientConfig())
-	default:
-		return trace.Wrap(c.printJSONWithHint())
-	}
+	return trace.Wrap(runMCPConfig(c.cf, &c.clientConfig, c))
 }
 
 func (c *mcpConfigCommand) checkSelectorFlags() error {
@@ -381,11 +379,19 @@ func (c *mcpConfigCommand) fetch() error {
 	return nil
 }
 
-func (c *mcpConfigCommand) addMCPServersToConfig(config claudeConfig) error {
+func (c *mcpConfigCommand) addMCPServersToConfig(config mcpConfig) error {
 	for _, app := range c.mcpServerApps {
 		localName := mcpServerAppConfigPrefix + app.GetName()
 		args := []string{"mcp", "connect", app.GetName()}
 		args = c.maybeAddAutoReconnect(args)
+		if types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP {
+			if _, err := parseHTTPHeaders(c.httpHeaders); err != nil {
+				return trace.Wrap(err)
+			}
+			for _, header := range c.httpHeaders {
+				args = append(args, "-H", header)
+			}
+		}
 		err := config.PutMCPServer(localName, makeLocalMCPServer(c.cf, args))
 		if err != nil {
 			return trace.Wrap(err)
@@ -404,68 +410,48 @@ func (c *mcpConfigCommand) maybeAddAutoReconnect(args []string) []string {
 	return append(args, "--no-auto-reconnect")
 }
 
-func (c *mcpConfigCommand) printJSONWithHint() error {
+func (c *mcpConfigCommand) printInstructions(w io.Writer, configFormat mcpconfig.ConfigFormat) error {
 	if err := c.fetchAndPrintResult(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	config := claude.NewConfig()
+	config := mcpconfig.NewConfig(configFormat)
 	if err := c.addMCPServersToConfig(config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	w := c.cf.Stdout()
-	if _, err := fmt.Fprintln(w, "Here is a sample JSON configuration for launching Teleport MCP servers:"); err != nil {
+	if _, err := fmt.Fprintf(w, "Here is a sample JSON configuration for launching Teleport MCP servers using %s format:\n", configFormat); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := config.Write(w, claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
+	if err := config.Write(w, mcpconfig.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
-	}
-	if !c.autoReconnectSetByUser {
-		if err := c.printAutoReconnectHint(w); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(c.clientConfig.printHint(w))
+	return trace.Wrap(c.clientConfig.printFooterNotes(w))
 }
 
-func (c *mcpConfigCommand) updateClientConfig() error {
+func (c *mcpConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfig) error {
 	if err := c.fetchAndPrintResult(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	config, err := c.clientConfig.loadConfig()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if err := c.addMCPServersToConfig(config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := config.Save(claude.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
+	if err := config.Save(mcpconfig.FormatJSONOption(c.clientConfig.jsonFormat)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
+	_, err := fmt.Fprintf(c.cf.Stdout(), `Updated client configuration at:
 %s
 
 Teleport MCP servers will be prefixed with "teleport-mcp-" in this
 configuration. You may need to restart your client to reload these new
 configurations.
 `, config.Path())
-	return trace.Wrap(err)
-}
-
-func (c *mcpConfigCommand) printAutoReconnectHint(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `
-By default, tsh automatically starts a new remote MCP session if the previous
-one is interrupted by network issues or tsh session expiration.
-Auto-reconnection is recommended when MCP sessions are stateless across
-requests. To disable it, use the --no-auto-reconnect flag. If disabled, you may
-need to manually restart your client when encountering "disconnected" errors.`)
 	return trace.Wrap(err)
 }
 
@@ -482,6 +468,7 @@ type mcpConnectCommand struct {
 	*kingpin.CmdClause
 	cf            *CLIConf
 	autoReconnect bool
+	httpHeaders   []string
 }
 
 func (c *mcpConnectCommand) run() error {
@@ -496,25 +483,38 @@ func (c *mcpConnectCommand) run() error {
 	}
 	tc.NonInteractive = true
 
-	if c.autoReconnect {
-		return clientmcp.ProxyStdioConnWithAutoReconnect(
-			c.cf.Context,
-			clientmcp.ProxyStdioConnWithAutoReconnectConfig{
-				ClientStdio: utils.CombinedStdio{},
-				DialServer: func(ctx context.Context) (io.ReadWriteCloser, error) {
-					conn, err := tc.DialMCPServer(ctx, c.cf.AppName)
-					return conn, trace.Wrap(err)
-				},
-				MakeReconnectUserMessage: makeMCPReconnectUserMessage,
-			},
-		)
-	}
-
-	serverConn, err := tc.DialMCPServer(c.cf.Context, c.cf.AppName)
+	httpHeaders, err := parseHTTPHeaders(c.httpHeaders)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(utils.ProxyConn(c.cf.Context, utils.CombinedStdio{}, serverConn))
+
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
+	return clientmcp.ProxyStdioConn(
+		c.cf.Context,
+		clientmcp.ProxyStdioConnConfig{
+			ClientStdio:              utils.CombinedStdio{},
+			GetApp:                   dialer.GetApp,
+			DialServer:               dialer.DialALPN,
+			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
+			AutoReconnect:            c.autoReconnect,
+			HTTPHeaders:              httpHeaders,
+		},
+	)
+}
+
+func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
+	if len(headerArgs) == 0 {
+		return nil, nil
+	}
+	httpHeaders := make(map[string]string)
+	for _, header := range headerArgs {
+		key, value, ok := strings.Cut(header, ":")
+		if !ok {
+			return nil, trace.BadParameter("malformed header %q", header)
+		}
+		httpHeaders[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+	return httpHeaders, nil
 }
 
 func makeMCPReconnectUserMessage(err error) string {

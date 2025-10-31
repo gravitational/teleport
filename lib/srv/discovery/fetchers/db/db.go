@@ -25,6 +25,7 @@ import (
 	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
@@ -45,14 +46,15 @@ type makeAzureFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
 
 var (
 	makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
-		types.AWSMatcherRDS:                {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
-		types.AWSMatcherRDSProxy:           {newRDSDBProxyFetcher},
-		types.AWSMatcherRedshift:           {newRedshiftFetcher},
-		types.AWSMatcherRedshiftServerless: {newRedshiftServerlessFetcher},
-		types.AWSMatcherElastiCache:        {newElastiCacheFetcher},
-		types.AWSMatcherMemoryDB:           {newMemoryDBFetcher},
-		types.AWSMatcherOpenSearch:         {newOpenSearchFetcher},
-		types.AWSMatcherDocumentDB:         {newDocumentDBFetcher},
+		types.AWSMatcherRDS:                   {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
+		types.AWSMatcherRDSProxy:              {newRDSDBProxyFetcher},
+		types.AWSMatcherRedshift:              {newRedshiftFetcher},
+		types.AWSMatcherRedshiftServerless:    {newRedshiftServerlessFetcher},
+		types.AWSMatcherElastiCache:           {newElastiCacheFetcher},
+		types.AWSMatcherElastiCacheServerless: {newElastiCacheServerlessFetcher},
+		types.AWSMatcherMemoryDB:              {newMemoryDBFetcher},
+		types.AWSMatcherOpenSearch:            {newOpenSearchFetcher},
+		types.AWSMatcherDocumentDB:            {newDocumentDBFetcher},
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
@@ -75,6 +77,8 @@ func IsAzureMatcherType(matcherType string) bool {
 
 // AWSClientProvider provides AWS service API clients.
 type AWSClientProvider interface {
+	// GetEC2Client provides an [EC2Client].
+	GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) EC2Client
 	// GetElastiCacheClient provides an [ElastiCacheClient].
 	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
 	// GetMemoryDBClient provides an [MemoryDBClient].
@@ -90,6 +94,10 @@ type AWSClientProvider interface {
 }
 
 type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) EC2Client {
+	return ec2.NewFromConfig(cfg, optFns...)
+}
 
 func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
 	return elasticache.NewFromConfig(cfg, optFns...)

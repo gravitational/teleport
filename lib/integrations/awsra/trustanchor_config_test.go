@@ -25,6 +25,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -347,8 +348,14 @@ func (m *mockIAMRolesAnywhere) ListProfiles(ctx context.Context, params *rolesan
 	if m.profilesByID == nil {
 		m.profilesByID = make(map[string]ratypes.ProfileDetail)
 	}
+
+	allProfiles := slices.Collect(maps.Values(m.profilesByID))
+	slices.SortFunc(allProfiles, func(a, b ratypes.ProfileDetail) int {
+		return strings.Compare(aws.ToString(a.ProfileArn), aws.ToString(b.ProfileArn))
+	})
+
 	return &rolesanywhere.ListProfilesOutput{
-		Profiles: slices.Collect(maps.Values(m.profilesByID)),
+		Profiles: allProfiles,
 	}, nil
 }
 
@@ -422,7 +429,6 @@ func (m *mockIAMRoles) CreateRole(ctx context.Context, params *iam.CreateRoleInp
 			Message: &alreadyExistsMessage,
 		}
 	}
-	fmt.Println("===========Creating role:", *params.RoleName)
 	m.existingRoles[*params.RoleName] = mockRole{
 		tags:                params.Tags,
 		assumeRolePolicyDoc: params.AssumeRolePolicyDocument,

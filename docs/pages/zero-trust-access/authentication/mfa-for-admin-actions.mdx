@@ -1,9 +1,10 @@
 ---
 title: MFA for Administrative Actions
 description: Require MFA checks to perform administrative actions.
-labels:
+tags:
  - how-to
  - zero-trust
+ - privileged-access
 ---
 
 Teleport can be configured to require additional multi-factor authentication
@@ -29,7 +30,7 @@ their on-disk Teleport certificates.
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
 
-  We recommend using [Machine ID](../../machine-workload-identity/machine-id/getting-started.mdx) to
+  We recommend using [Machine ID](../../machine-workload-identity/getting-started.mdx) to
   issue certificates for automated workflows, which uses role impersonation
   that is not subject to MFA checks.
 

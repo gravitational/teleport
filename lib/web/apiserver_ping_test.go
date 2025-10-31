@@ -254,9 +254,9 @@ func TestPing_multiProxyAddr(t *testing.T) {
 
 // TestPing_minimalAPI tests that pinging the minimal web API works correctly.
 func TestPing_minimalAPI(t *testing.T) {
-	env := newWebPack(t, 1, func(cfg *proxyConfig) {
+	env := newWebPack(t, 1, withWebPackProxyOptions(func(cfg *proxyConfig) {
 		cfg.minimalHandler = true
-	})
+	}))
 	proxy := env.proxies[0]
 	tests := []struct {
 		name string

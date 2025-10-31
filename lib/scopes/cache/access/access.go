@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -81,6 +82,8 @@ type Cache struct {
 	state    state
 	ok       bool
 	closed   bool
+	init     chan struct{}
+	initOnce sync.Once
 	cancel   context.CancelFunc
 	ttlCache *utils.FnCache
 	done     chan struct{}
@@ -118,12 +121,21 @@ func NewCache(cfg CacheConfig) (*Cache, error) {
 		cfg:      cfg,
 		ttlCache: ttlCache,
 		cancel:   cancel,
+		init:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
 
 	go cache.update(closeContext, retry)
 
 	return cache, nil
+}
+
+// Init returns a channel that is closed when the cache has completed its first init. Used in tests that
+// want to wait for cache readiness. commonly this avoids the effect of the read state apparently
+// "skipping" back in time slightly early in the test if cache init happens after one or more pre-init
+// reads.
+func (c *Cache) Init() <-chan struct{} {
+	return c.init
 }
 
 // GetScopedRole retrieves a scoped role by name.
@@ -146,6 +158,17 @@ func (c *Cache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSco
 	return state.roles.ListScopedRoles(ctx, req)
 }
 
+// ListScopedRolesWithFilter returns a paginated list of scoped roles filtered by the provided filter function. This
+// method is used internally to implement access-controls on the ListScopedRoles grpc method.
+func (c *Cache) ListScopedRolesWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest, filter func(*scopedaccessv1.ScopedRole) bool) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.roles.ListScopedRolesWithFilter(ctx, req, filter)
+}
+
 // GetScopedRoleAssignment retrieves a scoped role assignment by name.
 func (c *Cache) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
 	state, err := c.read(ctx)
@@ -164,6 +187,29 @@ func (c *Cache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccess
 	}
 
 	return state.assignments.ListScopedRoleAssignments(ctx, req)
+}
+
+// ListScopedRoleAssignmentsWithFilter returns a paginated list of scoped role assignments filtered by the provided
+// filter function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc
+// method.
+func (c *Cache) ListScopedRoleAssignmentsWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest, filter func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.assignments.ListScopedRoleAssignmentsWithFilter(ctx, req, filter)
+}
+
+// PopulatePinnedAssignmentsForUser populates the provided scope pin with all relevant assignments related to the
+// given user. The provided pin must already have its Scope field set.
+func (c *Cache) PopulatePinnedAssignmentsForUser(ctx context.Context, user string, pin *scopesv1.Pin) error {
+	state, err := c.read(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return state.assignments.PopulatePinnedAssignmentsForUser(ctx, user, pin)
 }
 
 // Close stops cache background operations and causes future reads to fail. It is safe to call multiple times.
@@ -187,7 +233,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 	}()
 
 	for {
-		err := c.fetchAndWatch(ctx)
+		err := c.fetchAndWatch(ctx, retry)
 		if ctx.Err() != nil {
 			return
 		}
@@ -197,6 +243,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 		waitStart := time.Now()
 		select {
 		case <-retry.After():
+			retry.Inc()
 			slog.InfoContext(ctx, "attempting re-init of scoped access cache after delay", "delay", time.Since(waitStart))
 		case <-ctx.Done():
 			return
@@ -206,7 +253,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 
 // fetchAndWatch attempts to establish a watcher with the upstream events service, populate the cache
 // state, and process changes as they come in.
-func (c *Cache) fetchAndWatch(ctx context.Context) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error {
 	watcher, err := c.cfg.Events.NewWatcher(ctx, types.Watch{
 		Name: "scoped-access-cache",
 		Kinds: []types.WatchKind{
@@ -230,7 +277,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context) error {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	case <-watcher.Done():
-		return trace.Errorf("watcher failed while waiting for init event: %w", watcher.Error())
+		if err := watcher.Error(); err != nil {
+			// watcher errors are expected if the watcher is closed before init completes.
+			return trace.Errorf("watcher failed while waiting for init event: %w", err)
+		}
+		return trace.Errorf("watcher failed while waiting for init event")
 	case <-time.After(retryutils.SeventhJitter(time.Minute)):
 		return trace.Errorf("timed out waiting for init event from watcher")
 	case <-ctx.Done():
@@ -251,6 +302,12 @@ func (c *Cache) fetchAndWatch(ctx context.Context) error {
 	c.rw.Unlock()
 
 	slog.InfoContext(ctx, "scoped access cache successfully initialized")
+	retry.Reset()
+
+	// signal that init has completed
+	c.initOnce.Do(func() {
+		close(c.init)
+	})
 
 	// start processing and applying changes
 	for {
@@ -260,7 +317,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context) error {
 				return trace.Errorf("failed to process event: %w", err)
 			}
 		case <-watcher.Done():
-			return trace.Errorf("watcher failed: %w", watcher.Error())
+			if err := watcher.Error(); err != nil {
+				// watcher errors are expected if the watcher is closed before init completes.
+				return trace.Errorf("watcher failed during event processing: %w", err)
+			}
+			return trace.Errorf("watcher failed during event processing")
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}

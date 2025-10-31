@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	setutils "github.com/gravitational/teleport/lib/utils/set"
 )
 
 // Fields represents a generic string-keyed map.
@@ -45,11 +46,19 @@ func (f Fields) GetStrings(key string) []string {
 	if !found {
 		return nil
 	}
+	res, _ := getStrings(val)
+	return res
+}
+
+func getStrings(val any) ([]string, bool) {
 	strings, ok := val.([]string)
 	if ok {
-		return strings
+		return strings, true
 	}
-	slice, _ := val.([]any)
+	slice, ok := val.([]any)
+	if !ok {
+		return nil, false
+	}
 	res := make([]string, 0, len(slice))
 	for _, v := range slice {
 		s, ok := v.(string)
@@ -57,7 +66,7 @@ func (f Fields) GetStrings(key string) []string {
 			res = append(res, s)
 		}
 	}
-	return res
+	return res, true
 }
 
 // GetInt returns an int representation of a field.
@@ -96,21 +105,62 @@ func (f Fields) HasField(key string) bool {
 	return ok
 }
 
+func (f Fields) Get(key string) (any, bool) {
+	v, ok := f[key]
+	return v, ok
+}
+
+func (f Fields) GetMapEntry(mapRef *types.WhereExpr2) (any, bool) {
+	field := mapRef.L.Field
+	key, ok := mapRef.R.Literal.(string)
+	if !ok {
+		return nil, false
+	}
+	val, found := f.Get(field)
+	if !found {
+		return nil, false
+	}
+	m, ok := val.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	v, ok := m[key]
+	if !ok {
+		return nil, false
+	}
+	return v, true
+}
+
 // FieldsCondition is a boolean function on Fields.
 type FieldsCondition func(Fields) bool
 
+// ToFieldsConditionConfig is the configuration for ToFieldsCondition.
+type ToFieldsConditionConfig struct {
+	Expr *types.WhereExpr
+	// CanView is an optional function that checks if the user is allowed to view the resource.
+	CanView func(Fields) bool
+}
+
 // ToFieldsCondition converts a WhereExpr into a FieldsCondition.
-func ToFieldsCondition(expr *types.WhereExpr) (FieldsCondition, error) {
-	if expr == nil {
+func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
+	expr := cfg.Expr
+	if cfg.Expr == nil {
 		return nil, trace.BadParameter("expr is nil")
 	}
 
 	binOp := func(e types.WhereExpr2, op func(a, b bool) bool) (FieldsCondition, error) {
-		left, err := ToFieldsCondition(e.L)
+		left, err := ToFieldsCondition(ToFieldsConditionConfig{
+			Expr:    e.L,
+			CanView: cfg.CanView,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		right, err := ToFieldsCondition(e.R)
+		right, err := ToFieldsCondition(
+			ToFieldsConditionConfig{
+				Expr:    e.R,
+				CanView: cfg.CanView,
+			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -122,13 +172,60 @@ func ToFieldsCondition(expr *types.WhereExpr) (FieldsCondition, error) {
 	if expr, err := binOp(expr.Or, func(a, b bool) bool { return a || b }); err == nil {
 		return expr, nil
 	}
-	if inner, err := ToFieldsCondition(expr.Not); err == nil {
+	if inner, err := ToFieldsCondition(
+		ToFieldsConditionConfig{
+			Expr:    expr.Not,
+			CanView: cfg.CanView,
+		},
+	); err == nil {
 		return func(f Fields) bool { return !inner(f) }, nil
 	}
 
 	if expr.Equals.L != nil && expr.Equals.R != nil {
 		left, right := expr.Equals.L, expr.Equals.R
 		switch {
+		case left.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(left.MapRef)
+				if !ok {
+					return false
+				}
+				strs, ok := val.(string)
+				if !ok {
+					return false
+				}
+				var strsVals string
+				if right.Field != "" {
+					strsVals = f.GetString(right.Field)
+				} else if right.Literal != nil {
+					strsVals, ok = right.Literal.(string)
+					if !ok {
+						return false
+					}
+				}
+				return strs == strsVals
+			}, nil
+		case right.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(right.MapRef)
+				if !ok {
+					return false
+				}
+				str, ok := val.(string)
+				if !ok {
+					return false
+				}
+				var strsVals string
+				if left.Field != "" {
+					strsVals = f.GetString(left.Field)
+				} else if left.Literal != nil {
+					strsVals, ok = left.Literal.(string)
+					if !ok {
+						return false
+					}
+				}
+				return str == strsVals
+			}, nil
 		case left.Field != "" && right.Field != "":
 			return func(f Fields) bool { return f[left.Field] == f[right.Field] }, nil
 		case left.Literal != nil && right.Field != "":
@@ -140,10 +237,52 @@ func ToFieldsCondition(expr *types.WhereExpr) (FieldsCondition, error) {
 	if expr.Contains.L != nil && expr.Contains.R != nil {
 		left, right := expr.Contains.L, expr.Contains.R
 		switch {
+		case left.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(left.MapRef)
+				if !ok {
+					return false
+				}
+				strs, ok := getStrings(val)
+				if !ok {
+					return false
+				}
+				var strsVals string
+				if right.Field != "" {
+					strsVals = f.GetString(right.Field)
+				} else if right.Literal != nil {
+					strsVals, ok = right.Literal.(string)
+					if !ok {
+						return false
+					}
+				}
+				return slices.Contains(strs, strsVals)
+			}, nil
+		case right.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(right.MapRef)
+				if !ok {
+					return false
+				}
+				str, ok := val.(string)
+				if !ok {
+					return false
+				}
+				var strsVals []string
+				if left.Field != "" {
+					strsVals = f.GetStrings(left.Field)
+				} else if left.Literal != nil {
+					strsVals, ok = getStrings(left.Literal)
+					if !ok {
+						return false
+					}
+				}
+				return slices.Contains(strsVals, str)
+			}, nil
 		case left.Field != "" && right.Field != "":
 			return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), f.GetString(right.Field)) }, nil
 		case left.Literal != nil && right.Field != "":
-			if ss, ok := left.Literal.([]string); ok {
+			if ss, ok := getStrings(left.Literal); ok {
 				return func(f Fields) bool { return slices.Contains(ss, f.GetString(right.Field)) }, nil
 			}
 		case left.Field != "" && right.Literal != nil:
@@ -153,5 +292,155 @@ func ToFieldsCondition(expr *types.WhereExpr) (FieldsCondition, error) {
 		}
 	}
 
+	if expr.ContainsAll.L != nil && expr.ContainsAll.R != nil {
+		left, right := expr.ContainsAll.L, expr.ContainsAll.R
+		switch {
+		case left.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(left.MapRef)
+				if !ok {
+					return false
+				}
+
+				strs, ok := getStrings(val)
+				if !ok {
+					return false
+				}
+				var strsVals []string
+				if right.Field != "" {
+					strsVals = f.GetStrings(right.Field)
+				} else if right.Literal != nil {
+					strsVals, ok = getStrings(right.Literal)
+					if !ok {
+						return false
+					}
+				}
+				return containsAll(strs, strsVals)
+			}, nil
+		case right.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(right.MapRef)
+				if !ok {
+					return false
+				}
+				strs, ok := getStrings(val)
+				if !ok {
+					return false
+				}
+				var strsVals []string
+				if left.Field != "" {
+					strsVals = f.GetStrings(left.Field)
+				} else if left.Literal != nil {
+					strsVals, ok = getStrings(left.Literal)
+					if !ok {
+						return false
+					}
+				}
+				return containsAll(strsVals, strs)
+			}, nil
+		case left.Field != "" && right.Field != "":
+			return func(f Fields) bool { return containsAll(f.GetStrings(left.Field), f.GetStrings(right.Field)) }, nil
+		case left.Literal != nil && right.Field != "":
+			if ss, ok := getStrings(left.Literal); ok {
+				return func(f Fields) bool { return containsAll(ss, f.GetStrings(right.Field)) }, nil
+			}
+		case left.Field != "" && right.Literal != nil:
+			if s, ok := getStrings(right.Literal); ok {
+				return func(f Fields) bool { return containsAll(f.GetStrings(left.Field), s) }, nil
+			}
+		}
+	}
+
+	if expr.ContainsAny.L != nil && expr.ContainsAny.R != nil {
+		left, right := expr.ContainsAny.L, expr.ContainsAny.R
+		switch {
+		case left.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(left.MapRef)
+				if !ok {
+					return false
+				}
+				strs, ok := getStrings(val)
+				if !ok {
+					return false
+				}
+				var strsVals []string
+				if right.Field != "" {
+					strsVals = f.GetStrings(right.Field)
+				} else if right.Literal != nil {
+					strsVals, ok = getStrings(right.Literal)
+					if !ok {
+						return false
+					}
+				}
+				return containsAny(strs, strsVals)
+			}, nil
+		case right.MapRef != nil:
+			return func(f Fields) bool {
+				val, ok := f.GetMapEntry(right.MapRef)
+				if !ok {
+					return false
+				}
+				strs, ok := getStrings(val)
+				if !ok {
+					return false
+				}
+				var strsVals []string
+				if left.Field != "" {
+					strsVals = f.GetStrings(left.Field)
+				} else if left.Literal != nil {
+					strsVals, ok = getStrings(left.Literal)
+					if !ok {
+						return false
+					}
+				}
+				return containsAny(strsVals, strs)
+			}, nil
+		case left.Field != "" && right.Field != "":
+			return func(f Fields) bool { return containsAny(f.GetStrings(left.Field), f.GetStrings(right.Field)) }, nil
+		case left.Literal != nil && right.Field != "":
+			if ss, ok := getStrings(left.Literal); ok {
+				return func(f Fields) bool { return containsAny(ss, f.GetStrings(right.Field)) }, nil
+			}
+		case left.Field != "" && right.Literal != nil:
+			if s, ok := getStrings(right.Literal); ok {
+				return func(f Fields) bool { return containsAny(f.GetStrings(left.Field), s) }, nil
+			}
+		}
+	}
+
+	if expr.CanView != nil {
+		if cfg.CanView == nil {
+			return nil, trace.BadParameter("canView expression provided but no canView function specified")
+		}
+		return func(f Fields) bool { return cfg.CanView(f) }, nil
+	}
+
 	return nil, trace.BadParameter("failed to convert expression %q to FieldsCondition", expr)
+}
+
+func containsAll(slice []string, items []string) bool {
+	set := setutils.New(slice...)
+	if len(items) == 0 {
+		return false
+	}
+	for _, item := range items {
+		if !set.Contains(item) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAny(slice []string, items []string) bool {
+	set := setutils.New(slice...)
+	if len(items) == 0 {
+		return false
+	}
+	for _, item := range items {
+		if set.Contains(item) {
+			return true
+		}
+	}
+	return false
 }

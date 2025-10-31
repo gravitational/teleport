@@ -6,7 +6,10 @@
   "scripts": {
     "start": "pnpm build-wasm && vite",
     "build": "pnpm build-wasm && vite build",
-    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
+    "event-reference": "pnpm event-reference:build && pnpm event-reference:gen",
+    "event-reference:build": "vite --config ../build/vite/gen-event-reference-config.mts build",
+    "event-reference:gen": "node ./src/services/audit/gen-event-reference/dist/gen-event-reference.js ../../../docs/pages/reference/audit-events.mdx"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
@@ -46,7 +49,6 @@
     "@gravitational/teleport": "workspace:*",
     "babel-plugin-transform-import-meta": "2.3.3",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
-    "jest-canvas-mock": "^2.5.2",
     "jest-websocket-mock": "^2.5.0"
   }
 }

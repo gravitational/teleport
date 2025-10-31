@@ -767,7 +767,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 		return tlsCert, nil
 	}
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
+	tlsConfig.VerifyConnection = utils.VerifyConnection(c.config.Clock.Now, c.config.GetTLSRoots)
 
 	expectedPeer := utils.HostFQDN(params.peerID, c.config.ClusterName)
 

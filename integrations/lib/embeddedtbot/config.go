@@ -37,6 +37,7 @@ const (
 // of the `lib/tbot/config.BotConfig` struct with CLI flags and operator-specific
 // defaults.
 type BotConfig struct {
+	Kind               bot.Kind
 	AuthServer         string
 	Onboarding         onboarding.Config
 	CredentialLifetime bot.CredentialLifetime

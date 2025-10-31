@@ -7,7 +7,8 @@
       "name": "allow-read",
       "description": "description",
       "labels": {
-        "env": "dev"
+        "env": "dev",
+        "teleport.internal/app-sub-kind": "mcp"
       }
     },
     "spec": {
@@ -39,7 +40,8 @@
       "name": "deny-write",
       "description": "description",
       "labels": {
-        "env": "dev"
+        "env": "dev",
+        "teleport.internal/app-sub-kind": "mcp"
       }
     },
     "spec": {

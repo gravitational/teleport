@@ -20,10 +20,10 @@ import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import { Markdown } from './Markdown';
+import { Markdown, MarkdownOptions } from './Markdown';
 
-function renderMarkdown(text: string) {
-  return render(<Markdown text={text} />);
+function renderMarkdown(text: string, opts: MarkdownOptions = {}) {
+  return render(<Markdown text={text} {...opts} />);
 }
 
 describe('Markdown', () => {
@@ -43,7 +43,9 @@ describe('Markdown', () => {
     });
 
     it('renders links', () => {
-      renderMarkdown(`This is [a link](https://example.com) text`);
+      renderMarkdown(`This is [a link](https://example.com) text`, {
+        enableLinks: true,
+      });
 
       const link = screen.getByRole('link', { name: 'a link' });
 
@@ -51,9 +53,25 @@ describe('Markdown', () => {
       expect(link).toHaveAttribute('href', 'https://example.com');
     });
 
+    it('does not render links unless explicitly enabled', () => {
+      renderMarkdown(`This is [a link](https://example.com) text
+- a [link inside a list item](https://example.com)
+
+This is **a [link inside bold text](https://example.com)**,
+\`a [link inside inline code](https://example.com)\`,
+
+        `);
+
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('This is [a link](https://example.com) text')
+      ).toBeInTheDocument();
+    });
+
     it('renders multiple inline elements', () => {
       renderMarkdown(
-        `**bold** and \`code\` and [link](https://example.com) together`
+        `**bold** and \`code\` and [link](https://example.com) together`,
+        { enableLinks: true }
       );
 
       expect(screen.getByText('bold')).toBeInTheDocument();
@@ -81,7 +99,9 @@ describe('Markdown', () => {
     });
 
     it('handles links with special characters in URL', () => {
-      renderMarkdown(`[link](https://example.com/path?query=1&foo=bar#hash)`);
+      renderMarkdown(`[link](https://example.com/path?query=1&foo=bar#hash)`, {
+        enableLinks: true,
+      });
 
       const link = screen.getByRole('link', { name: 'link' });
 
@@ -92,7 +112,9 @@ describe('Markdown', () => {
     });
 
     it('renders links with correct formatting in text', () => {
-      renderMarkdown(`[**bold** link](https://example.com)`);
+      renderMarkdown(`[**bold** link](https://example.com)`, {
+        enableLinks: true,
+      });
 
       const link = screen.getByRole('link', { name: 'bold link' });
 
@@ -103,7 +125,8 @@ describe('Markdown', () => {
 
     it('renders links with code block in text', () => {
       renderMarkdown(
-        '[`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/)'
+        '[`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/)',
+        { enableLinks: true }
       );
 
       const link = screen.getByRole('link', { name: 'teleport-kube-agent' });
@@ -207,7 +230,7 @@ describe('Markdown', () => {
 - Item with \`code\`
 - Item with [link](https://example.com)`;
 
-      renderMarkdown(text);
+      renderMarkdown(text, { enableLinks: true });
 
       expect(screen.getByText('Bold')).toBeInTheDocument();
       expect(screen.getByText('Bold').tagName).toBe('STRONG');
@@ -267,7 +290,8 @@ Second paragraph`;
 
     it('renders paragraph with inline formatting', () => {
       renderMarkdown(
-        `Paragraph with **bold** and \`code\` and [link](https://example.com)`
+        `Paragraph with **bold** and \`code\` and [link](https://example.com)`,
+        { enableLinks: true }
       );
 
       expect(screen.getByText('bold')).toBeInTheDocument();
@@ -293,7 +317,7 @@ Here is a list:
 
 Another paragraph after the list.`;
 
-      renderMarkdown(text);
+      renderMarkdown(text, { enableLinks: true });
 
       expect(
         screen.getByRole('heading', {
@@ -403,14 +427,14 @@ Paragraph 2`;
     });
 
     it('handles unclosed links', () => {
-      renderMarkdown(`[unclosed link`);
+      renderMarkdown(`[unclosed link`, { enableLinks: true });
 
       expect(screen.queryByRole('link')).not.toBeInTheDocument();
       expect(screen.getByText('[unclosed link')).toBeInTheDocument();
     });
 
     it('handles links without URL', () => {
-      renderMarkdown(`[link text]()`);
+      renderMarkdown(`[link text]()`, { enableLinks: true });
 
       const link = screen.getByText('link text');
 
@@ -418,7 +442,7 @@ Paragraph 2`;
     });
 
     it('handles empty link text', () => {
-      renderMarkdown(`[](https://example.com)`);
+      renderMarkdown(`[](https://example.com)`, { enableLinks: true });
 
       const link = screen.getByRole('link', { name: '' });
 
@@ -431,7 +455,7 @@ Paragraph 2`;
     it('returns same result for same input', () => {
       const text = '# Header\n\nParagraph with [link](https://example.com)';
 
-      const { rerender } = renderMarkdown(text);
+      const { rerender } = renderMarkdown(text, { enableLinks: true });
 
       expect(
         screen.getByRole('heading', {
@@ -444,7 +468,7 @@ Paragraph 2`;
       const heading = screen.getByRole('heading', { level: 1 });
       const link = screen.getByRole('link');
 
-      rerender(<Markdown text={text} />);
+      rerender(<Markdown text={text} enableLinks />);
 
       expect(screen.getByRole('heading', { level: 1 })).toBe(heading);
       expect(screen.getByRole('link')).toBe(link);
@@ -483,7 +507,9 @@ Paragraph 2`;
     });
 
     it('does not execute javascript: URLs in links', () => {
-      renderMarkdown(`[Click me](javascript:alert('xss'))`);
+      renderMarkdown(`[Click me](javascript:alert('xss'))`, {
+        enableLinks: true,
+      });
 
       const link = screen.getByText('Click me');
 
@@ -533,7 +559,9 @@ Paragraph 2`;
     });
 
     it('does not execute scripts in link text', () => {
-      renderMarkdown(`[<script>alert('xss')</script>](https://example.com)`);
+      renderMarkdown(`[<script>alert('xss')</script>](https://example.com)`, {
+        enableLinks: true,
+      });
 
       const link = screen.getByRole('link', {
         name: "<script>alert('xss')</script>",
@@ -543,7 +571,8 @@ Paragraph 2`;
 
     it('handles data: URLs safely', () => {
       renderMarkdown(
-        `[Click me](data:text/html,<script>alert('xss')</script>)`
+        `[Click me](data:text/html,<script>alert('xss')</script>)`,
+        { enableLinks: true }
       );
 
       const link = screen.getByText('Click me');
@@ -551,7 +580,9 @@ Paragraph 2`;
     });
 
     it('handles vbscript: URLs safely', () => {
-      renderMarkdown(`[Click me](vbscript:msgbox("xss"))`);
+      renderMarkdown(`[Click me](vbscript:msgbox("xss"))`, {
+        enableLinks: true,
+      });
 
       const link = screen.getByText('Click me');
 
@@ -576,7 +607,7 @@ This is **bold <script>alert('xss')</script>** text.
 
 \`code <script>alert('xss')</script>\``;
 
-      renderMarkdown(text);
+      renderMarkdown(text, { enableLinks: true });
 
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
         "Title <script>alert('xss')</script>"
