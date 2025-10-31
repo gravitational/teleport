@@ -272,6 +272,30 @@ export default function createMainProcessClient(): MainProcessClient {
     logout: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
     },
+    registerClusterLifecycleHandler(listener): {
+      cleanup: () => void;
+    } {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.RegisterClusterLifecycleHandler,
+        listener
+      );
+
+      return { cleanup: close };
+    },
+    subscribeToProfileWatcherErrors: listener => {
+      const ipcListener = (_, error) => {
+        listener(error);
+      };
+
+      ipcRenderer.addListener(RendererIpc.ProfileWatcherError, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ProfileWatcherError,
+            ipcListener
+          ),
+      };
+    },
   };
 }
 
@@ -284,24 +308,31 @@ export default function createMainProcessClient(): MainProcessClient {
  */
 function startAwaitableSenderListener<T>(
   channel: string,
-  listener: (value: T) => void
+  listener: (value: T) => void | Promise<void>
 ): {
   close: () => void;
 } {
   const { port1: localPort, port2: transferablePort } = new MessageChannel();
 
+  // Queue chain ensures sequential processing.
+  let processingQueue = Promise.resolve();
   localPort.onmessage = (event: MessageEvent<Message>) => {
     const msg = event.data;
     if (msg.type !== 'data') {
       return;
     }
     const ack: MessageAck = { type: 'ack', id: msg.id };
-    try {
-      listener(msg.payload as T);
-    } catch (e) {
-      ack.error = e;
-    }
-    localPort.postMessage(ack);
+
+    // Append this message to the queue.
+    processingQueue = processingQueue.then(async () => {
+      try {
+        await listener(msg.payload as T);
+      } catch (e) {
+        ack.error = e;
+      }
+
+      localPort.postMessage(ack);
+    });
   };
 
   localPort.start();
