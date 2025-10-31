@@ -21,12 +21,14 @@ package desktop
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base32"
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -385,4 +388,110 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
+}
+
+func TestLoadTLSConfigForLDAP(t *testing.T) {
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: "test-cluster",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tlsServer.Close())
+	})
+
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+		return &WindowsService{
+			cfg: WindowsServiceConfig{
+				Clock:      clock,
+				AuthClient: client,
+				Logger:     slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+				LDAPConfig: servicecfg.LDAPConfig{
+					Domain:   "test.example.com",
+					Username: "test-user",
+					Addr:     "ldap.example.com:389",
+				},
+			},
+			closeCtx: context.Background(),
+		}
+	}
+
+	t.Run("returns cached config when not expired", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, nil)
+
+		expectedConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		s.ldapTLSConfig = expectedConfig
+		s.ldapTLSConfigExpiresAt = clock.Now().Add(1 * time.Hour)
+
+		config, err := s.loadTLSConfigForLDAP()
+		require.NoError(t, err)
+		require.Equal(t, expectedConfig, config)
+	})
+
+	t.Run("generates new config when cache is expired", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, client)
+
+		oldConfig := &tls.Config{MinVersion: tls.VersionTLS10}
+		s.ldapTLSConfig = oldConfig
+		s.ldapTLSConfigExpiresAt = clock.Now().Add(-1 * time.Hour)
+
+		config, err := s.loadTLSConfigForLDAP()
+		require.NoError(t, err)
+		require.NotNil(t, config)
+		require.NotEqual(t, oldConfig, config)
+
+		require.Equal(t, config, s.ldapTLSConfig)
+		require.True(t, s.ldapTLSConfigExpiresAt.After(clock.Now()))
+	})
+
+	t.Run("generates new config when cache is empty", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, client)
+
+		config, err := s.loadTLSConfigForLDAP()
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		require.Equal(t, config, s.ldapTLSConfig)
+		require.Equal(t, clock.Now().Add(tlsConfigCacheTTL), s.ldapTLSConfigExpiresAt)
+	})
+
+	t.Run("handles concurrent requests", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, client)
+
+		s.ldapTLSConfig = &tls.Config{MinVersion: tls.VersionTLS10}
+		s.ldapTLSConfigExpiresAt = clock.Now().Add(-1 * time.Hour)
+
+		var wg sync.WaitGroup
+		configs := make([]*tls.Config, 5)
+		for i := range 5 {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				cfg, err := s.loadTLSConfigForLDAP()
+				require.NoError(t, err)
+				configs[idx] = cfg
+			}(i)
+		}
+		wg.Wait()
+
+		for _, cfg := range configs {
+			require.NotNil(t, cfg)
+		}
+	})
 }
