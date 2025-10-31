@@ -139,7 +139,10 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		if cfg.Encrypter == nil {
 			cfg.Encrypter = recordingencryption.NewEncryptionWrapper(cfg.RecordingCfg)
 		}
-		fileStreamer, err := filesessions.NewStreamer(uploadDir, cfg.Encrypter)
+		fileStreamer, err := filesessions.NewStreamer(filesessions.StreamerConfig{
+			Dir:       uploadDir,
+			Encrypter: cfg.Encrypter,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
