@@ -142,7 +142,7 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
 test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test:
-	go test ./... -coverprofile cover.out
+	gotestsum ./...
 
 .PHONY: echo-kubebuilder-assets
 echo-kubebuilder-assets:
