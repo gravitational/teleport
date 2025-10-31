@@ -23,9 +23,9 @@ This document covers how to use `teleport-update` and the `autoupdate_*`
 resources to manage automated agent and bot updates from Teleport. It describes:
 
 - [The agent architecture](#how-it-works)
-- [How to enroll existing agents](#quick-setup-for-existing-connected-linux-servers)
-- [How to enroll new agents](#quick-setup-for-new-linux-servers)
-- [How to configure Managed Updates v2](#configuring-managed-agent-updates) (
+- [How to enroll existing agents](#quick-setup-for-existing-linux-agent--bot-installations)
+- [How to enroll new agents](#quick-setup-for-new-linux-agents--bot-installations)
+- [How to configure Managed Updates v2](#configuring-managed-agent--tbot-updates) (
   [when updates happen](#configuring-the-schedule) and for self-hosted users,
   [which version to update to](#setting-the-version-self-hosted-only))
 - [How to migrate to Managed Updates v2](#migrating-agents-on-linux-servers-to-managed-updates)
@@ -154,7 +154,7 @@ $ sudo systemctl enable tbot --now
 ```
 
 Note that you must have a valid `/etc/tbot.yaml` file to use tbot.
-See [Deploying tbot on Linux ](../../machine-workload-identity/machine-id/deployment/linux) for more information.
+See [Deploying tbot on Linux](../../machine-workload-identity/machine-id/deployment/linux.mdx) for more information.
 
 ## Quick setup for new Linux Agents & Bot installations
 
@@ -185,7 +185,7 @@ $ sudo systemctl enable teleport --now
 ```
 
 Similarly, you can create an `/etc/tbot.yaml` file, either manually or using `tbot configure`.
-See [Deploying tbot on Linux ](../../machine-workload-identity/machine-id/deployment/linux) for more information.
+See [Deploying tbot on Linux](../../machine-workload-identity/machine-id/deployment/linux.mdx) for more information.
 
 After, tbot can be enabled and started via the `systemctl` command:
 
