@@ -781,6 +781,26 @@
       "permanent": true
     },
     {
+      "source": "/reference/machine-workload-identity/machine-id/",
+      "destination": "/reference/machine-workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/configuration/",
+      "destination": "/reference/machine-workload-identity/configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/diagnostics-service/",
+      "destination": "/reference/machine-workload-identity/diagnostics-service/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/telemetry/",
+      "permanent": true
+    },
+    {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
       "permanent": true
