@@ -89,7 +89,9 @@ export const JoinTokens = () => {
   );
 
   function updateTokenList(token: JoinToken): JoinToken[] {
-    let items = [...joinTokensAttempt.data.items];
+    let items = joinTokensAttempt.data?.items
+      ? [...joinTokensAttempt.data.items]
+      : [];
     if (creatingToken) {
       items.push(token);
     } else {
@@ -124,7 +126,7 @@ export const JoinTokens = () => {
         status: 'success',
         statusText: '',
         data: {
-          items: joinTokensAttempt.data.items.filter(t => t.id !== token),
+          items: joinTokensAttempt.data?.items.filter(t => t.id !== token),
         },
       });
       setTokenToDelete(null);
@@ -235,7 +237,8 @@ export const JoinTokens = () => {
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
                           token.method === 'token' ||
-                          (token.method === 'github' && token.github)
+                          (token.method === 'github' && token.github) ||
+                          (token.method === 'gitlab' && token.gitlab)
                         ) {
                           setEditingToken(token);
                           return;
@@ -285,7 +288,7 @@ export const JoinTokens = () => {
             setDeleteTokenAttempt({
               status: 'success',
               statusText: '',
-              data: null,
+              data: undefined,
             });
             setTokenToDelete(null);
           }}

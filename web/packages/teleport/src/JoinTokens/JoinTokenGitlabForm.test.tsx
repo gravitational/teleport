@@ -23,18 +23,17 @@ import selectEvent from 'react-select-event';
 import { render, screen, within } from 'design/utils/testing';
 import Validation, { useValidation } from 'shared/components/Validation';
 
-import cfg from 'teleport/config';
 import { ThemeProvider } from 'teleport/ThemeProvider';
 
-import { JoinTokenGithubForm } from './JoinTokenGithubForm';
+import { JoinTokenGitlabForm } from './JoinTokenGitlabForm';
 import {
-  NewJoinTokenGithubStateRule,
+  NewJoinTokenGitlabStateRule,
   NewJoinTokenState,
 } from './UpsertJoinTokenDialog';
 
 const populateRuleFieldTest =
   (
-    field: keyof NewJoinTokenGithubStateRule,
+    field: keyof NewJoinTokenGitlabStateRule,
     placeholer: string,
     value: string
   ) =>
@@ -65,21 +64,12 @@ const populateFieldTest =
     field,
     placeholer,
     value,
-    needsEnt,
   }: {
-    field: keyof NonNullable<NewJoinTokenState['github']>;
+    field: keyof NonNullable<NewJoinTokenState['gitlab']>;
     placeholer: string;
     value: string;
-    needsEnt?: boolean;
   }) =>
   async () => {
-    if (needsEnt) {
-      cfg.init({
-        edition: 'ent',
-        isEnterprise: true,
-      });
-    }
-
     const { user, onUpdate } = renderComponent();
 
     const input = screen.getByPlaceholderText(placeholer);
@@ -96,12 +86,12 @@ const populateFieldTest =
     );
   };
 
-describe('GithubJoinTokenForm', () => {
+describe('GitlabJoinTokenForm', () => {
   it('a rule can be added', async () => {
     const { user, onUpdate } = renderComponent();
 
     await user.click(
-      screen.getByRole('button', { name: /Add another GitHub rule/i })
+      screen.getByRole('button', { name: /Add another GitLab rule/i })
     );
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
@@ -150,52 +140,46 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: state.github?.rules ? [state.github.rules[0]] : [],
+        rules: state.gitlab?.rules ? [state.gitlab.rules[0]] : [],
       })
     );
   });
 
   // eslint-disable-next-line jest/expect-expect
   it(
-    'repository field can be populated',
+    'project path field can be populated',
     populateRuleFieldTest(
-      'repository',
-      'gravitational/teleport',
+      'project_path',
+      'my-user/my-project',
       'gravitational/teleport'
     )
   );
 
-  it('repository field shows a validation message', async () => {
+  it('project path field shows a validation message', async () => {
     const { user } = renderComponent();
 
     await user.click(screen.getByTestId('submit'));
 
     expect(
-      screen.getByText('Either repository name or owner is required')
+      screen.getByText('Either project path or namespace path is required')
     ).toBeInTheDocument();
   });
 
   // eslint-disable-next-line jest/expect-expect
   it(
-    'repository owner field can be populated',
-    populateRuleFieldTest('repository_owner', 'gravitational', 'gravitational')
+    'namespace path field can be populated',
+    populateRuleFieldTest('namespace_path', 'my-user', 'gravitational')
   );
 
-  it('repository owner field shows a validation message', async () => {
+  it('namespace path field shows a validation message', async () => {
     const { user } = renderComponent();
 
     await user.click(screen.getByTestId('submit'));
 
     expect(
-      screen.getByText('Either repository owner or name is required')
+      screen.getByText('Either namespace path or project path is required')
     ).toBeInTheDocument();
   });
-
-  // eslint-disable-next-line jest/expect-expect
-  it(
-    'workflow field can be populated',
-    populateRuleFieldTest('workflow', 'my-workflow', 'my-workflow')
-  );
 
   // eslint-disable-next-line jest/expect-expect
   it(
@@ -234,10 +218,10 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: state.github?.rules
+        rules: state.gitlab?.rules
           ? [
               {
-                ...state.github.rules[0],
+                ...state.gitlab.rules[0],
                 ref_type: 'branch',
               },
             ]
@@ -248,23 +232,11 @@ describe('GithubJoinTokenForm', () => {
 
   // eslint-disable-next-line jest/expect-expect
   it(
-    'server host field can be populated',
+    'domain field can be populated',
     populateFieldTest({
-      field: 'server_host',
-      placeholer: 'github.example.com',
-      value: 'github.example.com',
-      needsEnt: true,
-    })
-  );
-
-  // eslint-disable-next-line jest/expect-expect
-  it(
-    'slug field can be populated',
-    populateFieldTest({
-      field: 'enterprise_slug',
-      placeholer: 'octo-enterprise',
-      value: 'octo-enterprise',
-      needsEnt: true,
+      field: 'domain',
+      placeholer: 'gitlab.example.com',
+      value: 'gitlab.example.com',
     })
   );
 
@@ -275,7 +247,6 @@ describe('GithubJoinTokenForm', () => {
       field: 'static_jwks',
       placeholer: '{"keys":[--snip--]}',
       value: '{"keys":[]}',
-      needsEnt: true,
     })
   );
 });
@@ -286,7 +257,7 @@ function renderComponent(options?: { state?: NewJoinTokenState }) {
   const user = userEvent.setup();
   return {
     ...render(
-      <JoinTokenGithubForm
+      <JoinTokenGitlabForm
         tokenState={state}
         onUpdateState={onUpdate}
         readonly={false}
@@ -319,15 +290,15 @@ const SubmitWrapper = ({ children }: PropsWithChildren) => {
 };
 
 const baseState = (
-  github: Partial<NewJoinTokenState['github']> = {}
+  gitlab: Partial<NewJoinTokenState['gitlab']> = {}
 ): NewJoinTokenState => ({
   name: 'test-name',
-  method: { label: 'github', value: 'github' },
+  method: { label: 'gitlab', value: 'gitlab' },
   roles: [{ label: 'Bot', value: 'Bot' }],
   bot_name: 'test-bot-name',
-  github: {
-    ...github,
-    rules: github.rules ?? [
+  gitlab: {
+    ...gitlab,
+    rules: gitlab.rules ?? [
       {
         ref_type: 'any',
       },

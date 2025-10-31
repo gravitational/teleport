@@ -622,7 +622,7 @@ func TestCreateTokenExpiry(t *testing.T) {
 
 			var expectedExpiry time.Time
 			switch method {
-			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub, types.JoinMethodGitLab:
 				expectedExpiry = time.Time{}
 			default:
 				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
