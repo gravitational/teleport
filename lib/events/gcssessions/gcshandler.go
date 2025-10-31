@@ -88,6 +88,8 @@ const (
 	kmsKeyName = "keyName"
 	// pathPropertyKey
 	pathPropertyKey = "path"
+	// pendingPrefix is a prefix of the pending summaries path
+	pendingPrefix = "pending"
 )
 
 // Config is handler configuration
@@ -238,43 +240,59 @@ func (h *Handler) Close() error {
 // Upload reads the content of a session recording from a reader and uploads it
 // to a GCS bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.recordingPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
-// UploadSummary reads the content of a session summary from a reader and
-// uploads it to a GCS bucket. If successful, it returns URL of the uploaded
-// object.
+// UploadPendingSummary reads the content of a pending session summary from a
+// reader and uploads it to a GCS bucket. If successful, it returns URL of the
+// uploaded object. This function can be called multiple times for a given
+// sessionID to update the state.
+func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, true /* overwrite */)
+	return path, trace.Wrap(err)
+}
+
+// UploadSummary reads the content of a final version of session summary from a
+// reader and uploads it to a GCS bucket. If successful, it returns URL of the
+// uploaded object. This function can be called only once for a given
+// sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
 // UploadMetadata reads the session metadata from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.metadataPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
 // UploadThumbnail reads the session thumbnail from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader, false /* overwrite */)
+	return path, trace.Wrap(err)
 }
 
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, overwrite bool) (string, error) {
 	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
 
-	// Make sure we don't overwrite an existing recording.
-	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
-	if !errors.Is(err, storage.ErrObjectNotExist) {
-		if err != nil {
-			return "", convertGCSError(err)
+	if !overwrite {
+		// Make sure we don't overwrite an existing recording.
+		_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
+		if !errors.Is(err, storage.ErrObjectNotExist) {
+			if err != nil {
+				return "", convertGCSError(err)
+			}
+			return "", trace.AlreadyExists("file %q already exists in GCS", path)
 		}
-		return "", trace.AlreadyExists("file %q already exists in GCS", path)
 	}
 
 	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
 	start := time.Now()
-	_, err = io.Copy(writer, reader)
+	_, err := io.Copy(writer, reader)
 	// Always close the writer, even if upload failed.
 	closeErr := writer.Close()
 	if err == nil {
@@ -292,28 +310,32 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader)
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.recordingPath(sessionID), writer)
+	return trace.Wrap(h.downloadFile(ctx, h.recordingPath(sessionID), writer))
 }
 
 // DownloadSummary downloads a session summary from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+	if trace.IsNotFound(err) {
+		return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer))
+	}
+	return trace.Wrap(err)
 }
 
 // DownloadMetadata downloads a session's metadata from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.metadataPath(sessionID), writer)
+	return trace.Wrap(h.downloadFile(ctx, h.metadataPath(sessionID), writer))
 }
 
 // DownloadThumbnail downloads a session's thumbnail from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.thumbnailPath(sessionID), writer)
+	return trace.Wrap(h.downloadFile(ctx, h.thumbnailPath(sessionID), writer))
 }
 
 func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
@@ -341,6 +363,13 @@ func (h *Handler) recordingPath(sessionID session.ID) string {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
+}
+
+func (h *Handler) pendingSummaryPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return path.Join(pendingPrefix, string(sessionID)+".summary.json")
+	}
+	return strings.TrimPrefix(path.Join(h.Path, pendingPrefix, string(sessionID)+".summary.json"), slash)
 }
 
 func (h *Handler) summaryPath(sessionID session.ID) string {
