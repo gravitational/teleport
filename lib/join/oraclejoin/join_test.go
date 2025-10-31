@@ -416,6 +416,8 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		return assert.ErrorAs(t, err, new(*trace.AccessDeniedError), msgAndArgs...)
 	}
 
+	rootCACache := oraclejoin.NewRootCACache()
+
 	for _, tc := range []struct {
 		desc         string
 		instanceKey  crypto.Signer
@@ -475,6 +477,7 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 				Solution:       solution,
 				ProvisionToken: token,
 				HTTPClient:     fakeOracleAPIClient,
+				RootCACache:    rootCACache,
 			}
 
 			_, err = oraclejoin.CheckChallengeSolution(t.Context(), params)
@@ -604,6 +607,7 @@ func (f *fakeOracleAPI) handleRootCACertificates(w http.ResponseWriter, r *http.
 	}
 	resp := rootCAResp{
 		Certificates: []string{f.rootCABase64},
+		RefreshIn:    time.Now().Add(time.Hour).Format(time.RFC3339),
 	}
 	json.NewEncoder(w).Encode(resp)
 }
