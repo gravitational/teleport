@@ -333,14 +333,15 @@ test('max file system events count is restricted', async () => {
     clusterStore: clusterStoreMock,
     signal: abortController.signal,
     debounceMs: 50,
-    maxFileSystemEvents: 2,
+    maxFileSystemEvents: 1,
   });
 
   // Start the watcher by pulling the first value.
   const firstEvent = watcher.next();
+  // Makes two updates.
   await tshClientMock.insertOrUpdateCluster(cluster);
 
   await expect(firstEvent).rejects.toThrow(
-    `Exceeded file system event limit: more than 2 events detected within 50 ms`
+    `Exceeded file system event limit: more than 1 events detected within 50 ms`
   );
 });
