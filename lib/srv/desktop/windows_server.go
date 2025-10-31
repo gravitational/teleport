@@ -134,6 +134,9 @@ type WindowsService struct {
 	// to domain-joined Windows hosts
 	enableNLA bool
 
+	// sidCache caches ActiveDirectory SID lookups
+	sidCache *utils.FnCache
+
 	closeCtx context.Context
 	close    func()
 }
@@ -356,6 +359,17 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	ctx, close := context.WithCancel(context.Background())
+
+	sidCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:     24 * time.Hour,
+		Clock:   cfg.Clock,
+		Context: ctx,
+	})
+	if err != nil {
+		close()
+		return nil, trace.Wrap(err)
+	}
+
 	s := &WindowsService{
 		cfg: cfg,
 		middleware: &authz.Middleware{
@@ -368,6 +382,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 		auditCache:  newSharedDirectoryAuditCache(),
 		enableNLA:   cfg.NLA,
+		sidCache:    sidCache,
 	}
 
 	s.ca = winpki.NewCertificateStoreClient(winpki.CertificateStoreConfig{
@@ -490,6 +505,10 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 // established ones. Close does not wait for the connections to be finished.
 func (s *WindowsService) Close() error {
 	s.close()
+
+	if s.sidCache != nil {
+		s.sidCache.Shutdown(s.closeCtx)
+	}
 
 	return nil
 }
@@ -1177,24 +1196,34 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
-		tc, err := s.tlsConfigForLDAP()
+		// Use FnCache to fetch the SID, or load it from cache if we already have it
+		// The cache key is the username and domain combined to handle multi-domain setups
+		cacheKey := fmt.Sprintf("%s@%s", username, desktop.GetDomain())
+		sid, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (string, error) {
+			tc, err := s.tlsConfigForLDAP()
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			ldapClient, err := winpki.DialLDAP(ctx, s.getLDAPConfig(), tc)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			defer ldapClient.Close()
+
+			s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
+			sid, err := ldapClient.GetActiveDirectorySID(ctx, username)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			s.cfg.Logger.DebugContext(ctx, "Found objectSid for Windows user", "username", username)
+			return sid, nil
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-
-		ldapClient, err := winpki.DialLDAP(ctx, s.getLDAPConfig(), tc)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		defer ldapClient.Close()
-
-		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
-		activeDirectorySID, err = ldapClient.GetActiveDirectorySID(ctx, username)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
+		activeDirectorySID = sid
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
