@@ -771,6 +771,16 @@
       "permanent": true
     },
     {
+      "source": "/reference/machine-workload-identity/machine-id/gitlab/",
+      "destination": "/reference/deployment/join-methods/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/github-actions/",
+      "destination": "/reference/deployment/join-methods/",
+      "permanent": true
+    },
+    {
       "source": "/admin-guides/deploy-a-cluster/access-graph/",
       "destination": "/identity-security/access-graph/",
       "permanent": true
