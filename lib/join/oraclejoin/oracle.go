@@ -306,9 +306,14 @@ func executeRootCAReq(ctx context.Context, client utils.HTTPDoClient, req *http.
 	return &parsedResp, nil
 }
 
+// rootCAResp models the JSON structure returned by Oracle's
+// /v1/instancePrincipalRootCACertificates API.
 type rootCAResp struct {
+	// Certificates is expected to be a list of base64-encoded ASN.1 DER X509
+	// certificates.
 	Certificates []string `json:"certificates"`
-	RefreshIn    string   `json:"refreshIn"`
+	// RefreshIn is an RFC3339 timestamp indicating when the CA should be re-fetched.
+	RefreshIn string `json:"refreshIn"`
 }
 
 func parseRootCAPool(resp *rootCAResp) (*x509.CertPool, error) {
