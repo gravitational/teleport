@@ -18,6 +18,13 @@
 
 import { formatDuration, intervalToDuration } from 'date-fns';
 
+import {
+  ConstraintDomain,
+  IcAccountAssignment,
+  ResourceConstraints,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
+
 import { ResourceMap } from '../NewRequest';
 
 export function getFormattedDurationTxt({
@@ -45,3 +52,45 @@ export function getNumAddedResources(addedResources: ResourceMap) {
     Object.keys(addedResources.aws_ic_account_assignment).length
   );
 }
+
+export const toggleAWSConsoleConstraint =
+  (
+    key: ResourceIDString,
+    curr: ResourceConstraints & { Domain: ConstraintDomain.AWS_CONSOLE },
+    set?: (
+      key: ResourceIDString,
+      constraints: ResourceConstraints | undefined
+    ) => void
+  ) =>
+  (arn: string) => {
+    const newRc = {
+      Domain: ConstraintDomain.AWS_CONSOLE,
+      AWSConsole: {
+        RoleARNs: curr.AWSConsole.RoleARNs.filter(a => a !== arn),
+      },
+    } satisfies ResourceConstraints;
+    set?.(key, newRc.AWSConsole.RoleARNs.length ? newRc : undefined);
+  };
+
+export const toggleAWSICConstraint =
+  (
+    key: ResourceIDString,
+    curr: ResourceConstraints & {
+      Domain: ConstraintDomain.AWS_IDENTITY_CENTER;
+    },
+    set?: (
+      key: ResourceIDString,
+      constraints: ResourceConstraints | undefined
+    ) => void
+  ) =>
+  (aa: IcAccountAssignment) => {
+    const newRc = {
+      Domain: ConstraintDomain.AWS_IDENTITY_CENTER,
+      AWSIC: {
+        AccountAssignments: curr.AWSIC.AccountAssignments.filter(
+          a => a.PermissionSet !== aa.PermissionSet
+        ),
+      },
+    } satisfies ResourceConstraints;
+    set?.(key, newRc.AWSIC.AccountAssignments.length ? newRc : undefined);
+  };

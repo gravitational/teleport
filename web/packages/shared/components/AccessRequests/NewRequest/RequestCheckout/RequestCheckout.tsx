@@ -18,6 +18,7 @@
 
 import React, {
   forwardRef,
+  PropsWithChildren,
   useEffect,
   useMemo,
   useRef,
@@ -54,14 +55,28 @@ import {
   shouldShowLongTermGroupingErrors,
   UNSUPPORTED_KINDS,
 } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
+import { SecondaryCrossIcon } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/SecondaryCrossIcon';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import {
+  toggleAWSConsoleConstraint,
+  toggleAWSICConstraint,
+} from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { mergeRefs } from 'shared/libs/mergeRefs';
-import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
+import {
+  AccessRequest,
+  ConstraintDomain,
+  hasResourceConstraints,
+  RequestKind,
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+  WithResourceConstraints,
+} from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
 import { AccessDurationRequest } from '../../AccessDuration';
@@ -147,6 +162,95 @@ export const RequestCheckoutWithSlider = forwardRef<
   }
 );
 
+type DisplayRow<T extends PendingListItem> = T & {
+  constraints?: ResourceConstraints;
+};
+
+const BaseConstraintsList = ({
+  label,
+  children,
+}: PropsWithChildren<{ label: string }>) => (
+  <Flex flexDirection="column" gap={2} mt={1}>
+    <Text bold>{label}</Text>
+    <Flex flexDirection="column" gap={1}>
+      {children}
+    </Flex>
+  </Flex>
+);
+
+const AwsConsoleConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<ConstraintDomain.AWS_CONSOLE, DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <BaseConstraintsList label="Role ARNs">
+    {item.constraints.AWSConsole.RoleARNs.map(arn => (
+      <Flex
+        key={arn}
+        flexDirection="row"
+        justifyContent="space-between"
+        gap={2}
+      >
+        <Text style={{ alignContent: 'center' }}>{arn}</Text>
+        <SecondaryCrossIcon
+          clearAttempt={clearAttempt}
+          createAttempt={createAttempt}
+          item={arn}
+          toggleResource={toggleAWSConsoleConstraint(
+            `${item.clusterName}/${item.kind}/${item.id}`,
+            item.constraints,
+            setResourceConstraints
+          )}
+        />
+      </Flex>
+    ))}
+  </BaseConstraintsList>
+);
+
+const AwsIcConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<
+    ConstraintDomain.AWS_IDENTITY_CENTER,
+    DisplayRow<T>
+  >;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <BaseConstraintsList label="Account Assignments">
+    {item.constraints.AWSIC.AccountAssignments.map(aa => (
+      <Flex
+        key={aa.PermissionSet}
+        flexDirection="row"
+        justifyContent="space-between"
+        gap={2}
+      >
+        <Text style={{ alignContent: 'center' }}>{aa.PermissionSet}</Text>
+        <SecondaryCrossIcon
+          item={aa}
+          clearAttempt={clearAttempt}
+          createAttempt={createAttempt}
+          toggleResource={toggleAWSICConstraint(
+            `${item.clusterName}/${item.kind}/${item.id}`,
+            item.constraints,
+            setResourceConstraints
+          )}
+        />
+      </Flex>
+    ))}
+  </BaseConstraintsList>
+);
+
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
   toggleResources,
@@ -185,6 +289,8 @@ export function RequestCheckout<T extends PendingListItem>({
   updateNamespacesForKubeCluster,
   requestKind = RequestKind.ShortTerm,
   setRequestKind,
+  addedResourceConstraints,
+  setResourceConstraints,
 }: RequestCheckoutProps<T>) {
   const theme = useTheme();
   const [reason, setReason] = useState('');
@@ -303,7 +409,65 @@ export function RequestCheckout<T extends PendingListItem>({
     );
   };
 
-  function customRow(item: T) {
+  const displayRows: DisplayRow<T>[] = useMemo(() => {
+    const base = pendingAccessRequests.filter(d => d.kind !== 'namespace');
+
+    if (!addedResourceConstraints) return base;
+
+    const out: DisplayRow<T>[] = [];
+    for (const row of base) {
+      const key = `${row.clusterName}/${row.kind}/${row.id}`;
+      console.log('fetching rc for checkout with', key);
+      const rc = addedResourceConstraints[key];
+      console.log('fetched rc for checkout', rc);
+      if (!rc) {
+        out.push(row);
+        continue;
+      }
+
+      out.push({
+        ...row,
+        constraints: rc,
+      });
+    }
+    return out;
+  }, [pendingAccessRequests, addedResourceConstraints]);
+
+  const renderAfter = (item: DisplayRow<T>) => {
+    if (item.constraints) {
+      const colSpan = showClusterNameColumn ? 4 : 3;
+
+      return (
+        <tr style={{ borderTop: 'none' }}>
+          <td colSpan={colSpan}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              {hasResourceConstraints(item, ConstraintDomain.AWS_CONSOLE) && (
+                <AwsConsoleConstraintsList
+                  item={item}
+                  setResourceConstraints={setResourceConstraints}
+                  clearAttempt={clearAttempt}
+                  createAttempt={createAttempt}
+                />
+              )}
+              {hasResourceConstraints(
+                item,
+                ConstraintDomain.AWS_IDENTITY_CENTER
+              ) && (
+                <AwsIcConstraintsList
+                  item={item}
+                  setResourceConstraints={setResourceConstraints}
+                  clearAttempt={clearAttempt}
+                  createAttempt={createAttempt}
+                />
+              )}
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+  };
+
+  function customRow(item: DisplayRow<T>) {
     if (item.kind === 'kube_cluster') {
       const unsupported =
         requestKind === RequestKind.LongTerm &&
@@ -355,7 +519,7 @@ export function RequestCheckout<T extends PendingListItem>({
   }
 
   const getStyle = useMemo(
-    () => (item: T) => {
+    () => (item: DisplayRow<T>) => {
       if (
         !shouldShowLongTermGroupingErrors({
           requestKind,
@@ -496,11 +660,10 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                   )}
                   <StyledTable
-                    data={pendingAccessRequests.filter(
-                      d => d.kind !== 'namespace'
-                    )}
+                    data={displayRows}
                     row={{
                       customRow,
+                      renderAfter,
                       getStyle,
                     }}
                     columns={[
@@ -1137,6 +1300,11 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     startTime: Date;
     requestKind?: RequestKind;
     setRequestKind?: React.Dispatch<React.SetStateAction<RequestKind>>;
+    addedResourceConstraints?: ResourceConstraintsMap;
+    setResourceConstraints?: (
+      key: ResourceIDString,
+      rc?: ResourceConstraints
+    ) => void;
     onStartTimeChange(t?: Date): void;
     fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
     updateNamespacesForKubeCluster(

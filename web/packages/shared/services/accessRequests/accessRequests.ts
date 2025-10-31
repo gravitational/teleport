@@ -121,6 +121,8 @@ export type ResourceId = {
   // subResourceName is the sub resource belonging to resource "name" the user
   // is allowed to access.
   subResourceName?: string;
+  // constraints are present if there are any resource constraints applied to this resource.
+  constraints?: ResourceConstraints;
 };
 
 // ResourceDetails holds optional details for a resource.
@@ -130,3 +132,79 @@ export type ResourceDetails = {
   hostname?: string;
   friendlyName?: string;
 };
+
+export enum ConstraintDomain {
+  Unspecified = 0,
+  AWS_CONSOLE = 1,
+  AWS_IDENTITY_CENTER = 2,
+}
+
+export type AwsConsoleConstraints = {
+  RoleARNs: string[];
+};
+
+export type IcAccountAssignment = {
+  Account: string;
+  PermissionSet: string;
+};
+
+export type AwsIdentityCenterConstraints = {
+  AccountAssignments: IcAccountAssignment[];
+};
+
+type BaseResourceConstraints = {
+  Version?: 'v1';
+};
+
+export type ResourceConstraints = BaseResourceConstraints &
+  (
+    | {
+        Domain: ConstraintDomain.AWS_CONSOLE;
+        AWSConsole: AwsConsoleConstraints;
+        AWSIC?: never;
+      }
+    | {
+        Domain: ConstraintDomain.AWS_IDENTITY_CENTER;
+        AWSConsole?: never;
+        AWSIC: AwsIdentityCenterConstraints;
+      }
+    | {
+        Domain: ConstraintDomain.Unspecified;
+        AWSConsole?: never;
+        AWSIC?: never;
+      }
+  );
+
+type ExtractByConstraintDomain<D extends ConstraintDomain> = Extract<
+  ResourceConstraints,
+  { Domain: D }
+>;
+
+export type WithResourceConstraints<
+  D extends ConstraintDomain,
+  R extends object = object,
+> = R & { constraints: ExtractByConstraintDomain<D> };
+
+const isResourceConstraints = <D extends ConstraintDomain>(
+  c: ResourceConstraints | undefined,
+  d: D
+): c is ExtractByConstraintDomain<D> => !!c && c.Domain === d;
+
+export const hasResourceConstraints = <
+  D extends ConstraintDomain,
+  T extends { constraints?: ResourceConstraints },
+>(
+  item: T,
+  d: D
+): item is T & { constraints: ExtractByConstraintDomain<D> } =>
+  isResourceConstraints(item?.constraints, d);
+
+// ResourceIDString is a string representation of a ResourceID,
+// in the format "clusterName/kind/name"
+export type ResourceIDString = `${string}/${string}/${string}`;
+
+// ResourceConstraintsMap maps supported resource IDs to their ResourceConstraints
+export type ResourceConstraintsMap = Record<
+  ResourceIDString,
+  ResourceConstraints
+>;

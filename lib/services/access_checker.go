@@ -316,6 +316,9 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
+	// AllowedConstrainedResourceIDs is the list of resource IDs the identity
+	// is allowed to access, narrowed with present ResourceConstraints.
+	AllowedConstrainedResourceIDs []types.ResourceID
 	// Username is the Teleport username.
 	Username string
 }
@@ -538,6 +541,7 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Enforce AllowedResourceIDs if present; capture match
 	var matchedRID *types.ResourceID
+	// TODO(kiosion): Match on AllowedConstrainedResourceIDs here, taking presedence.
 	if len(a.info.AllowedResourceIDs) != 0 {
 		if rid, ok := a.matchAllowedRID(r); ok {
 			matchedRID = rid

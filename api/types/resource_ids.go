@@ -17,17 +17,42 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 )
 
 const (
 	ResourceConstraintVersionV1 = "v1"
 )
+
+func (rc *ResourceConstraints) MarshalJSON() ([]byte, error) {
+	if rc == nil {
+		return []byte("null"), nil
+	}
+	var buf bytes.Buffer
+	m := &jsonpb.Marshaler{
+		OrigName:     true,
+		EnumsAsInts:  true,
+		EmitDefaults: false,
+	}
+	if err := m.Marshal(&buf, rc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (rc *ResourceConstraints) UnmarshalJSON(b []byte) error {
+	u := &jsonpb.Unmarshaler{
+		AllowUnknownFields: false,
+	}
+	return trace.Wrap(u.Unmarshal(bytes.NewReader(b), rc))
+}
 
 func (id *ResourceID) CheckAndSetDefaults() error {
 	if len(id.ClusterName) == 0 {
@@ -100,6 +125,7 @@ func (id *ResourceID) validateK8sSubResource() error {
 
 // ResourceIDToString marshals a ResourceID to a string.
 func ResourceIDToString(id ResourceID) (string, error) {
+	// TODO(kiosion): Revert to slash-delimited string ID format; per RFD 0228, store Constraint info in new x509 cert ext.
 	if id.Constraints != nil {
 		return resourceIDWithConstraintsToString(id)
 	}
@@ -118,6 +144,7 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	}
 
 	// Handle JSON-encoded format with constraints.
+	// TODO(kiosion): Revert to slash-delimited string ID format; per RFD 0228, store Constraint info in new x509 cert ext.
 	if raw[0] == '{' {
 		return resourceIDWithConstraintsFromString(raw)
 	}
