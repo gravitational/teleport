@@ -119,11 +119,12 @@ async function waitForPath(
   }
 
   while (!signal?.aborted) {
+    // Start from waiting, waitForPath was called earlier.
+    await wait(1000, signal);
     const exist = await pathExists(dirPath);
     if (exist) {
       return;
     }
-    await wait(1000, signal);
   }
 }
 

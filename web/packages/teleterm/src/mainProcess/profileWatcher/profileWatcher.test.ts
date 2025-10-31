@@ -280,20 +280,21 @@ test('removing tsh directory does not break watcher', async () => {
     signal: abortController.signal,
     debounceMs: testDebounceMs,
   });
-  const firstEvent = watcher.next();
-  const secondEvent = watcher.next();
 
+  // Start the watcher by pulling the first value.
+  const firstEvent = watcher.next();
   await fs.rm(tshDir, { recursive: true });
   expect((await firstEvent).value).toEqual([{ op: 'removed', cluster }]);
   // Clean up the store, so that we can detect a change.
   clusterStoreMock.clearAll();
 
-  jest.useFakeTimers();
   await fs.mkdir(tshDir);
+  await tshClientMock.insertOrUpdateCluster(cluster);
+  // The second event needs to wait for the dir to be detected.
+  jest.useFakeTimers();
+  const secondEvent = watcher.next();
   // Polling uses 1 second interval.
   jest.advanceTimersByTime(1000);
   jest.useRealTimers();
-  await tshClientMock.insertOrUpdateCluster(cluster);
-
   expect((await secondEvent).value).toEqual([{ op: 'added', cluster }]);
 });
