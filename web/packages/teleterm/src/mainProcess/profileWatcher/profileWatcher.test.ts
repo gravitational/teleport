@@ -28,15 +28,15 @@ import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { watchProfiles } from './profileWatcher';
 
-let tshDir: string;
+let tempDir: string;
 
 beforeAll(async () => {
-  tshDir = await fs.mkdtemp(path.join(os.tmpdir(), 'profile-watcher-test'));
+  tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'profile-watcher-test'));
 });
 
 afterAll(async () => {
-  if (tshDir) {
-    await fs.rm(tshDir, { recursive: true, force: true });
+  if (tempDir) {
+    await fs.rm(tempDir, { recursive: true, force: true });
   }
 });
 
@@ -49,11 +49,26 @@ afterEach(() => {
   abortController.abort();
 });
 
-const testDebounceMs = 100;
+function makePerTestDir() {
+  return fs.mkdtemp(path.join(tempDir, 'test'));
+}
 
-async function mockTshClient(initial: { clusters: Cluster[] }) {
+const testDebounceMs = 10;
+
+async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
   const listRootClusters = async () => {
-    const paths = await fs.readdir(tshDir);
+    let paths: string[] = [];
+    try {
+      paths = await fs.readdir(tshDir);
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        throw {
+          name: 'TshdRpcError',
+          code: 'NOT_FOUND',
+        };
+      }
+      throw err;
+    }
     return Promise.all(
       paths.map(async singlePath => {
         const file = await fs.readFile(
@@ -108,7 +123,8 @@ function mockClusterStore(initial: { clusters: Cluster[] }) {
 }
 
 test('yields an "added" change when new cluster appears', async () => {
-  const tshClientMock = await mockTshClient({ clusters: [] });
+  const tshDir = await makePerTestDir();
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -128,8 +144,9 @@ test('yields an "added" change when new cluster appears', async () => {
 });
 
 test('yields a "removed" change when cluster disappears', async () => {
+  const tshDir = await makePerTestDir();
   const cluster = makeRootCluster();
-  const tshClientMock = await mockTshClient({ clusters: [cluster] });
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [cluster] });
   const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -148,8 +165,9 @@ test('yields a "removed" change when cluster disappears', async () => {
 });
 
 test('yields a "changed" change when cluster properties differ', async () => {
+  const tshDir = await makePerTestDir();
   const oldCluster = makeRootCluster();
-  const tshClientMock = await mockTshClient({ clusters: [oldCluster] });
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [oldCluster] });
   const clusterStoreMock = mockClusterStore({ clusters: [oldCluster] });
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -171,8 +189,9 @@ test('yields a "changed" change when cluster properties differ', async () => {
 });
 
 test('does not yield when no cluster changes detected', async () => {
+  const tshDir = await makePerTestDir();
   const cluster = makeRootCluster();
-  const tshClientMock = await mockTshClient({
+  const tshClientMock = await mockTshClient(tshDir, {
     clusters: [
       // Extend the cluster with properties loaded from the proxy to verify
       // if they are properly ignored when detecting changes.
@@ -203,7 +222,8 @@ test('does not yield when no cluster changes detected', async () => {
 });
 
 test('file system events are debounced and no events are lost when handler is slow', async () => {
-  const tshClientMock = await mockTshClient({ clusters: [] });
+  const tshDir = await makePerTestDir();
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
   const handler = jest.fn();
   const watcher = watchProfiles({
@@ -245,7 +265,8 @@ test('file system events are debounced and no events are lost when handler is sl
 });
 
 test('watcher stops when consumer throws', async () => {
-  const tshClientMock = await mockTshClient({ clusters: [] });
+  const tshDir = await makePerTestDir();
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -270,8 +291,9 @@ test('watcher stops when consumer throws', async () => {
 });
 
 test('removing tsh directory does not break watcher', async () => {
+  const tshDir = await makePerTestDir();
   const cluster = makeRootCluster();
-  const tshClientMock = await mockTshClient({ clusters: [] });
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [cluster] });
   const watcher = watchProfiles({
     tshDirectory: tshDir,
