@@ -4648,6 +4648,271 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 	}
 }
 
+// TestReasonPrompts tests that custom prompts (both global (spec.options.request_prompt)
+// and local (spec.allow.request.reason.prompt)) are properly handled.
+func TestReasonPrompts(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "my-test-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		nodes:       make(map[string]types.Server),
+		clusterName: clusterName,
+	}
+
+	nodeDesc := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{
+			name: "fork-node",
+			labels: map[string]string{
+				"cutlery": "fork",
+			},
+		},
+		{
+			name: "spoon-node",
+			labels: map[string]string{
+				"cutlery": "spoon",
+			},
+		},
+	}
+	for _, desc := range nodeDesc {
+		node, err := types.NewServerWithLabels(desc.name, types.KindNode, types.ServerSpecV2{}, desc.labels)
+		require.NoError(t, err)
+		g.nodes[desc.name] = node
+	}
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"cutlery-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"cutlery": []string{types.Wildcard},
+				},
+			},
+		},
+		"fork-access": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{
+					"cutlery": []string{"fork"},
+				},
+			},
+		},
+		"fork-access-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-access"},
+				},
+			},
+		},
+		"fork-access-requester-global-prompt": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-access"},
+				},
+			},
+			Options: types.RoleOptions{
+				RequestPrompt: "global test prompt",
+			},
+		},
+		"fork-access-requester-local-prompt": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-access"},
+					Reason: &types.AccessRequestConditionsReason{
+						Prompt: "local test prompt",
+					},
+				},
+			},
+		},
+		"fork-access-requester-both-prompts": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"fork-access"},
+					Reason: &types.AccessRequestConditionsReason{
+						Prompt: "local test prompt",
+					},
+				},
+			},
+			Options: types.RoleOptions{
+				RequestPrompt: "global test prompt",
+			},
+		},
+		"fork-node-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"fork-access"},
+				},
+			},
+		},
+		"fork-node-requester-local-prompt": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"fork-access"},
+					Reason: &types.AccessRequestConditionsReason{
+						Prompt: "resource - local test prompt",
+					},
+				},
+			},
+		},
+		"fork-node-requester-both-prompts": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"fork-access"},
+					Reason: &types.AccessRequestConditionsReason{
+						Prompt: "resource - local test prompt",
+					},
+				},
+			},
+			Options: types.RoleOptions{
+				RequestPrompt: "resource - global test prompt",
+			},
+		},
+	}
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	testCases := []struct {
+		name               string
+		currentRoles       []string
+		requestRoles       []string
+		requestResourceIDs []types.ResourceID
+		assertion          func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities)
+	}{
+		{
+			name:         "role request: contains no prompt",
+			currentRoles: []string{"fork-access-requester"},
+			requestRoles: []string{"fork-access"},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Empty(t, validator.reasonPrompts)
+				require.Empty(t, accessCaps.RequestPrompt)
+			},
+		},
+		{
+			name:         "role request: contains global prompt",
+			currentRoles: []string{"fork-access-requester-global-prompt"},
+			requestRoles: []string{"fork-access"},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Len(t, validator.reasonPrompts, 1)
+				require.Equal(t, "global test prompt", validator.reasonPrompts[0])
+
+				require.Equal(t, "global test prompt", accessCaps.RequestPrompt)
+			},
+		},
+		{
+			name:         "role request: contains local prompt",
+			currentRoles: []string{"fork-access-requester-local-prompt"},
+			requestRoles: []string{"fork-access"},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Len(t, validator.reasonPrompts, 1)
+				require.Equal(t, "local test prompt", validator.reasonPrompts[0])
+
+				require.Empty(t, accessCaps.RequestPrompt)
+			},
+		},
+		{
+			name:         "role request: contains both prompts",
+			currentRoles: []string{"fork-access-requester-both-prompts"},
+			requestRoles: []string{"fork-access"},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Len(t, validator.reasonPrompts, 2)
+				require.Equal(t, "global test prompt", validator.reasonPrompts[0])
+				require.Equal(t, "local test prompt", validator.reasonPrompts[1])
+
+				require.Equal(t, "global test prompt", accessCaps.RequestPrompt)
+			},
+		},
+		{
+			name:         "resource request: contains no prompts",
+			currentRoles: []string{"fork-node-requester"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Empty(t, validator.reasonPrompts)
+				require.Empty(t, accessCaps.RequestPrompt)
+			},
+		},
+		{
+			name:         "resource request: contains local prompt",
+			currentRoles: []string{"fork-node-requester-local-prompt"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Len(t, validator.reasonPrompts, 1)
+				require.Equal(t, "resource - local test prompt", validator.reasonPrompts[0])
+
+				require.Empty(t, accessCaps.RequestPrompt)
+			},
+		},
+		{
+			name:         "resource request: contains both prompts",
+			currentRoles: []string{"fork-node-requester-both-prompts"},
+			requestResourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "fork-node"},
+			},
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
+				require.Len(t, validator.reasonPrompts, 2)
+				require.Equal(t, "resource - global test prompt", validator.reasonPrompts[0])
+				require.Equal(t, "resource - local test prompt", validator.reasonPrompts[1])
+
+				require.Equal(t, "resource - global test prompt", accessCaps.RequestPrompt)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			clock := clockwork.NewFakeClock()
+
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: tc.currentRoles,
+				Traits: trait.Traits{
+					"logins": []string{"abcd"},
+				},
+			})
+			require.NoError(t, err)
+			g.userStates[uls.GetName()] = uls
+
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
+			require.NoError(t, err)
+
+			req, err := types.NewAccessRequestWithResources(
+				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+			require.NoError(t, err)
+
+			// perform request validation (necessary in order to initialize internal
+			// request variables, ie. reason prompts).
+			err = validator.validate(ctx, req, identity)
+			require.NoError(t, err)
+
+			capReq := types.AccessCapabilitiesRequest{
+				User:             uls.GetName(),
+				ResourceIDs:      tc.requestResourceIDs,
+				RequestableRoles: len(tc.requestResourceIDs) == 0,
+			}
+
+			accessCapabilities, err := CalculateAccessCapabilities(ctx, clock, g, identity, capReq)
+			require.NoError(t, err)
+
+			tc.assertion(t, &validator, accessCapabilities)
+		})
+	}
+}
+
 type roleTestSet map[string]struct {
 	condition types.RoleConditions
 	options   types.RoleOptions

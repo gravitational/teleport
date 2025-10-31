@@ -2003,7 +2003,7 @@ func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
 	return roleConditions
 }
 
-// GetRoleConditions returns the role conditions for the role.
+// GetRequestReasonMode returns the request reason mode for the role.
 func (r *RoleV6) GetRequestReasonMode(rct RoleConditionType) RequestReasonMode {
 	roleConditions := r.GetRoleConditions(rct)
 	if roleConditions.Request == nil || roleConditions.Request.Reason == nil {
