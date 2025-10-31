@@ -37,6 +37,8 @@ import { enableMapSet, enablePatches } from 'immer';
 import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
+import { ClusterLifecycleManager } from 'teleterm/mainProcess/clusterLifecycleManager';
+import { watchProfiles } from 'teleterm/mainProcess/profileWatcher';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
   ChildProcessAddresses,
@@ -131,6 +133,8 @@ export default class MainProcess {
   }>;
   private readonly appUpdater: AppUpdater;
   public readonly clusterStore: ClusterStore;
+  private clusterLifecycleManager: ClusterLifecycleManager;
+  private disposeAbortController = new AbortController();
 
   /**
    * Starts necessary child processes such as tsh daemon and the shared process. It also sets
@@ -201,9 +205,29 @@ export default class MainProcess {
       () => this.getTshdClients().then(c => c.terminalService),
       this.windowsManager
     );
+    const watcher = watchProfiles({
+      tshDirectory: this.settings.tshd.homeDir,
+      tshClient: {
+        listRootClusters: async () => {
+          const { terminalService } = await this.getTshdClients();
+          const { response } = await terminalService.listRootClusters({});
+          return response.clusters;
+        },
+      },
+      clusterStore: this.clusterStore,
+      signal: this.disposeAbortController.signal,
+    });
+    this.clusterLifecycleManager = new ClusterLifecycleManager(
+      this.clusterStore,
+      () => this.getTshdClients().then(c => c.terminalService),
+      this.appUpdater,
+      this.windowsManager,
+      watcher
+    );
   }
 
   async dispose(): Promise<void> {
+    this.disposeAbortController.abort();
     this.windowsManager.dispose();
     await Promise.all([
       this.appUpdater.dispose(),
@@ -675,11 +699,11 @@ export default class MainProcess {
     );
 
     ipcMain.handle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>
-      this.clusterStore.add(proxyAddress)
+      this.clusterLifecycleManager.addCluster(proxyAddress)
     );
 
     ipcMain.handle(MainProcessIpc.SyncRootClusters, () =>
-      this.clusterStore.syncRootClusters()
+      this.clusterLifecycleManager.syncRootClustersAndStartProfileWatcher()
     );
 
     ipcMain.handle(MainProcessIpc.SyncCluster, (_, args) =>
@@ -687,18 +711,21 @@ export default class MainProcess {
     );
 
     ipcMain.handle(MainProcessIpc.Logout, async (_, args) => {
-      // This function checks for updates, do not wait for it.
-      this.appUpdater
-        .maybeRemoveManagingCluster(args.clusterUri)
-        .catch(error => {
-          this.logger.error('Failed to remove managing cluster', error);
-        });
-      await this.clusterStore.logoutAndRemove(args.clusterUri);
+      await this.clusterLifecycleManager.logoutAndRemoveCluster(
+        args.clusterUri
+      );
     });
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
       const port = ev.ports[0];
       this.clusterStore.registerSender(new AwaitableSender(port));
+    });
+
+    ipcMain.on(MainProcessIpc.RegisterClusterLifecycleHandler, ev => {
+      const port = ev.ports[0];
+      this.clusterLifecycleManager.setRendererEventHandler(
+        new AwaitableSender(port)
+      );
     });
 
     subscribeToTerminalContextMenuEvent(this.configService);

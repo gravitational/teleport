@@ -134,6 +134,12 @@ export class ClusterStore {
     });
   }
 
+  async set(cluster: Cluster): Promise<void> {
+    await this.update(draft => {
+      draft.set(cluster.uri, cluster);
+    });
+  }
+
   getRootClusters(): Cluster[] {
     return this.state
       .values()
