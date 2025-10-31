@@ -453,6 +453,10 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 				LocalAddr:  conn.LocalAddr().String(),
 				RemoteAddr: conn.RemoteAddr().String(),
 			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:       h.c.TargetServer.GetName(),
+				ServerHostname: h.c.TargetServer.GetHostname(),
+			},
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
