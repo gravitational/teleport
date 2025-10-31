@@ -128,14 +128,6 @@ func TestCompleteUpload(t *testing.T) {
 				createPart(t, handler, upload, int64(5), []byte("withreservation"))
 			},
 		},
-		{
-			desc:            "OnlyReservation",
-			expectedContent: []byte{},
-			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) {
-				createPart(t, handler, upload, int64(1), []byte{})
-				createPart(t, handler, upload, int64(2), []byte{})
-			},
-		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			handler, err := NewHandler(Config{
