@@ -2576,8 +2576,6 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		switch {
-		// If username is not set, clients can still logout if there is only one identity
-		// for this proxy.
 		case cf.Username != "":
 			tc, err := makeClient(cf)
 			if err != nil {

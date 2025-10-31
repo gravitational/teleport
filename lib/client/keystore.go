@@ -25,9 +25,11 @@ import (
 	"fmt"
 	iofs "io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -625,8 +627,8 @@ func (fs *FSKeyStore) GetIdentities(proxyHost string) ([]string, error) {
 	for _, file := range files {
 		// we seek the files corresponding to user SSH certificates, which are
 		// stored in [user]-ssh subdirectory. These are generated on successful logins.
-		if file.IsDir() && strings.HasSuffix(file.Name(), keypaths.SshDirSuffix) {
-			username := strings.TrimSuffix(file.Name(), keypaths.SshDirSuffix)
+		if file.IsDir() && strings.HasSuffix(file.Name(), keypaths.SSHDirSuffix) {
+			username := strings.TrimSuffix(file.Name(), keypaths.SSHDirSuffix)
 			identities = append(identities, username)
 		}
 	}
@@ -983,10 +985,5 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 // GetIdentities returns the usernames associated to signed user certificates
 // for the given proxy in the keystore.
 func (ms *MemKeyStore) GetIdentities(proxyHost string) ([]string, error) {
-	var identities []string
-
-	for username := range ms.keyRings[proxyHost] {
-		identities = append(identities, username)
-	}
-	return identities, nil
+	return slices.Collect(maps.Keys(ms.keyRings[proxyHost])), nil
 }
