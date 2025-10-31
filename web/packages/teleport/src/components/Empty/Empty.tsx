@@ -32,6 +32,8 @@ import { pluralize } from 'shared/utils/text';
 import cfg from 'teleport/config';
 import { ResourceAccessKind } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 
+type EmptyResourceKind = ResourceAccessKind | 'awsIc';
+
 type Base = {
   canCreate: boolean;
   clusterId: string;
@@ -43,7 +45,7 @@ type Custom = Base & {
 };
 
 type SingleResource = Base & {
-  kind: ResourceAccessKind;
+  kind: ResourceAccessKind | 'awsIc';
   emptyStateInfo?: never;
 };
 
@@ -51,7 +53,7 @@ export default function Empty(props: Custom | SingleResource) {
   const { canCreate, clusterId } = props;
 
   let emptyStateInfo: EmptyStateInfo;
-  let resourceKind: ResourceAccessKind;
+  let resourceKind: EmptyResourceKind;
   if (isCustomType(props)) {
     emptyStateInfo = props.emptyStateInfo;
   } else {
@@ -83,11 +85,6 @@ export default function Empty(props: Custom | SingleResource) {
       </Box>
     );
   }
-
-  console.log(
-    '---: ',
-    resourceKind ? getResourceSearchKeywords(resourceKind) : ''
-  );
 
   return (
     <Box
@@ -127,15 +124,19 @@ export default function Empty(props: Custom | SingleResource) {
               width="224px"
               textTransform="none"
               to={{
-                pathname: cfg.routes.discover,
+                pathname:
+                  resourceKind === 'awsIc'
+                    ? cfg.getIntegrationEnrollRoute('aws-identity-center')
+                    : cfg.routes.discover,
                 state: {
-                  searchKeywords: resourceKind
-                    ? getResourceSearchKeywords(resourceKind)
-                    : '',
+                  searchKeywords:
+                    resourceKind && resourceKind !== 'awsIc'
+                      ? getResourceSearchKeywords(resourceKind)
+                      : '',
                 },
               }}
             >
-              Add Resource
+              Add {resourceKind === 'awsIc' ? 'Integration' : 'Resource'}
             </ButtonPrimary>
           )}
           {docsURL && (
@@ -189,8 +190,17 @@ function getEmptyStateTitleAndByline(resource: string) {
   };
 }
 
-function getEmptyStateInfo(kind: ResourceAccessKind): EmptyStateInfo {
+function getEmptyStateInfo(kind: EmptyResourceKind): EmptyStateInfo {
   switch (kind) {
+    case 'awsIc':
+      return {
+        title: 'Integrate with AWS IAM Identity Center',
+        byline: `Connect your AWS IAM Identity Center to Teleport`,
+        readOnly: {
+          title: 'No Resources Found',
+          resource: 'resources',
+        },
+      };
     case 'app':
       return getEmptyStateTitleAndByline('application');
     case 'db':

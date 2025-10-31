@@ -99,11 +99,21 @@ export {
  * is available to an App.
  */
 export type PermissionSet = {
-  /** name is a permission set name */
+  /*
+   * name is a friendly permission set name
+   * eg: AdministratorAccess
+   */
   name: string;
-  /** arn is a permission set ARN */
+  /*
+   * arn is a permission set ARN
+   * starts with "arn:aws:sso:::"
+   */
   arn: string;
-  /** assignmentId is an account assignment ID. */
+  /*
+   * assignmentId is an account assignment ID.
+   * It is found in the format <awsAccountID>--<friendly-name>
+   * eg: 1234--AdministratorAccess
+   */
   assignmentId: string;
 };
 

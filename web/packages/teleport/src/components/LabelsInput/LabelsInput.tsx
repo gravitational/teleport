@@ -202,16 +202,20 @@ export function LabelsInput({
           {/* Column elements (for styling purposes, see LabelTable styles) */}
           <col />
           <col />
-          <col />
+          {!readOnly && <col />}
         </colgroup>
         {labels.length > 0 && (
           <thead>
             <tr>
               <th scope="col">
-                <LabelContent required>{labelKey.fieldName}</LabelContent>
+                <LabelContent required={!readOnly}>
+                  {labelKey.fieldName}
+                </LabelContent>
               </th>
               <th scope="col">
-                <LabelContent required>{labelVal.fieldName}</LabelContent>
+                <LabelContent required={!readOnly}>
+                  {labelVal.fieldName}
+                </LabelContent>
               </th>
             </tr>
           </thead>

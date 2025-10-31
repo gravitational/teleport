@@ -181,6 +181,10 @@ export interface UnifiedResourcesProps {
    * */
   NoResources: React.ReactElement;
   /**
+   * Will override internal "no result" calculations.
+   */
+  hasNoResources?: boolean;
+  /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
    */
@@ -251,6 +255,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     hideFilter,
     onLabelClick,
     cssStyle,
+    hasNoResources,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -493,6 +498,26 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       ? CardsView
       : ListView;
 
+  let footerElement: JSX.Element;
+  if (hasNoResources) {
+    footerElement = props.NoResources;
+  } else if (noResults) {
+    if (isSearchEmpty && !params.pinnedOnly) {
+      footerElement = props.NoResources;
+    }
+    if (params.pinnedOnly && isSearchEmpty) {
+      footerElement = <NoPinned />;
+    }
+    if (!isSearchEmpty) {
+      footerElement = (
+        <NoResults
+          isPinnedTab={params.pinnedOnly}
+          query={params?.query || params?.search}
+        />
+      );
+    }
+  }
+
   return (
     <div
       className="ContainerContext"
@@ -688,19 +713,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         expandAllLabels={expandAllLabels}
       />
       <div ref={setTrigger} />
-      <ListFooter>
-        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
-          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
-        )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
-        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
-        {noResults && !isSearchEmpty && (
-          <NoResults
-            isPinnedTab={params.pinnedOnly}
-            query={params?.query || params?.search}
-          />
-        )}
-      </ListFooter>
+      <ListFooter>{footerElement}</ListFooter>
     </div>
   );
 }

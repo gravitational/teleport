@@ -428,30 +428,32 @@ export function KubernetesAccessSection({
             />
           ))}
 
-          <Box>
-            <Button
-              fill={resourcesValidationResult.valid ? 'filled' : 'border'}
-              intent={resourcesValidationResult.valid ? 'neutral' : 'danger'}
-              disabled={isProcessing}
-              gap={1}
-              onClick={() =>
-                onChange?.({
-                  ...value,
-                  resources: [
-                    ...value.resources,
-                    newKubernetesResourceModel(value.roleVersion),
-                  ],
-                })
-              }
-              size="small"
-              inputAlignment
-            >
-              <Add disabled={isProcessing} size="small" />
-              {value.resources.length > 0
-                ? 'Add Another Kubernetes Resource'
-                : 'Add a Kubernetes Resource'}
-            </Button>
-          </Box>
+          {!readOnly && (
+            <Box>
+              <Button
+                fill={resourcesValidationResult.valid ? 'filled' : 'border'}
+                intent={resourcesValidationResult.valid ? 'neutral' : 'danger'}
+                disabled={isProcessing}
+                gap={1}
+                onClick={() =>
+                  onChange?.({
+                    ...value,
+                    resources: [
+                      ...value.resources,
+                      newKubernetesResourceModel(value.roleVersion),
+                    ],
+                  })
+                }
+                size="small"
+                inputAlignment
+              >
+                <Add disabled={isProcessing} size="small" />
+                {value.resources.length > 0
+                  ? 'Add Another Kubernetes Resource'
+                  : 'Add a Kubernetes Resource'}
+              </Button>
+            </Box>
+          )}
         </Flex>
       )}
     </>
@@ -567,7 +569,7 @@ function KubernetesResourceView({
       {(supportsCrds || apiGroup) && (
         <FieldInput
           label="API Group"
-          required
+          required={!readOnly}
           toolTipContent={
             <>
               Resource API Group. Special value <MarkInverse>*</MarkInverse>{' '}
@@ -583,7 +585,7 @@ function KubernetesResourceView({
       )}
       <FieldInput
         label="Name"
-        required
+        required={!readOnly}
         toolTipContent={
           <>
             Name of the resource. Special value <MarkInverse>*</MarkInverse>{' '}
@@ -598,7 +600,10 @@ function KubernetesResourceView({
       />
       <FieldInput
         label="Namespace"
-        required={!v7kubernetesClusterWideResourceKinds.includes(kind.value)}
+        required={
+          !readOnly &&
+          !v7kubernetesClusterWideResourceKinds.includes(kind.value)
+        }
         toolTipContent={
           <>
             Namespace that contains the resource. Special value{' '}

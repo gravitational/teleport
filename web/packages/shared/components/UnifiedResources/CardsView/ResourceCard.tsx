@@ -174,7 +174,6 @@ export function ResourceCard({
 
   const shouldDisplayStatusWarning = shouldWarnResourceStatus(status);
 
-  console.log('--- mutewith ; ', muteWithTooltip);
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}

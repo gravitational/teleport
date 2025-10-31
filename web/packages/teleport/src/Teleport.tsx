@@ -102,8 +102,8 @@ const Teleport: React.FC<Props> = props => {
                   {createPublicRoutes()}
                   <Route path={cfg.routes.root}>
                     <Authenticated>
-                      <UserContextProvider>
-                        <ToastNotificationProvider>
+                      <ToastNotificationProvider>
+                        <UserContextProvider>
                           <TeleportContextProvider ctx={ctx}>
                             <Switch>
                               <Route
@@ -113,8 +113,8 @@ const Teleport: React.FC<Props> = props => {
                               <Route>{createPrivateRoutes()}</Route>
                             </Switch>
                           </TeleportContextProvider>
-                        </ToastNotificationProvider>
-                      </UserContextProvider>
+                        </UserContextProvider>
+                      </ToastNotificationProvider>
                     </Authenticated>
                   </Route>
                 </Switch>

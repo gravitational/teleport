@@ -17,6 +17,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Link as InternalLink } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Text } from 'design';
@@ -258,6 +259,7 @@ const NotificationBody = ({
           <ActionButton
             intent="neutral"
             action={{
+              internalLink: action.internalLink,
               href: action.href,
               content: action.content,
               onClick: event => {

@@ -25,12 +25,21 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Indicator } from 'design';
+import { ShieldCheck } from 'design/Icon';
 import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import ecfg from 'e-teleport/config';
+import {
+  AccessListOrigin,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
+import { useFetchPlugin } from 'e-teleport/services/plugins/hooks';
 import cfg from 'teleport/config';
 import { DiscoverResourcePreference } from 'teleport/Discover/SelectResource/utils/pins';
 import { StyledIndicator } from 'teleport/Main';
@@ -40,6 +49,7 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 export interface UserContextValue {
   preferences: UserPreferences;
+  startPollingForOktaAccessLists(): void;
   updateDiscoverResourcePreferences: (
     preferences: Partial<DiscoverResourcePreference>
   ) => Promise<void>;
@@ -57,7 +67,9 @@ export function useUser(): UserContextValue {
   return useContext(UserContext);
 }
 
+let startedPolling = false;
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
+  const location = useLocation();
   const { attempt, run } = useAttempt('processing');
   // because we have to update cluster preferences with itself during the update
   // we useRef here to prevent infinite rerenders
@@ -66,6 +78,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   const [preferences, setPreferences] = useState<UserPreferences>(
     makeDefaultUserPreferences()
   );
+
+  const toastNotification = useToastNotifications();
 
   const getClusterPinnedResources = useCallback(async (clusterId: string) => {
     if (clusterPreferences.current[clusterId]) {
@@ -130,6 +144,87 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     }
   }
 
+  async function findOktaAccessLists() {
+    return accessManagementService
+      .fetchAccessListsV2({
+        // sort by name here. If they want to find a specific list to add, they will most
+        // likely type, but this allows this form to work without extra steps to check
+        // if the cache is healthy or not
+        sort: { dir: 'ASC', fieldName: 'name' },
+        search: 'okta',
+        limit: 100,
+      })
+      .then(resp => {
+        if (resp.agents?.length) {
+          // TODO: pagination does not search through labels
+          return resp.agents.some(al => al.origin === AccessListOrigin.Okta);
+        } else {
+          return false;
+        }
+      });
+  }
+
+  function startPollingForOktaAccessLists() {
+    startedPolling = true;
+    console.log('---- GOING TO START POLLING!!!!!!');
+    // Set the interval to run myFunction every 2 seconds (2000 milliseconds)
+    const intervalId = setInterval(() => {
+      console.log('--- POLLING');
+      findOktaAccessLists().then(hasOkta => {
+        if (hasOkta) {
+          startedPolling = false;
+          clearInterval(intervalId);
+          console.log(
+            '--- window.location.pathname: ',
+            window.location.pathname,
+            ecfg.getNewAccessListRoute()
+          );
+          if (window.location.pathname !== ecfg.getNewAccessListRoute()) {
+            toastNotification.add({
+              severity: 'info',
+              content: {
+                title: `Finished syncing Okta Apps and User Groups as Access Lists`,
+                description: `Set up Access for your Okta user groups`,
+                icon: ShieldCheck,
+                isAutoRemovable: false,
+                action: {
+                  content: 'Set Up Access',
+                  internalLink: ecfg.getNewAccessListRoute(),
+                },
+              },
+            });
+          }
+        }
+      });
+    }, 2000); // every 1 min
+  }
+
+  const existingPlugin = useFetchPlugin<'okta'>('okta');
+
+  useEffect(() => {
+    console.log(
+      '--- i am here in user context ----',
+      location.pathname === ecfg.getNewAccessListRoute()
+    );
+    if (!existingPlugin.isSuccess) {
+      // okta plugin not found
+      return;
+    }
+
+    const plugin = existingPlugin.data;
+    const appGroupSyncEnabled =
+      plugin.spec.enableAccessListSync ||
+      plugin.status?.details?.accessListsSyncDetails?.enabled;
+    if (appGroupSyncEnabled && !startedPolling) {
+      findOktaAccessLists().then(hasOkta => {
+        if (!hasOkta) {
+          startPollingForOktaAccessLists();
+        }
+      });
+    }
+    // Once on init
+  }, [existingPlugin.data, existingPlugin.isSuccess]);
+
   function updatePreferences(newPreferences: Partial<UserPreferences>) {
     const nextPreferences = {
       ...preferences,
@@ -191,6 +286,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
         getClusterPinnedResources,
         updateClusterPinnedResources,
         updateDiscoverResourcePreferences,
+        startPollingForOktaAccessLists,
       }}
     >
       {props.children}
