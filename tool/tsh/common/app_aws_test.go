@@ -386,7 +386,7 @@ func TestAWSRolesAnywhereBasedAccess_usingMFA(t *testing.T) {
 		setHomePath(tmpHomePath),
 		webauthnLoginOpt,
 	)
-	require.ErrorContains(t, err, "AWS credentials are only available to a single session.")
+	require.ErrorContains(t, err, "AWS access is configured to use per-session MFA")
 
 	// Log in again but now use the `--env` flag to export the credentials to the shell.
 	output := &bytes.Buffer{}
@@ -399,9 +399,9 @@ func TestAWSRolesAnywhereBasedAccess_usingMFA(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	require.Equal(t, `export AWS_ACCESS_KEY_ID="aki"
-export AWS_SECRET_ACCESS_KEY="sak"
-export AWS_SESSION_TOKEN="st"
+	require.Equal(t, `export AWS_ACCESS_KEY_ID=aki
+export AWS_SECRET_ACCESS_KEY=sak
+export AWS_SESSION_TOKEN=st
 # Export the above variables in your current shell to start using the AWS credentials.
 `, output.String())
 }

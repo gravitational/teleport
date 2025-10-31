@@ -474,9 +474,9 @@ type CLIConf struct {
 	// Only applicable to apps using AWS Roles Anywhere integration.
 	// E.g.,
 	//
-	//   export AWS_ACCESS_KEY_ID="ABCD"
-	//   export AWS_SECRET_ACCESS_KEY="1234"
-	//   export AWS_SESSION_TOKEN="abcd"
+	//   export AWS_ACCESS_KEY_ID=ABCD
+	//   export AWS_SECRET_ACCESS_KEY=1234
+	//   export AWS_SESSION_TOKEN=abcd
 	AppLoginAWSEnvOutput bool
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
