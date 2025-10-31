@@ -38,6 +38,7 @@ import {
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
+  Key,
 } from 'design/Icon';
 import { LabelKind } from 'design/LabelState/LabelState';
 import { TeleportGearIcon } from 'design/SVGIcon';
@@ -49,9 +50,12 @@ import {
   AccessRequestReview,
   AccessRequestReviewer,
   canAssumeNow,
+  ConstraintDomain,
+  hasResourceConstraints,
   RequestKind,
   RequestState,
   Resource,
+  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
 import type {
@@ -449,6 +453,58 @@ export function Timestamp({
   );
 }
 
+const AWSConstraintChip = ({ label }: { label: string }) => {
+  return (
+    <Flex
+      flexDirection="row"
+      justifyContent="center"
+      alignItems="center"
+      gap={2}
+      px={3}
+      py={2}
+      backgroundColor={'spotBackground.0'}
+      borderRadius="999px"
+    >
+      <Key size="small" />
+      <Text typography="body3">{label}</Text>
+    </Flex>
+  );
+};
+
+const AwsConsoleConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<ConstraintDomain.AWS_CONSOLE, R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>Role ARNs</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.AWSConsole.RoleARNs.map(arn => (
+          <AWSConstraintChip key={arn} label={arn} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
+const AwsIcConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<ConstraintDomain.AWS_IDENTITY_CENTER, R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>Account Assignments</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.AWSIC.AccountAssignments.map(aa => (
+          <AWSConstraintChip key={aa.PermissionSet} label={aa.PermissionSet} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
 function Comment({
   author,
   comment,
@@ -460,6 +516,36 @@ function Comment({
   createdDuration: string;
   resources?: Resource[];
 }) {
+  const data = resources.map(resource => ({
+    ...resource.id,
+    ...resource.details,
+    name: resource.details?.friendlyName || formattedName(resource),
+  }));
+
+  const renderConstraints = (r: (typeof data)[number]) => {
+    if (hasResourceConstraints(r, ConstraintDomain.AWS_CONSOLE)) {
+      return <AwsConsoleConstraintsList resource={r} />;
+    }
+    if (hasResourceConstraints(r, ConstraintDomain.AWS_IDENTITY_CENTER)) {
+      return <AwsIcConstraintsList resource={r} />;
+    }
+    return null;
+  };
+
+  const renderAfter = (r: (typeof data)[number]) => {
+    if (r.constraints) {
+      return (
+        <tr style={{ borderTop: 'none' }}>
+          <td colSpan={3}>
+            <Flex flexDirection="column" gap={1} mt={-2}>
+              {renderConstraints(r)}
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+  };
+
   return (
     <Box
       border="1px solid"
@@ -488,11 +574,8 @@ function Comment({
           bg="levels.elevated"
         >
           <StyledTable
-            data={resources.map(resource => ({
-              ...resource.id,
-              ...resource.details,
-              name: resource.details?.friendlyName || formattedName(resource),
-            }))}
+            data={data}
+            row={{ renderAfter }}
             columns={[
               {
                 key: 'clusterName',

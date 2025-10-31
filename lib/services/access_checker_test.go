@@ -23,6 +23,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -1161,6 +1163,212 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 			))
 		})
 	}
+}
+
+func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
+	const localCluster = "cluster"
+	const appName = "aws-console"
+
+	// Over-broad role that allows two ARNs
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.AWSRoleARNs = []string{
+			"arn:aws:iam::123456789012:role/Admin",
+			"arn:aws:iam::123456789012:role/ReadOnly",
+		}
+	})
+
+	app := types.AppServerV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: appName,
+		},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppSpecV3{
+					URI: constants.AWSConsoleURL,
+				},
+			},
+		},
+	}
+
+	// Cert allows this specific app resource, but scoped to only ReadOnly ARN via Constraints
+	rid := types.ResourceID{
+		ClusterName: localCluster,
+		Kind:        types.KindApp,
+		Name:        appName,
+		Constraints: &types.ResourceConstraints{
+			Domain: types.ResourceConstraintDomain_CONSTRAINT_DOMAIN_AWS_CONSOLE,
+			Details: &types.ResourceConstraints_AWSConsole{
+				AWSConsole: &types.AWSConsoleResourceConstraints{
+					RoleARNs: []string{
+						"arn:aws:iam::123456789012:role/ReadOnly",
+					},
+				},
+			},
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceIDs: []types.ResourceID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	// 1) Should fail: ARN is not present in Constraints.RoleArns
+	err := ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/Admin"),
+	)
+	require.Error(t, err)
+
+	// 2) Should pass: ARN is present in Constraints.RoleArns
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/ReadOnly"),
+	)
+	require.NoError(t, err)
+}
+
+func TestAccessChecker_Constraints_IdentityCenter(t *testing.T) {
+	const localCluster = "cluster"
+	const icName = "aws-ic"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.SetIdentityCenterAccountAssignments(types.Allow, []types.IdentityCenterAccountAssignment{
+			{Account: "111111111111", PermissionSet: "BillingAdmin"},
+			{Account: "111111111111", PermissionSet: "ReadOnly"},
+		})
+	})
+
+	ic := types.AppServerV3{
+		Kind:     types.KindApp,
+		SubKind:  types.KindIdentityCenterAccount,
+		Metadata: types.Metadata{Name: icName},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: icName},
+			},
+		},
+	}
+
+	rid := types.ResourceID{
+		ClusterName: localCluster,
+		Kind:        types.KindIdentityCenterAccount,
+		Name:        icName,
+		Constraints: &types.ResourceConstraints{
+			Domain: types.ResourceConstraintDomain_CONSTRAINT_DOMAIN_AWS_IDENTITY_CENTER,
+			Details: &types.ResourceConstraints_AWSIC{
+				AWSIC: &types.AWSIdentityCenterResourceConstraints{
+					AccountAssignments: []types.IdentityCenterAccountAssignment{
+						{Account: "111111111111", PermissionSet: "ReadOnly"},
+					},
+				},
+			},
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceIDs: []types.ResourceID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	adminAssignment := IdentityCenterAccountAssignment{
+		&identitycenterv1.AccountAssignment{
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				AccountId: "111111111111",
+				PermissionSet: &identitycenterv1.PermissionSetInfo{
+					Arn: "BillingAdmin",
+				},
+			},
+		},
+	}
+
+	readOnlyAssignment := IdentityCenterAccountAssignment{
+		&identitycenterv1.AccountAssignment{
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				AccountId: "111111111111",
+				PermissionSet: &identitycenterv1.PermissionSetInfo{
+					Arn: "ReadOnly",
+				},
+			},
+		},
+	}
+
+	// 1) Should fail, as although the available role in RoleSet grants BillingAdmin,
+	//    the ResourceConstraints for RID do not include the ARN
+	err := ac.CheckAccess(
+		&ic,
+		AccessState{MFARequired: MFARequiredNever},
+		NewIdentityCenterAccountAssignmentMatcher(adminAssignment),
+	)
+	require.Error(t, err)
+
+	// 2) Should pass, as the available role in RoleSet grants ReadOnly, and ResourceConstraints contain ReadOnly
+	err = ac.CheckAccess(
+		&ic,
+		AccessState{MFARequired: MFARequiredNever},
+		NewIdentityCenterAccountAssignmentMatcher(readOnlyAssignment),
+	)
+	require.NoError(t, err)
+}
+
+func TestAccessChecker_Constraints_UnknownDomain(t *testing.T) {
+	const localCluster = "cluster"
+	const appName = "unknown-domain-app"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+	})
+
+	app := types.AppServerV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: appName,
+		},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppSpecV3{
+					URI: "https://example.com",
+				},
+			},
+		},
+	}
+
+	// Cert allows this specific app resource, but scoped to an unknown domain
+	rid := types.ResourceID{
+		ClusterName: localCluster,
+		Kind:        types.KindApp,
+		Name:        appName,
+		Constraints: &types.ResourceConstraints{
+			Domain: types.ResourceConstraintDomain(999), // Unknown domain
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceIDs: []types.ResourceID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	// Should error due to unknown domain
+	err := ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+			return true, nil
+		}),
+	)
+	require.ErrorIs(t, err, trace.BadParameter("unsupported constraint domain %q", rid.Constraints.Domain))
 }
 
 // TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,

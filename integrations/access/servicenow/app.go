@@ -650,7 +650,8 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 
 		for _, resource := range resources {
-			resourceName := types.ResourceIDToString(resource)
+			// TODO(kiosion): Temp ignore err
+			resourceName, _ := types.ResourceIDToString(resource)
 			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
 				resourceName = fmt.Sprintf("%s/%s", resource.Kind, details.FriendlyName)
 			}
