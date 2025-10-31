@@ -38,7 +38,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -392,10 +391,6 @@ func FormatHeaderFromMap(m map[string]string) http.Header {
 
 func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) error {
 	return checkHeaders(headers, challenge, clock)
-}
-
-func CheckOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
-	return checkOracleAllowRules(claims, token, allowRules)
 }
 
 type GitHubManager = githubManager
