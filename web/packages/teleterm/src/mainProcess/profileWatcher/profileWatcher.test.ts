@@ -212,8 +212,8 @@ test('does not yield when no cluster changes detected', async () => {
 
   const race = Promise.race([
     watcher.next(),
-    // Wait a little longer than the debounce value (200 ms).
-    wait(250).then(() => 'timeout'),
+    // Wait a little longer than the debounce value.
+    wait(testDebounceMs + testDebounceMs / 2).then(() => 'timeout'),
   ]);
 
   expect(await race).toBe('timeout');
@@ -226,6 +226,7 @@ test('file system events are debounced and no events are lost when handler is sl
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
   const handler = jest.fn();
+  const testDebounceMs = 50;
   const watcher = watchProfiles({
     tshDirectory: tshDir,
     tshClient: tshClientMock,
@@ -248,20 +249,20 @@ test('file system events are debounced and no events are lost when handler is sl
   await tshClientMock.insertOrUpdateCluster(cluster);
   await tshClientMock.insertOrUpdateCluster(cluster);
   // Wait slightly longer than debounce interval to ensure a single handler is called.
-  await wait(testDebounceMs + 50);
+  await wait(testDebounceMs + testDebounceMs / 2);
   expect(handler).toHaveBeenCalledTimes(1);
   handler.mockClear();
 
   // Test no events are lost when processing is slow.
-  handler.mockImplementation(() => wait(100));
+  handler.mockImplementation(() => wait(2 * testDebounceMs));
   await tshClientMock.insertOrUpdateCluster(cluster);
   // Insert the second event while the first event is still processed
-  // (it will finish at testDebounceMs + 100 ms).
-  await wait(testDebounceMs + 50);
+  // (it will finish at 2*testDebounceMs).
+  await wait(testDebounceMs + testDebounceMs / 2);
   await tshClientMock.insertOrUpdateCluster(cluster);
   await expect(() => {
     return handler.mock.calls.length === 2;
-  }).toEventuallyBeTrue({ waitFor: 1000, tick: 50 });
+  }).toEventuallyBeTrue({ waitFor: 1000, tick: 10 });
 });
 
 test('watcher stops when consumer throws', async () => {
