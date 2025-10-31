@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -145,49 +146,20 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 // RecipientsFromAccessMonitoringRules returns the recipients that result from the Access Monitoring Rules being applied to the given Access Request.
 func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) *common.RecipientSet {
 	log := logger.Get(ctx)
-	recipientSet := common.NewRecipientSet()
-
-	env, err := amrh.newExpressionEnv(ctx, req)
+	rawRecipients, err := amrh.recipients(ctx, req)
 	if err != nil {
 		log.WarnContext(ctx, "Failed to create expression env", "error", err)
-		return &recipientSet
+		return nil
 	}
 
-	for _, rule := range amrh.getAccessMonitoringRules() {
-		// Check if creation time is within rule schedules.
-		isInSchedules, err := accessmonitoring.InSchedules(rule.GetSpec().GetSchedules(), env.CreationTime)
+	recipientSet := common.NewRecipientSet()
+	for _, rawRecipient := range rawRecipients {
+		rec, err := amrh.fetchRecipientCallback(ctx, rawRecipient)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
+			log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
 			continue
 		}
-		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
-			log.DebugContext(ctx, "Access request does not satisfy schedule condition",
-				"rule", rule.GetMetadata().GetName())
-			continue
-		}
-
-		// Check if environment matches rule conditions.
-		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
-		if err != nil {
-			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
-				"error", err,
-				"rule", rule.Metadata.Name,
-			)
-		}
-		if !match {
-			continue
-		}
-		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
-			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
-			if err != nil {
-				log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
-				continue
-			}
-			recipientSet.Add(*rec)
-		}
+		recipientSet.Add(*rec)
 	}
 	return &recipientSet
 }
@@ -195,46 +167,30 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 // RawRecipientsFromAccessMonitoringRules returns the recipients that result from the Access Monitoring Rules being applied to the given Access Request without converting to the rich recipient type.
 func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) []string {
 	log := logger.Get(ctx)
-	recipientSet := set.New[string]()
-
-	env, err := amrh.newExpressionEnv(ctx, req)
+	rawRecipients, err := amrh.recipients(ctx, req)
 	if err != nil {
 		log.WarnContext(ctx, "Failed to create expression env", "error", err)
 		return nil
 	}
+	return rawRecipients
+}
 
-	for _, rule := range amrh.getAccessMonitoringRules() {
-		// Check if creation time is within rule schedules.
-		isInSchedules, err := accessmonitoring.InSchedules(rule.GetSpec().GetSchedules(), env.CreationTime)
-		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
-			continue
-		}
-		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
-			log.DebugContext(ctx, "Access request does not satisfy schedule condition",
-				"rule", rule.GetMetadata().GetName())
-			continue
-		}
+func (amrh *RuleHandler) recipients(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	log := logger.Get(ctx)
+	recipientSet := set.New[string]()
 
-		// Check if environment matches rule conditions.
-		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, env)
-		if err != nil {
-			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
-				"error", err,
-				"rule", rule.Metadata.Name,
-			)
-		}
-		if !match {
-			continue
-		}
+	env, err := amrh.newExpressionEnv(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	matchingRules := accessmonitoring.EvaluateRules(ctx, log, env, amrh.getAccessMonitoringRules())
+	for _, rule := range matchingRules {
 		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
 			recipientSet.Add(recipient)
 		}
 	}
-	return recipientSet.Elements()
+	return recipientSet.Elements(), nil
 }
 
 func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
@@ -270,10 +226,10 @@ func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*ac
 	return resources, nil
 }
 
-func (amrh *RuleHandler) getAccessMonitoringRules() map[string]*accessmonitoringrulesv1.AccessMonitoringRule {
+func (amrh *RuleHandler) getAccessMonitoringRules() []*accessmonitoringrulesv1.AccessMonitoringRule {
 	amrh.accessMonitoringRules.RLock()
 	defer amrh.accessMonitoringRules.RUnlock()
-	return maps.Clone(amrh.accessMonitoringRules.rules)
+	return slices.Collect(maps.Values(maps.Clone(amrh.accessMonitoringRules.rules)))
 }
 
 func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
@@ -289,13 +245,12 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
 	log := logger.Get(ctx)
 
-	var userTraits map[string][]string
-
 	const withSecretsFalse = false
+	var userTraits trait.Traits
 	user, err := amrh.apiClient.GetUser(ctx, req.GetUser(), withSecretsFalse)
 	switch {
 	case trace.IsAccessDenied(err):
-		log.WarnContext(ctx, "Missing permissions to read user.traits, please add user.read to the associated role", "error", err)
+		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
 	case err != nil:
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	default:
@@ -317,15 +272,5 @@ func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessR
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
 
-	return accessmonitoring.AccessRequestExpressionEnv{
-		Roles:              req.GetRoles(),
-		RequestedResources: requestedResources,
-		SuggestedReviewers: req.GetSuggestedReviewers(),
-		Annotations:        req.GetSystemAnnotations(),
-		User:               req.GetUser(),
-		RequestReason:      req.GetRequestReason(),
-		CreationTime:       req.GetCreationTime(),
-		Expiry:             req.Expiry(),
-		UserTraits:         userTraits,
-	}, nil
+	return accessmonitoring.NewAccessRequestExpressionEnv(req, userTraits, requestedResources), nil
 }

@@ -239,37 +239,8 @@ func (handler *Handler) getMatchingRule(
 	env accessmonitoring.AccessRequestExpressionEnv,
 ) *accessmonitoringrulesv1.AccessMonitoringRule {
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
-
-	for _, rule := range handler.rules.Get() {
-
-		// Check if creation time is within rule schedules.
-		isInSchedules, err := accessmonitoring.InSchedules(rule.GetSpec().GetSchedules(), env.CreationTime)
-		if err != nil {
-			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
-			continue
-		}
-		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
-			handler.Logger.DebugContext(ctx, "Access request does not satisfy schedule condition",
-				"rule", rule.GetMetadata().GetName())
-			continue
-		}
-
-		// Check if environment matches rule conditions.
-		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
-		if err != nil {
-			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
-			continue
-		}
-		if !conditionMatch {
-			continue
-		}
-
+	matchingRules := accessmonitoring.EvaluateRules(ctx, handler.Logger, env, handler.rules.Get())
+	for _, rule := range matchingRules {
 		if rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String() {
 			return rule
 		}
@@ -322,15 +293,5 @@ func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRe
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
 
-	return accessmonitoring.AccessRequestExpressionEnv{
-		Roles:              req.GetRoles(),
-		RequestedResources: requestedResources,
-		SuggestedReviewers: req.GetSuggestedReviewers(),
-		Annotations:        req.GetSystemAnnotations(),
-		User:               req.GetUser(),
-		RequestReason:      req.GetRequestReason(),
-		CreationTime:       req.GetCreationTime(),
-		Expiry:             req.Expiry(),
-		UserTraits:         user.GetTraits(),
-	}, nil
+	return accessmonitoring.NewAccessRequestExpressionEnv(req, user.GetTraits(), requestedResources), nil
 }
