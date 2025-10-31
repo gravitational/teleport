@@ -129,6 +129,8 @@ func makeSignedRootCAReq(client utils.HTTPDoClient) ([]byte, error) {
 	return reqBytes, nil
 }
 
+// fetchIMDS fetches instance metadata from Oracle's IMDSv2, which is available
+// on every OCI instance https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/gettingmetadata.htm
 func fetchIMDS(ctx context.Context, client utils.HTTPDoClient, path string) ([]byte, error) {
 	req := &http.Request{
 		Method: http.MethodGet,
@@ -138,6 +140,7 @@ func fetchIMDS(ctx context.Context, client utils.HTTPDoClient, path string) ([]b
 			Path:   "/opc/v2/identity/" + path,
 		},
 		Header: http.Header{
+			// This header is required on all IMDSv2 requests.
 			"Authorization": []string{"Bearer Oracle"},
 		},
 	}
