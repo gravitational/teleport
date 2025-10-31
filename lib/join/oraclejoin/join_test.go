@@ -406,8 +406,7 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		}
 	}
 
-	rsa1024Key, err := rsa.GenerateKey(rand.Reader, 1024)
-	require.NoError(t, err)
+	rsa1024Key := rsa1024Key()
 
 	ecdsaP256Key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -507,7 +506,6 @@ func (c *fakeHTTPClient) Do(req *http.Request) (*http.Response, error) {
 // used for Oracle joining.
 type fakeIMDS struct {
 	cas            *caChain
-	caCert         []byte
 	instanceKey    crypto.Signer
 	instanceClaims oraclejoin.Claims
 }
@@ -697,6 +695,32 @@ VUfpn7ojiWz0s3zMJbUo+ciilTap0fTN27e/G9EBXfwrv5/ZO8j8aQ8dH1IPUuCQ
 uOuLdl2Bwlo6XFlT7I4FfAgzO+l35ER2Gihr8hIb8cC1dBAIR1ejXUhoC18NN8GJ
 As9vlQ+UkBUy4/0pl7S/Eet7CI0WSwalvjd7bI2Xiau5rO3aT5pQ
 -----END RSA PRIVATE KEY-----`)
+	key, err := keys.ParsePrivateKey([]byte(strings.ReplaceAll(keyPemFixture, "TEST ", "")))
+	if err != nil {
+		panic(err)
+	}
+	return key.Signer
+}
+
+// rsa1024Key returns a pre-generated 2048-bit RSA key (generating this key in
+// the test would be slow).
+func rsa1024Key() crypto.Signer {
+	const keyPemFixture = string(`-----BEGIN TEST RSA PRIVATE KEY-----
+MIICXQIBAAKBgQDQ5Ez3fC5iVdHJyvzTX9p7GUyJOArMM/VJjMwbsln2hcBCq65s
+SRDfBPmgR9xz2rnvInJ0yGuPKT7g/VAP+J05EnU4uywXlua0ciXQk5GRWKFIbJfJ
+0RktwlOjchy2xwIyuZHPN40jHilNyZkJX90FCxXHnkm3/b6yc+kzkDAv4wIDAQAB
+AoGAMYiZeawgQaAxDYVNW4AkykDvBbDc2pxNg2HYOo8ZxxvjQcv9Id9XmVLQMMIp
+k+1fXsXP10J5QurYZriaphbhjOvSEhtsbw/HujHbxnOTaZtZNnfdmWWswO6JMtG2
+7wjs/McCM0XfjlO94xn4vTw2ajhxfaWsvDpMXm74SMq2Y6kCQQDih+wYUxG6zEAB
+y2wgSnQNHGFKTHAWgVskdy+cX99YXUlIqFE9HV/MS+5rzgejwLG1VSOrcsoZb6/p
+AKBESr/LAkEA7BDyxG1t3gi/JrG2C0CjM06DAl5Og7Gq0BoWw26QyA0u5EPmZmM1
+CW3V+ZTjp974/ZwaBEc8c5CzZnugVcCdSQJBAJ3cJnTU/pfz2e7mOVVPTQwN6OaD
+2eB1CHSi8fTBAr1rVLRjRymVnLqbd2x8yOoeUDiTOiYx+hA7upResVCl3n0CQEXd
+bjv8Nvvzkr8c8Ue7RZG1tshIqOwI9QjJ79q/KlJKtIoSHmpHCjdULnPDQO057G8C
+eCC0BIwfUzkNdZJrgyECQQDH1ZQu7J5Ol67adPPY//RLLFagKWH34Gb2XNT3HSMR
+JnKk+4N1PAV4hzYeOX0J+Tl6ugUyMCXQ9u62gw+a80Xn
+-----END RSA PRIVATE KEY-----
+`)
 	key, err := keys.ParsePrivateKey([]byte(strings.ReplaceAll(keyPemFixture, "TEST ", "")))
 	if err != nil {
 		panic(err)
