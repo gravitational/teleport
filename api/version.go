@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.3.0"
+const Version = "18.3.1-dev.scopes.1"
 
 const VersionMajor = 18
 const VersionMinor = 3
-const VersionPatch = 0
-const VersionPreRelease = ""
+const VersionPatch = 1
+const VersionPreRelease = "dev.scopes.1"
 const VersionMetadata = ""
