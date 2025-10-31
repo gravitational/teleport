@@ -367,18 +367,18 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 	challenge, err := joinutils.GenerateChallenge(base64.StdEncoding, 32)
 	require.NoError(t, err)
 
-	makeChallengeSolution := func(t *testing.T, instanceKey crypto.Signer) *messages.OracleChallengeSolution {
+	makeChallengeSolution := func(t *testing.T, instanceKey, signatureKey crypto.Signer) *messages.OracleChallengeSolution {
 		instanceCert, err := cas.issueInstanceCert(claims, instanceKey.Public())
 		require.NoError(t, err)
 
 		var signature []byte
-		switch instanceKey.Public().(type) {
+		switch signatureKey.Public().(type) {
 		case *rsa.PublicKey:
-			signature, err = oracle.SignChallenge(instanceKey, challenge)
+			signature, err = oracle.SignChallenge(signatureKey, challenge)
 		case *ecdsa.PublicKey:
-			signature, err = crypto.SignMessage(instanceKey, rand.Reader, []byte(challenge), crypto.SHA256)
+			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.SHA256)
 		case ed25519.PublicKey:
-			signature, err = crypto.SignMessage(instanceKey, rand.Reader, []byte(challenge), crypto.Hash(0))
+			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.Hash(0))
 		}
 		require.NoError(t, err)
 
@@ -406,8 +406,6 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		}
 	}
 
-	rsa1024Key := rsa1024Key()
-
 	ecdsaP256Key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
@@ -421,19 +419,20 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 	for _, tc := range []struct {
 		desc         string
 		instanceKey  crypto.Signer
+		signatureKey crypto.Signer
 		badSignature bool
 		assertion    assert.ErrorAssertionFunc
 	}{
 		{
 			// RSA key is too small.
 			desc:        "rsa1024",
-			instanceKey: rsa1024Key,
+			instanceKey: parseTestKey(rsa1024Key),
 			assertion:   isAccessDenied,
 		},
 		{
 			// RSA key pass.
 			desc:        "rsa2048",
-			instanceKey: rsa2048Key(),
+			instanceKey: parseTestKey(rsa2048Key1),
 			assertion:   assert.NoError,
 		},
 		{
@@ -450,13 +449,22 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		},
 		{
 			desc:         "RSA key bad signature",
-			instanceKey:  rsa2048Key(),
+			instanceKey:  parseTestKey(rsa2048Key1),
 			badSignature: true,
+			assertion:    isAccessDenied,
+		},
+		{
+			desc:         "challenge signed by different key",
+			instanceKey:  parseTestKey(rsa2048Key1),
+			signatureKey: parseTestKey(rsa2048Key2),
 			assertion:    isAccessDenied,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			solution := makeChallengeSolution(t, tc.instanceKey)
+			if tc.signatureKey == nil {
+				tc.signatureKey = tc.instanceKey
+			}
+			solution := makeChallengeSolution(t, tc.instanceKey, tc.signatureKey)
 
 			if tc.badSignature {
 				solution.Signature[0] = solution.Signature[0] + 1
@@ -515,7 +523,7 @@ func newFakeIMDS() (*fakeIMDS, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	instanceKey := rsa2048Key()
+	instanceKey := parseTestKey(rsa2048Key1)
 	f := &fakeIMDS{
 		cas:         cas,
 		instanceKey: instanceKey,
@@ -676,10 +684,9 @@ func newX509Cert() *x509.Certificate {
 	}
 }
 
-// rsa2048Key returns a pre-generated 2048-bit RSA key (generating this key in
-// the test would be slow).
-func rsa2048Key() crypto.Signer {
-	const keyPemFixture = string(`-----BEGIN TEST RSA PRIVATE KEY-----
+const (
+	// Generating RSA keys slow so these test use pre-generated keys.
+	rsa2048Key1 = string(`-----BEGIN TEST RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAxYsUIrplZRkTS30Zh1O0DVVr40KVky+3EZKiH8OWKaVGlqVk
 pmggHpw8pCQwAmxFqLoQxOntCch4p0Vfk/BahtAq0NZ+4qSGX8BIv48ESPudIAY7
 iDdNUn+2Xd1Z2lzHMJ9tKUtceVmTlDpOFjXDPxFK2cUg4dY4l6PgM4lJq2kS/Sbd
@@ -705,18 +712,35 @@ VUfpn7ojiWz0s3zMJbUo+ciilTap0fTN27e/G9EBXfwrv5/ZO8j8aQ8dH1IPUuCQ
 8JlvGwKBgGlRuhLXrP3Cg0rhaupR0gUZPjPs9AQiGFs186oCYs6PKSFJ/LekbNuq
 uOuLdl2Bwlo6XFlT7I4FfAgzO+l35ER2Gihr8hIb8cC1dBAIR1ejXUhoC18NN8GJ
 As9vlQ+UkBUy4/0pl7S/Eet7CI0WSwalvjd7bI2Xiau5rO3aT5pQ
------END RSA PRIVATE KEY-----`)
-	key, err := keys.ParsePrivateKey([]byte(strings.ReplaceAll(keyPemFixture, "TEST ", "")))
-	if err != nil {
-		panic(err)
-	}
-	return key.Signer
-}
-
-// rsa1024Key returns a pre-generated 2048-bit RSA key (generating this key in
-// the test would be slow).
-func rsa1024Key() crypto.Signer {
-	const keyPemFixture = string(`-----BEGIN TEST RSA PRIVATE KEY-----
+-----END TEST RSA PRIVATE KEY-----`)
+	rsa2048Key2 = string(`-----BEGIN TEST RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAzsP7Kl+O4JUq5lqGTbbnIDFCJttQq4t/aRHF4LXXrby7JBvG
+HekpgRqflEw7U356iVf7GZoSq8XpNsUiWJ1M0sl9z49qmrsNzj9dwfd8dLN6XxJ5
+qnECL6SuHx/vwkaseppYQLXZijRQGKOj9h1s/tn8UjabmL9APC9TiYkSzkwsdRyR
+xXc9lwQQKRC/AjFKi1DWxAPw0DT1P+guvWZBk8Wwnqcs2uP4OUKoZ9GULD9Jf22Q
+kVlU4vkEp5VOaudv08y5enLhRRxLTzSDD0mctRHi+DnNApG2CiNdONkYm6rB5HBD
+6GYRd/kn+F0EZ93XEdf+gkMfY78PeHQFGi6T0QIDAQABAoIBAAwmPU/WZDPzf+ns
+mTMS046AM0XLCEWNzlngEGA6WMCENC9HrhxobKbOtJOUGr5QUo0kc53XAFB1ZVU+
+P/aBOhgYSXS7SOvSBvPyCqVqaeoF+Ja1vefTReockDPfyzvl4QRy2LGz6pYk3Pn9
+qS8KhP+N00/Vyc6WM+uPA/OACVaNM/1p+N/g5/W4zs3GQ8ssSBn/CMFaFeMeVwMk
+94Mj1UMXSfH6ORgnQtVeFSI/Fmx6QcHVoXqF2OWMcYth4XQHZtl7C+gMGSzSpIzn
+CURyAu1Ze70PbdWLPGisXV5GdFIBV6uMJRE9oj0vZqxTOChGY8n30elA0HUWUg2o
+CKKBqysCgYEA9xohrszEgZSkHuGNdpVt30AtzI+w9Ig6EtUGgDzp+PU0ossDQVQ/
+9/z5EinFs2e8I8hwxjy+u8OQdo43BGQ1t6AkQrCVH6aJXGvILK7so2yycwNPChS/
+hjweGV1fcr7kwn4jl9BRiKsLYLtn/bLX+Y9RiXumK1bMB7X2HSxUw7MCgYEA1jYD
+n2FE8YkUy0nSWpqkNZt8hb3HJzL265liYRTJxS8o0iAGjiVaZAfDG8gIhdkYXIh5
+P+FBmlAbhVecJrStO9RPGTpVVd0ntm6phOK4oqodWjV4I/f7GbT1yvpQFFus+hvP
+WNTUvlPKPe7K932d9m25Qs9mxeh7InV1QEn4GGsCgYEAk+UPDek/H/OQO29yVOxh
+A4MNJmdGWUWDxKu9pVlQDJLuexUZEKvVUZ8WkDlyO8u1vpEEdpH68rS9LUg3Q6ia
+whnWOhgoWPY7NpbIC35y4el38QCk+PqsGzK2LSZGr43zqzkGIqIreqotOCtStXSq
+cZLHEYtxTHU5zs+oy5Mx9KMCgYEAyAQDeeyPPaEsI2241xUSQ2P977t2m+mAmhjM
+va11gYM5cIqq1EuYjVKaIfSz0JcXoj9kR/uDEB3AtM9LZPDL2NOzT/EiAVzRWg0W
+iJhSosCJS9QlbCB+/E/2OiNkZr37VEZnY6DHTThb3Vx9dH584r8tf269ngon/9MB
+OphW6iUCgYB05lF3Smdw2mrJ25RrjNFhxY2zmgBAQBIEm/M736j4U/evLaJ/1ViV
+6cEjOsAJh6CeHsTQmJqf6AOOYqg0I1yK+YHBdu4H6Rwk0uWNEWPIc7h2m3TjKVUv
+8JBWbnqcO00Vy0o9FwEp7zAtW7RWLz730sTJ0WVnsVt5D2CXuqj2gw==
+-----END TEST RSA PRIVATE KEY-----`)
+	rsa1024Key = string(`-----BEGIN TEST RSA PRIVATE KEY-----
 MIICXQIBAAKBgQDQ5Ez3fC5iVdHJyvzTX9p7GUyJOArMM/VJjMwbsln2hcBCq65s
 SRDfBPmgR9xz2rnvInJ0yGuPKT7g/VAP+J05EnU4uywXlua0ciXQk5GRWKFIbJfJ
 0RktwlOjchy2xwIyuZHPN40jHilNyZkJX90FCxXHnkm3/b6yc+kzkDAv4wIDAQAB
@@ -730,9 +754,12 @@ CW3V+ZTjp974/ZwaBEc8c5CzZnugVcCdSQJBAJ3cJnTU/pfz2e7mOVVPTQwN6OaD
 bjv8Nvvzkr8c8Ue7RZG1tshIqOwI9QjJ79q/KlJKtIoSHmpHCjdULnPDQO057G8C
 eCC0BIwfUzkNdZJrgyECQQDH1ZQu7J5Ol67adPPY//RLLFagKWH34Gb2XNT3HSMR
 JnKk+4N1PAV4hzYeOX0J+Tl6ugUyMCXQ9u62gw+a80Xn
------END RSA PRIVATE KEY-----
+-----END TEST RSA PRIVATE KEY-----
 `)
-	key, err := keys.ParsePrivateKey([]byte(strings.ReplaceAll(keyPemFixture, "TEST ", "")))
+)
+
+func parseTestKey(keyPEM string) crypto.Signer {
+	key, err := keys.ParsePrivateKey([]byte(strings.ReplaceAll(keyPEM, "TEST ", "")))
 	if err != nil {
 		panic(err)
 	}
