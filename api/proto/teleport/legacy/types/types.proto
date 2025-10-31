@@ -1555,6 +1555,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2BoundKeypair BoundKeypair = 19 [(gogoproto.jsontag) = "bound_keypair,omitempty"];
   // AzureDevops allows the configuration of options specific to the "azure_devops" join method.
   ProvisionTokenSpecV2AzureDevops AzureDevops = 20 [(gogoproto.jsontag) = "azure_devops,omitempty"];
+  // Env0 allows the configuration of options specific to the "env0" join method.
+  ProvisionTokenSpecV2Env0 Env0 = 21 [(gogoproto.jsontag) = "env0,omitempty"];
 }
 
 // ProvisionTokenSpecV2AzureDevops contains the Azure Devops-specific
@@ -2040,6 +2042,51 @@ message ProvisionTokenSpecV2Oracle {
     repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2Env0 contains env0-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Env0 {
+  // Rule is a set of properties the env0 environment might have to be allowed
+  // to use this provision token.
+  message Rule {
+    // OrganizationID is the unique organization identifier, corresponding to
+    // `organizationId` in an Env0 OIDC token.
+    string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+    // ProjectID is a unique project identifier, corresponding to `projectId` in
+    // an Env0 OIDC token.
+    string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
+    // ProjectName is the name of the project under which the job was run
+    // corresponding to `projectName` in an Env0 OIDC token.
+    string ProjectName = 3 [(gogoproto.jsontag) = "project_name,omitempty"];
+    // TemplateID is the unique identifier of the Env0 template, corresponding
+    // to `templateId` in an Env0 OIDC token.
+    string TemplateID = 4 [(gogoproto.jsontag) = "template_id,omitempty"];
+    // TemplateName is the name of the Env0 template, corresponding to
+    // `templateName` in an Env0 OIDC token.
+    string TemplateName = 5 [(gogoproto.jsontag) = "template_name,omitempty"];
+    // EnvironmentID is the unique identifier of the Env0 environment,
+    // corresponding to `environmentId` in an Env0 OIDC token.
+    string EnvironmentID = 6 [(gogoproto.jsontag) = "environment_id,omitempty"];
+    // EnvironmentName is the name of the Env0 environment, corresponding to
+    // `environmentName` in an Env0 OIDC token.
+    string EnvironmentName = 7 [(gogoproto.jsontag) = "environment_name,omitempty"];
+    // WorkspaceName is the name of the Env0 workspace, corresponding to
+    // `workspaceName` in an Env0 OIDC token.
+    string WorkspaceName = 8 [(gogoproto.jsontag) = "workspace_name,omitempty"];
+    // DeploymentType is the env0 deployment type, such as "deploy", "destroy",
+    // etc. Corresponds to `deploymentType` in an Env0 OIDC token.
+    string DeploymentType = 9 [(gogoproto.jsontag) = "deployment_type,omitempty"];
+    // DeployerEmail is the email of the person that triggered the deployment,
+    // corresponding to `deployerEmail` in an Env0 OIDC token.
+    string DeployerEmail = 10 [(gogoproto.jsontag) = "deployer_email,omitempty"];
+    // Env0Tag is a custom tag value corresponding to `env0Tag` when
+    // `ENV0_OIDC_TAG` is set.
+    string Env0Tag = 11 [(gogoproto.jsontag) = "env0_tag,omitempty"];
+  }
+  // Allow is a list of Rules, jobs using this token must match at least one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
