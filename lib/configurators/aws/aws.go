@@ -985,6 +985,10 @@ func buildSSMDocumentCreators(ctx context.Context, config ConfiguratorConfig, ta
 		if !slices.Contains(matcher.Types, types.AWSMatcherEC2) {
 			continue
 		}
+		// If using the pre-defined AWS-RunShellScript document, skip SSM document creation.
+		if matcher.SSM.DocumentName == types.AWSSSMDocumentRunShellScript {
+			continue
+		}
 		for _, region := range matcher.Regions {
 			var ssmClient ssmClient
 			if !config.Flags.Manual {

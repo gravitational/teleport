@@ -678,10 +678,9 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err, "invalid awsAccountID")
 	}
 
+	// SSM Document is not required, since the user might want to use a pre-defined one. Eg, AWS-RunShellScript.
 	ssmDocumentName := queryParams.Get("ssmDocument")
-	if ssmDocumentName == "" {
-		return nil, trace.BadParameter("missing ssmDocument query param")
-	}
+
 	// PublicProxyAddr() might return tenant.teleport.sh
 	// However, the expected format for --proxy-public-url includes the protocol `https://`
 	proxyPublicURL := h.PublicProxyAddr()
