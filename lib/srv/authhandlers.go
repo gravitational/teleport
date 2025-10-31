@@ -443,8 +443,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		// to return node info in the audit event.
 		var hostID, hostName string
 		if h.c.TargetServer != nil {
-			hostID = h.c.TargetServer.GetHostname()
-			hostName = h.c.TargetServer.GetName()
+			hostID = h.c.TargetServer.GetName()
+			hostName = h.c.TargetServer.GetHostname()
 		}
 
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
