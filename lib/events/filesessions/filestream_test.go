@@ -174,7 +174,7 @@ func TestCompleteUpload(t *testing.T) {
 }
 
 func TestCleanupEmptyUpload(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	handler, err := NewHandler(Config{
 		Directory: t.TempDir(),
