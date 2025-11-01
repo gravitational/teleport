@@ -39,7 +39,7 @@ jobs:
           path: .github/shared-workflows
           ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
       - name: Installing Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: 'stable'
         # Run "backport" subcommand on bot.
