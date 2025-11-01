@@ -22,6 +22,7 @@ import {
   BotUiFlow,
   EditBotRequest,
   FlatBot,
+  GetBotInstanceMetricsResponse,
   GetBotInstanceResponse,
   GitHubRepoRule,
   ListBotInstancesResponse,
@@ -131,6 +132,24 @@ export function validateGetBotInstanceResponse(
   }
 
   if (typeof data.bot_instance !== 'object' || data.bot_instance === null) {
+    return false;
+  }
+
+  return true;
+}
+
+export function validateGetBotInstanceMetricsResponse(
+  data: unknown
+): data is GetBotInstanceMetricsResponse {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  if (!('upgrade_statuses' in data)) {
+    return false;
+  }
+
+  if (typeof data.upgrade_statuses !== 'object') {
     return false;
   }
 

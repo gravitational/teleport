@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1055,8 +1056,15 @@ func (s *Service) GetAutoUpdateBotInstanceReport(ctx context.Context, _ *autoupd
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateBotInstanceReport, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	// Because this report also powers the bot instance dashboard in the Web UI
+	// we allow users with `bot_instance:list` as well as `autoupdate_bot_instance_report:read`
+	// and return the first error if both checks fail.
+	authErrors := []error{
+		authCtx.CheckAccessToKind(types.KindAutoUpdateBotInstanceReport, types.VerbRead),
+		authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList),
+	}
+	if !slices.Contains(authErrors, nil) {
+		return nil, trace.NewAggregate(authErrors...)
 	}
 
 	report, err := s.backend.GetAutoUpdateBotInstanceReport(ctx)

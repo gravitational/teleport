@@ -188,7 +188,6 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
-    botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -505,6 +504,8 @@ const cfg = {
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+      listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
+      metrics: '/v1/webapi/sites/:clusterId/machine-id/bot-instance/metrics',
     },
 
     workloadIdentity: {
@@ -851,10 +852,6 @@ const cfg = {
 
   getWorkloadIdentitiesRoute() {
     return generatePath(cfg.routes.workloadIdentities);
-  },
-
-  getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
-    return generatePath(cfg.routes.botInstance, params);
   },
 
   getBotsNewRoute(type?: string) {
@@ -1717,9 +1714,15 @@ const cfg = {
           action: 'list';
         }
       | {
+          action: 'listV2';
+        }
+      | {
           action: 'read';
           botName: string;
           instanceId: string;
+        }
+      | {
+          action: 'metrics';
         }
     ) & { clusterId?: string }
   ) {
@@ -1729,11 +1732,19 @@ const cfg = {
         return generatePath(cfg.api.botInstance.list, {
           clusterId,
         });
+      case 'listV2':
+        return generatePath(cfg.api.botInstance.listV2, {
+          clusterId,
+        });
       case 'read':
         return generatePath(cfg.api.botInstance.read, {
           clusterId,
           botName: req.botName,
           instanceId: req.instanceId,
+        });
+      case 'metrics':
+        return generatePath(cfg.api.botInstance.metrics, {
+          clusterId,
         });
       default:
         req satisfies never;
