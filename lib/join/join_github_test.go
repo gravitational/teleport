@@ -457,6 +457,36 @@ func TestJoinGHA(t *testing.T) {
 				)
 			})
 
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseServerHost,
+					idTokenValidator.lastCalledGHESHost,
+				)
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseSlug,
+					idTokenValidator.lastCalledEnterpriseSlug,
+				)
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.StaticJWKS,
+					idTokenValidator.lastCalledJWKS,
+				)
+			})
+
 			t.Run("legacy", func(t *testing.T) {
 				_, err = authServer.Auth().RegisterUsingToken(t.Context(), tt.request)
 				tt.assertError(t, err)
