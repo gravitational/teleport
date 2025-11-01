@@ -858,6 +858,7 @@
     "rootca",
     "rootcluster",
     "rtrzn",
+    "runcmd",
     "runcommand",
     "runscript",
     "runtimes",
