@@ -120,6 +120,17 @@ func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 	return s.backend.Put(ctx, i)
 }
 
+// PutBatch puts multiple values into backend.
+func (s *Sanitizer) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	for _, item := range items {
+		if !IsKeySafe(item.Key) {
+			return nil, trace.BadParameter(errorMessage, item.Key)
+		}
+	}
+	out, err := PutBatch(ctx, s.backend, items)
+	return out, trace.Wrap(err)
+}
+
 // Update updates value in the backend
 func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
 	if !IsKeySafe(i.Key) {
