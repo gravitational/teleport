@@ -273,7 +273,7 @@ func TestOneOffScript(t *testing.T) {
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
-		sudoMock.Expect(teleportMock.Path, "version").AndWriteToStdout(teleportVersionOutput)
+		sudoMock.Expect("-E", teleportMock.Path, "version").AndWriteToStdout(teleportVersionOutput)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
