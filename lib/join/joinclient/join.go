@@ -200,7 +200,8 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodIAM,
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
-		types.JoinMethodOracle:
+		types.JoinMethodOracle,
+		types.JoinMethodGitHub:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
