@@ -178,6 +178,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.ConvertSystemError(err)
 	}
 	unlock, err := utils.FSTryWriteLock(uploadPath)
+
+	// If there are no parts to complete, move to cleanup
+	if len(parts) == 0 {
+		return h.cleanupUpload(ctx, upload)
+	}
+
 Loop:
 	for range 3 {
 		switch {
@@ -248,6 +254,22 @@ Loop:
 	if err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
 	}
+	return nil
+}
+
+func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
+	uploadKey := h.recordingPath(upload.SessionID)
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
+	log.DebugContext(ctx, "Aborting upload")
+	if err := os.RemoveAll(h.uploadRootPath(upload)); err != nil {
+		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+	}
+
+	log.InfoContext(ctx, "Aborted upload")
 	return nil
 }
 
