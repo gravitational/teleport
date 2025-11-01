@@ -982,6 +982,17 @@ var (
 			Help: "Number of times there was a user login",
 		},
 	)
+	UserLoginCountPerClient = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: teleport.MetricUserLoginPerClientCount,
+			Help: "Number of times there was a user login with specific client version and GroupID that routes request",
+		},
+		[]string{
+			teleport.TagUserAgentType,
+			teleport.TagProxyGroupID,
+			teleport.TagVersion,
+		},
+	)
 
 	heartbeatsMissedByAuth = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -1090,7 +1101,7 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, UserLoginCountPerClient, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
@@ -1656,6 +1667,7 @@ const (
 	autoUpdateAgentReportKey
 	autoUpdateBotInstanceReportKey
 	autoUpdateBotInstanceMetricsKey
+	hourlyCleanUpKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1708,6 +1720,12 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           accessListReminderNotificationsKey,
 			Duration:      8 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           hourlyCleanUpKey,
+			Duration:      time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
@@ -1893,6 +1911,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.BotInstanceVersionReporter.Report(a.closeCtx)
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
+			case hourlyCleanUpKey:
+				go a.hourlyCleanUpMetrics()
 			}
 		}
 	}
@@ -2219,6 +2239,10 @@ func (a *Server) updateBotInstanceMetrics() {
 	default:
 		machineidv1.EmitInstancesMetric(report, botInstancesMetric)
 	}
+}
+
+func (a *Server) hourlyCleanUpMetrics() {
+	UserLoginCountPerClient.Reset()
 }
 
 var (
