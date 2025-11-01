@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
@@ -25,15 +25,18 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockIDTokenValidator struct {
@@ -75,7 +78,7 @@ func (m *mockIDTokenValidator) ValidateJWKS(
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
+func TestJoinGHA(t *testing.T) {
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockIDTokenValidator{
 		tokens: map[string]githubactions.IDTokenClaims{
@@ -91,18 +94,17 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetGHAIDTokenValidator(idTokenValidator)
-		server.SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
-		return nil
-	}
-	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir:    t.TempDir(),
-		MutateAuth: withTokenValidator,
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
 	})
 	require.NoError(t, err)
-	authServer := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+
+	authServer.Auth().SetGHAIDTokenValidator(idTokenValidator)
+	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -162,7 +164,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "success with jwks",
+			name: "success-with-jwks",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -177,7 +179,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "failure with jwks",
+			name: "failure-with-jwks",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -192,7 +194,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: require.Error,
 		},
 		{
-			name: "ghes override",
+			name: "ghes-override",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -208,7 +210,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			setEnterprise: true,
 		},
 		{
-			name: "enterprise slug",
+			name: "enterprise-slug",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -224,7 +226,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError:   require.NoError,
 		},
 		{
-			name: "ghes override requires enterprise license",
+			name: "ghes-override-requires-enterprise-license",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -237,11 +239,11 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
+				require.ErrorIs(t, err, services.ErrRequiresEnterprise)
 			}),
 		},
 		{
-			name: "enterprise slug requires enterprise license",
+			name: "enterprise-slug-requires-enterprise-license",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -254,11 +256,11 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
+				require.ErrorIs(t, err, services.ErrRequiresEnterprise)
 			}),
 		},
 		{
-			name: "multiple allow rules",
+			name: "multiple-allow-rules",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -275,7 +277,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "incorrect sub",
+			name: "incorrect-sub",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -291,7 +293,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect repository",
+			name: "incorrect-repository",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -307,7 +309,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect repository owner",
+			name: "incorrect-repository-owner",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -323,7 +325,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect workflow",
+			name: "incorrect-workflow",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -339,7 +341,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect environment",
+			name: "incorrect-environment",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -355,7 +357,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect actor",
+			name: "incorrect-actor",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -371,7 +373,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ref",
+			name: "incorrect-ref",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -387,7 +389,7 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ref type",
+			name: "incorrect-ref-type",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitHub,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -416,30 +418,68 @@ func TestAuth_RegisterUsingToken_GHA(t *testing.T) {
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
 			)
 			require.NoError(t, err)
-			require.NoError(t, authServer.CreateToken(ctx, token))
+			require.NoError(t, authServer.Auth().CreateToken(t.Context(), token))
 			tt.request.Token = tt.name
 
-			_, err = authServer.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
-			if err != nil {
-				return
-			}
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
 
-			require.Equal(
-				t,
-				tt.tokenSpec.GitHub.EnterpriseServerHost,
-				idTokenValidator.lastCalledGHESHost,
-			)
-			require.Equal(
-				t,
-				tt.tokenSpec.GitHub.EnterpriseSlug,
-				idTokenValidator.lastCalledEnterpriseSlug,
-			)
-			require.Equal(
-				t,
-				tt.tokenSpec.GitHub.StaticJWKS,
-				idTokenValidator.lastCalledJWKS,
-			)
+			// TODO: https://github.com/gravitational/teleport/pull/60385/files?w=1#diff-6490bbab33f45b14b50f7de20e737e504bf87c3389000bbe9cdfbe2a2505e7c9R790
+			// Probably want to convert newRequest() to create a joinclient.JoinParams
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseServerHost,
+					idTokenValidator.lastCalledGHESHost,
+				)
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseSlug,
+					idTokenValidator.lastCalledEnterpriseSlug,
+				)
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.StaticJWKS,
+					idTokenValidator.lastCalledJWKS,
+				)
+			})
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err = authServer.Auth().RegisterUsingToken(t.Context(), tt.request)
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseServerHost,
+					idTokenValidator.lastCalledGHESHost,
+				)
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.EnterpriseSlug,
+					idTokenValidator.lastCalledEnterpriseSlug,
+				)
+				require.Equal(
+					t,
+					tt.tokenSpec.GitHub.StaticJWKS,
+					idTokenValidator.lastCalledJWKS,
+				)
+			})
 		})
 	}
 }

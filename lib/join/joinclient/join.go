@@ -34,6 +34,7 @@ import (
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -304,6 +305,14 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodOracle:
 		return oracleJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodGitHub:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{

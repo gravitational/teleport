@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/githubactions"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -81,6 +82,8 @@ type AuthService interface {
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
 	GetEnv0IDTokenValidator() Env0TokenValidator
+	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
+	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	services.Presence
 }
 
@@ -285,6 +288,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodOracle:
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodGitHub:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
