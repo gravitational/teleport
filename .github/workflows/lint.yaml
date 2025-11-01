@@ -20,7 +20,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -95,7 +95,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check for untidy go modules
         shell: bash
@@ -196,7 +196,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set Rust version
         run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
@@ -227,7 +227,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set linter versions
         run: |
@@ -281,7 +281,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -303,7 +303,7 @@ jobs:
 
     steps:
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Print Node version
         run: |
