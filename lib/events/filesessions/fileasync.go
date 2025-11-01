@@ -392,9 +392,22 @@ func (u *upload) removeFiles() error {
 
 var errSkipEncryptedUpload = errors.New("skip encrypted upload")
 
-func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.Reader) error {
+func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.ReadSeeker) error {
 	if u.cfg.EncryptedRecordingUploader == nil {
 		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
+	}
+
+	header, err := events.ParsePartHeader(in)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+		return trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+	}
+
+	if _, err := in.Seek(0, 0); err != nil {
+		return trace.Wrap(err, "resetting recording for plaintext upload")
 	}
 
 	// The upload parts in the given reader are each ~128KB. Usually these parts are consumed and reconstructed
