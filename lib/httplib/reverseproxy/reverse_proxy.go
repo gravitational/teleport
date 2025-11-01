@@ -257,6 +257,7 @@ func (r *roundTripperWithLogger) RoundTrip(req *http.Request) (*http.Response, e
 			slog.Any("url", logutils.StringerAttr(req.URL)),
 			slog.Int("code", rsp.StatusCode),
 			slog.Duration("duration", time.Now().UTC().Sub(start)),
+			slog.String("response_proto", rsp.Proto),
 			slog.Group("tls",
 				"version", req.TLS.Version,
 				"resume", req.TLS.DidResume,
@@ -270,6 +271,7 @@ func (r *roundTripperWithLogger) RoundTrip(req *http.Request) (*http.Response, e
 			"url", logutils.StringerAttr(req.URL),
 			"code", rsp.StatusCode,
 			"duration", time.Now().UTC().Sub(start),
+			"response_proto", rsp.Proto,
 		)
 	}
 
