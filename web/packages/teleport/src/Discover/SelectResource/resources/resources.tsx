@@ -225,6 +225,16 @@ export const KUBERNETES: SelectResourceSpec[] = [
 
 export const MCP_SERVERS: SelectResourceSpec[] = [
   {
+    id: DiscoverGuideId.MCPServerStreamableHTTPTransport,
+    name: 'MCP Server with streamable-HTTP transport',
+    kind: ResourceKind.MCP,
+    keywords: [...mcpKeywords, 'streamable', 'http'],
+    icon: 'mcp',
+    event: DiscoverEventResource.MCPStreamableHTTP,
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/mcp-access/streamable-http/',
+  },
+  {
     id: DiscoverGuideId.MCPServerStdioTransport,
     name: 'MCP Server with stdio transport',
     kind: ResourceKind.MCP,
@@ -233,6 +243,16 @@ export const MCP_SERVERS: SelectResourceSpec[] = [
     event: DiscoverEventResource.MCPStdio,
     unguidedLink:
       'https://goteleport.com/docs/enroll-resources/mcp-access/stdio/',
+  },
+  {
+    id: DiscoverGuideId.MCPServerSSETransport,
+    name: 'MCP Server with the legacy SSE transport',
+    kind: ResourceKind.MCP,
+    keywords: [...mcpKeywords, 'sse'],
+    icon: 'mcp',
+    event: DiscoverEventResource.MCPSSE,
+    unguidedLink:
+      'https://goteleport.com/docs/enroll-resources/mcp-access/sse/',
   },
 ];
 
