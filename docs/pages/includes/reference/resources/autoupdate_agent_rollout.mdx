@@ -80,6 +80,26 @@ status:
       # group may execute after, from autoupdate_config.
       config_wait_hours: 24
 
+      # canary_count is the number of agents selected to update and verify before the rest
+      # of the group. Only present for the halt-on-error schedule.
+      canary_count: 1
+
+      # canaries describes the status of the selected canaries for this group.
+      canaries:
+
+        # updater_id is the unique ID of the updater that is managing the canary.
+        - updater_id: 3c6bcc1b-1992-4abc-a6f1-43f8f1b9ff05
+
+          # host_id is the unique host ID of the agent that is being updated.
+          host_id: c757ad82-95f2-4416-ae9d-a20ffd9b5a54
+
+          # hostname is the hostname of the agent that is being updated.
+          hostname: prod43
+
+          # success is true if the canary was updated successfully.
+          success: true
+
+
   # start_time of the rollout
   start_time: 0001-01-01T00:00:00Z
 
