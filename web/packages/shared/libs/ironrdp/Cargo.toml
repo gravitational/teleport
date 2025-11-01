@@ -18,7 +18,7 @@ ironrdp-pdu.workspace = true
 ironrdp-core.workspace = true
 ironrdp-graphics.workspace = true
 js-sys = "0.3.76"
-log = "0.4.27"
+log = "0.4.28"
 time = { version = "0.3", features = ["wasm-bindgen"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["time"] }
