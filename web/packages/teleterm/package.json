@@ -32,7 +32,7 @@
     "strip-ansi": "^7.1.2",
     "tar-fs": "^3.1.1",
     "which": "^5.0.0",
-    "winston": "^3.17.0"
+    "winston": "^3.18.3"
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
@@ -46,13 +46,13 @@
     "@xterm/xterm": "^5.5.0",
     "electron": "38.2.1",
     "electron-builder": "^26.0.12",
-    "electron-updater": "^6.6.8",
+    "electron-updater": "^6.7.0",
     "electron-vite": "^4.0.1",
     "events": "3.3.0",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "whatwg-url": "^14.2.0",
-    "zod": "^4.1.11"
+    "zod": "^4.1.12"
   },
   "productName": "Teleport Connect"
 }
