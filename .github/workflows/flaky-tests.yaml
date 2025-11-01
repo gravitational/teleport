@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -67,7 +67,7 @@ jobs:
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Checkout shared-workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows

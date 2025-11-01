@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -46,13 +46,13 @@ jobs:
 
     steps:
       - name: Check out teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'gravitational/teleport'
           path: 'teleport'
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'gravitational/docs-website'
           path: 'docs'
@@ -65,7 +65,7 @@ jobs:
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Check out shared-workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
