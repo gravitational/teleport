@@ -47,7 +47,7 @@ type teleportPickHealthyBuilder struct{}
 
 // Build creates a [teleportPickHealthyBalancer] with an underlying pick_first_leaf balancer.
 func (teleportPickHealthyBuilder) Build(cc balancer.ClientConn, opts balancer.BuildOptions) balancer.Balancer {
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
 	b := teleportPickHealthyBalancer{
 		cc:   cc,
