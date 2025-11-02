@@ -312,6 +312,16 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 	// always pass UpdateState to ClientConn if the current or pending balancer experiences a state change
 	defer t.tlb.cc.UpdateState(state)
 
+	if t == t.tlb.pending && state.ConnectivityState == connectivity.TransientFailure {
+		t.log.InfoContext(context.Background(), "Pending balancer is unhealthy, waiting before creating new balancer")
+
+		t.tlb.mu.Unlock()
+
+		time.Sleep(1 * time.Second)
+
+		t.tlb.mu.Lock()
+	}
+
 	switch t {
 	case t.tlb.current:
 		if state.ConnectivityState == connectivity.TransientFailure {
@@ -357,12 +367,6 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 			t.log.InfoContext(context.Background(), "new balancer is unhealthy, recreating new balancer")
 
 			t.tlb.pending.Close()
-
-			t.tlb.mu.Unlock()
-
-			time.Sleep(1 * time.Second)
-
-			t.tlb.mu.Lock()
 
 			wb := newWrappedBalancer(t.tlb)
 
