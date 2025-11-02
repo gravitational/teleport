@@ -355,14 +355,14 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 		case connectivity.Ready:
 			t.log.InfoContext(context.Background(), "Pending balancer is ready, migrating to new balancer")
 
-			current := t.tlb.current
+			oldCurrent := t.tlb.current
 
 			t.tlb.current = t.tlb.pending
 			t.tlb.pending = nil
 
 			t.tlb.mu.Unlock()
 
-			current.Close()
+			oldCurrent.Close()
 		case connectivity.TransientFailure:
 			t.log.InfoContext(context.Background(), "Pending balancer is unhealthy, recreating new balancer")
 
