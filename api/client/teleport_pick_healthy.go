@@ -325,7 +325,7 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 	switch t {
 	case t.tlb.current:
 		if state.ConnectivityState == connectivity.TransientFailure {
-			t.log.InfoContext(context.Background(), "creating new balancer")
+			t.log.InfoContext(context.Background(), "Current balancer is unhealthy, creating pending balancer")
 			wb := newWrappedBalancer(t.tlb)
 
 			t.tlb.pending = wb
@@ -338,7 +338,7 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 				ResolverState: pickfirstleaf.EnableHealthListener(resolvedState),
 			})
 		} else if state.ConnectivityState == connectivity.Ready && t.tlb.pending != nil {
-			t.log.InfoContext(context.Background(), "original balancer became healthy, closing pending balancer")
+			t.log.InfoContext(context.Background(), "Current balancer became healthy, closing pending balancer")
 
 			pending := t.tlb.pending
 
@@ -353,7 +353,7 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 	case t.tlb.pending:
 		switch state.ConnectivityState {
 		case connectivity.Ready:
-			t.log.InfoContext(context.Background(), "new balancer is ready, migrating to new balancer")
+			t.log.InfoContext(context.Background(), "Pending balancer is ready, migrating to new balancer")
 
 			current := t.tlb.current
 
@@ -364,7 +364,7 @@ func (t *wrappedBalancer) UpdateState(state balancer.State) {
 
 			current.Close()
 		case connectivity.TransientFailure:
-			t.log.InfoContext(context.Background(), "new balancer is unhealthy, recreating new balancer")
+			t.log.InfoContext(context.Background(), "Pending balancer is unhealthy, recreating new balancer")
 
 			t.tlb.pending.Close()
 
