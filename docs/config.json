@@ -1807,12 +1807,12 @@
     },
     {
       "source": "/reference/machine-id/github-actions/",
-      "destination": "/reference/machine-workload-identity/github-actions/",
+      "destination": "/reference/deployment/join-methods/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/gitlab/",
-      "destination": "/reference/machine-workload-identity/gitlab/",
+      "destination": "/reference/deployment/join-methods/",
       "permanent": true
     },
     {
