@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -245,16 +246,15 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 func (amrh *RuleHandler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
 	log := logger.Get(ctx)
 
-	const withSecretsFalse = false
 	var userTraits trait.Traits
-	user, err := amrh.apiClient.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	userState, err := services.GetUserOrLoginState(ctx, amrh.apiClient, req.GetUser())
 	switch {
 	case trace.IsAccessDenied(err):
 		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
 	case err != nil:
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	default:
-		userTraits = user.GetTraits()
+		userTraits = userState.GetTraits()
 	}
 
 	// UsePreviewAsRoles option is required to fetch requested resource labels.

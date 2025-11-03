@@ -548,16 +548,15 @@ func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map
 	log := logger.Get(ctx)
 	loginsByRole := make(map[string][]string, len(req.GetRoles()))
 
-	const withSecretsFalse = false
 	var userTraits trait.Traits
-	user, err := a.apiClient.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	userState, err := services.GetUserOrLoginState(ctx, a.apiClient, req.GetUser())
 	switch {
 	case trace.IsAccessDenied(err):
 		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
 	case err != nil:
 		return nil, trace.Wrap(err)
 	default:
-		userTraits = user.GetTraits()
+		userTraits = userState.GetTraits()
 	}
 
 	roles, err := getRoles(ctx, a.apiClient, req.GetRoles(), userTraits)

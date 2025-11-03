@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -60,11 +61,13 @@ func (c BaseConfig) GetRecipients() RawRecipientsMap {
 
 type accessListClient = *accesslist.Client
 type accessMonitoringRulesClient = *accessmonitoringrules.Client
+type userLoginStateClient = *userloginstate.Client
 
 type wrappedClient struct {
 	*client.Client
 	accessListClient
 	accessMonitoringRulesClient
+	userLoginStateClient
 }
 
 // wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.
@@ -73,6 +76,7 @@ func wrapAPIClient(clt *client.Client) teleport.Client {
 		Client:                      clt,
 		accessListClient:            clt.AccessListClient(),
 		accessMonitoringRulesClient: clt.AccessMonitoringRulesClient(),
+		userLoginStateClient:        clt.UserLoginStateClient(),
 	}
 }
 
