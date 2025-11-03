@@ -78,6 +78,11 @@ func TestUploadOK(t *testing.T) {
 	// read the upload and make sure the data is equal
 	outEvents := p.readEvents(ctx, t, event.UploadID)
 	require.Equal(t, inEvents, outEvents)
+
+	// regression: ensure there is a single upload for the captured session
+	uploads, err := p.memUploader.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Len(t, uploads, 1)
 }
 
 // TestUploadParallel verifies several parallel uploads that have to wait
@@ -93,7 +98,8 @@ func TestUploadParallel(t *testing.T) {
 
 	sessions := make(map[string][]apievents.AuditEvent)
 
-	for range 5 {
+	const sessionCount = 5
+	for range sessionCount {
 		sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
 		sid := sessionEvents[0].(events.SessionMetadataGetter).GetSessionID()
 
@@ -125,6 +131,11 @@ func TestUploadParallel(t *testing.T) {
 
 		delete(sessions, event.SessionID)
 	}
+
+	// regression: ensure there is a single upload for each captured session
+	uploads, err := p.memUploader.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Len(t, uploads, sessionCount)
 }
 
 // TestMovesCorruptedUploads verifies that the uploader moves corrupted uploads
