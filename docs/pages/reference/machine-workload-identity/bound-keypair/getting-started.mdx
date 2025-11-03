@@ -1,6 +1,6 @@
 ---
-title: Deploying Machine ID with Bound Keypair Joining
-description: "How to install and configure Machine ID with Bound Keypair Joining"
+title: Deploying tbot with Bound Keypair Joining
+description: "How to install and configure tbot with Bound Keypair Joining"
 tags:
  - mwi
  - how-to
@@ -21,7 +21,7 @@ extended outage.
 
 Note that platform-specific join methods may be available that are better suited
 to your environment; refer to the
-[deployment guides](../../../../machine-workload-identity/machine-id/deployment/deployment.mdx)
+[deployment guides](../../../machine-workload-identity/machine-id/deployment/deployment.mdx)
 for a full list of options.
 
 ## How it works
@@ -72,8 +72,8 @@ method works and how to use it in production.
 
 **This step is completed on the bot host.**
 
-First, `tbot` needs to be installed on the host that you wish to use Machine ID
-on.
+First, `tbot` needs to be installed on the host that you wish to use Machine &
+Workload Identity on.
 
 Download and install the appropriate Teleport package for your platform:
 
@@ -227,7 +227,7 @@ public key string in a JSON document for use in scripts.
 
 Note that while a proxy server address must be provided, this is only used to
 ping the cluster to determine its configured
-[signature algorithms](../../../deployment/signature-algorithms.mdx). Once the keypair has been
+[signature algorithms](../../deployment/signature-algorithms.mdx). Once the keypair has been
 generated, the public key will be printed to the console.
 
 Next, on your local machine, create a file named `token-example.yaml`:
@@ -293,11 +293,11 @@ Joining, refer to the [onboarding reference](./concepts.mdx#onboarding).
 
 - Read the [Bound Keypair Joining Reference][reference]
   for more details about the join method and the available configuration options.
-- Follow the [access guides](../../../../machine-workload-identity/machine-id/access-guides/access-guides.mdx)
+- Follow the [access guides](../../../machine-workload-identity/machine-id/access-guides/access-guides.mdx)
   to finish configuring `tbot` for your environment.
 - Read the [configuration reference](../configuration.mdx) to explore
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../telemetry.mdx)
 
-[secret]: ../../../deployment/join-methods.mdx#secret-vs-delegated
+[secret]: ../../deployment/join-methods.mdx#secret-vs-delegated
 [reference]: ./bound-keypair.mdx
