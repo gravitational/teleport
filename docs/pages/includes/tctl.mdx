@@ -1,7 +1,9 @@
 To check that you can connect to your Teleport cluster, sign in with `tsh login`, then 
 verify that you can run `tctl` commands using your current credentials. 
 
-For example:
+For example, run the following command, assigning 
+<Var name="teleport.example.com" /> to the domain name of the Teleport Proxy Service
+in your cluster and <Var name="email@example.com" /> to your Teleport username:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />

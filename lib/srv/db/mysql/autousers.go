@@ -539,7 +539,7 @@ func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, 
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
-	procedureVersion = "teleport-auto-user-v4"
+	procedureVersion = "teleport-auto-user-v5"
 
 	// mysqlMaxUsernameLength is the maximum username/role length for MySQL.
 	//

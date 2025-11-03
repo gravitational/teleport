@@ -1472,6 +1472,51 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	return connectors, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	connectorKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(connectorKey)
+
+	var out []types.OIDCConnector
+	result, err := s.Backend.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalOIDCConnector(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, conn.GetName(), nil
+		}
+
+		if !withSecrets {
+			conn.SetClientSecret("")
+			conn.SetGoogleServiceAccount("")
+		}
+
+		out = append(out, conn)
+	}
+
+	return out, "", nil
+}
+
 // CreateOIDCAuthRequest creates new auth request
 func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
@@ -1653,6 +1698,57 @@ func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Con
 		connectors = append(connectors, conn)
 	}
 	return connectors, nil
+}
+
+// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix))
+
+	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var connectors []types.SAMLConnector
+
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			item.Value,
+			opts,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
+		}
+
+		if len(connectors) >= limit {
+			return connectors, conn.GetName(), nil
+		}
+
+		if !withSecrets {
+			keyPair := conn.GetSigningKeyPair()
+			if keyPair != nil {
+				keyPair.PrivateKey = ""
+				conn.SetSigningKeyPair(keyPair)
+			}
+		}
+
+		connectors = append(connectors, conn)
+	}
+
+	return connectors, "", nil
 }
 
 // CreateSAMLAuthRequest creates new auth request
@@ -1839,6 +1935,52 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 		connectors = append(connectors, connector)
 	}
 	return connectors, nil
+}
+
+// ListGithubConnectors returns a page of valid registered Github connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix))
+
+	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var connectors []types.GithubConnector
+
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalGithubConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling Github Connector")
+			continue
+		}
+
+		if len(connectors) >= limit {
+			return connectors, conn.GetName(), nil
+		}
+
+		if !withSecrets {
+			conn.SetClientSecret("")
+		}
+
+		connectors = append(connectors, conn)
+	}
+
+	return connectors, "", nil
 }
 
 // GetGithubConnector returns a particular Github connector.
