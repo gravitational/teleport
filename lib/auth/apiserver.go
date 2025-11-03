@@ -63,6 +63,9 @@ type APIConfig struct {
 	// MutateRevocationsServiceConfig is a function that allows to mutate
 	// the revocation service configuration for testing.
 	MutateRevocationsServiceConfig func(config *workloadidentityv1.RevocationServiceConfig)
+	// OracleHTTPClient (optional) overrides the HTTP client used to make
+	// requests to the Oracle API for the Oracle join method.
+	OracleHTTPClient utils.HTTPDoClient
 }
 
 // CheckAndSetDefaults checks and sets default values
