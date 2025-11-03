@@ -326,7 +326,10 @@ func SetModules(m Modules) {
 	modules = m
 }
 
-// GetModules returns the modules interface
+// GetModules returns the modules interface. It only works in the auth service
+// process, so any code that may be executed in a different context needs to
+// obtain modules or derived options from an auth-specific caller or an RPC
+// call to the auth server.
 func GetModules() Modules {
 	mutex.Lock()
 	defer mutex.Unlock()

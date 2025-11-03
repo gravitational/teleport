@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -229,6 +230,19 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
+	healthCheckManager, err := healthcheck.NewManager(
+		testCtx.Context,
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  client,
+			HealthCheckConfigReader: client,
+		},
+	)
+	require.NoError(t, err)
+	err = healthCheckManager.Start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 			return &proto.UpstreamInventoryHello{
@@ -282,12 +296,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:      func(err error) {},
-		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers: cfg.ResourceMatchers,
-		OnReconcile:      cfg.OnReconcile,
-		Log:              logtest.NewLogger(),
-		InventoryHandle:  inventoryHandle,
+		OnHeartbeat:        func(err error) {},
+		GetRotation:        func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:   cfg.ResourceMatchers,
+		OnReconcile:        cfg.OnReconcile,
+		Log:                logtest.NewLogger(),
+		InventoryHandle:    inventoryHandle,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -368,6 +383,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")

@@ -119,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -2571,6 +2572,12 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
+
+			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
+			if _, ok := msg.(tdp.LatencyStats); ok {
+				msg, err = tdpClient.ReadMessage()
+				require.NoError(t, err)
+			}
 			require.IsType(t, tdp.Alert{}, msg)
 		})
 	}
@@ -4771,6 +4778,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4958,6 +4966,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -9404,6 +9413,19 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	// wait for the watcher to init before continuing
 	require.NoError(t, watcher.WaitInitialization())
 
+	healthCheckManager, err := healthcheck.NewManager(
+		ctx,
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  client,
+			HealthCheckConfigReader: client,
+		},
+	)
+	require.NoError(t, err)
+	err = healthCheckManager.Start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*authproto.UpstreamInventoryHello, error) {
 			return &authproto.UpstreamInventoryHello{
@@ -9475,6 +9497,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		OnReconcile:              func(kc types.KubeClusters) {},
 		KubernetesServersWatcher: watcher,
 		InventoryHandle:          inventoryHandle,
+		HealthCheckManager:       healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -11127,6 +11150,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
+					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11191,6 +11215,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
+					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11294,6 +11319,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11424,6 +11450,8 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.SAML):                       {Enabled: true},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
 					string(entitlements.AccessMonitoring):  {Enabled: true, Limit: 88},
@@ -11535,6 +11563,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
 				},
 			},
 		},

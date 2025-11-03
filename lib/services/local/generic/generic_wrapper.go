@@ -18,6 +18,7 @@ package generic
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -148,4 +149,22 @@ func (s ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSize
 		out = append(out, adapter.resource)
 	}
 	return out, nextToken, trace.Wrap(err)
+}
+
+// Resources returns a stream of resources within the range [startKey, endKey].
+// If both keys are empty, then the entire range is returned.
+func (s *ServiceWrapper[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		for adapter, err := range s.service.Resources(ctx, startKey, endKey) {
+			if err != nil {
+				var t T
+				yield(t, err)
+				return
+			}
+
+			if !yield(adapter.resource, nil) {
+				return
+			}
+		}
+	}
 }
