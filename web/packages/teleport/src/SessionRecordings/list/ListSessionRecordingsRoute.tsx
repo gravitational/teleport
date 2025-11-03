@@ -123,7 +123,6 @@ export function ListSessionRecordings({
           <RangePicker
             ml="auto"
             range={state.range}
-            ranges={ranges}
             onChangeRange={handleSetRange}
           />
         </Flex>

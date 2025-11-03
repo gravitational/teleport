@@ -46,7 +46,6 @@ export function Recordings({
   fetchMore,
   range,
   setRange,
-  rangeOptions,
   attempt,
   clusterId,
   ctx,
@@ -56,12 +55,7 @@ export function Recordings({
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="8">Session Recordings</FeatureHeaderTitle>
-        <RangePicker
-          ml="auto"
-          range={range}
-          ranges={rangeOptions}
-          onChangeRange={setRange}
-        />
+        <RangePicker ml="auto" range={range} onChangeRange={setRange} />
       </FeatureHeader>
       <ExternalAuditStorageCta />
       {!errorMessage && (
