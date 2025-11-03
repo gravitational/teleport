@@ -3,6 +3,7 @@ package summarizer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"slices"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,8 +44,11 @@ const (
 
 // SummarizerConfig contains configuration for the SessionSummarizer.
 type SummarizerConfig struct {
-	Backend         services.Summarizer
-	Streamer        events.SessionStreamer
+	Backend  services.Summarizer
+	Streamer events.SessionStreamer
+	// Encrypter is used to encrypt session summaries before uploading them.
+	Encrypter events.EncryptionWrapper
+	// SummaryUploader uploads session summaries.
 	SummaryUploader SummaryUploader
 	// OpenAIClientFactory creates OpenAI clients. Defaults to a production
 	// implementation.
@@ -89,6 +94,7 @@ type SessionSummarizer struct {
 	logger               *slog.Logger
 	concurrencyLimiter   *semaphore.Weighted
 	enableBedrock        bool
+	encrypter            events.EncryptionWrapper
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -121,6 +127,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		logger:               slog.With(teleport.ComponentKey, "summarizer"),
 		concurrencyLimiter:   semaphore.NewWeighted(concurrencyLimit),
 		enableBedrock:        cfg.EnableBedrock,
+		encrypter:            cfg.Encrypter,
 	}, nil
 }
 
@@ -322,6 +329,27 @@ func (s *SessionSummarizer) summarizeNow(
 		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to marshal summary result"))
 	}
 
+	if s.encrypter != nil {
+		writeBuffer := bytes.NewBuffer(nil)
+		encryptedWriter, err := s.encrypter.WithEncryption(ctx, &nopCloser{writeBuffer})
+		switch {
+		case err == nil:
+			_, err = encryptedWriter.Write(rBytes)
+			if err != nil {
+				_ = encryptedWriter.Close()
+				return trace.Wrap(err)
+			}
+			if err := encryptedWriter.Close(); err != nil {
+				return trace.Wrap(err)
+			}
+			rBytes = writeBuffer.Bytes()
+		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
+			// if encryption isn't enabled, do nothing
+		default:
+			return trace.Wrap(err, "starting recording encrypter")
+		}
+	}
+
 	log.DebugContext(ctx, "Uploading session summary")
 	path, err := s.summaryUploader.UploadSummary(ctx, sessionID, bytes.NewReader(rBytes))
 	if err != nil {
@@ -332,42 +360,29 @@ func (s *SessionSummarizer) summarizeNow(
 	return sumErr
 }
 
+type nopCloser struct {
+	io.Writer
+}
+
+func (n *nopCloser) Close() error {
+	return nil
+}
+
 // SummarizeWithoutEndEvent summarizes a session recording with a given ID.
 // Used if the caller doesn't have a reference to the end event.
 func (s *SessionSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
-	sshEnd, dbEnd, err := s.findSessionEndEvent(ctx, sessionID)
-	switch {
-	case err != nil:
-		return trace.Wrap(err)
-	case sshEnd != nil:
-		return s.SummarizeSSH(ctx, sshEnd)
-	case dbEnd != nil:
-		return s.SummarizeDatabase(ctx, dbEnd)
-	default:
-		return trace.NotFound("session end event not found")
+	sEnd, err := events.FindSessionEndEvent(ctx, s.streamer, sessionID)
+	if err != nil {
+		return trace.Wrap(err, "failed to find session end event")
 	}
-}
 
-func (s *SessionSummarizer) findSessionEndEvent(ctx context.Context, sessionID session.ID) (*apievents.SessionEnd, *apievents.DatabaseSessionEnd, error) {
-	eventsCh, errCh := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
-
-	for {
-		select {
-		case event, ok := <-eventsCh:
-			if !ok {
-				return nil, nil, nil
-			}
-			switch e := event.(type) {
-			case *apievents.SessionEnd:
-				return e, nil, nil
-			case *apievents.DatabaseSessionEnd:
-				return nil, e, nil
-			}
-		case err := <-errCh:
-			return nil, nil, trace.Wrap(err)
-		case <-ctx.Done():
-			return nil, nil, trace.Wrap(ctx.Err())
-		}
+	switch o := sEnd.(type) {
+	case *apievents.SessionEnd:
+		return trace.Wrap(s.SummarizeSSH(ctx, o))
+	case *apievents.DatabaseSessionEnd:
+		return trace.Wrap(s.SummarizeDatabase(ctx, o))
+	default:
+		return trace.BadParameter("unsupported session end event type %T", sEnd)
 	}
 }
 

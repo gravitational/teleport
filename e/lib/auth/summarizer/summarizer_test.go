@@ -1,15 +1,20 @@
 package summarizer
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -42,6 +47,8 @@ import (
 type summarizerTestPlugin struct {
 	clock         *clockwork.FakeClock
 	enableBedrock bool
+	decrypter     events.DecryptionWrapper
+	encrypter     events.EncryptionWrapper
 }
 
 func (p *summarizerTestPlugin) GetName() string {
@@ -63,6 +70,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Authorizer:        authServer.Authorizer,
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
+		Decrypter:         p.decrypter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -88,6 +96,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		BedrockClientFactory: bedrockClientFactory,
 		Clock:                authServer.AuthServer.GetClock(),
 		EnableBedrock:        p.enableBedrock,
+		Encrypter:            p.encrypter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -100,6 +109,8 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 type summarizerTestTLSServerConfig struct {
 	uploader      events.MultipartHandler
 	enableBedrock bool
+	encrypter     events.EncryptionWrapper
+	decrypter     events.DecryptionWrapper
 }
 
 func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
@@ -126,6 +137,8 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 		err = cfg.APIConfig.PluginRegistry.Add(&summarizerTestPlugin{
 			clock:         clock,
 			enableBedrock: scfg.enableBedrock,
+			decrypter:     scfg.decrypter,
+			encrypter:     scfg.encrypter,
 		})
 		require.NoError(t, err)
 	})
@@ -527,6 +540,77 @@ func TestSummarizer_BedrockDisabled(t *testing.T) {
 	assert.ErrorIs(t, err, trace.AccessDenied("Amazon Bedrock models are unavailable in Teleport Cloud"))
 }
 
+func TestSummarizerEncrypedDecrypted(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	memoryUploader := eventstest.NewMemoryUploader()
+
+	srv := newSummarizerTestTLSServer(t,
+		summarizerTestTLSServerConfig{
+			uploader:  memoryUploader,
+			encrypter: &fakeEncryptedIO{},
+			decrypter: &fakeEncryptedIO{},
+		})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+	createSummarizerConfig(t, ctx, sclt)
+
+	encryptedSessionID := "24d8542a-8a7d-4683-a59b-18adc3a71f11"
+
+	startTime := srv.Clock().Now()
+
+	// Ingest an example session.
+	stream, err := srv.Auth().CreateAuditStream(ctx, session.ID(encryptedSessionID))
+	require.NoError(t, err)
+
+	eventsData := eventstest.GenerateTestSession(eventstest.SessionParams{
+		ClusterName: "openai-cluster",
+		UserName:    "alice",
+		SessionID:   encryptedSessionID,
+		// OpenSSH nodes have cluster name as a suffix.
+		ServerID:  "9d68b09f-8c0c-49a3-b54d-f8791f0c3941.testcluster",
+		PrintData: []string{"net", "stat"},
+	})
+	for _, event := range eventsData {
+		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+		require.NoError(t, err)
+	}
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+
+	summary := waitForSummary(t, ctx, sclt, encryptedSessionID)
+
+	sef, err := events.ToEventFields(eventsData[len(eventsData)-1])
+	require.NoError(t, err)
+	expectedEndEvent, err := structpb.NewStruct(sef)
+	require.NoError(t, err)
+
+	assert.Empty(t, cmp.Diff(
+		&summarizerv1pb.Summary{
+			SessionId:           encryptedSessionID,
+			State:               summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
+			InferenceStartedAt:  timestamppb.New(startTime),
+			InferenceFinishedAt: timestamppb.New(startTime.Add(10 * time.Second)),
+			Content:             "The user wrote: netstat",
+			ModelName:           "openai-model",
+			SessionEndEvent:     expectedEndEvent,
+		},
+		summary,
+		protocmp.Transform(),
+	))
+	writer := &memBuffer{}
+	err = memoryUploader.DownloadSummary(ctx, session.ID(encryptedSessionID), writer)
+	require.NoError(t, err)
+
+	// Verify that the uploaded summary is indeed encrypted.
+	encryptedData := writer.Bytes()
+	require.True(t, bytes.HasPrefix(encryptedData, []byte(agePrefix)))
+}
+
 func TestSummarizerNoEndEvent(t *testing.T) {
 	t.Parallel()
 
@@ -597,4 +681,77 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 		summary,
 		protocmp.Transform(),
 	))
+}
+
+// encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
+type fakeEncryptedIO struct {
+}
+
+type fakeEncrypter struct {
+	inner  io.WriteCloser
+	writer io.Writer
+}
+
+func (f *fakeEncrypter) Write(out []byte) (int, error) {
+	return f.writer.Write(out)
+}
+
+func (f *fakeEncrypter) Close() error {
+	return f.inner.Close()
+}
+
+func (f *fakeEncryptedIO) WithEncryption(ctx context.Context, writer io.WriteCloser) (io.WriteCloser, error) {
+	writer.Write([]byte("age-encryption.org")) // fake header
+	hexWriter := hex.NewEncoder(writer)
+	encrypter := &fakeEncrypter{
+		inner:  writer,
+		writer: hexWriter,
+	}
+
+	return encrypter, nil
+}
+
+const agePrefix = "age-encryption.org"
+
+func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) (io.Reader, error) {
+	// read and discard fake header
+	header := make([]byte, len(agePrefix))
+	_, err := io.ReadFull(reader, header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if string(header) != agePrefix {
+		return nil, trace.BadParameter("invalid encryption header")
+	}
+	return hex.NewDecoder(reader), nil
+}
+
+// memBuffer is a in-memory byte buffer that implements both io.Writer and
+// io.WriterAt interfaces.
+type memBuffer struct {
+	buf manager.WriteAtBuffer
+	// mu is a mutex to protect concurrent writes to the buffer. Even though the
+	// underlying buffer is thread-safe, we need to prevent a race condition in
+	// [MemBuffer.Write] between checking the length of the buffer and writing to
+	// it.
+	mu sync.Mutex
+}
+
+func (b *memBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.WriteAt(p, int64(len(b.buf.Bytes())))
+}
+
+func (b *memBuffer) WriteAt(p []byte, pos int64) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.WriteAt(p, pos)
+}
+
+// Bytes return the underlying byte slice.
+func (b *memBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Bytes()
 }

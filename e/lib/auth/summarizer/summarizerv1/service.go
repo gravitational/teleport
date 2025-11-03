@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -31,6 +32,7 @@ type ServiceConfig struct {
 	Authorizer        authz.Authorizer
 	Backend           services.Summarizer
 	SummaryDownloader SummaryDownloader
+	Decrypter         events.DecryptionWrapper
 }
 
 // Service provides an implementation of [pb.SummarizerServiceServer] and
@@ -43,6 +45,7 @@ type Service struct {
 	backend           services.Summarizer
 	summaryDownloader SummaryDownloader
 	logger            *slog.Logger
+	decrypter         events.DecryptionWrapper
 }
 
 var _ pb.SummarizerServiceServer = (*Service)(nil)
@@ -66,6 +69,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		backend:           cfg.Backend,
 		summaryDownloader: cfg.SummaryDownloader,
 		logger:            slog.With(teleport.ComponentKey, "summarizer"),
+		decrypter:         cfg.Decrypter,
 	}, nil
 }
 
@@ -515,8 +519,13 @@ func (s *Service) insecureGetSummary(
 		return nil, nil, trace.Wrap(err)
 	}
 
+	payload, err := s.decryptIfNeeded(ctx, buf.Bytes())
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "decrypting session summary")
+	}
+
 	summary := &pb.Summary{}
-	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(buf.Bytes(), summary)
+	err = protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(payload, summary)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -560,4 +569,11 @@ func (s *Service) IsEnabled(
 	return &pb.IsEnabledResponse{
 		Enabled: len(models) > 0,
 	}, nil
+}
+
+// decryptIfNeeded decrypts the data if it is encrypted.
+// If the data is not encrypted, it is returned as-is.
+func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
+	decryptedData, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, r.decrypter)
+	return decryptedData, trace.Wrap(err)
 }

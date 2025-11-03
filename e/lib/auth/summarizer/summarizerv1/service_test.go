@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"testing"
@@ -56,6 +58,7 @@ func (p *testPlugin) RegisterAuthServices(
 		Authorizer:        authServer.Authorizer,
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
+		Decrypter:         &fakeEncryptedIO{},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -863,31 +866,51 @@ func TestService_GetSummary(t *testing.T) {
 	require.NoError(t, err)
 	sclt := clt.SummarizerServiceClient()
 
-	sessionEnd := newSessionEndEvent()
-	expectedSummary := newTestSummary(t, sessionEnd)
-	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(expectedSummary)
-	require.NoError(t, err)
-	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.SessionId), bytes.NewReader(b))
+	t.Run("unencrypted summary", func(t *testing.T) {
+		sessionEnd := newSessionEndEvent()
+		expectedSummary := newTestSummary(t, sessionEnd)
+		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(expectedSummary)
+		require.NoError(t, err)
+		srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.SessionId), bytes.NewReader(b))
 
-	// Test fetching an existing summary.
-	got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: expectedSummary.SessionId,
+		// Test fetching an existing summary.
+		got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+			SessionId: expectedSummary.SessionId,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
+
+		// Make sure that the session end event can be fully recovered from the
+		// unstructured representation.
+		gotSessionEnd, err := events.FromEventFields(got.Summary.SessionEndEvent.AsMap())
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(sessionEnd, gotSessionEnd, protocmp.Transform()))
+
+		// Test fetching a summary that doesn't exist.
+		_, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+			SessionId: "aa6bd352-7d90-4802-927e-9295872f37ad",
+		})
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
 	})
-	require.NoError(t, err)
-	assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
 
-	// Make sure that the session end event can be fully recovered from the
-	// unstructured representation.
-	gotSessionEnd, err := events.FromEventFields(got.Summary.SessionEndEvent.AsMap())
-	require.NoError(t, err)
-	assert.Empty(t, cmp.Diff(sessionEnd, gotSessionEnd, protocmp.Transform()))
+	t.Run("encrypted summary", func(t *testing.T) {
+		sessionEnd := newSessionEndEvent()
+		// Use a different session ID to avoid conflicts with the previous test.
+		sessionEnd.SessionID = "0fd10888-a48d-45b7-9a10-dc4321f7b159"
+		expectedSummary := newTestSummary(t, sessionEnd)
+		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(expectedSummary)
+		require.NoError(t, err)
 
-	// Test fetching a summary that doesn't exist.
-	_, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: "aa6bd352-7d90-4802-927e-9295872f37ad",
+		srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.SessionId), bytes.NewReader(encrypt(b)))
+		// Test fetching an existing encrypted summary.
+		got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+			SessionId: expectedSummary.SessionId,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
 	})
-	require.Error(t, err)
-	assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 }
 
 func TestService_GetSummary_RBAC(t *testing.T) {
@@ -1008,4 +1031,31 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+}
+
+// encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
+type fakeEncryptedIO struct {
+}
+
+func encrypt(buf []byte) []byte {
+	var writer bytes.Buffer
+	writer.Write([]byte("age-encryption.org")) // fake header
+	writer.WriteString(hex.EncodeToString(buf))
+
+	return writer.Bytes()
+}
+
+const agePrefix = "age-encryption.org"
+
+func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) (io.Reader, error) {
+	// read and discard fake header
+	header := make([]byte, len(agePrefix))
+	_, err := io.ReadFull(reader, header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if string(header) != agePrefix {
+		return nil, trace.BadParameter("invalid encryption header")
+	}
+	return hex.NewDecoder(reader), nil
 }
