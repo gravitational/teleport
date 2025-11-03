@@ -1,5 +1,26 @@
 # Changelog
 
+## 16.5.19 (11/03/25)
+
+* Slack access plugin no longer crashes in the event access list is unsupported. [#60675](https://github.com/gravitational/teleport/pull/60675)
+* Allowed moderated session peers to perform file transfers. [#60606](https://github.com/gravitational/teleport/pull/60606)
+* Fixed a startup error `EADDRINUSE: address already in use` in Teleport Connect on macOS and Linux that could occur with long system usernames. [#60578](https://github.com/gravitational/teleport/pull/60578)
+* Client tools managed updates stores OS and ARCH in the configuration. This ensures compatibility when `TELEPORT_HOME` directory is shared with a virtual instance running a different OS or architecture. [#60412](https://github.com/gravitational/teleport/pull/60412)
+* Fixed a bug that prevented using database role names longer than 30 chars for MySQL auto user provisioning. Now role names as long as 32 chars, which is the MySQL limit, can be used. [#60379](https://github.com/gravitational/teleport/pull/60379)
+* Added `extraEnv` and `extraArgs` to the teleport-operator helm chart. [#60355](https://github.com/gravitational/teleport/pull/60355)
+* Fixed malformed audit events breaking the audit log. [#60336](https://github.com/gravitational/teleport/pull/60336)
+* Fixed an issue in Teleport Connect where Ctrl+D would sometimes not close a terminal tab. [#60223](https://github.com/gravitational/teleport/pull/60223)
+* Added support for PodSecurityContext to `tbot` helm chart. [#60208](https://github.com/gravitational/teleport/pull/60208)
+* Added explicit timeout to tbot when the Trust Bundle Cache is establishing an event watch. [#60188](https://github.com/gravitational/teleport/pull/60188)
+* Fixed a bug where OpenSSH EICE node connections would fail. [#60126](https://github.com/gravitational/teleport/pull/60126)
+* Updated Go to 1.24.9. [#60115](https://github.com/gravitational/teleport/pull/60115)
+* Fixed SFTP audit events breaking the audit log. [#60071](https://github.com/gravitational/teleport/pull/60071)
+* Fixed handling of local tsh scp targets that contain a colon. [#59983](https://github.com/gravitational/teleport/pull/59983)
+* Fixed issue where temporarily unreachable app servers were permanently removed from session cache, causing persistent connection failures: `no application servers remaining to connect`. [#59954](https://github.com/gravitational/teleport/pull/59954)
+* Fixes a bug with the check for a running Teleport process in the install-node.sh script. [#59890](https://github.com/gravitational/teleport/pull/59890)
+* Updated mongo-driver to v1.17.4 to include fixes for possible connection leaks that could affect Teleport Database Service instances. [#59783](https://github.com/gravitational/teleport/pull/59783)
+* The event-handler plugin will now skip over Windows desktop session recording events by default. [#59782](https://github.com/gravitational/teleport/pull/59782)
+
 ## 16.5.18 (09/29/25)
 
 * Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59670](https://github.com/gravitational/teleport/pull/59670)
