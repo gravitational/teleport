@@ -1394,6 +1394,9 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*GenericWatcher
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: true,
 		CloneFunc:              types.Server.DeepCopy,
+		ReadOnlyFunc: func(resource types.Server) readonly.Server {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
@@ -1745,6 +1748,9 @@ func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*Gene
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
 		CloneFunc:              types.Server.DeepCopy,
+		ReadOnlyFunc: func(resource types.Server) readonly.Server {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
@@ -1790,6 +1796,9 @@ func NewHealthCheckConfigWatcher(
 		},
 		ResourcesC: cfg.ResourcesC,
 		CloneFunc:  apiutils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
+		ReadOnlyFunc: func(resource *healthcheckconfigv1.HealthCheckConfig) *healthcheckconfigv1.HealthCheckConfig {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
