@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -629,9 +628,9 @@ func TestAuthorityForCert(t *testing.T) {
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError), "a certificate signed by a certificate should not pass validation")
 }
 
-// TestAuditEvent tests that AuthAttempt audit event returns host id
+// TestAuthAttemptAuditEvent tests that AuthAttempt audit event returns host id
 // and hostname of target node.
-func TestAuditEvent(t *testing.T) {
+func TestAuthAttemptAuditEvent(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -723,6 +722,6 @@ func TestAuditEvent(t *testing.T) {
 
 	// audit event (AuthAttempt) should include node's host id and hostname
 	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
-	assert.Equal(t, node.GetName(), authEvent.ServerID)
-	assert.Equal(t, node.GetHostname(), authEvent.ServerHostname)
+	require.Equal(t, node.GetName(), authEvent.ServerID)
+	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
 }
