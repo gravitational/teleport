@@ -152,7 +152,7 @@ message TargetDesktop {
   // Login for the desktop session.
   string login = 2;
   // New field indicating that we wish to use TDPB
-  bool use_tdpb = 3;
+  string protocol = 3;
 }
 ```
 
