@@ -360,7 +360,7 @@ $ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_
 ### `bound_keypair`
 
 The `bound_keypair` CA signs JWTs issued for [Bound Keypair join state
-verification](../../../reference/machine-workload-identity/machine-id/bound-keypair/concepts.mdx#join-state-verification).
+verification](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx#join-state-verification).
 This is an additional document stored by clients that join your Teleport cluster
 using the `bound_keypair` join method that uniquely identifies each join
 attempt, and is additionally verified by Teleport during subsequent joins.
@@ -377,7 +377,7 @@ join state JWT.
 
 If join state verification fails after a CA rotation, you can allow clients to
 join again by [temporarily disabling join state
-verification](../../../reference/machine-workload-identity/machine-id/bound-keypair/admin-guide.mdx#recovery-after-a-cluster-rollback).
+verification](../../../reference/machine-workload-identity/bound-keypair/admin-guide.mdx#recovery-after-a-cluster-rollback).
 They will be issued a new join state JWT on their next join, after which
 join state verification can be safely reenabled.
 
