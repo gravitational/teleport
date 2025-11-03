@@ -44,10 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/ec2join"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -73,27 +75,26 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
+	services.Presence
 }
 
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
 	AuthService AuthService
 	Authorizer  authz.Authorizer
-	Clock       clockwork.Clock
 	FIPS        bool
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg   *ServerConfig
-	clock clockwork.Clock
+	cfg *ServerConfig
 }
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		cfg:   cfg,
-		clock: cmp.Or(cfg.Clock, clockwork.NewRealClock()),
+		cfg: cfg,
 	}
 }
 
@@ -208,6 +209,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, provisionToken)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, provisionToken)
+	case types.JoinMethodEC2:
+		return s.handleEC2Join(stream, authCtx, clientInit, provisionToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
@@ -418,6 +421,10 @@ func makeHostCertsParams(
 		// roles.
 		params.HostID = authCtx.HostID
 		params.AuthenticatedSystemRoles = authCtx.SystemRoles
+	} else if joinMethod == types.JoinMethodEC2 {
+		// EC2 join method uses a special host ID format that will be set in
+		// authCtx by the EC2 method handler.
+		params.HostID = authCtx.HostID
 	} else {
 		// Generate a new host ID to assign to the client.
 		hostID, err := hostid.Generate(ctx, joinMethod)

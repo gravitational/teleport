@@ -1,6 +1,7 @@
 ---
 title: Machine and Workload Identity Getting Started Guide
 description: Getting started with Teleport Machine and Workload Identity
+sidebar_label: Getting Started
 videoBanner: YzVK2tr6u-U
 tags:
  - get-started
@@ -267,10 +268,8 @@ $ tctl create -f join_token.yaml
 
 ## Step 5/5 Access a resource from GitHub Actions
 
-We have several published
-[Actions](../reference/machine-workload-identity/machine-id/github-actions.mdx#github-actions-helpers)
-for convenience, but for this guide we will look at things explicitly to aid
-understanding.
+We have several published [Actions](../reference/deployment/join-methods.mdx#github-actions-helpers)
+for convenience, but for this guide we will look at things explicitly to aid understanding.
 
 Within your GitHub repository, you'll create two different files:
 
@@ -473,10 +472,7 @@ without distributing long-lived credentials, making the process more secure and 
   configuring `tbot` in a production-ready way for your platform.
 - Check out the [access guides](./machine-id/access-guides/access-guides.mdx) to learn about configuring
   `tbot` for other use cases than SSH and Kubernetes.
-- Read the [configuration
-  reference](../reference/machine-workload-identity/machine-id/configuration.mdx)
-  to explore all the available configuration options.
-- Learn how [Workload
-  Identities](../machine-workload-identity/workload-identity/introduction.mdx)
-  enable the same capabilities for resources like cloud APIs that can't be
-  protected with the Teleport proxy.
+- Read the [configuration reference](../reference/machine-workload-identity/configuration.mdx) to explore
+  all the available configuration options.
+- Learn how [Workload Identities](../machine-workload-identity/workload-identity/introduction.mdx) enable the same capabilities
+  for resources like cloud APIs that can't be protected with the Teleport proxy.

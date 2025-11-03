@@ -77,16 +77,43 @@ const (
 	reservationSize = minUploadBytes + events.MaxProtoMessageSizeBytes
 )
 
+type StreamerConfig struct {
+	// Dir is the dir to stream session events to.
+	Dir string
+	// MinUploadBytes is the minimum size at which upload parts are submitted.
+	// Due to the nature of the gzip writer, each upload part maybe be marginally
+	// larger, but not smaller, than the minimum size. Defaults to 128KB.
+	MinUploadBytes int64
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter events.EncryptionWrapper
+}
+
+// CheckAndSetDefaults checks and sets streamer defaults
+func (cfg *StreamerConfig) CheckAndSetDefaults() error {
+	if cfg.Dir == "" {
+		return trace.BadParameter("missing parameter Dir")
+	}
+	if cfg.MinUploadBytes == 0 {
+		cfg.MinUploadBytes = minUploadBytes
+	}
+	return nil
+}
+
 // NewStreamer creates a streamer sending uploads to disk
-func NewStreamer(dir string, encrypter events.EncryptionWrapper) (*events.ProtoStreamer, error) {
-	handler, err := NewHandler(Config{Directory: dir, OpenFile: GetOpenFileFunc()})
+func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	handler, err := NewHandler(Config{Directory: cfg.Dir, OpenFile: GetOpenFileFunc()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       handler,
-		MinUploadBytes: minUploadBytes,
-		Encrypter:      encrypter,
+		MinUploadBytes: cfg.MinUploadBytes,
+		Encrypter:      cfg.Encrypter,
 	})
 }
 

@@ -156,8 +156,14 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 		return nil, trace.Wrap(err)
 	}
 
-	part := bytes.NewReader(req.Part)
-	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, part)
+	// If upload part is not at least the minimum upload part size, append an empty part
+	// to pad up to the minimum upload size.
+	part := req.Part
+	if !req.IsLast && len(part) < events.MinUploadPartSizeBytes {
+		part = events.PadUploadPart(part, events.MinUploadPartSizeBytes)
+	}
+
+	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))
 	if err != nil {
 		return nil, trace.Wrap(err, "uploading encrypted recording part")
 	}

@@ -131,6 +131,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
@@ -2878,7 +2879,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
-	cfg.AccessLists = services.AccessLists
+	cfg.AccessLists = services.AccessListsInternal
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Apps = services.Applications
@@ -3654,6 +3655,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	// use the local auth server for uploads if auth happens to be
 	// running in this process, otherwise wait for the instance client
 	var uploaderClient procUploader
+	var encryptedRecordingMaxUploadSize int
 	if la := process.getLocalAuth(); la != nil {
 		// The auth service's upload completer is initialized separately,
 		// so as a special case we can stop early if auth happens to be
@@ -3669,6 +3671,7 @@ func (process *TeleportProcess) initUploaderService() error {
 			return trace.Wrap(err, "cannot get cluster name")
 		}
 		clusterName = cn.GetClusterName()
+
 	} else {
 		logger.DebugContext(process.ExitContext(), "auth is not running in-process, waiting for instance connector")
 		conn, err := waitForInstanceConnector(process, logger)
@@ -3680,6 +3683,10 @@ func (process *TeleportProcess) initUploaderService() error {
 		}
 		uploaderClient = conn.Client
 		clusterName = conn.ClusterName()
+
+		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
+		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
+		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default gRPC max msg recv size.
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -3718,12 +3725,13 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:                   uploaderClient,
-		ScanDir:                    uploadsDir,
-		CorruptedDir:               corruptedDir,
-		EventsC:                    process.Config.Testing.UploadEventsC,
-		InitialScanDelay:           15 * time.Second,
-		EncryptedRecordingUploader: uploaderClient,
+		Streamer:                        uploaderClient,
+		ScanDir:                         uploadsDir,
+		CorruptedDir:                    corruptedDir,
+		EventsC:                         process.Config.Testing.UploadEventsC,
+		InitialScanDelay:                15 * time.Second,
+		EncryptedRecordingUploader:      uploaderClient,
+		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4818,6 +4826,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnServer               *alpnproxy.Proxy
 		reverseTunnelALPNServer  *alpnproxy.Proxy
 		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+		healthCheckManager       healthcheck.Manager
 		// initShutdownMtx ensures that shutdown only occurs after the full
 		// setup has been completed.
 		//
@@ -4893,6 +4902,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
 			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
+			}
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
 			ctx := payloadContext(payload)
@@ -4957,6 +4969,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
+			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 			}
 		}
 		if peerQUICTransport != nil {
@@ -5673,6 +5688,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		// Create a health check manager.
+		healthCheckManager, err = healthcheck.NewManager(
+			process.ExitContext(),
+			healthcheck.ManagerConfig{
+				Component:               component,
+				Events:                  accessPoint,
+				HealthCheckConfigReader: accessPoint,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+			return trace.Wrap(err)
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -5712,6 +5743,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
+			HealthCheckManager:       healthCheckManager,
 		})
 		if err != nil {
 			return trace.Wrap(err)

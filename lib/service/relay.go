@@ -130,7 +130,7 @@ func (process *TeleportProcess) runRelayService() error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentRelay,
 			Logger:       sublogger("node_watcher"),
-			Client:       conn.Client,
+			Client:       accessPoint,
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
