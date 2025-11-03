@@ -1424,7 +1424,9 @@ func (c *Client) CancelSemaphoreLease(ctx context.Context, lease types.Semaphore
 }
 
 // GetSemaphores returns a list of all semaphores matching the supplied filter.
+// Deprecated: Prefer paginated variant such as [Client.ListSemaphores]
 func (c *Client) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter) ([]types.Semaphore, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	rsp, err := c.grpc.GetSemaphores(ctx, &filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1434,6 +1436,25 @@ func (c *Client) GetSemaphores(ctx context.Context, filter types.SemaphoreFilter
 		sems = append(sems, s)
 	}
 	return sems, nil
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (c *Client) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	resp, err := c.grpc.ListSemaphores(ctx, &proto.ListSemaphoresRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+		Filter:    filter,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	sems := make([]types.Semaphore, 0, len(resp.Semaphores))
+	for _, s := range resp.Semaphores {
+		sems = append(sems, s)
+	}
+
+	return sems, resp.NextPageToken, nil
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
@@ -2730,11 +2751,22 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 		return trace.Wrap(err)
 	}
 
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
 	var uploadedParts []*recordingencryptionv1pb.Part
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
 	// configured for the auth service
 	var partNumber int64 = 1
-	for part, err := range parts {
+	for {
+		nextPart, err, hasNext := next()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2743,11 +2775,18 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 			Upload:     createRes.Upload,
 			PartNumber: partNumber,
 			Part:       part,
+			IsLast:     !hasNext,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		uploadedParts = append(uploadedParts, uploadRes.Part)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
 		partNumber++
 	}
 

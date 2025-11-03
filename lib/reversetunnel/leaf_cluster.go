@@ -130,7 +130,7 @@ func (s *leafCluster) getLeafClient() (authclient.ClientI, bool, error) {
 		return tlsCert, nil
 	}
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(func() (*x509.CertPool, error) {
+	tlsConfig.VerifyConnection = utils.VerifyConnection(s.clock.Now, func() (*x509.CertPool, error) {
 		pool, _, err := authclient.ClientCertPool(s.ctx, s.srv.localAccessPoint, s.domainName, types.HostCA)
 		if err != nil {
 			return nil, trace.Wrap(err)
