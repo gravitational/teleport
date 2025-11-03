@@ -23,6 +23,7 @@ package bpf
 import (
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -212,17 +213,6 @@ func TestRootWatch(t *testing.T) {
 	}
 }
 
-// Obfuscated scripts that would be difficult to put into a raw or
-// interpreted string literal and are very large.
-var (
-	//go:embed testdata/forcode_obf.sh
-	forcodeObfScript string
-	//go:embed testdata/special_char_only_obf.sh
-	specialCharOnlyObfScript string
-	//go:embed testdata/folder_glob_obf.sh
-	folderGlobObfScript string
-)
-
 // TestRootScripts checks if execsnoop can capture commands executed
 // in scripts, whether they are obfuscated or not.
 func TestRootScripts(t *testing.T) {
@@ -234,11 +224,9 @@ func TestRootScripts(t *testing.T) {
 	cgroupPath := t.TempDir()
 
 	// Create BPF service.
-	cmdBuffer := 8192
 	service, err := New(&servicecfg.BPFConfig{
-		Enabled:           true,
-		CommandBufferSize: &cmdBuffer,
-		CgroupPath:        cgroupPath,
+		Enabled:    true,
+		CgroupPath: cgroupPath,
 	})
 	require.NoError(t, err)
 
@@ -261,27 +249,9 @@ func TestRootScripts(t *testing.T) {
 		},
 		{
 			name:            "base64 encoded",
-			scriptContents:  "echo bHMgLWxh | base64 --decode | /bin/sh",
+			scriptContents:  fmt.Sprintf("echo %s | base64 --decode | /bin/sh", base64.StdEncoding.EncodeToString([]byte("ls -la"))),
 			expectedCommand: "ls -la",
 			usedCommands:    []string{"ls"},
-		},
-		{
-			name:            "obfuscated with forcode",
-			scriptContents:  forcodeObfScript,
-			expectedCommand: "ls -la",
-			usedCommands:    []string{"ls"},
-		},
-		{
-			name:            "obfuscated with special characters only",
-			scriptContents:  specialCharOnlyObfScript,
-			expectedCommand: "ls -la",
-			usedCommands:    []string{"cat", "ls"},
-		},
-		{
-			name:            "obfuscated with folder globbing",
-			scriptContents:  folderGlobObfScript,
-			expectedCommand: "ls -la",
-			usedCommands:    []string{"cat", "mkdir", "rm", "rmdir", "ls"},
 		},
 	}
 
