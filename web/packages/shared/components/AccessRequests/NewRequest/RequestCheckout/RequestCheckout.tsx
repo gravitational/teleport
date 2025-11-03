@@ -922,7 +922,7 @@ function TextBox({
   const labelText = hasError ? message : 'Request Reason';
 
   const placeholderText =
-    reasonPrompts && numPendingAccessRequests > 0
+    reasonPrompts && reasonPrompts.length && numPendingAccessRequests > 0
       ? reasonPrompts.filter(s => s.length > 0).join('\n')
       : 'Describe your request...';
 

@@ -329,25 +329,66 @@ spec:
         - 'root-node-access'
       reason:
         mode: 'required'
-        prompt: 'I am a reason prompt specific to a requested role or resource'
+        prompt: 'Please give a reason for accessing node resources'
 ```
 
-If a user with "node-requester" role assigned makes an Access Request for "node-access" role or any
-resource allowed by "root-node-access" they will be required to provide a reason. If a user's
+If a user with `node-requester` role assigned makes an Access Request for `node-access` role or any
+resource allowed by `root-node-access` they will be required to provide a reason. If a user's
 role set includes multiple roles governing Access Requests to the same roles and resources,
-"require" mode takes precedence.
+`required` mode takes precedence.
 
 ## Custom request reason prompts
 
-It is possible to specify a global prompt for all or none of the Access Requests for a particular user.
-This is achieved by setting the `spec.options.request_prompt` to a non-empty string.
+It is possible to specify custom request prompts for a user:
 
-In order to specify a scoped prompt rule for a particular requestable role or resource, set
+- for requestable resources or roles specified by a single role
+- for all Access Requests made by the user
+
+To specify a scoped prompt for requestable resources specified by a single role, set
 `spec.allow.request.reason.prompt` to a non-empty string. This will affect only Access Requests that
-contain the specific role or resource.
+contain the specific resource or role.
 
-If both global prompt rules and multiple scoped prompt rules apply to the same Access Request, all
-prompts will be listed in order within the reason box.
+A custom global request prompt can be specified by assigning the user a role
+with `spec.options.request_prompt` set to non-empty string. This global prompt will apply for
+all Access Requests made by the user.
+
+If multiple global prompts and scoped prompts apply to the same Access Request, all
+prompts will be listed in order within the request reason form.
+
+Example:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: k8s-requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - 'k8s-viewer'
+      reason:
+        prompt: 'Please give a reason for accessing kubernetes resources'
+```
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      roles:
+        - 'dba'
+  options:
+    request_prompt: 'Please provide your ticket ID'
+```
+
+If a user assigned with `k8s-requester` and `employee` roles makes an Access Request
+for resources searchable as `k8s-viewer`, they will be prompted with the text
+"Please give a reason for accessing kubernetes resources" on the first line and
+"Please provide your ticket ID" on the second line, in order.
 
 ## Review thresholds
 

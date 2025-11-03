@@ -1231,6 +1231,15 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		ReasonMode: types.RequestReasonModeOptional,
 	}
 
+	// populate the custom reason prompts: both from global prompts (spec.options.request_prompt) and
+	// from role/resource specific prompts (spec.allow.request.reason.prompt)
+	if err := m.populateCustomReasonPrompts(ctx, req.GetRoles(), req.GetRequestedResourceIDs()); err != nil {
+		return trace.Wrap(err)
+	}
+	// retain a deterministic order of reason prompts
+	slices.Sort(m.reasonPrompts)
+	enrichment.ReasonPrompts = m.reasonPrompts
+
 	switch {
 	// for dry-run, store the reason requirement in the enrichment data
 	case req.GetDryRun():
@@ -1248,18 +1257,13 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter("%s", explanation)
+			promptString := ""
+			if len(m.reasonPrompts) > 0 {
+				promptString = "\n" + strings.Join(m.reasonPrompts, "\n")
+			}
+			return trace.BadParameter("%s%s", explanation, promptString)
 		}
 	}
-
-	// populate the custom reason prompts: both from global prompts (spec.options.request_prompt) and
-	// from role/resource specific prompts (spec.allow.request.reason.prompt)
-	if err := m.populateCustomReasonPrompts(ctx, req.GetRoles(), req.GetRequestedResourceIDs()); err != nil {
-		return trace.Wrap(err)
-	}
-	// retain a deterministic order of reason prompts
-	slices.Sort(m.reasonPrompts)
-	enrichment.ReasonPrompts = m.reasonPrompts
 
 	// verify that all requested roles are permissible
 	for _, roleName := range req.GetRoles() {
@@ -1740,8 +1744,6 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 			}
 		}
 
-		// track custom prompts specific for each requested role/search_as_role allowed by user role
-		// (spec.allow.request.reason.prompt is non-empty)
 		customPrompt := strings.TrimSpace(allow.Reason.Prompt)
 		if len(customPrompt) > 0 {
 			for _, r := range allow.Roles {
