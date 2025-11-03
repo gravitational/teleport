@@ -1,7 +1,7 @@
 ---
 title: Managed Updates v2 in EC2 Agents
 description: Describes how to set up EC2 instance by cloud-init script and install Teleport with "teleport-update enable"
-labels:
+tags:
  - get-started
  - how-to
 ---
@@ -41,7 +41,7 @@ version via `autoupdate_version` resource.
 
 ## Step 1/5. Creating join tokens
 
-See [the joining documentation](../../reference/deployment/join-methods.mdx) for a detailed explanation
+See [the joining documentation](../../reference/join-methods.mdx) for a detailed explanation
 of the joining process and the supported join methods.
 
 The IAM join method is the recommended way of joining EC2 instances. It offers stronger security guarantees,
@@ -258,10 +258,10 @@ runcmd:
 ```code
 # Specify the AMI image ID for the instance and a security group that allows at least outbound traffic.
 $ aws ec2 run-instances \
-  --image-id <Var name="ami-xxxx" /> \
+  --image-id ami-xxxx \
   --instance-type t3.micro \
   --iam-instance-profile Name=EC2TeleportInstanceProfile \
-  --security-group-ids <Var name="sg-xxxx" /> \
+  --security-group-ids sg-xxxx \
   --region us-west-2 \
   --user-data file://cloud-init.yaml
    ```
@@ -363,7 +363,7 @@ From an admin workstation.
 Login to the remote cluster:
 
 ```code
-$ tsh login --proxy <Var name="example.teleport.sh:443" /> --user <Var name="user" />
+$ tsh login --proxy <Var name="example.teleport.sh:443" />
 ```
 
 Confirm that the node is joined (it might take up to 15 min to be synced).
