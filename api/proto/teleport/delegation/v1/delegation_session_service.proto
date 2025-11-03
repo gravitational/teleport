@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.delegation.v1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/delegation/v1/delegation_session_resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
@@ -26,6 +27,10 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service DelegationSessionService {
   // CreateDelegationSession creates a delegation session.
   rpc CreateDelegationSession(CreateDelegationSessionRequest) returns (DelegationSession);
+
+  // GenerateCerts generates TLS and/or SSH certificates, scoped to a delegation
+  // session.
+  rpc GenerateCerts(GenerateCertsRequest) returns (GenerateCertsResponse);
 }
 
 // CreateDelegationSessionRequest are the parameters to CreateDelegationSession.
@@ -62,4 +67,93 @@ message DelegationSessionParameters {
 
   // Users (i.e. bots or workloads) authorized to use the session.
   repeated DelegationUserSpec authorized_users = 2;
+}
+
+// GenerateCertsRequest are the parameters to GenerateCerts.
+message GenerateCertsRequest {
+  // ID of the delegation session that certificates will be bound to.
+  string delegation_session_id = 1;
+
+  // SSH public key in the authorized keys format.
+  bytes ssh_public_key = 2;
+
+  // TLS public key in PEM-encoded PKCS#1 or PKIX format.
+  bytes tls_public_key = 3;
+
+  // Desired time of expiry (may be adjusted based on session TTL, etc).
+  google.protobuf.Timestamp expires = 4;
+
+  oneof routing {
+    // Name of the Kubernetes cluster the certificates will be used to access.
+    string kubernetes_cluster = 5;
+
+    // Route to the database the certificates will be used to access.
+    RouteToDatabase route_to_database = 6;
+
+    // Route to the application the certificates will be used to access.
+    RouteToApp route_to_app = 7;
+  }
+}
+
+// RouteToDatabase contains database access routing information.
+message RouteToDatabase {
+  // Database proxy service name.
+  string service_name = 1;
+
+  // Protocol used to communicate with the database.
+  string protocol = 2;
+
+  // Optional database username.
+  string username = 3;
+
+  // Optional name of the database.
+  string database = 4;
+
+  // Optional list of database roles.
+  repeated string roles = 5;
+}
+
+// RouteToApp contains application access routing information.
+message RouteToApp {
+  // Application name.
+  string name = 1;
+
+  // Public application address.
+  string public_addr = 2;
+
+  // Name of the cluster where the application resides.
+  string cluster_name = 3;
+
+  // Internal URI of the application.
+  string uri = 4;
+
+  // Locks the certificate down to a specific port.
+  uint32 target_port = 5;
+
+  // AWS role to assume.
+  string aws_role_arn = 6;
+
+  // Azure identity to assume.
+  string azure_identity = 7;
+
+  // GCP service account to assume.
+  string gcp_service_account = 8;
+
+  // AWS credentials, formatted as JSON.
+  string aws_credential_process_credentials = 9;
+}
+
+// GenerateCertsResponse are the results of calling GenerateCerts.
+message GenerateCertsResponse {
+  // SSH certificated marshaled in the authorized keys format.
+  bytes ssh = 1;
+
+  // TLS X.509 certificate (PEM-encoded).
+  bytes tls = 2;
+
+  // SSH certificate authorities.
+  repeated bytes ssh_cas = 3;
+
+  // TLS certificate authorities.
+  repeated bytes tls_cas = 4;
 }
