@@ -275,6 +275,7 @@ require (
 	k8s.io/component-base v0.34.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubectl v0.34.1
+	k8s.io/metrics v0.34.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	sigs.k8s.io/controller-runtime v0.22.1
 	sigs.k8s.io/controller-tools v0.17.1
@@ -628,7 +629,6 @@ require (
 	gotest.tools/gotestsum v1.13.0 // indirect
 	k8s.io/component-helpers v0.34.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
-	k8s.io/metrics v0.34.1 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
