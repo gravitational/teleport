@@ -7372,6 +7372,28 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Contex
 		services.AccessState{MFAVerified: true})
 }
 
+// samlAppLabelFriendlyMsg returns a user friendly RBAC message to be displayed
+// in the Web UI or tctl when creating or updating a service provider resource.
+// It is only processed for errors that may have occured due to missing
+// app_labels in role version 8.
+func samlAppLabelFriendlyMsg(err error, action string, emptyLabel bool) string {
+	if err == nil {
+		return ""
+	}
+	if !strings.Contains(err.Error(), "app_labels") {
+		return ""
+	}
+
+	const docs = "https://goteleport.com/docs/identity-governance/idps/saml-idp-rbac"
+	// TODO(sshah): adjust error message once we land Teleport role version 9.
+	if emptyLabel {
+		return fmt.Sprintf(`%s this resource with an empty label requires a version 8 role permitting wildcard "app_labels". `+
+			`Consider applying labels for granular access: %s `, action, docs)
+	}
+	return fmt.Sprintf(`You need a version 8 role with "app_labels" permitting label(s) configured for this resource. `+
+		`Check the SAML IdP RBAC guide for more details: %s`, docs)
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	if err := a.authorizeAction(types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
@@ -7451,7 +7473,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}
 
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Creating", len(sp.GetAllLabels()) == 0))
 	}
 
 	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
@@ -7508,7 +7530,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, existingSP); err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Updating", len(sp.GetAllLabels()) == 0))
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
 		return trace.Wrap(err)
