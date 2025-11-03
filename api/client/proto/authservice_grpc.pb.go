@@ -91,6 +91,7 @@ const (
 	AuthService_KeepAliveSemaphoreLease_FullMethodName             = "/proto.AuthService/KeepAliveSemaphoreLease"
 	AuthService_CancelSemaphoreLease_FullMethodName                = "/proto.AuthService/CancelSemaphoreLease"
 	AuthService_GetSemaphores_FullMethodName                       = "/proto.AuthService/GetSemaphores"
+	AuthService_ListSemaphores_FullMethodName                      = "/proto.AuthService/ListSemaphores"
 	AuthService_DeleteSemaphore_FullMethodName                     = "/proto.AuthService/DeleteSemaphore"
 	AuthService_EmitAuditEvent_FullMethodName                      = "/proto.AuthService/EmitAuditEvent"
 	AuthService_CreateAuditStream_FullMethodName                   = "/proto.AuthService/CreateAuditStream"
@@ -457,6 +458,8 @@ type AuthServiceClient interface {
 	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -1677,6 +1680,16 @@ func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.Semapho
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Semaphores)
 	err := c.cc.Invoke(ctx, AuthService_GetSemaphores_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSemaphoresResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSemaphores_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4069,6 +4082,8 @@ type AuthServiceServer interface {
 	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -4826,6 +4841,9 @@ func (UnimplementedAuthServiceServer) CancelSemaphoreLease(context.Context, *typ
 }
 func (UnimplementedAuthServiceServer) GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSemaphores not implemented")
+}
+func (UnimplementedAuthServiceServer) ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSemaphores not implemented")
 }
 func (UnimplementedAuthServiceServer) DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSemaphore not implemented")
@@ -6391,6 +6409,24 @@ func _AuthService_GetSemaphores_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetSemaphores(ctx, req.(*types.SemaphoreFilter))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListSemaphores_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSemaphoresRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSemaphores_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, req.(*ListSemaphoresRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10422,6 +10458,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSemaphores",
 			Handler:    _AuthService_GetSemaphores_Handler,
+		},
+		{
+			MethodName: "ListSemaphores",
+			Handler:    _AuthService_ListSemaphores_Handler,
 		},
 		{
 			MethodName: "DeleteSemaphore",
