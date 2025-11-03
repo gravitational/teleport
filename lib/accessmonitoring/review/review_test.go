@@ -508,6 +508,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			setupMock: func(m *mockClient) {
 				m.On("GetUserLoginState", mock.Anything, "non-existent-user").
 					Return(nil, trace.NotFound("user not found"))
+				m.On("GetUser", mock.Anything, "non-existent-user", false).
+					Return(nil, trace.NotFound("user not found"))
 			},
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "user not found")
@@ -645,6 +647,15 @@ func (m *mockClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, re
 		return rules, args.String(1), args.Error(2)
 	}
 	return nil, args.String(1), args.Error(2)
+}
+
+func (m *mockClient) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	args := m.Called(ctx, name, withSecrets)
+	user, ok := args.Get(0).(types.User)
+	if ok {
+		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *mockClient) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
