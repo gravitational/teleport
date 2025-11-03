@@ -7,6 +7,7 @@
 
 import Authn
 import os
+import SafariServices
 import SwiftUI
 
 private let logger = Logger(
@@ -212,6 +213,8 @@ struct ScannedURLView: View {
 
   @Environment(\.openURL) private var openURL
 
+  @State private var configProfileURL: URL?
+
   var body: some View {
     VStack(spacing: 16) {
       VStack {
@@ -233,6 +236,26 @@ struct ScannedURLView: View {
         }
       }.padding(8)
       Spacer()
+
+      Button("Open Configuration Profile") {
+        configProfileURL =
+          URL(
+            string: "https://teleport-mbp.ocelot-paradise.ts.net:3030/webapi/profile.mobileconfig"
+          )!
+      }.sheet(item: $configProfileURL) { url in
+        SafariView(url: url)
+      }
+      .onReceive(NotificationCenter.default
+        .publisher(for: UIApplication.didEnterBackgroundNotification))
+      { _ in
+        // Close the web view when the user leaves the app to install the configuration profile.
+        // TODO: Show the next step instead telling the user to install the configuration profile.
+        // Optionally, detect if the profile was installed, but for the MVP it should be enough to
+        // show a button that lets the user confirm that they installed the profile.
+        if configProfileURL != nil {
+          configProfileURL = nil
+        }
+      }.glassProminentButton()
 
       Button("Show Serial Number") {
         serialNumber = deviceTrust.getSerialNumber()
@@ -277,7 +300,6 @@ struct ScannedURLView: View {
           EmptyView()
         }
       }
-
       Spacer()
     }.sheet(
       isPresented: .constant(isConfirmingEnrollment),
@@ -604,5 +626,31 @@ extension View {
 
   func glassProminentButton() -> some View {
     modifier(GlassProminentButtonModifier())
+  }
+}
+
+// Adapt SFSafariViewController to SwiftUI.
+// https://stackoverflow.com/a/76127904
+struct SafariView: UIViewControllerRepresentable {
+  let url: URL
+
+  func makeUIViewController(context _: UIViewControllerRepresentableContext<SafariView>)
+    -> SFSafariViewController
+  {
+    let ctrl = SFSafariViewController(url: url)
+    ctrl.dismissButtonStyle = .done
+    return ctrl
+  }
+
+  func updateUIViewController(
+    _: SFSafariViewController,
+    context _: UIViewControllerRepresentableContext<SafariView>
+  ) {}
+}
+
+// Conformance to Identifiable is needed for sheet presentation.
+extension URL: @retroactive Identifiable {
+  public var id: String {
+    absoluteString
   }
 }
