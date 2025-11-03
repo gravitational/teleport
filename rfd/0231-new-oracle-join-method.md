@@ -79,7 +79,7 @@ Certificate:
         Validity
             Not Before: Oct 24 21:39:42 2025 GMT
             Not After : Oct 24 23:40:42 2025 GMT
-        Subject: CN=ocid1.instance.oc1.phx.anyhqljrtygmvrycfx7frgsbzaiggh7s7yyq6bokgajeoipfvfrsq456cuna, OU=opc-certtype:instance, OU=opc-compartment:ocid1.compartment.oc1..aaaaaaaaeajccvkj5gws3kd32uhr5zvu2ag6fbxevjlny4hv3k6gum2cicha, OU=opc-instance:ocid1.instance.oc1.phx.anyhqljrtygmvrycfx7frgsbzaiggh7s7yyq6bokgajeoipfvfrsq456cuna, OU=opc-tenant:ocid1.tenancy.oc1..aaaaaaaaopdsxc4qa4natvlx6ns34d56qzz2pyi3is32wxwnwx366ebwdueq
+        Subject: CN=ocid1.instance.oc1.phx.<random-id>, OU=opc-certtype:instance, OU=opc-compartment:ocid1.compartment.oc1..<random-id>, OU=opc-instance:ocid1.instance.oc1.phx.<random-id>, OU=opc-tenant:ocid1.tenancy.oc1..<random-id>
 ```
 
 The subject OU fields `opc-instance`, `opc-compartment`, and `opc-tenant`
@@ -253,7 +253,7 @@ message OracleChallengeSolution {
   // Signature is a signature over the challenge, signed by the private key
   // matching the instance identity certificate.
   bytes signature = 3;
-  // SignedRootCaReq is a signed request to the Oracle API for retreiving the
+  // SignedRootCaReq is a signed request to the Oracle API for retrieving the
   // root CAs that issued the instance identity certificate.
   bytes signed_root_ca_req = 4;
 }
