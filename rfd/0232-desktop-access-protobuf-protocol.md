@@ -136,7 +136,7 @@ layer on a per-connection basis.
 
 
 Teleport Connect also reaches the Desktop Agent via the Proxy service, however,
-up-to-date Proxy's cannot assume that tsh speaks TDPB as it can with browser
+up-to-date Proxies cannot assume that tsh speaks TDPB as it can with browser
 clients. Similar to the Desktop Agent, we'll need some way to determine which
 dialect to use for the connection. Since Teleport Connect uses a bi-directional
 gRPC stream to tunnel TDP messages between tsh and the proxy, we can easily add
@@ -235,7 +235,7 @@ message DesktopRecordingEvent {
 
     // A TDPFrame message which contains PNG, Screen Spec,
     // ClipboardData, Mouse Move, and mouse button events
-    bytes ProtoMessage = 3;
+    bytes ProtoMessage = 4;
 
     // DelayMilliseconds is the delay in milliseconds from the start of the session
     int64 DelayMilliseconds = 3;
