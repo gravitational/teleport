@@ -2314,12 +2314,14 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
-			Context:       process.ExitContext(),
-			DataDir:       filepath.Join(cfg.DataDir, teleport.LogsDir),
-			ServerID:      hostUUID,
-			UploadHandler: uploadHandler,
-			ExternalLog:   externalLog,
-			Decrypter:     encryptedIO,
+			Context:                   process.ExitContext(),
+			DataDir:                   filepath.Join(cfg.DataDir, teleport.LogsDir),
+			ServerID:                  hostUUID,
+			UploadHandler:             uploadHandler,
+			ExternalLog:               externalLog,
+			Decrypter:                 encryptedIO,
+			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2420,6 +2422,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:                      logger,
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
 			SessionSummarizerProvider:   sessionSummarizerProvider,
+			RecordingMetadataProvider:   recordingMetadataProvider,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -2442,6 +2445,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	authServer.EncryptedIO = encryptedIO
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -2512,6 +2516,7 @@ func (process *TeleportProcess) initAuthService() error {
 	recordingMetadataService, err := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
 		Streamer:      authServer,
 		UploadHandler: authServer,
+		Encrypter:     encryptedIO,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2530,13 +2535,15 @@ func (process *TeleportProcess) initAuthService() error {
 		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
 	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
-			Uploader:       uploadHandler,
-			Component:      teleport.ComponentAuth,
-			ClusterName:    clusterName,
-			AuditLog:       process.auditLog,
-			SessionTracker: authServer.Services,
-			Semaphores:     authServer.Services,
-			ServerID:       hostUUID,
+			Uploader:                  uploadHandler,
+			Component:                 teleport.ComponentAuth,
+			ClusterName:               clusterName,
+			AuditLog:                  process.auditLog,
+			SessionTracker:            authServer.Services,
+			Semaphores:                authServer.Services,
+			ServerID:                  hostUUID,
+			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err, "starting upload completer")
@@ -3778,6 +3785,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	// use the local auth server for uploads if auth happens to be
 	// running in this process, otherwise wait for the instance client
 	var uploaderClient procUploader
+	var encryptedRecordingMaxUploadSize int
 	if la := process.getLocalAuth(); la != nil {
 		// The auth service's upload completer is initialized separately,
 		// so as a special case we can stop early if auth happens to be
@@ -3793,6 +3801,7 @@ func (process *TeleportProcess) initUploaderService() error {
 			return trace.Wrap(err, "cannot get cluster name")
 		}
 		clusterName = cn.GetClusterName()
+
 	} else {
 		logger.DebugContext(process.ExitContext(), "auth is not running in-process, waiting for instance connector")
 		conn, err := waitForInstanceConnector(process, logger)
@@ -3804,6 +3813,10 @@ func (process *TeleportProcess) initUploaderService() error {
 		}
 		uploaderClient = conn.Client
 		clusterName = conn.ClusterName()
+
+		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
+		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
+		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default gRPC max msg recv size.
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -3842,12 +3855,13 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:                   uploaderClient,
-		ScanDir:                    uploadsDir,
-		CorruptedDir:               corruptedDir,
-		EventsC:                    process.Config.Testing.UploadEventsC,
-		InitialScanDelay:           15 * time.Second,
-		EncryptedRecordingUploader: uploaderClient,
+		Streamer:                        uploaderClient,
+		ScanDir:                         uploadsDir,
+		CorruptedDir:                    corruptedDir,
+		EventsC:                         process.Config.Testing.UploadEventsC,
+		InitialScanDelay:                15 * time.Second,
+		EncryptedRecordingUploader:      uploaderClient,
+		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
 	})
 	if err != nil {
 		return trace.Wrap(err)

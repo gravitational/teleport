@@ -101,7 +101,7 @@ $ tsh ssh --relay none root@nodename
 ...
 ```
 
-The [`ssh-multiplexer`](../machine-workload-identity/machine-id/configuration.mdx#ssh-multiplexer) Machine ID service can be configured to use a Relay. Similarly to the behavior of `tsh`, if a Relay address is set in the service configuration, only servers available through the Relay will be accessible. It's possible to provide access to servers through the Relay and through the control plane from the same Machine ID instance by configuring two independent `ssh-multiplexer` services.
+The [`ssh-multiplexer`](../machine-workload-identity/configuration.mdx#ssh-multiplexer) Machine ID service can be configured to use a Relay. Similarly to the behavior of `tsh`, if a Relay address is set in the service configuration, only servers available through the Relay will be accessible. It's possible to provide access to servers through the Relay and through the control plane from the same Machine ID instance by configuring two independent `ssh-multiplexer` services.
 
 ## More concepts
 

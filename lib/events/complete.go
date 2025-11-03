@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,6 +70,12 @@ type UploadCompleterConfig struct {
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
 	ClusterName string
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -92,6 +100,12 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.RecordingMetadataProvider == nil {
+		cfg.RecordingMetadataProvider = &recordingmetadata.Provider{}
+	}
+	if cfg.SessionSummarizerProvider == nil {
+		cfg.SessionSummarizerProvider = &summarizer.SessionSummarizerProvider{}
 	}
 	return nil
 }
@@ -344,6 +358,8 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	// We use the streaming events API to search through the session events, because it works
 	// for both Desktop and SSH sessions
 	var lastEvent events.AuditEvent
+	var startTime time.Time
+	var isPTYSession bool
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
@@ -364,6 +380,7 @@ loop:
 				return nil
 
 			case *events.WindowsDesktopSessionStart:
+				startTime = e.Time
 				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
 				desktopSessionEnd.Code = DesktopSessionEndCode
 				desktopSessionEnd.ClusterName = e.ClusterName
@@ -379,6 +396,8 @@ loop:
 				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
 
 			case *events.SessionStart:
+				isPTYSession = true
+				startTime = e.Time
 				sshSessionEnd.Type = SessionEndEvent
 				sshSessionEnd.Code = SessionEndCode
 				sshSessionEnd.ClusterName = e.ClusterName
@@ -438,6 +457,28 @@ loop:
 	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !isPTYSession {
+		return nil
+	}
+
+	// For PTY sessions, process recording metadata and summarization.
+	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
+	if !startTime.IsZero() && !sessionEndEvent.GetTime().IsZero() {
+		duration := sessionEndEvent.GetTime().Sub(startTime)
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, duration); err != nil {
+			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
+		}
+	} else {
+		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
+	}
+
+	summarizer := u.cfg.SessionSummarizerProvider.SessionSummarizer()
+	if err := summarizer.SummarizeSSH(ctx, &sshSessionEnd); err != nil {
+		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
