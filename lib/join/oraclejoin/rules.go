@@ -22,12 +22,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // CheckOracleAllowRules checks that a the oracle rules in a provision token
 // allow an OCI instance with the given claims to join the cluster.
-func CheckOracleAllowRules(claims *Claims, token provision.Token) error {
+func CheckOracleAllowRules(claims *Claims, token types.ProvisionToken) error {
 	ptv2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
 		return trace.Errorf("Oracle join method only supports ProvisionTokenV2")
