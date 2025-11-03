@@ -30,6 +30,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -50,6 +51,8 @@ type CheckChallengeSolutionParams struct {
 	Solution *messages.OracleChallengeSolution
 	// ProvisionToken is the token being used for the request.
 	ProvisionToken provision.Token
+	// RootCACache caches Oracle root CAs per region.
+	RootCACache *RootCACache
 	// HTTPClient (optional) is an HTTP client that will be used to send
 	// requests to the Oracle API.
 	HTTPClient utils.HTTPDoClient
@@ -69,6 +72,8 @@ func (p *CheckChallengeSolutionParams) checkAndSetDefaults() error {
 		return trace.BadParameter("Signature is required")
 	case len(p.Solution.SignedRootCAReq) == 0:
 		return trace.BadParameter("SignedRootCAReq is required")
+	case p.RootCACache == nil:
+		return trace.BadParameter("RootCACache is required")
 	}
 	if p.HTTPClient == nil {
 		httpClient, err := defaults.HTTPClient()
@@ -207,23 +212,20 @@ func makeIntermediateCAPool(intermediateCAPEM []byte) (*x509.CertPool, error) {
 }
 
 func makeRootCAPool(ctx context.Context, params *CheckChallengeSolutionParams, instanceID string) (*x509.CertPool, error) {
-	// TODO(nklaassen): considering caching the root CA pool per region.
 	rootCAReq, err := parseRootCAReq(params.Solution.SignedRootCAReq)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing signed root CA request")
 	}
 
-	if err := validateRootCAReq(rootCAReq, instanceID); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := executeRootCAReq(ctx, params.HTTPClient, rootCAReq)
+	region, err := validateRootCAReq(rootCAReq, instanceID)
 	if err != nil {
-		return nil, trace.Wrap(err, "fetching root CAs from Oracle API")
+		return nil, trace.Wrap(err, "validating root CA request")
 	}
 
-	rootCAPool, err := parseRootCAPool(resp)
-	return rootCAPool, trace.Wrap(err, "parsing Oracle root CA pool")
+	rootCAPool, err := params.RootCACache.get(ctx, region, func() (*x509.CertPool, time.Time, error) {
+		return getRootCAPool(ctx, params.HTTPClient, rootCAReq)
+	})
+	return rootCAPool, trace.Wrap(err)
 }
 
 func parseRootCAReq(req []byte) (*http.Request, error) {
@@ -243,20 +245,20 @@ func parseRootCAReq(req []byte) (*http.Request, error) {
 	return httpReq, nil
 }
 
-func validateRootCAReq(req *http.Request, instanceID string) error {
+func validateRootCAReq(req *http.Request, instanceID string) (string, error) {
 	const rootCAPath = "/v1/instancePrincipalRootCACertificates"
 	if req.URL.Path != rootCAPath {
-		return trace.BadParameter("path must be %s, got %s", rootCAPath, req.URL.Path)
+		return "", trace.BadParameter("path must be %s, got %s", rootCAPath, req.URL.Path)
 	}
 	expectedRegion, err := regionFromInstanceID(instanceID)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	expectedHostname := expectedRegion.Endpoint("auth")
 	if req.URL.Hostname() != expectedHostname {
-		return trace.BadParameter("hostname must be %s, got %s", expectedHostname, req.URL.Hostname())
+		return "", trace.BadParameter("hostname must be %s, got %s", expectedHostname, req.URL.Hostname())
 	}
-	return nil
+	return string(expectedRegion), nil
 }
 
 // regionFromInstanceID returns an oci region for a given instance ID. It will
@@ -280,6 +282,22 @@ func regionFromInstanceID(instanceID string) (common.Region, error) {
 		return "", trace.AccessDenied("unsupported region %s", regionShortName)
 	}
 	return region, nil
+}
+
+func getRootCAPool(ctx context.Context, httpClient utils.HTTPDoClient, rootCAReq *http.Request) (*x509.CertPool, time.Time, error) {
+	resp, err := executeRootCAReq(ctx, httpClient, rootCAReq)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err, "executing Oracle root CA request")
+	}
+	rootCAPool, err := parseRootCAPool(resp)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err, "parsing Oracle root CA pool")
+	}
+	expires, err := time.Parse(time.RFC3339, resp.RefreshIn)
+	if err != nil {
+		expires = time.Now().Add(5 * time.Minute)
+	}
+	return rootCAPool, expires, nil
 }
 
 func executeRootCAReq(ctx context.Context, client utils.HTTPDoClient, req *http.Request) (*rootCAResp, error) {

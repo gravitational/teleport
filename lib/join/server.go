@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -89,13 +90,15 @@ type ServerConfig struct {
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg *ServerConfig
+	cfg               *ServerConfig
+	oracleRootCACache *oraclejoin.RootCACache
 }
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		cfg: cfg,
+		cfg:               cfg,
+		oracleRootCACache: oraclejoin.NewRootCACache(),
 	}
 }
 
