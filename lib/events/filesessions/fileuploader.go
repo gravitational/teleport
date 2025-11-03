@@ -91,6 +91,12 @@ func NewHandler(cfg Config) (*Handler, error) {
 		Config:       cfg,
 		fileRecorder: NewPlainFileRecorder(logger, cfg.OpenFile),
 	}
+
+	err := os.MkdirAll(h.pendingSummariesPath(), teleport.PrivateDirMode)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
 	return h, nil
 }
 
@@ -149,7 +155,7 @@ func downloadFile(path string, writer events.RandomAccessWriter) error {
 
 // Upload writes a session recording to a local directory.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	s, err := uploadFile(l.recordingPath(sessionID), reader, false /* overwrite */)
+	s, err := uploadFile(l.recordingPath(sessionID), reader)
 	return s, trace.Wrap(err)
 }
 
@@ -157,34 +163,47 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // This function can be called multiple times for a given sessionID to update
 // the state.
 func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	err := os.MkdirAll(l.pendingSummariesPath(), teleport.PrivateDirMode)
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
-	}
-	return uploadFile(l.pendingSummaryPath(sessionID), reader, true /* overwrite */)
+	return uploadFile(l.pendingSummaryPath(sessionID), reader, withOverwrite())
 }
 
 // UploadSummary writes a final version of session summary. This function can
 // be called only once for a given sessionID; subsequent calls will return an
 // error.
 func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	name, err := uploadFile(l.summaryPath(sessionID), reader, false /* overwrite */)
+	name, err := uploadFile(l.summaryPath(sessionID), reader)
 	return name, trace.Wrap(err)
 }
 
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.metadataPath(sessionID), reader, false /* overwrite */)
+	return uploadFile(l.metadataPath(sessionID), reader)
 }
 
 // UploadThumbnail writes a session thumbnail to a local directory.
 func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.thumbnailPath(sessionID), reader, false /* overwrite */)
+	return uploadFile(l.thumbnailPath(sessionID), reader)
 }
 
-func uploadFile(path string, reader io.Reader, overwrite bool) (string, error) {
+type fileUploadConfig struct {
+	overwrite bool
+}
+
+type fileUploadOption func(*fileUploadConfig)
+
+func withOverwrite() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.overwrite = true
+	}
+}
+
+func uploadFile(path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
+	cfg := fileUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	flags := os.O_RDWR | os.O_CREATE | os.O_TRUNC
-	if !overwrite {
+	if !cfg.overwrite {
 		flags |= os.O_EXCL
 	}
 	f, err := os.OpenFile(path, flags, 0666)

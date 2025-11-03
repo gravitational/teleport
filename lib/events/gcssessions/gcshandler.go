@@ -240,7 +240,7 @@ func (h *Handler) Close() error {
 // Upload reads the content of a session recording from a reader and uploads it
 // to a GCS bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
@@ -249,7 +249,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // uploaded object. This function can be called multiple times for a given
 // sessionID to update the state.
 func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, true /* overwrite */)
+	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, withOverwrite())
 	return path, trace.Wrap(err)
 }
 
@@ -258,39 +258,51 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 // uploaded object. This function can be called only once for a given
 // sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
 // UploadMetadata reads the session metadata from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
 // UploadThumbnail reads the session thumbnail from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, overwrite bool) (string, error) {
-	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
+type fileUploadConfig struct {
+	overwrite bool
+}
 
-	if !overwrite {
-		// Make sure we don't overwrite an existing recording.
-		_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
-		if !errors.Is(err, storage.ErrObjectNotExist) {
-			if err != nil {
-				return "", convertGCSError(err)
-			}
-			return "", trace.AlreadyExists("file %q already exists in GCS", path)
-		}
+type fileUploadOption func(*fileUploadConfig)
+
+func withOverwrite() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.overwrite = true
+	}
+}
+
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
+	cfg := fileUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
-	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
+	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
+
+	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(path)
+	if !cfg.overwrite {
+		// Make sure we don't overwrite an existing recording.
+		obj = obj.If(storage.Conditions{DoesNotExist: true})
+	}
+
+	writer := obj.NewWriter(ctx)
 	start := time.Now()
 	_, err := io.Copy(writer, reader)
 	// Always close the writer, even if upload failed.

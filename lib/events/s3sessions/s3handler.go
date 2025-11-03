@@ -322,7 +322,7 @@ func (h *Handler) Close() error {
 // Upload reads the content of a session recording from a reader and uploads it
 // to an S3 bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
@@ -330,7 +330,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // reader and uploads it to an S3 bucket. This function can be called multiple
 // times for a given sessionID to update the state.
 func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, true /* overwrite */)
+	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, withOverwrite())
 	return path, trace.Wrap(err)
 }
 
@@ -339,7 +339,7 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 // uploaded object. This function can be called only once for a given
 // sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
@@ -347,7 +347,7 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
@@ -355,17 +355,34 @@ func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, read
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
 func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, overwrite bool) (string, error) {
+type fileUploadConfig struct {
+	overwrite bool
+}
+
+type fileUploadOption func(*fileUploadConfig)
+
+func withOverwrite() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.overwrite = true
+	}
+}
+
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
+	cfg := fileUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
 	}
-	if !overwrite {
+	if !cfg.overwrite {
 		uploadInput.IfNoneMatch = aws.String("*")
 	}
 	if !h.Config.DisableServerSideEncryption {
@@ -536,9 +553,6 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 
 func (h *Handler) pendingSummaryPath(sessionID session.ID) string {
 	const pendingPrefix = "pending"
-	if h.Path == "" {
-		return path.Join(pendingPrefix, string(sessionID)+".summary.json")
-	}
 	return strings.TrimPrefix(
 		path.Join(h.Path, pendingPrefix, string(sessionID)+".summary.json"), "/",
 	)

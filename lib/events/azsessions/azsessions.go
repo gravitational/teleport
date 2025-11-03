@@ -304,7 +304,7 @@ func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) *blockb
 
 // Upload implements [events.UploadHandler] and uploads a session recording.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadBlob(ctx, sessionID, h.sessionBlob(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadBlob(ctx, sessionID, h.sessionBlob(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
@@ -312,7 +312,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // session summary. This function can be called multiple times for a given
 // sessionID to update the state.
 func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), reader, true /* overwrite */)
+	path, err := h.uploadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), reader, withOverwrite())
 	return path, trace.Wrap(err)
 }
 
@@ -320,32 +320,49 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 // of session summary. This function can be called only once for a given
 // sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
 // UploadMetadata implements [events.UploadHandler] and uploads the session
 // metadata.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadBlob(ctx, sessionID, h.metadataBlob(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadBlob(ctx, sessionID, h.metadataBlob(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
 // UploadThumbnail implements [events.UploadHandler] and uploads the session
 // thumbnail.
 func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), reader, false /* overwrite */)
+	path, err := h.uploadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), reader)
 	return path, trace.Wrap(err)
 }
 
-func (h *Handler) uploadBlob(
-	ctx context.Context, sessionID session.ID, blob *blockblob.Client, reader io.Reader, overwrite bool,
-) (string, error) {
-	opts := blockblob.UploadStreamOptions{}
-	if !overwrite {
-		opts.AccessConditions = &blobDoesNotExist
+type blobUploadConfig struct {
+	overwrite bool
+}
+
+type blobUploadOption func(*blobUploadConfig)
+
+func withOverwrite() blobUploadOption {
+	return func(cfg *blobUploadConfig) {
+		cfg.overwrite = true
 	}
-	if _, err := cErr(blob.UploadStream(ctx, reader, &opts)); err != nil {
+}
+
+func (h *Handler) uploadBlob(
+	ctx context.Context, sessionID session.ID, blob *blockblob.Client, reader io.Reader, opts ...blobUploadOption,
+) (string, error) {
+	cfg := blobUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	usOpts := blockblob.UploadStreamOptions{}
+	if !cfg.overwrite {
+		usOpts.AccessConditions = &blobDoesNotExist
+	}
+	if _, err := cErr(blob.UploadStream(ctx, reader, &usOpts)); err != nil {
 		return "", trace.Wrap(err)
 	}
 	h.log.DebugContext(ctx, "Blob uploaded.", fieldSessionID, sessionID)
