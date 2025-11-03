@@ -46,6 +46,7 @@ import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   deleteBotSuccess,
+  EditBotApiVersion,
   editBotSuccess,
   getBotError,
   getBotSuccess,
@@ -147,6 +148,9 @@ describe('BotDetails', () => {
     expect(panel).toBeInTheDocument();
 
     expect(within(panel!).getByText('test-bot-name')).toBeInTheDocument();
+    expect(
+      within(panel!).getByText("This is the bot's description.")
+    ).toBeInTheDocument();
     expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
@@ -245,6 +249,42 @@ describe('BotDetails', () => {
         'Multi-factor authentication is required to view join tokens'
       )
     ).toBeInTheDocument();
+  });
+
+  describe('should show bot join tokens empty message', () => {
+    it('when an empty list is returned', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess({ tokens: [] });
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+      await waitForLoadingTokens();
+
+      const panel = screen
+        .getByRole('heading', { name: 'Join Tokens' })
+        .closest('section');
+      expect(panel).toBeInTheDocument();
+
+      expect(within(panel!).getByText('No join tokens')).toBeInTheDocument();
+    });
+
+    it('when null is returned', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess({ tokens: null });
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+      await waitForLoadingTokens();
+
+      const panel = screen
+        .getByRole('heading', { name: 'Join Tokens' })
+        .closest('section');
+      expect(panel).toBeInTheDocument();
+
+      expect(within(panel!).getByText('No join tokens')).toBeInTheDocument();
+    });
   });
 
   it('should show bot instances', async () => {
@@ -363,7 +403,7 @@ describe('BotDetails', () => {
       // Change something to enable the save button
       await inputMaxSessionDuration(user, '12h 30m');
 
-      withSaveSuccess(2, {
+      withSaveSuccess('v2', {
         roles: ['role-1'],
         traits: [
           {
@@ -724,8 +764,11 @@ const withFetchSuccess = () => {
   server.use(getBotSuccess());
 };
 
-const withFetchJoinTokensSuccess = () => {
-  server.use(listV2TokensSuccess());
+const withFetchJoinTokensSuccess = (options?: {
+  hasNextPage?: boolean;
+  tokens?: string[] | null;
+}) => {
+  server.use(listV2TokensSuccess(options));
 };
 
 const withFetchJoinTokensMfaError = () => {
@@ -765,12 +808,12 @@ function withFetchInstancesSuccess() {
   );
 }
 
-const withSaveSuccess = (
-  version: 1 | 2 = 2,
+function withSaveSuccess(
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
-) => {
+) {
   server.use(editBotSuccess(version, overrides));
-};
+}
 
 function withFetchRolesSuccess() {
   server.use(

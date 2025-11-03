@@ -678,6 +678,12 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// KindRelayServer is the resource kind for a Relay service heartbeat.
+	KindRelayServer = "relay_server"
+
+	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
+	KindClientIPRestriction = "client_ip_restriction"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -942,10 +948,26 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
-	// SchemaMCPStdio is a URI schema for MCP servers using stdio transport.
-	SchemaMCPStdio = "mcp+stdio://"
+	// SchemeMCPStdio is a URI scheme for MCP servers using stdio transport.
+	SchemeMCPStdio = "mcp+stdio"
 	// MCPTransportStdio indicates the MCP server uses stdio transport.
 	MCPTransportStdio = "stdio"
+	// SchemeMCPSSEHTTP is a URI scheme for MCP servers using HTTP with SSE
+	// transport.
+	SchemeMCPSSEHTTP = "mcp+sse+http"
+	// SchemeMCPSSEHTTPS is a URI scheme for MCP servers using HTTPS with SSE
+	// transport.
+	SchemeMCPSSEHTTPS = "mcp+sse+https"
+	// MCPTransportSSE indicates the MCP server uses SSE transport.
+	MCPTransportSSE = "SSE"
+	// SchemeMCPHTTP is a URI scheme for MCP servers using HTTP with streamable
+	// HTTP transport.
+	SchemeMCPHTTP = "mcp+http"
+	// SchemeMCPHTTPS is a URI scheme for MCP servers using HTTPS with
+	// streamable HTTP transport.
+	SchemeMCPHTTPS = "mcp+https"
+	// MCPTransportHTTP indicates the MCP server uses SSE transport.
+	MCPTransportHTTP = "Streamable HTTP"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"

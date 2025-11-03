@@ -171,7 +171,6 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -191,6 +190,7 @@ const cfg = {
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -314,6 +314,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
+    kubernetesServer: {
+      list: `/v1/webapi/sites/:clusterId/kubernetesservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
 
     // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
@@ -495,6 +498,7 @@ const cfg = {
       create: '/v1/webapi/sites/:clusterId/machine-id/bot',
       update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
       delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
     },
 
@@ -843,6 +847,10 @@ const cfg = {
 
   getBotInstancesRoute() {
     return generatePath(cfg.routes.botInstances);
+  },
+
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
@@ -1304,6 +1312,13 @@ const cfg = {
     });
   },
 
+  getKubernetesServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getAuthnChallengeWithTokenUrl(tokenId: string) {
     return generatePath(cfg.api.mfaAuthnChallengeWithTokenPath, {
       tokenId,
@@ -1649,7 +1664,10 @@ const cfg = {
   getBotUrl(
     req: (
       | { action: 'list' | 'create' }
-      | { action: 'read' | 'update' | 'update-v2' | 'delete'; botName: string }
+      | {
+          action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
+          botName: string;
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
@@ -1674,6 +1692,11 @@ const cfg = {
         });
       case 'update-v2':
         return generatePath(cfg.api.bot.updateV2, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'update-v3':
+        return generatePath(cfg.api.bot.updateV3, {
           clusterId,
           botName: req.botName,
         });

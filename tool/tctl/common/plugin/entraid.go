@@ -94,10 +94,7 @@ type entraArgs struct {
 	force                bool
 	manualEntraIDSetup   bool
 
-	groupFilterIncludeID   []string
-	groupFilterIncludeName []string
-	groupFilterExcludeID   []string
-	groupFilterExcludeName []string
+	groupFilters filter.Inputs
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -139,13 +136,13 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		BoolVar(&p.install.entraID.manualEntraIDSetup)
 
 	cmd.Flag("group-id", "Include group matching the specified group ID.").
-		StringsVar(&p.install.entraID.groupFilterIncludeID)
+		StringsVar(&p.install.entraID.groupFilters.ID)
 	cmd.Flag("group-name", "Include groups matching the specified group name regex.").
-		StringsVar(&p.install.entraID.groupFilterIncludeName)
+		StringsVar(&p.install.entraID.groupFilters.NameRegex)
 	cmd.Flag("exclude-group-id", "Exclude group matching the specified group ID.").
-		StringsVar(&p.install.entraID.groupFilterExcludeID)
+		StringsVar(&p.install.entraID.groupFilters.ExcludeID)
 	cmd.Flag("exclude-group-name", "Exclude groups matching the specified group name regex.").
-		StringsVar(&p.install.entraID.groupFilterExcludeName)
+		StringsVar(&p.install.entraID.groupFilters.ExcludeNameRegex)
 }
 
 type entraSettings struct {
@@ -352,7 +349,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		credentialsSource = types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
 	}
 
-	groupFilters, err := filter.New(buildFilters(inputs.entraID))
+	groupFilters, err := filter.NewFromInputs(inputs.entraID.groupFilters)
 	if err != nil {
 		return trace.Wrap(err, "failed to read filters")
 	}
@@ -481,35 +478,4 @@ func readData(r io.Reader, w io.Writer, message string, validate func(string) bo
 		}
 		return input, nil
 	}
-}
-
-func buildFilters(args entraArgs) []*types.PluginSyncFilter {
-	filtersCap := len(args.groupFilterIncludeID) + len(args.groupFilterExcludeID) + len(args.groupFilterIncludeName) + len(args.groupFilterExcludeName)
-	filters := make([]*types.PluginSyncFilter, 0, filtersCap)
-
-	for _, id := range args.groupFilterIncludeID {
-		filters = append(filters, &types.PluginSyncFilter{
-			Include: &types.PluginSyncFilter_Id{Id: id},
-		})
-	}
-
-	for _, n := range args.groupFilterIncludeName {
-		filters = append(filters, &types.PluginSyncFilter{
-			Include: &types.PluginSyncFilter_NameRegex{NameRegex: n},
-		})
-	}
-
-	for _, id := range args.groupFilterExcludeID {
-		filters = append(filters, &types.PluginSyncFilter{
-			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: id},
-		})
-	}
-
-	for _, n := range args.groupFilterExcludeName {
-		filters = append(filters, &types.PluginSyncFilter{
-			Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: n},
-		})
-	}
-
-	return filters
 }

@@ -23,6 +23,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
 | TELEPORT_LOGIN_BROWSER | Set to `none` to stop the system default browser from opening for SSO logins. If the value is not `none`, `tsh` will open the system default browser. | none |
 | TELEPORT_PROXY | Address of the Teleport proxy server | cluster.example.com:3080 |
+| TELEPORT_RELAY | Address of the Teleport relay server to use, "none" to disable the use of a relay, or "default" to use the default address specified by the control plane at login time. Defaults to port 443. | relay.example.com |
 | TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |
 | TELEPORT_HOME | Home location for tsh configuration and data | /directory |
 | TELEPORT_USER | A Teleport user name | alice |
@@ -38,6 +39,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | - | - | - | - |
 | `-l, --login` | none | an identity name | The login identity that the Teleport user will use |
 | `--proxy` | none | `host:https_port[,ssh_proxy_port]` | Teleport Proxy Service address |
+| `--relay` | none | `host[:port]|none|default` | Address of the Teleport relay server to use, "none" to disable the use of a relay, or "default" to use the default address specified by the control plane at login time. Defaults to port 443. |
 | `--user` | `$USER` | none | The Teleport username |
 | `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
@@ -73,7 +75,7 @@ $ tsh clusters [<flags>]
 
 ### Global flags
 
-These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -166,7 +168,7 @@ $ tsh gcloud [--app] [<command>]
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -198,7 +200,7 @@ $ tsh gsutil [--app] [<command>]
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -238,7 +240,7 @@ $ tsh join [<flags>] <session-id>
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -333,8 +335,10 @@ $ tsh login [<flags>] [<cluster>]
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+A relay address specified (or explicitly disabled with the "none" value) at login time will be stored in the `tsh` configuration directory for the specified proxy; if unspecified, the relay address may fall back to a default value specified by the Teleport control plane. Use of a Relay requires `tsh` v18.3.0 or later.
 
 ### Examples
 
@@ -414,7 +418,7 @@ $ tsh ls [<flags>] [<label>]
 
 ### Global flags
 
-These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -524,7 +528,7 @@ $ tsh play [<flags>] <id-or-file>
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -568,8 +572,8 @@ $ tsh proxy app [<flags>] <app>
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
 ```code
@@ -600,8 +604,8 @@ $ tsh proxy aws [<flags>]
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
 
@@ -666,8 +670,8 @@ This command does not accept any arguments.
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ## tsh proxy db
 
@@ -693,8 +697,8 @@ $ tsh proxy db [<flags>] <db>
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
 
@@ -744,8 +748,8 @@ $ tsh proxy gcloud [<flags>]
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
 
@@ -782,8 +786,8 @@ $ tsh proxy kube [<flags>] <kube-cluster>
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
 
@@ -845,8 +849,8 @@ $ tsh proxy ssh [<flags>] <[user@]host>
 
 ### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
-Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
 
@@ -934,7 +938,7 @@ $ tsh recordings ls [<flags>]
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -1135,7 +1139,7 @@ $ tsh scp [<flags>] <source>... <dest>
 
 ### Global flags
 
-These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 ### Examples
@@ -1186,8 +1190,10 @@ $ tsh ssh [<flags>] <[user@]host> [<command>...]
 
 ### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--relay`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+Use of a relay (as specified at `tsh login` time or through the `--relay` flag) requires `tsh` v18.3.0 or later.
 
 ### Examples
 

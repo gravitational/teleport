@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 )
 
 // handleBoundKeypairJoin handles join attempts for the bound keypair join
@@ -84,7 +86,13 @@ func (s *Server) handleBoundKeypairJoin(
 		return rotationResp, trace.Wrap(err)
 	}
 	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error) {
-		botCertsParams, err := makeBotCertsParams(diag, authCtx, boundKeypairInit.ClientParams.BotParams, claims)
+		botCertsParams, err := makeBotCertsParams(
+			diag,
+			authCtx,
+			boundKeypairInit.ClientParams.BotParams,
+			claims,
+			nil, // TODO(timothyb89): workload id claims
+		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -109,7 +117,7 @@ func (s *Server) handleBoundKeypairJoin(
 		IssueChallenge:       issueChallenge,
 		IssueRotationRequest: issueRotationRequest,
 		GenerateBotCerts:     generateBotCerts,
-		Clock:                s.clock,
+		Clock:                s.cfg.AuthService.GetClock(),
 		Logger:               log,
 	})
 }
@@ -130,7 +138,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	diag := diagnostic.New()
 	diag.Set(func(i *diagnostic.Info) {
 		i.RemoteAddr = req.JoinRequest.RemoteAddr
-		i.Role = req.JoinRequest.Role.String()
+		i.Role = joinutils.SanitizeUntrustedString(req.JoinRequest.Role.String())
 		i.RequestedJoinMethod = string(types.JoinMethodBoundKeypair)
 		i.BotInstanceID = req.JoinRequest.BotInstanceID
 		i.BotGeneration = uint64(req.JoinRequest.BotGeneration)
@@ -141,6 +149,10 @@ func AdaptRegisterUsingBoundKeypairMethod(
 			handleJoinFailure(ctx, a, diag)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	// Construct an [authz.Context] to pass to HandleBoundKeypairJoin.
 	authCtx := &authz.Context{
@@ -188,7 +200,13 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	}
 
 	generateBotCerts := func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error) {
-		botCertsParams, err := makeBotCertsParams(diag, authCtx, clientParams.BotParams, claims)
+		botCertsParams, err := makeBotCertsParams(
+			diag,
+			authCtx,
+			clientParams.BotParams,
+			claims,
+			nil, // TODO(timothyb89): workload id claims
+		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

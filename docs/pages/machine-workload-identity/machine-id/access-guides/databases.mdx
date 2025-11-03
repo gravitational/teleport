@@ -95,14 +95,14 @@ label selector; see the
 for a full reference of database-related role options.
 {/* vale messaging.protocol-products = YES */}
 
-## Step 2/4. Configure a database `tbot` output
+## Step 2/4. Configure a database `tbot` output service
 
-Now, `tbot` needs to be configured with an output that will produce the
+Now, `tbot` needs to be configured with an output service that will produce the
 credentials needed for database access. To do this, the `database` output
-type is used.
+service type is used.
 
 The database you wish to generate credentials for is configured as part of the
-`database` output. This is controlled using three fields:
+`database` service. This is controlled using three fields:
 
 - `service` specifies the Database Service as named in the Teleport
   configuration that the credentials will grant access to.
@@ -112,11 +112,11 @@ The database you wish to generate credentials for is configured as part of the
   access to. This field does not need to be specified for all types of
   database.
 
-In addition, the `format` field in the database output controls the format of
-the generated credentials. This allows for compatibility with clients that
-expect a specific format. When this field is not specified, a sensible default
-option is used that is compatible with most clients. The full list of supported
-`format` options is below:
+In addition, the `format` field in the database output service controls the
+format of the generated credentials. This allows for compatibility with clients
+that expect a specific format. When this field is not specified, a sensible
+default option is used that is compatible with most clients. The full list of
+supported `format` options is below:
 
 | Client        | `format`      | Description                          |
 |---------------|---------------|--------------------------------------|
@@ -125,16 +125,16 @@ option is used that is compatible with most clients. The full list of supported
 | CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. |
 | Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` for generic clients that require specific file extensions. |
 
-Outputs must be configured with a destination. In this example, the `directory`
-destination will be used. This will write artifacts to a specified directory on
-disk. Ensure that this directory can be written to by the Linux user that
-`tbot` runs as, and that it can be read by the Linux user that will be accessing
-applications.
+Output services must be configured with a destination. In this example, the
+`directory` destination will be used. This will write artifacts to a specified
+directory on disk. Ensure that this directory can be written to by the Linux
+user that `tbot` runs as, and that it can be read by the Linux user that will be
+accessing applications.
 
-Modify your `tbot` configuration to add a `database` output:
+Modify your `tbot` configuration to add a `database` service:
 
 ```yaml
-outputs:
+services:
 - type: database
   destination:
     type: directory

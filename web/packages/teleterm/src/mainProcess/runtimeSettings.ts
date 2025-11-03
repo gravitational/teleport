@@ -64,7 +64,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tsh: tshAddress,
     shared: sharedAddress,
     tshdEvents: tshdEventsAddress,
-  } = requestGrpcServerAddresses();
+  } = await requestGrpcServerAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
@@ -207,7 +207,7 @@ export function getAssetPath(...paths: string[]): string {
 /**
  * Describes what addresses the gRPC servers should attempt to obtain on app startup.
  */
-function requestGrpcServerAddresses(): GrpcServerAddresses {
+async function requestGrpcServerAddresses(): Promise<GrpcServerAddresses> {
   switch (process.platform) {
     case 'win32': {
       return {
@@ -218,21 +218,33 @@ function requestGrpcServerAddresses(): GrpcServerAddresses {
     }
     case 'linux':
     case 'darwin':
+      // Sockets are created in a temporary directory to avoid exceeding the
+      // maximum allowed path length for Unix domain sockets.
+      // Limits: macOS - 104 characters, Linux - 108 characters.
+      const tempDir = await getUnixUserTempDir();
       return {
-        tsh: getUnixSocketNetworkAddress('tsh.socket'),
-        shared: getUnixSocketNetworkAddress('shared.socket'),
-        tshdEvents: getUnixSocketNetworkAddress('tshd_events.socket'),
+        tsh: getUnixSocketPath(tempDir, 'tsh.sock'),
+        shared: getUnixSocketPath(tempDir, 'shared.sock'),
+        tshdEvents: getUnixSocketPath(tempDir, 'tshde.sock'),
       };
   }
 }
 
-function getUnixSocketNetworkAddress(socketName: string) {
-  const unixSocketPath = path.resolve(app.getPath('userData'), socketName);
+function getUnixSocketPath(tempDir: string, socketName: string): string {
+  const socketPath = path.join(tempDir, socketName);
+  return `unix://${socketPath}`;
+}
 
-  // try to cleanup after previous process that unexpectedly crashed
-  if (fs.existsSync(unixSocketPath)) {
-    fs.unlinkSync(unixSocketPath);
-  }
-
-  return `unix://${path.resolve(app.getPath('userData'), socketName)}`;
+async function getUnixUserTempDir(): Promise<string> {
+  // On macOS, the 'temp' dir is like /var/folders/y5/yqg8xz555_v7xfsr0wn6b4q80000gn/T/.
+  // That dir is per-user and secure by default.
+  // On Linux the temp dir is like /tmp, and it's accessible by anyone.
+  const tempDir = app.getPath('temp');
+  const appName = app.getName();
+  // `mkdtemp` creates a temporary directory with mode 0o700,
+  // ensuring that only the current user can access it (important on Linux).
+  // TODO(gzdunek): Node.js 24 introduced mkdtempDisposable().
+  // Create a global DisposableStack to track all disposable resources
+  // and automatically clean them up when the app exits.
+  return fs.promises.mkdtemp(path.join(tempDir, `${appName}-`));
 }

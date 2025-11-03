@@ -66,6 +66,7 @@ type FileConfig struct {
 	Auth    Auth  `yaml:"auth_service,omitempty"`
 	SSH     SSH   `yaml:"ssh_service,omitempty"`
 	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Relay   Relay `yaml:"relay_service,omitempty"`
 	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
@@ -605,6 +606,7 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -1016,6 +1018,12 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	roles, err := types.ParseTeleportRoles(parts[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if roles.Include(types.RoleBot) {
+		slog.WarnContext(
+			context.Background(),
+			"Role 'Bot' is not supported in static token configurations and will not function as expected. In Teleport V19.0.0, this will become an error.",
+		)
 	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
@@ -2011,8 +2019,15 @@ type DatabaseMySQL struct {
 
 // DatabaseOracle are an additional Oracle database options.
 type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32 `yaml:"retry_count,omitempty"`
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool `yaml:"shuffle_hostnames,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -2938,6 +2953,48 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
+}
+
+// Relay is the relay_service section of the Teleport config file.
+type Relay struct {
+	// Enabled is set if the relay service is enabled, defaults to false.
+	Enabled bool `yaml:"enabled"`
+
+	// RelayGroup is the Relay group name, required if the relay service is
+	// enabled.
+	RelayGroup string `yaml:"relay_group"`
+
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int `yaml:"target_connection_count"`
+
+	// PublicHostnames is the list of DNS names and IP addresses that the
+	// Relay service credentials should be authoritative for.
+	PublicHostnames []string `yaml:"public_hostnames"`
+
+	// TransportListenAddr is the listen address for the transport listener, in
+	// addr:port format.
+	TransportListenAddr string `yaml:"transport_listen_addr"`
+
+	// TransportPROXYProtocol is set if the transport listener should expect a
+	// PROXY protocol header in incoming connections.
+	TransportPROXYProtocol bool `yaml:"transport_proxy_protocol"`
+
+	// PeerListenAddr is the listen address for the peer listener, in addr:port
+	// format.
+	PeerListenAddr string `yaml:"peer_listen_addr"`
+
+	// PeerPublicAddr, if set, is the public address for the peer listener, in
+	// host:port format.
+	PeerPublicAddr string `yaml:"peer_public_addr"`
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format.
+	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
+
+	// TunnelPROXYProtocol is set if the tunnel listener should expect a PROXY
+	// protocol header in incoming connections.
+	TunnelPROXYProtocol bool `yaml:"tunnel_proxy_protocol"`
 }
 
 // SessionRecordingEncryptionConfig is the session_recording_config.encryption

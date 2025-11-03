@@ -91,6 +91,7 @@ const (
 	AuthService_KeepAliveSemaphoreLease_FullMethodName             = "/proto.AuthService/KeepAliveSemaphoreLease"
 	AuthService_CancelSemaphoreLease_FullMethodName                = "/proto.AuthService/CancelSemaphoreLease"
 	AuthService_GetSemaphores_FullMethodName                       = "/proto.AuthService/GetSemaphores"
+	AuthService_ListSemaphores_FullMethodName                      = "/proto.AuthService/ListSemaphores"
 	AuthService_DeleteSemaphore_FullMethodName                     = "/proto.AuthService/DeleteSemaphore"
 	AuthService_EmitAuditEvent_FullMethodName                      = "/proto.AuthService/EmitAuditEvent"
 	AuthService_CreateAuditStream_FullMethodName                   = "/proto.AuthService/CreateAuditStream"
@@ -156,6 +157,7 @@ const (
 	AuthService_CreateRegisterChallenge_FullMethodName             = "/proto.AuthService/CreateRegisterChallenge"
 	AuthService_GetOIDCConnector_FullMethodName                    = "/proto.AuthService/GetOIDCConnector"
 	AuthService_GetOIDCConnectors_FullMethodName                   = "/proto.AuthService/GetOIDCConnectors"
+	AuthService_ListOIDCConnectors_FullMethodName                  = "/proto.AuthService/ListOIDCConnectors"
 	AuthService_CreateOIDCConnector_FullMethodName                 = "/proto.AuthService/CreateOIDCConnector"
 	AuthService_UpdateOIDCConnector_FullMethodName                 = "/proto.AuthService/UpdateOIDCConnector"
 	AuthService_UpsertOIDCConnector_FullMethodName                 = "/proto.AuthService/UpsertOIDCConnector"
@@ -165,6 +167,7 @@ const (
 	AuthService_GetOIDCAuthRequest_FullMethodName                  = "/proto.AuthService/GetOIDCAuthRequest"
 	AuthService_GetSAMLConnector_FullMethodName                    = "/proto.AuthService/GetSAMLConnector"
 	AuthService_GetSAMLConnectors_FullMethodName                   = "/proto.AuthService/GetSAMLConnectors"
+	AuthService_ListSAMLConnectors_FullMethodName                  = "/proto.AuthService/ListSAMLConnectors"
 	AuthService_CreateSAMLConnector_FullMethodName                 = "/proto.AuthService/CreateSAMLConnector"
 	AuthService_UpdateSAMLConnector_FullMethodName                 = "/proto.AuthService/UpdateSAMLConnector"
 	AuthService_UpsertSAMLConnector_FullMethodName                 = "/proto.AuthService/UpsertSAMLConnector"
@@ -174,6 +177,7 @@ const (
 	AuthService_GetSAMLAuthRequest_FullMethodName                  = "/proto.AuthService/GetSAMLAuthRequest"
 	AuthService_GetGithubConnector_FullMethodName                  = "/proto.AuthService/GetGithubConnector"
 	AuthService_GetGithubConnectors_FullMethodName                 = "/proto.AuthService/GetGithubConnectors"
+	AuthService_ListGithubConnectors_FullMethodName                = "/proto.AuthService/ListGithubConnectors"
 	AuthService_CreateGithubConnector_FullMethodName               = "/proto.AuthService/CreateGithubConnector"
 	AuthService_UpdateGithubConnector_FullMethodName               = "/proto.AuthService/UpdateGithubConnector"
 	AuthService_UpsertGithubConnector_FullMethodName               = "/proto.AuthService/UpsertGithubConnector"
@@ -272,6 +276,7 @@ const (
 	AuthService_CreatePrivilegeToken_FullMethodName                = "/proto.AuthService/CreatePrivilegeToken"
 	AuthService_GetInstaller_FullMethodName                        = "/proto.AuthService/GetInstaller"
 	AuthService_GetInstallers_FullMethodName                       = "/proto.AuthService/GetInstallers"
+	AuthService_ListInstallers_FullMethodName                      = "/proto.AuthService/ListInstallers"
 	AuthService_SetInstaller_FullMethodName                        = "/proto.AuthService/SetInstaller"
 	AuthService_DeleteInstaller_FullMethodName                     = "/proto.AuthService/DeleteInstaller"
 	AuthService_DeleteAllInstallers_FullMethodName                 = "/proto.AuthService/DeleteAllInstallers"
@@ -453,6 +458,8 @@ type AuthServiceClient interface {
 	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -638,6 +645,8 @@ type AuthServiceClient interface {
 	GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
+	// ListOIDCConnectors returns a page of current OIDC connector resources.
+	ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error)
 	// UpsertOIDCConnector creates a new OIDC connector in the backend.
 	CreateOIDCConnector(ctx context.Context, in *CreateOIDCConnectorRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
 	// UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -659,6 +668,8 @@ type AuthServiceClient interface {
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(ctx context.Context, in *CreateSAMLConnectorRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -680,6 +691,8 @@ type AuthServiceClient interface {
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(ctx context.Context, in *CreateGithubConnectorRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -956,6 +969,8 @@ type AuthServiceClient interface {
 	GetInstaller(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.InstallerV1, error)
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(ctx context.Context, in *types.InstallerV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -1671,6 +1686,16 @@ func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.Semapho
 	return out, nil
 }
 
+func (c *authServiceClient) ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSemaphoresResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSemaphores_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -2349,6 +2374,16 @@ func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
+func (c *authServiceClient) ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOIDCConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListOIDCConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateOIDCConnector(ctx context.Context, in *CreateOIDCConnectorRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.OIDCConnectorV3)
@@ -2440,6 +2475,16 @@ func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.Res
 	return out, nil
 }
 
+func (c *authServiceClient) ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSAMLConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSAMLConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) CreateSAMLConnector(ctx context.Context, in *CreateSAMLConnectorRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.SAMLConnectorV2)
@@ -2525,6 +2570,16 @@ func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.R
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.GithubConnectorV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetGithubConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGithubConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListGithubConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3541,6 +3596,16 @@ func (c *authServiceClient) GetInstallers(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
+func (c *authServiceClient) ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInstallersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListInstallers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) SetInstaller(ctx context.Context, in *types.InstallerV1, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -4017,6 +4082,8 @@ type AuthServiceServer interface {
 	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -4202,6 +4269,8 @@ type AuthServiceServer interface {
 	GetOIDCConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error)
 	// GetOIDCConnectors gets all current OIDC connector resources.
 	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
+	// ListOIDCConnectors returns a page of current OIDC connector resources.
+	ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error)
 	// UpsertOIDCConnector creates a new OIDC connector in the backend.
 	CreateOIDCConnector(context.Context, *CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error)
 	// UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -4223,6 +4292,8 @@ type AuthServiceServer interface {
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
 	// GetSAMLConnectors gets all current SAML connector resources.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -4244,6 +4315,8 @@ type AuthServiceServer interface {
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
 	// GetGithubConnectors gets all current Github connector resources.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -4520,6 +4593,8 @@ type AuthServiceServer interface {
 	GetInstaller(context.Context, *types.ResourceRequest) (*types.InstallerV1, error)
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -4767,6 +4842,9 @@ func (UnimplementedAuthServiceServer) CancelSemaphoreLease(context.Context, *typ
 func (UnimplementedAuthServiceServer) GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSemaphores not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSemaphores not implemented")
+}
 func (UnimplementedAuthServiceServer) DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSemaphore not implemented")
 }
@@ -4962,6 +5040,9 @@ func (UnimplementedAuthServiceServer) GetOIDCConnector(context.Context, *types.R
 func (UnimplementedAuthServiceServer) GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnectors not implemented")
 }
+func (UnimplementedAuthServiceServer) ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOIDCConnectors not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateOIDCConnector(context.Context, *CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOIDCConnector not implemented")
 }
@@ -4989,6 +5070,9 @@ func (UnimplementedAuthServiceServer) GetSAMLConnector(context.Context, *types.R
 func (UnimplementedAuthServiceServer) GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnectors not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSAMLConnectors not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSAMLConnector not implemented")
 }
@@ -5015,6 +5099,9 @@ func (UnimplementedAuthServiceServer) GetGithubConnector(context.Context, *types
 }
 func (UnimplementedAuthServiceServer) GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGithubConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGithubConnector not implemented")
@@ -5309,6 +5396,9 @@ func (UnimplementedAuthServiceServer) GetInstaller(context.Context, *types.Resou
 }
 func (UnimplementedAuthServiceServer) GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstallers not implemented")
+}
+func (UnimplementedAuthServiceServer) ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInstallers not implemented")
 }
 func (UnimplementedAuthServiceServer) SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetInstaller not implemented")
@@ -6319,6 +6409,24 @@ func _AuthService_GetSemaphores_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetSemaphores(ctx, req.(*types.SemaphoreFilter))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListSemaphores_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSemaphoresRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSemaphores_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, req.(*ListSemaphoresRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7453,6 +7561,24 @@ func _AuthService_GetOIDCConnectors_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListOIDCConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOIDCConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListOIDCConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListOIDCConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListOIDCConnectors(ctx, req.(*ListOIDCConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateOIDCConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateOIDCConnectorRequest)
 	if err := dec(in); err != nil {
@@ -7615,6 +7741,24 @@ func _AuthService_GetSAMLConnectors_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSAMLConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSAMLConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSAMLConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, req.(*ListSAMLConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateSAMLConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateSAMLConnectorRequest)
 	if err := dec(in); err != nil {
@@ -7773,6 +7917,24 @@ func _AuthService_GetGithubConnectors_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetGithubConnectors(ctx, req.(*types.ResourcesWithSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListGithubConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGithubConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListGithubConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, req.(*ListGithubConnectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -9527,6 +9689,24 @@ func _AuthService_GetInstallers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListInstallers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInstallersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListInstallers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListInstallers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListInstallers(ctx, req.(*ListInstallersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_SetInstaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.InstallerV1)
 	if err := dec(in); err != nil {
@@ -10280,6 +10460,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSemaphores_Handler,
 		},
 		{
+			MethodName: "ListSemaphores",
+			Handler:    _AuthService_ListSemaphores_Handler,
+		},
+		{
 			MethodName: "DeleteSemaphore",
 			Handler:    _AuthService_DeleteSemaphore_Handler,
 		},
@@ -10524,6 +10708,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetOIDCConnectors_Handler,
 		},
 		{
+			MethodName: "ListOIDCConnectors",
+			Handler:    _AuthService_ListOIDCConnectors_Handler,
+		},
+		{
 			MethodName: "CreateOIDCConnector",
 			Handler:    _AuthService_CreateOIDCConnector_Handler,
 		},
@@ -10560,6 +10748,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSAMLConnectors_Handler,
 		},
 		{
+			MethodName: "ListSAMLConnectors",
+			Handler:    _AuthService_ListSAMLConnectors_Handler,
+		},
+		{
 			MethodName: "CreateSAMLConnector",
 			Handler:    _AuthService_CreateSAMLConnector_Handler,
 		},
@@ -10594,6 +10786,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGithubConnectors",
 			Handler:    _AuthService_GetGithubConnectors_Handler,
+		},
+		{
+			MethodName: "ListGithubConnectors",
+			Handler:    _AuthService_ListGithubConnectors_Handler,
 		},
 		{
 			MethodName: "CreateGithubConnector",
@@ -10978,6 +11174,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInstallers",
 			Handler:    _AuthService_GetInstallers_Handler,
+		},
+		{
+			MethodName: "ListInstallers",
+			Handler:    _AuthService_ListInstallers_Handler,
 		},
 		{
 			MethodName: "SetInstaller",

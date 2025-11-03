@@ -107,18 +107,26 @@ func TestUpgraderCounts(t *testing.T) {
 		{
 			desc: "mixed",
 			instances: []*proto.UpstreamInventoryHello{
-				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
-				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
-				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
+				}},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
+				}},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
+				}},
 				{},
-				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_PINNED,
+				}},
 				{},
 			},
 			expected: map[upgrader]int{
-				{"kube", "13.0.0"}: 1,
-				{"kube", "14.0.0"}: 1,
-				{"unit", "13.0.0"}: 1,
-				{"unit", "14.0.0"}: 1,
+				{"kube", "13.0.0", "UPDATER_STATUS_OK"}:     1,
+				{"kube", "14.0.0", "UPDATER_STATUS_OK"}:     1,
+				{"unit", "13.0.0", "UPDATER_STATUS_OK"}:     1,
+				{"unit", "14.0.0", "UPDATER_STATUS_PINNED"}: 1,
 			},
 		},
 		{
@@ -138,8 +146,8 @@ func TestUpgraderCounts(t *testing.T) {
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
 			},
 			expected: map[upgrader]int{
-				{"kube", "13.0.0"}: 2,
-				{"unit", "13.0.0"}: 2,
+				{"kube", "13.0.0", ""}: 2,
+				{"unit", "13.0.0", ""}: 2,
 			},
 		},
 		{
@@ -149,8 +157,8 @@ func TestUpgraderCounts(t *testing.T) {
 				{ExternalUpgrader: "unit"},
 			},
 			expected: map[upgrader]int{
-				{"kube", ""}: 1,
-				{"unit", ""}: 1,
+				{"kube", "", ""}: 1,
+				{"unit", "", ""}: 1,
 			},
 		},
 		{

@@ -98,9 +98,9 @@ type KeygenFunc func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (c
 
 // BoundKeypairParams are parameters specific to bound-keypair joining.
 type BoundKeypairParams struct {
-	// InitialJoinSecret is a one-time-use joining token for use on first join.
+	// RegistrationSecret is a one-time-use joining token for use on first join.
 	// May be unset if a keypair was registered with Auth out of band.
-	InitialJoinSecret string
+	RegistrationSecret string
 
 	// PreviousJoinState is the previous join state document provided by Auth
 	// alongside the previous set of certs. If this is initial registration, it
@@ -190,6 +190,12 @@ type RegisterParams struct {
 	GitlabParams GitlabParams
 	// BoundKeypairParams contains parameters specific to bound keypair joining.
 	BoundKeypairParams *BoundKeypairParams
+	// CreateSignedSTSIdentityRequestFunc overrides the function used to
+	// generate a signed AWs sts:GetCallerIdentity request.
+	CreateSignedSTSIdentityRequestFunc func(ctx context.Context, challenge string, opts ...iam.STSIdentityRequestOption) ([]byte, error)
+	// GetInstanceIdentityDocumentFunc overrides the function used to get an
+	// EC2 Instance Identity Document for the host.
+	GetInstanceIdentityDocumentFunc func(ctx context.Context) ([]byte, error)
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -203,6 +209,14 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 
 	if err := r.verifyAuthOrProxyAddress(); err != nil {
 		return trace.BadParameter("no auth or proxy servers set")
+	}
+
+	if r.CreateSignedSTSIdentityRequestFunc == nil {
+		r.CreateSignedSTSIdentityRequestFunc = iam.CreateSignedSTSIdentityRequest
+	}
+
+	if r.GetInstanceIdentityDocumentFunc == nil {
+		r.GetInstanceIdentityDocumentFunc = awsutils.GetRawEC2IdentityDocument
 	}
 
 	return nil
@@ -285,7 +299,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = awsutils.GetRawEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = params.GetInstanceIdentityDocumentFunc(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -793,7 +807,7 @@ func registerUsingIAMMethod(
 	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
-		signedRequest, err := iam.CreateSignedSTSIdentityRequest(ctx, challenge,
+		signedRequest, err := params.CreateSignedSTSIdentityRequestFunc(ctx, challenge,
 			iam.WithFIPSEndpoint(params.FIPS),
 		)
 		if err != nil {
@@ -970,7 +984,7 @@ func registerUsingBoundKeypairMethod(
 
 	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
 		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
-		InitialJoinSecret: bkParams.InitialJoinSecret,
+		InitialJoinSecret: bkParams.RegistrationSecret,
 		PreviousJoinState: bkParams.PreviousJoinState,
 	}
 
@@ -998,7 +1012,7 @@ func registerUsingBoundKeypairMethod(
 
 				joseSigner, err := jose.NewSigner(key, opts)
 				if err != nil {
-					return nil, trace.Wrap(err, "creating signer")
+					return nil, trace.Wrap(err, "creating signer (%T)", signer)
 				}
 
 				jws, err := joseSigner.Sign([]byte(kind.Challenge.Challenge))

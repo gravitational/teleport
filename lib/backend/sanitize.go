@@ -55,15 +55,14 @@ func isValidKeyByte(b byte) bool {
 
 // IsKeySafe checks if the passed in key conforms to whitelist
 func IsKeySafe(key Key) bool {
-	components := key.Components()
-	for i, k := range components {
+	for i, k := range key.components {
 		switch k {
 		case noEnd:
 			continue
 		case ".", "..":
 			return false
 		case "":
-			return key.exactKey && i == len(components)-1
+			return key.exactKey && i == len(key.components)-1
 		}
 
 		for _, b := range []byte(k) {

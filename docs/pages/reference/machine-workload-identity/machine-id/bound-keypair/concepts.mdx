@@ -118,6 +118,10 @@ values:
   [See the admin guide](admin-guide.mdx#disabling-join-state-verification) for
   more information on using `insecure` mode in practice.
 
+  Static key joining (`tbot keypair create --static ...`) requires use of
+  `insecure` mode as it disables client-side credential storage, meaning bots
+  cannot complete [join state verification](#join-state-verification).
+
 ## Join state verification
 
 A **join state document** is an additional piece of information provided to
@@ -144,6 +148,43 @@ credentials in use by the attacker.
 
 Note that join state verification is disabled when the token's
 `spec.bound_keypair.recovery.mode` is set to `insecure`.
+
+## Static Keys
+
+Static keys trade some security guarantees for flexibility, and can help enable
+use of `tbot` in environments where bots otherwise could not authenticate, such
+as:
+- CI/CD providers for which Teleport has no dedicated join method
+- Ephemeral bare-metal nodes without TPMs
+- Any other environment where persistent storage is not available
+- Any environment where an arbitrary number of instances may join, like
+  ephemeral CI runners.
+
+However, static keys have disadvantages:
+- `insecure` mode means any client with the private key can join without
+  restrictions. If the key is stolen, the attacker will have access to Teleport
+  and any resources the bot is allowed to access.
+- `insecure` mode additionally means you cannot limit the number of uses of the
+  bound keypair token (`spec.bound_keypair.recovery.limit`).
+- Keypair rotation is not supported, as client storage is not writable, and
+  attempting to require a rotation will prevent bots from joining.
+
+When using static keys, a keypair is generated ahead of time and [preregistered
+with Teleport](#onboarding). You can then provide the keypair to the `tbot`
+client using a file or the `TBOT_BOUND_KEYPAIR_STATIC_KEY` environment variable.
+
+The `insecure` recovery mode is required when using static keys (with
+`tbot keypair create --static ...`) as this mode disables client-side storage
+for join state documents. With no previous state, bots will not be able to
+complete join state verification, and will be unable to recover after their
+first authentication attempt; as such, join state verification must be disabled.
+
+With this context in mind, when using static keys, be aware that any client with
+knowledge of the private key can authenticate to Teleport with no additional
+restrictions. Before deploying a bot with static keys, take additional care to
+fully understand your environment's threat model and security needs, and reduce
+access using [Teleport's RBAC](../../../access-controls/roles.mdx) to ensure the
+minimum possible blast radius in the event the keypair is compromised.
 
 [renewable]: ../../../deployment/join-methods.mdx#renewable-vs-non-renewable
 [token]: ../../../deployment/join-methods.mdx#ephemeral-tokens

@@ -216,3 +216,22 @@ tests:
           content:
             name: KUBERNETES_TOKEN_PATH
             value: /var/run/secrets/teleport/serviceaccount/token
+
+  - it: should set environment when extraEnv set in values
+    values:
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: "some-value"
+
+  - it: should set additional arguments when extraArgs set in values
+    values:
+      - ../.lint/extra-args.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].command
+          content: "--namespace"
+

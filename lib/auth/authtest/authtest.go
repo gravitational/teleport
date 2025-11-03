@@ -174,6 +174,9 @@ func NewTestServer(cfg ServerConfig) (*Server, error) {
 	if tlsCfg.APIConfig.Authorizer == nil {
 		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
 	}
+	if tlsCfg.APIConfig.ScopedAuthorizer == nil {
+		tlsCfg.APIConfig.ScopedAuthorizer = authServer.ScopedAuthorizer
+	}
 	if tlsCfg.APIConfig.AuditLog == nil {
 		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
 	}
@@ -245,6 +248,8 @@ type AuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer authz.Authorizer
+	// ScopedAuthorizer is a scoped authorizer used in tests.
+	ScopedAuthorizer authz.ScopedAuthorizer
 	// LockWatcher is a lock watcher used in tests.
 	LockWatcher *services.LockWatcher
 }
@@ -473,17 +478,24 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
-	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
+	authorizerOpts := authz.AuthorizerOpts{
 		ClusterName:         srv.ClusterName,
 		AccessPoint:         srv.AuthServer,
 		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
+		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
 		LockWatcher:         srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
 			DisableRoleMode:   true,
 		},
-	})
+	}
+	srv.Authorizer, err = authz.NewAuthorizer(authorizerOpts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.ScopedAuthorizer, err = authz.NewScopedAuthorizer(authorizerOpts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -532,7 +544,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		Unstarted:    p.Unstarted,
 
 		Access:                  p.AuthServer.Services.Access,
-		AccessLists:             p.AuthServer.Services.AccessLists,
+		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
 		Apps:                    p.AuthServer.Services.Applications,
@@ -789,10 +801,11 @@ func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap type
 // NewTestTLSServer returns new test TLS server
 func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
-		AuthServer: a.AuthServer,
-		Authorizer: a.Authorizer,
-		AuditLog:   a.AuditLog,
-		Emitter:    a.AuthServer,
+		AuthServer:       a.AuthServer,
+		Authorizer:       a.Authorizer,
+		ScopedAuthorizer: a.ScopedAuthorizer,
+		AuditLog:         a.AuditLog,
+		Emitter:          a.AuthServer,
 	}
 	cfg := TLSServerConfig{
 		APIConfig:     apiConfig,

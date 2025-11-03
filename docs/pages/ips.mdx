@@ -1,7 +1,6 @@
 ---
 title: Public IP Address Allowlist
 description: Restrict outbound network connections from your infrastructure to cloud-hosted Teleport Enterprise.
-tocDepth: 3
 tags:
  - reference
  - platform-wide
@@ -12,9 +11,18 @@ you can allowlist these IPs in your firewall or proxy configuration to ensure th
 While not required for most deployments, this configuration can be useful in environments where outbound
 connections are blocked by default, for example, when firewalls deny all internet access unless explicitly allowed.
 
-<Admonition type="note">
-    If you are a Teleport Enterprise customer and plan to use this allowlist, please open a support ticket to let us know. This allows us to provide advance notice whenever the list is updated.
-</Admonition>
+## Using the allowlist
+
+Teleport Cloud does **not** provide stable egress IPs for traffic from the Auth
+Service and Proxy Service. 
+
+If you are a Teleport Cloud customer and plan to use the allowlist of ingress
+IPs, please open a support ticket to let us know. This allows us to provide
+advance notice whenever the list is updated.
+
+## Teleport Cloud ingress IPs
+
+Teleport Cloud uses the following IP addresses for ingress:
 
 ```
 3.7.23.103/32
@@ -40,23 +48,26 @@ connections are blocked by default, for example, when firewalls deny all interne
 54.185.13.106/32
 ```
 
-<Admonition type="info">
-IP addresses may be added or removed from the above list over time.
-</Admonition>
+## Teleport Agent update domains
 
-When this list is modified, we will provide at least two weeks notice by:
-1. Updating the Changelog below.
-1. Notifying cloud-hosted Teleport Enterprise customers via email.
-1. Providing a [Status Page](https://status.teleport.sh/) update.
-1. Reaching out directly to Enterprise customers that have requested advanced notice.
-
-Additionally, to receive Teleport Agent updates, nodes must be able to reach the following domains via HTTPS during the update.
+To receive Teleport Agent updates, nodes must be able to reach the
+following domains via HTTPS during the update.
 
 ```
 apt.releases.teleport.dev
 yum.releases.teleport.dev
 cdn.teleport.dev
 ```
+
+## Modifications to the list
+
+IP addresses may be added or removed from the above list over time.
+
+When this list is modified, we will provide at least two weeks notice by:
+1. Updating the Changelog below.
+1. Notifying cloud-hosted Teleport Enterprise customers via email.
+1. Providing a [Status Page](https://status.teleport.sh/) update.
+1. Reaching out directly to Enterprise customers that have requested advanced notice.
 
 ## Changelog
 

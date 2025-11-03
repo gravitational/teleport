@@ -50,7 +50,9 @@ export interface Cluster {
      */
     uri: string;
     /**
-     * name is used throughout the Teleport Connect codebase as the cluster name.
+     * name is the site name of Teleport cluster.
+     * Only present in root clusters if the user has logged in (the name comes from the certificate).
+     * Always available for leaf clusters.
      *
      * @generated from protobuf field: string name = 2;
      */

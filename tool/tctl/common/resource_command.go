@@ -2375,6 +2375,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("%s has been deleted\n", types.KindAutoUpdateBotInstanceReport)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
+	case types.KindRelayServer:
+		if err := client.DeleteRelayServer(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
 	case types.KindInferenceModel:
 		return trace.Wrap(rc.deleteInferenceModel(ctx, client))
 	case types.KindInferenceSecret:
@@ -2710,10 +2715,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
 	case types.KindSemaphore:
-		sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
+		filter := types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
-		})
+		}
+		sems, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, pageSize int, pageToken string) ([]types.Semaphore, string, error) {
+				return client.ListSemaphores(ctx, pageSize, pageToken, &filter)
+			},
+			func(ctx context.Context) ([]types.Semaphore, error) {
+				return client.GetSemaphores(ctx, filter)
+			},
+		)
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2971,7 +2985,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindInstaller:
 		if rc.ref.Name == "" {
-			installers, err := client.GetInstallers(ctx)
+			// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+			installers, err := clientutils.CollectWithFallback(ctx, client.ListInstallers, client.GetInstallers)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3680,6 +3695,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &healthCheckConfigCollection{items: items}, nil
+	case types.KindRelayServer:
+		if rc.ref.Name != "" {
+			rs, err := client.GetRelayServer(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return namedResourceCollection{types.ProtoResource153ToLegacy(rs)}, nil
+		}
+		var c namedResourceCollection
+		for rs, err := range clientutils.Resources(ctx, client.ListRelayServers) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			c = append(c, types.ProtoResource153ToLegacy(rs))
+		}
+		return c, nil
 	case types.KindInferenceModel:
 		models, err := rc.getInferenceModels(ctx, client)
 		return models, trace.Wrap(err)
@@ -3753,7 +3784,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 func getSAMLConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.SAMLConnector, error) {
 	if name == "" {
-		connectors, err := client.GetSAMLConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectors
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.SAMLConnector, string, error) {
+				return client.ListSAMLConnectorsWithOptions(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.SAMLConnector, error) {
+				//nolint:staticcheck // support older backends during migration
+				return client.GetSAMLConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3768,7 +3808,15 @@ func getSAMLConnectors(ctx context.Context, client *authclient.Client, name stri
 
 func getOIDCConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.OIDCConnector, error) {
 	if name == "" {
-		connectors, err := client.GetOIDCConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
+				return client.ListOIDCConnectors(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.OIDCConnector, error) {
+				return client.GetOIDCConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3783,7 +3831,15 @@ func getOIDCConnectors(ctx context.Context, client *authclient.Client, name stri
 
 func getGithubConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.GithubConnector, error) {
 	if name == "" {
-		connectors, err := client.GetGithubConnectors(ctx, withSecrets)
+		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+		connectors, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+				return client.ListGithubConnectors(ctx, limit, start, withSecrets)
+			},
+			func(ctx context.Context) ([]types.GithubConnector, error) {
+				return client.GetGithubConnectors(ctx, withSecrets)
+			},
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

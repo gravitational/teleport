@@ -17,6 +17,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { UserEvent } from '@testing-library/user-event';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
@@ -25,11 +26,10 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
-  fireEvent,
   render,
   screen,
   testQueryClient,
-  waitFor,
+  userEvent,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
 
@@ -38,6 +38,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
+  EditBotApiVersion,
   editBotError,
   editBotSuccess,
   getBotError,
@@ -126,16 +127,15 @@ describe('EditDialog', () => {
 
     withFetchBotSuccess();
     withFetchRolesSuccess({ items: ['test-role'] });
-    renderComponent({ onSuccess });
+    const { user } = renderComponent({ onSuccess });
     await waitForLoading();
 
     await inputRole('test-role');
 
-    withSaveSuccess(1);
+    withSaveSuccess('v1');
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
-    fireEvent.click(saveButton);
-    await waitForSaveButton();
+    await user.click(saveButton);
 
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onSuccess).toHaveBeenLastCalledWith({
@@ -167,21 +167,20 @@ describe('EditDialog', () => {
 
     withFetchBotSuccess();
     withFetchRolesSuccess();
-    renderComponent({ onSuccess });
+    const { user } = renderComponent({ onSuccess });
     await waitForLoading();
 
     const addTraitButton = screen.getByRole('button', {
       name: 'Add another trait',
     });
-    fireEvent.click(addTraitButton);
+    await user.click(addTraitButton);
 
-    await inputTrait('logins', ['test-value']);
+    await inputTrait(user, 'logins', ['test-value']);
 
-    withSaveSuccess();
+    withSaveSuccess('v2');
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
-    fireEvent.click(saveButton);
-    await waitForSaveButton();
+    await user.click(saveButton);
 
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onSuccess).toHaveBeenLastCalledWith({
@@ -217,16 +216,15 @@ describe('EditDialog', () => {
 
     withFetchBotSuccess();
     withFetchRolesSuccess();
-    renderComponent({ onSuccess });
+    const { user } = renderComponent({ onSuccess });
     await waitForLoading();
 
-    await inputMaxSessionDuration(' 12h 30m ');
+    await inputMaxSessionDuration(user, ' 12h 30m ');
 
-    withSaveSuccess();
+    withSaveSuccess('v2');
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
-    fireEvent.click(saveButton);
-    await waitForSaveButton();
+    await user.click(saveButton);
 
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onSuccess).toHaveBeenLastCalledWith({
@@ -253,22 +251,63 @@ describe('EditDialog', () => {
     });
   });
 
+  it('should allow description to be edited', async () => {
+    const onSuccess = jest.fn();
+
+    withFetchBotSuccess({
+      description: '',
+    });
+    withFetchRolesSuccess();
+    const { user } = renderComponent({ onSuccess });
+    await waitForLoading();
+
+    await inputDescription(user, 'Hello world!');
+
+    withSaveSuccess();
+    const saveButton = screen.getByRole('button', { name: 'Save' });
+    expect(saveButton).toBeEnabled();
+    await user.click(saveButton);
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onSuccess).toHaveBeenLastCalledWith({
+      description: 'Hello world!',
+      kind: 'bot',
+      labels: new Map(),
+      max_session_ttl: {
+        seconds: 43200,
+      },
+      name: 'test-bot-name',
+      namespace: '',
+      revision: '',
+      roles: ['admin', 'user'],
+      status: 'active',
+      subKind: '',
+      traits: [
+        {
+          name: 'trait-1',
+          values: ['value-1', 'value-2', 'value-3'],
+        },
+      ],
+      type: null,
+      version: 'v1',
+    });
+  });
+
   it('should show a save error state', async () => {
     const onSuccess = jest.fn();
 
     withFetchBotSuccess();
     withFetchRolesSuccess();
-    renderComponent({ onSuccess });
+    const { user } = renderComponent({ onSuccess });
     await waitForLoading();
 
     // Change something to enable the save button
-    await inputMaxSessionDuration('12h 30m');
+    await inputMaxSessionDuration(user, '12h 30m');
 
-    withSaveError();
+    withSaveError('v2');
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
-    fireEvent.click(saveButton);
-    await waitForSaveButton();
+    await user.click(saveButton);
 
     expect(screen.getByText('something went wrong')).toBeInTheDocument();
 
@@ -280,18 +319,18 @@ describe('EditDialog', () => {
 
     withFetchBotSuccess();
     withFetchRolesSuccess({ items: ['test-role'] });
-    renderComponent({ onSuccess });
+    const { user } = renderComponent({ onSuccess });
     await waitForLoading();
 
     await inputRole('test-role');
-    await inputTrait('logins', ['test-value']);
-    await inputMaxSessionDuration('12h 30m');
+    await inputTrait(user, 'logins', ['test-value']);
+    await inputMaxSessionDuration(user, '12h 30m');
+    await inputDescription(user, 'hello');
 
     withSaveVersionMismatch();
     const saveButton = screen.getByRole('button', { name: 'Save' });
     expect(saveButton).toBeEnabled();
-    fireEvent.click(saveButton);
-    await waitForSaveButton();
+    await user.click(saveButton);
 
     expect(onSuccess).not.toHaveBeenCalled();
 
@@ -307,7 +346,7 @@ async function inputRole(role: string) {
   await selectEvent.select(screen.getByLabelText('Roles'), [role]);
 }
 
-async function inputTrait(name: string, values: string[]) {
+async function inputTrait(user: UserEvent, name: string, values: string[]) {
   await selectEvent.select(screen.getAllByLabelText('trait-key').at(-1)!, [
     name,
   ]);
@@ -315,29 +354,41 @@ async function inputTrait(name: string, values: string[]) {
   const traitValue = screen.getAllByLabelText('trait-values');
 
   for (const value of values) {
-    fireEvent.change(traitValue.at(-1)!, {
-      target: { value: value },
-    });
-    fireEvent.keyDown(traitValue.at(-1)!, { key: 'Enter' });
+    const input = traitValue.at(-1);
+    await user.clear(input!);
+    await user.type(input!, value + '{enter}');
   }
 }
 
-async function inputMaxSessionDuration(duration: string) {
-  const ttlInput = screen.getByLabelText('Max session duration');
-  fireEvent.change(ttlInput, { target: { value: duration } });
+async function inputMaxSessionDuration(user: UserEvent, duration: string) {
+  const input = screen.getByLabelText('Max session duration');
+  await user.clear(input);
+  await user.click(input);
+  await user.paste(duration);
+}
+
+async function inputDescription(user: UserEvent, description: string) {
+  const input = screen.getByLabelText('Description');
+  await user.clear(input);
+  await user.click(input);
+  await user.paste(description);
 }
 
 function withFetchBotError(status = 500, message = 'something went wrong') {
   server.use(getBotError(status, message));
 }
 
-function withSaveError(status = 500, message = 'something went wrong') {
-  server.use(editBotError(status, message));
+function withSaveError(
+  version: EditBotApiVersion = 'v3',
+  status = 500,
+  message = 'something went wrong'
+) {
+  server.use(editBotError(version, status, message));
 }
 
-function withSaveVersionMismatch() {
+function withSaveVersionMismatch(version: EditBotApiVersion = 'v3') {
   server.use(
-    editBotError(404, 'path not found', {
+    editBotError(version, 404, 'path not found', {
       proxyVersion: {
         major: 19,
         minor: 0,
@@ -349,12 +400,12 @@ function withSaveVersionMismatch() {
   );
 }
 
-function withFetchBotSuccess() {
-  server.use(getBotSuccess());
+function withFetchBotSuccess(...params: Parameters<typeof getBotSuccess>) {
+  server.use(getBotSuccess(...params));
 }
 
 function withSaveSuccess(
-  version: 1 | 2 = 2,
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
 ) {
   server.use(editBotSuccess(version, overrides));
@@ -385,25 +436,22 @@ function renderComponent(options?: {
     onSuccess = jest.fn(),
     customAcl,
   } = options ?? {};
-  return render(
-    <EditDialog
-      botName="test-bot-name"
-      onCancel={onCancel}
-      onSuccess={onSuccess}
-    />,
-    { wrapper: makeWrapper({ customAcl }) }
-  );
+  const user = userEvent.setup();
+  return {
+    ...render(
+      <EditDialog
+        botName="test-bot-name"
+        onCancel={onCancel}
+        onSuccess={onSuccess}
+      />,
+      { wrapper: makeWrapper({ customAcl }) }
+    ),
+    user,
+  };
 }
 
 async function waitForLoading() {
   return waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
-}
-
-async function waitForSaveButton() {
-  return waitFor(() => {
-    const saveButton = screen.getByRole('button', { name: 'Save' });
-    expect(saveButton).toBeEnabled();
-  });
 }
 
 function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
