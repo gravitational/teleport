@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -304,20 +305,20 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certReq := certRequest{
-		user:           userState,
-		loginIP:        req.LoginIP,
-		ttl:            sessionTTL,
-		sshPublicKey:   sshAuthorizedKey,
-		tlsPublicKey:   tlsPublicKeyPEM,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
-		traits:         req.Traits,
-		activeRequests: req.AccessRequests,
+	certReq := internal.CertRequest{
+		User:           userState,
+		LoginIP:        req.LoginIP,
+		TTL:            sessionTTL,
+		SSHPublicKey:   sshAuthorizedKey,
+		TLSPublicKey:   tlsPublicKeyPEM,
+		Checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		Traits:         req.Traits,
+		ActiveRequests: req.AccessRequests,
 	}
 	var hasDeviceExtensions bool
 	if opts != nil && opts.deviceExtensions != nil {
 		// Apply extensions to request.
-		certReq.deviceExtensions = DeviceExtensions(*opts.deviceExtensions)
+		certReq.DeviceExtensions = *opts.deviceExtensions
 		hasDeviceExtensions = true
 	}
 
@@ -659,30 +660,30 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           user,
-		loginIP:        req.LoginIP,
-		tlsPublicKey:   tlsPublicKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
-		ttl:            req.SessionTTL,
-		traits:         req.Traits,
-		activeRequests: req.AccessRequests,
+	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+		User:           user,
+		LoginIP:        req.LoginIP,
+		TLSPublicKey:   tlsPublicKey,
+		Checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		TTL:            req.SessionTTL,
+		Traits:         req.Traits,
+		ActiveRequests: req.AccessRequests,
 		// Set the app session ID in the certificate - used in auditing from the App Service.
-		appSessionID: sessionID,
+		AppSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
-		usage:             []string{teleport.UsageAppsOnly},
-		appPublicAddr:     req.PublicAddr,
-		appClusterName:    req.ClusterName,
-		appTargetPort:     req.AppTargetPort,
-		awsRoleARN:        req.AWSRoleARN,
-		azureIdentity:     req.AzureIdentity,
-		gcpServiceAccount: req.GCPServiceAccount,
+		Usage:             []string{teleport.UsageAppsOnly},
+		AppPublicAddr:     req.PublicAddr,
+		AppClusterName:    req.ClusterName,
+		AppTargetPort:     req.AppTargetPort,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 		// Pass along device extensions from the user.
-		deviceExtensions: req.DeviceExtensions,
-		mfaVerified:      req.MFAVerified,
+		DeviceExtensions: tlsca.DeviceExtensions(req.DeviceExtensions),
+		MFAVerified:      req.MFAVerified,
 		// Pass along bot details to ensure audit logs are correct.
-		botName:       req.BotName,
-		botInstanceID: req.BotInstanceID,
+		BotName:       req.BotName,
+		BotInstanceID: req.BotInstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -842,19 +843,19 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                             req.UserState,
-		ttl:                              req.SessionTTL,
-		sshPublicKey:                     req.SSHPubKey,
-		tlsPublicKey:                     req.TLSPubKey,
-		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
-		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
-		compatibility:                    req.Compatibility,
-		checker:                          checker,
-		traits:                           req.UserState.GetTraits(),
-		routeToCluster:                   req.RouteToCluster,
-		kubernetesCluster:                req.KubernetesCluster,
-		loginIP:                          req.LoginIP,
+	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+		User:                             req.UserState,
+		TTL:                              req.SessionTTL,
+		SSHPublicKey:                     req.SSHPubKey,
+		TLSPublicKey:                     req.TLSPubKey,
+		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
+		Compatibility:                    req.Compatibility,
+		Checker:                          checker, // TODO(fspmarshall/scopes): add scoping support to CreateSessionCerts.
+		Traits:                           req.UserState.GetTraits(),
+		RouteToCluster:                   req.RouteToCluster,
+		KubernetesCluster:                req.KubernetesCluster,
+		LoginIP:                          req.LoginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
