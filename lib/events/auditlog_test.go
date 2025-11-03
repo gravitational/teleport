@@ -32,10 +32,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
@@ -380,6 +383,116 @@ func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {
 	require.NoError(t, err)
 
 	return alog
+}
+
+func TestCallingSummarizerMetadata(t *testing.T) {
+	ctx := t.Context()
+
+	parts := generateParts(t)
+	sessionID, err := uuid.NewV7()
+	require.NoError(t, err)
+	metadataProvider := recordingmetadata.NewProvider()
+	recorderMetadata := &fakeRecordingMetadata{}
+	recorderMetadata.On("ProcessSessionRecording", mock.Anything, session.ID(sessionID.String()), mock.Anything).
+		Return(nil).Once()
+	metadataProvider.SetService(recorderMetadata)
+
+	summarizerProvider := summarizer.NewSessionSummarizerProvider()
+	sessionSummarizer := &fakeSummarizer{}
+	sessionSummarizer.On("SummarizeSSH", mock.Anything, mock.Anything).
+		Return(nil).Once()
+	summarizerProvider.SetSummarizer(sessionSummarizer)
+
+	uploader := eventstest.NewMemoryUploader()
+	alog, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:                   t.TempDir(),
+		ServerID:                  "server1",
+		UploadHandler:             uploader,
+		SessionSummarizerProvider: summarizerProvider,
+		RecordingMetadataProvider: metadataProvider,
+	})
+	require.NoError(t, err)
+	defer alog.Close()
+
+	partIter := func(yield func([]byte, error) bool) {
+		for _, part := range parts {
+			if part == nil {
+				if !yield(nil, errors.New("invalid part")) {
+					return
+				}
+			} else {
+				if !yield(part, nil) {
+					return
+				}
+			}
+		}
+	}
+
+	err = alog.UploadEncryptedRecording(ctx, sessionID.String(), partIter)
+	require.NoError(t, err)
+
+	recorderMetadata.AssertExpectations(t)
+	sessionSummarizer.AssertExpectations(t)
+}
+
+type fakeRecordingMetadata struct {
+	mock.Mock
+}
+
+func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error {
+	args := f.Called(ctx, sessionID, duration)
+	return args.Error(0)
+}
+
+type fakeSummarizer struct {
+	mock.Mock
+}
+
+func (f *fakeSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (f *fakeSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (f *fakeSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
+	args := f.Called(ctx, sessionID)
+	return args.Error(0)
+}
+
+func generateParts(t *testing.T) [][]byte {
+	uploader := eventstest.NewMemoryUploader()
+
+	ctx := t.Context()
+	sid := session.NewID()
+	sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		PrintEvents: 1000,
+		UserName:    "alice",
+		SessionID:   string(sid),
+		ServerID:    "testcluster",
+		PrintData:   []string{"net", "stat"},
+	})
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+	for _, event := range sessionEvents {
+		require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
+	}
+	require.NoError(t, stream.Complete(ctx))
+
+	uploads, err := uploader.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Len(t, uploads, 1)
+	parts, err := uploader.GetParts(uploads[0].ID)
+	require.NoError(t, err)
+	return parts
 }
 
 func TestPadUploadPart(t *testing.T) {
