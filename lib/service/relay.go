@@ -195,6 +195,10 @@ func (process *TeleportProcess) runRelayService() error {
 	relaytunnelv1alpha.RegisterDiscoveryServiceServer(tunnelGRPCServer, &relaytunnel.StaticDiscoverServiceServer{
 		RelayGroup:            process.Config.Relay.RelayGroup,
 		TargetConnectionCount: process.Config.Relay.TargetConnectionCount,
+		SupportedTunnelTypes: []string{
+			string(apitypes.NodeTunnel),
+			string(apitypes.KubeTunnel),
+		},
 	})
 
 	peerServer, err := relaypeer.NewServer(relaypeer.ServerConfig{
