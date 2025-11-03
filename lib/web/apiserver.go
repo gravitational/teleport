@@ -1300,6 +1300,12 @@ func (h *Handler) bindDefaultEndpoints() {
 		}
 		h.logger.InfoContext(r.Context(), "Got profile request", "content", p7.Content)
 		w.WriteHeader(200)
+		// TODO: Try returning 200 first and then a redirect? Figure out what /profile does from the
+		// companion file.
+		// Also:
+		// https://stackoverflow.com/questions/2338035/installing-a-configuration-profile-on-iphone-programmatically
+		// https://stackoverflow.com/questions/18598452/profile-mobileconfig-install-from-safari-then-return-back-to-app
+		// http.Redirect(w, r, "teleport://teleport-mbp.ocelot-paradise.ts.net:3030/profile_done", http.StatusFound)
 	})
 }
 
