@@ -160,6 +160,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: true},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: true},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: true},
+			string(entitlements.ClientIPRestrictions):       {Enabled: true},
 		},
 		//	 Legacy Fields; remove in v18
 		Kubernetes:             true,
@@ -237,6 +238,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 0},
 			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
 			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 0},
+			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 0},
 		},
 	}
 
