@@ -172,9 +172,13 @@ func (c *clientInitExchange) ForwardClientHello(dialect string) []tdp.Message {
 func (c *clientInitExchange) ReadClientInit(ctx context.Context) (*clientInitdata, error) {
 	switch c.dialect {
 	case "tdpb/1.0":
-		return c.handleClientHandshakeTDPB(ctx, c.reader)
+		data, err := c.handleClientHandshakeTDPB(ctx, c.reader)
+		c.data = *data
+		return data, err
 	default: /* TDP */
-		return c.handleClientHandshakeTDP(ctx, c.reader)
+		data, err := c.handleClientHandshakeTDP(ctx, c.reader)
+		c.data = *data
+		return data, err
 	}
 }
 
@@ -270,6 +274,7 @@ func (c *clientInitExchange) handleClientHandshakeTDPB(ctx context.Context, read
 	if !ok {
 		return nil, trace.Errorf("client sent unexpected message %T", msg) //sendTDPError(trace.BadParameter("client sent unexpected message %T", msg))
 	}
+	slog.Warn("client screen spec recieved during handshake", "height", screenSpec.Height, "width", screenSpec.Width)
 
 	width, height := screenSpec.Width, screenSpec.Height
 	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
@@ -835,9 +840,10 @@ func (t *TDPPinger) IsPing(msg tdp.Message) (uuid.UUID, bool) {
 	return uuid.Nil, false
 }
 
-func (d desktopPinger) WriteInterceptor(msg tdp.Message) ([]tdp.Message, error) {
+func (d desktopPinger) interceptor(msg tdp.Message) ([]tdp.Message, error) {
 	if id, ok := d.handler.IsPing(msg); ok {
 		d.ch <- id
+		return nil, nil
 	}
 	return []tdp.Message{msg}, nil
 }
@@ -898,18 +904,17 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 		return err
 	}
 
-	rawServerConn := tdp.MessageReadWriteCloser(tdp.NewConn(wds, decoder))
-	serverConn := rawServerConn
+	serverConn := tdp.MessageReadWriteCloser(tdp.NewConn(wds, tdp.DecoderFunc(tdp.DecodeTDP)))
 	if clientDialect != serverDialect {
 		// Translation layer is needed
 		if serverDialect == "tdpb/1.0" {
 			// client speaks TDP, but server speaks TDPB
 			slog.Warn("Translating to TDP for client, TDPB for server")
-			serverConn = tdp.NewReadWriteInterceptor(rawServerConn, intoTDP, intoTDPB)
+			serverConn = tdp.NewReadWriteInterceptor(serverConn, intoTDP, intoTDPB)
 		} else {
 			// client speaks TDPB, but server speaks TDP
 			slog.Warn("Translating to TDPB for client, TDP for server")
-			serverConn = tdp.NewReadWriteInterceptor(rawServerConn, intoTDPB, intoTDP)
+			serverConn = tdp.NewReadWriteInterceptor(serverConn, intoTDPB, intoTDP)
 		}
 	} else {
 		slog.Warn("No translation layer in use")
@@ -944,7 +949,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 	clientConn := tdp.NewConn(&WebsocketIO{Conn: ws}, decoder)
 	// Wrap the server once again with an interceptor
-	proxy := tdp.NewConnProxy(clientConn, tdp.NewReadWriteInterceptor(serverConn, pinger.WriteInterceptor, nil))
+	proxy := tdp.NewConnProxy(clientConn, tdp.NewReadWriteInterceptor(serverConn, pinger.interceptor, nil))
 	if latencySupported {
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {

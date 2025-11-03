@@ -611,7 +611,7 @@ func TranslateToModern(msg Message) []Message {
 	case ConnectionActivated:
 		messages = append(messages, &tdpb.ConnectionActivated{
 			IoChannelActivated: uint32(m.IOChannelID),
-			UserChannelId:      uint32(m.ScreenHeight),
+			UserChannelId:      uint32(m.UserChannelID),
 			ScreenWidth:        uint32(m.ScreenWidth),
 			ScreenHeight:       uint32(m.ScreenHeight),
 		})

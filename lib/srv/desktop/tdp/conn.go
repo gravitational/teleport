@@ -355,7 +355,7 @@ func messageCopy(dst MessageWriter, src MessageReader) error {
 	var m Message
 	for err == nil {
 		m, err = src.ReadMessage()
-		if err == nil && m != nil {
+		if err == nil {
 			err = dst.WriteMessage(m)
 		}
 	}

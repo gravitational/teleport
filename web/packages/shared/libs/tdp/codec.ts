@@ -340,7 +340,7 @@ export default class Codec {
   // encodeMouseButton encodes a mouse button action.
   // | message type (4) | button byte | state byte |
   encodeMouseButton(button: MouseButton, state: ButtonState): [tdpp.MouseButton, IMessageType<tdpp.MouseButton>] {
-    return [tdpp.MouseButton.create({button, pressed: state == ButtonState.DOWN}), tdpp.MouseButton];
+    return [tdpp.MouseButton.create({button: button+1, pressed: state == ButtonState.DOWN}), tdpp.MouseButton];
   }
 
   // encodeKeyboardInput encodes a keyboard action.
