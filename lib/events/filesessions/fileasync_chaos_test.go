@@ -54,7 +54,9 @@ func TestChaosUpload(t *testing.T) {
 	defer cancel()
 
 	eventsC := make(chan events.UploadEvent, 100)
-	memUploader := eventstest.NewMemoryUploader(eventsC)
+	memUploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
+		EventsC: eventsC,
+	})
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
@@ -122,7 +124,9 @@ func TestChaosUpload(t *testing.T) {
 	go uploader.Serve(ctx)
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir, nil)
+	fileStreamer, err := NewStreamer(StreamerConfig{
+		Dir: scanDir,
+	})
 	require.NoError(t, err)
 
 	parallelStreams := 20
