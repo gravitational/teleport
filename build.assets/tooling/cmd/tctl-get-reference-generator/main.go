@@ -25,11 +25,65 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // extractHandlersKeys TODO
 func extractHandlersKeys(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
-	return []TypeInfo{}, nil
+	var handlerKeys []TypeInfo
+
+	for _, d := range decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if fd.Name.Name != targetFuncName {
+			continue
+		}
+
+		if len(fd.Body.List) != 1 {
+			return nil, trace.Errorf(
+				"we expect the function that returns a handler map to include a single body statement, but %v has %v",
+				targetFuncName,
+				len(fd.Body.List),
+			)
+		}
+
+		ret := fd.Body.List[0].(*ast.ReturnStmt)
+		if len(ret.Results) != 1 {
+			return nil, trace.Errorf(
+				"we expect the function that returns a handler map return a single value, but %v returns %v",
+				targetFuncName,
+				len(ret.Results),
+			)
+		}
+
+		m, ok1 := ret.Results[0].(*ast.CompositeLit)
+		var ok2 bool
+		if ok1 {
+			_, ok2 = m.Type.(*ast.MapType)
+		}
+		if !ok1 || !ok2 {
+			return nil, trace.Errorf(
+				"we expect the function that returns a handler map return a map but %v does not",
+				targetFuncName,
+			)
+		}
+
+		for _, e := range m.Elts {
+			kv := e.(*ast.KeyValueExpr)
+			key := kv.Key.(*ast.SelectorExpr)
+			pkg := key.X.(*ast.Ident).Name
+			typ := key.Sel.Name
+			handlerKeys = append(handlerKeys, TypeInfo{
+				Package: pkg,
+				Name:    typ,
+			})
+		}
+	}
+
+	return handlerKeys, nil
 }
 
 // PackageInfo is used to look up a Go declaration in a map of declaration names
