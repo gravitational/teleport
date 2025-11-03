@@ -70,17 +70,44 @@ two unsigned varint encoded integers representing the message type and message l
 | message type (uvarint) | message_length (uvarint) | message_data []byte |
 ```
 
-### Protocol Selection via ALPN
- The current TDP specification provides no handshake mechanism that we can use
+### Proxy/Agent Protocol Selection via ALPN
+The current TDP specification provides no handshake mechanism that we can use
 to upgrade from TDP to TDPB. Instead, we'll utilize ALPN to attempt to negotiate
 the use of TDPB. Modern Desktop agents will successfully negotiate
 `teleport-tdpb-1.0`, while older agents will fail negotiation entirely. This will
 signal the Teleport Proxy to use legacy TDP messages for the connection.
 
- ALPN may also be useful if we ever need to make breaking changes to the protocol,
+ALPN may also be useful if we ever need to make breaking changes to the protocol,
 such as changes to the envelope message structure.
 
+### Web Client/Proxy Protocol Selection via Websocket Handshake
+Typically, Teleport Agents and Clients are expected to connect to a Proxy instance whose
+version is greater than or equal to its own, however, the Desktop Access web client is a
+special case. During the rollout of a Proxy upgrade, "modern" Proxy instances will serve
+"modern" web clients who may in turn establish websocket connections to "legacy" Proxies.
+In order to gracefully handle this pathological upgrade scenario, the web client will need
+to support both TDP and TDPB implementations.
+
+Web clients will need a way to detect whether or not they've connected to a "legacy" Proxy.
+Similar to the ALPN approach above, clients and Proxies will negotiate TDPB as a subprotocol
+via the `Sec-WebSocket-Protocol` header during the websocket handshake. Modern Proxy instances
+will attempt to negotiate `teleport-tdpb-1.0` as a subprotocol, while legacy instances will
+provide no selection. Web clients will default to TDP unless TDPB is explicitly negotiated.
+
 ### Translation/Compatibility layer
+Desktop Clients (both the web client and Teleport Connect) do not have any explicit
+version compatibility rules with Desktop Agents. However, clients as well as agents *do*
+have compatibility rules with respect to the Teleport Proxy. Since the Proxy is expected
+to be the most up-to-date participant in a given desktop session, it makes sense to build
+a compatibility/translation layer into the proxy to facilitate connections between "legacy"
+and "modern" endpoints. This approach allows us to isolate backwards compatibility concerns
+to the Proxy, rather than maintain backwards compatible TDPB/TDP implementations on the
+web client, Teleport Connect client, and Desktop Agent<sup>*</sup>.
+
+<sup>*</sup> As mentioned in the previous section, web clients will need to support legacy
+TDP. However, this approach eliminates the need to build backwards compatibility into
+both the Teleport Connect client and Desktop Agent.
+
 Once the Teleport Proxy is updated, the websocket connection between browser
 client and Proxy will utilize TDPB. However, until legacy Desktop agents are
 out of support, TDPB must maintain backwards compatibility with TDP. This can
