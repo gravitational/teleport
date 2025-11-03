@@ -1416,7 +1416,7 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             // Changing this to 16 gets us uncompressed bitmaps on machines configured like
             // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             color_depth: 32,
-            // Try to congiure the client to use remotefx only. This should never fail in practice, but just in
+            // Try to configure the client to use remotefx only. This should never fail in practice, but just in
             // case we'll log an error and fall back to defaults.
             codecs: client_codecs_capabilities(&["remotefx"]).unwrap_or_else(|err| {
                 error!("Failed to configure client for remotefx: {}", err);
