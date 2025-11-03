@@ -29,33 +29,7 @@ The enrollment wizard adds permissions to the AWS OIDC integration IAM role to a
 ## Step 1/2. Configure RBAC
 
 The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard is a part of the AWS OIDC integration.
-You will need the following allow rules in one of your Teleport roles.
-These are available by default in the preset `editor` role:
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: example
-spec:
-  allow:
-    rules:
-    - resources:
-      - integration
-      verbs:
-      - create
-      - update
-      - list
-      - read
-    - resources:
-      - app_server
-      verbs:
-      - read
-      - list
-      - create
-      - update
-      - delete
-```
+You need access to the `editor` role in order to complete the configuration.
 
 ## Step 2/2. Configure access using the wizard
 
