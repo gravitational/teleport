@@ -1299,18 +1299,18 @@ func (u *Updater) tbotNotices(ctx context.Context) {
 		return
 	}
 	if !enabled && active {
-		u.Log.InfoContext(ctx, "The tbot MachineID client installed and started, but not configured to start on boot.")
+		u.Log.InfoContext(ctx, "tbot is installed and started, but not configured to start on boot.")
 		u.Log.WarnContext(ctx, "After configuring tbot.yaml, you must enable it.",
 			"command", "systemctl enable "+u.TbotProcess.Name())
 	}
 	if !active && enabled {
-		u.Log.WarnContext(ctx, "The tbot MachineID client is installed and enabled at boot, but not running.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must start it.",
+		u.Log.WarnContext(ctx, "tbot is installed and enabled at boot, but not running.")
+		u.Log.WarnContext(ctx, "After configuring tbot.yaml, you must start it.",
 			"command", "systemctl start "+u.TbotProcess.Name())
 	}
 	if !active && !enabled {
 		// Info-level as many installations will be agent-only.
-		u.Log.InfoContext(ctx, "The tbot MachineID client installed, but not running or enabled at boot.")
+		u.Log.InfoContext(ctx, "tbot is installed, but not running or enabled at boot.")
 		u.Log.InfoContext(ctx, "To enable and start tbot, configure tbot.yaml and run systemctl.",
 			"command", "systemctl enable --now "+u.TbotProcess.Name())
 	}
