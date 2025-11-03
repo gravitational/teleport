@@ -13,18 +13,40 @@ import {
   WAIT_FOR_SYNC_TIMEOUT,
 } from './AccessGraphDemoContext';
 
+const defaultAccessGraphDemoEntitlement = {
+  ...cfg.entitlements.AccessGraphDemoMode,
+};
+
+const defaultIsCloud = cfg.isCloud;
+const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultIsPolicyRoleVisualizerEnabled = cfg.isPolicyRoleVisualizerEnabled;
+
 jest.mock('teleport/services/storageService', () => ({
   storageService: {
     getAccessGraphRoleTesterEnabled: jest.fn(),
     getUseNewRoleEditor: jest.fn(),
+    getBearerToken: jest.fn(),
+    getAccessGraphEnabled: jest.fn(),
   },
 }));
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  jest.spyOn(accessGraphService, 'enableDemoMode').mockResolvedValue(true);
+  cfg.entitlements.AccessGraphDemoMode = {
+    enabled: true,
+    limit: 0,
+  };
+  cfg.isCloud = true;
   cfg.isPolicyEnabled = false;
   cfg.isPolicyRoleVisualizerEnabled = true;
-  cfg.isCloud = true;
+});
+
+afterEach(() => {
+  jest.resetAllMocks();
+  cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+  cfg.isPolicyRoleVisualizerEnabled = defaultIsPolicyRoleVisualizerEnabled;
+  cfg.isCloud = defaultIsCloud;
+  cfg.entitlements.AccessGraphDemoMode = defaultAccessGraphDemoEntitlement;
 });
 
 const wrapper = ({ children }) => (
@@ -41,11 +63,25 @@ test('should return DISABLED state when not in cloud', () => {
   expect(result.current.isCloud).toBe(false);
 });
 
+test('should return DISABLED state when demo feature is not enabled', () => {
+  cfg.entitlements.AccessGraphDemoMode = {
+    enabled: false,
+    limit: 0,
+  };
+  const { result } = renderHook(() => useAccessGraphDemo(), {
+    wrapper,
+  });
+
+  expect(result.current.state).toBe(RoleDiffState.Disabled);
+  expect(result.current.isCloud).toBe(true);
+  expect(result.current.roleTesterEnabled).toBe(false);
+});
+
 test('should return POLICY_ENABLED state when role tester is enabled', async () => {
   cfg.isPolicyEnabled = true;
-  (storageService.getAccessGraphRoleTesterEnabled as jest.Mock).mockReturnValue(
-    true
-  );
+  jest
+    .spyOn(storageService, 'getAccessGraphRoleTesterEnabled')
+    .mockReturnValue(true);
 
   const { result } = renderHook(() => useAccessGraphDemo(), {
     wrapper,
@@ -223,7 +259,9 @@ describe('waitForInitialSync', () => {
     await waitFor(() => {
       expect(result.current.state).toBe(RoleDiffState.Error);
     });
-    expect(result.current.errorMessage).toBe('Failed to enable demo mode');
+    expect(result.current.errorMessage).toBe(
+      'Failed previewing access graph: Initial resource sync is taking longer than expected. Please try again in a few minutes.'
+    );
     jest.useRealTimers();
   });
 });

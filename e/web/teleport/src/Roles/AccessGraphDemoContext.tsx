@@ -58,6 +58,21 @@ const AccessGraphDemoContext = createContext<AccessGraphDemoContextState>(null);
 export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
   children,
 }) => {
+  /**
+   * There are two similar `access graph demo enabled` flags:
+   *   - One flag is the "feature" flag (you have to enable it in salescenter
+   *     feature checkbox), and you get this flag from entitlements (this flag)
+   *   - Second flag is "user" enabled access graph setting "enable_demo_mode".
+   *     This is when user clicks on "Preview Identity" which sets this flag
+   *     to true.
+   * The feature has to be enabled if the user wants to preview access graph
+   * regardless if user enabled it. A user could've enabled it if they had
+   * this feature before, then lost it. Turning off the feature does not
+   * turn off the user setting.
+   */
+  const featureAccessGraphDemoEnabled =
+    osCfg.entitlements.AccessGraphDemoMode.enabled;
+
   const roleTesterEnabled =
     osCfg.isPolicyEnabled &&
     osCfg.isPolicyRoleVisualizerEnabled &&
@@ -77,7 +92,7 @@ export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
     }
     if (tries > WAIT_FOR_SYNC_MAX_TRIES) {
       throw new Error(
-        'Initial resource sync is taking longer than expected. Please try again in a few minutes.'
+        'Failed previewing access graph: Initial resource sync is taking longer than expected. Please try again in a few minutes.'
       );
     }
     try {
@@ -94,7 +109,7 @@ export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
         // if they hit a different version proxy in the load balancer, lets just try again and hopefully get lucky
         return await waitForInitialSyncComplete(tries + 1);
       }
-      throw new Error(err);
+      throw err;
     }
   }, []);
 
@@ -117,7 +132,7 @@ export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
 
   useEffect(() => {
     // if the roleTester is enabled, that means they have full access and we dont need to check settings.
-    if (!isCloud || roleTesterEnabled) {
+    if (!isCloud || roleTesterEnabled || !featureAccessGraphDemoEnabled) {
       return;
     }
     // If roleTester isnt enabled but its cloud, we need to check settings to see if demo mode is active.
@@ -125,6 +140,7 @@ export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
     // and something went wrong with the sync (or it took too long) and they are refreshing the page.
     async function getInitialSyncIfDemoModeEnabled() {
       const [settings, error] = await getAccessGraphSettings();
+
       if (
         !error &&
         settings.enable_demo_mode &&
@@ -154,14 +170,22 @@ export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
     ]
   );
 
+  const errorMessage =
+    (accessGraphSettingsAttempt.status === 'error'
+      ? accessGraphSettingsAttempt.statusText
+      : '') ||
+    (enableDemoModeAttempt.status === 'error'
+      ? enableDemoModeAttempt.statusText
+      : '') ||
+    (waitingForSyncAttempt.status === 'error'
+      ? waitingForSyncAttempt.statusText
+      : '');
+
   const values = {
     roleTesterEnabled,
     isCloud,
     enableDemoMode,
-    errorMessage:
-      accessGraphSettingsAttempt.statusText ||
-      enableDemoModeAttempt.statusText ||
-      waitingForSyncAttempt.statusText,
+    errorMessage,
     state: demoState,
   };
 
@@ -219,12 +243,8 @@ function getDemoState({
   if (!roleTesterEnabled && !isCloud) {
     return RoleDiffState.Disabled;
   }
-  if (
-    accessGraphSettingsAttempt.status === 'error' ||
-    waitingForSyncAttempt.status === 'error'
-  ) {
-    return RoleDiffState.Error;
-  }
+
+  // Prioritize processing states. The error could persist.
   if (accessGraphSettingsAttempt.status === 'processing') {
     return RoleDiffState.LoadingSettings;
   }
@@ -235,6 +255,13 @@ function getDemoState({
     enableDemoModeAttempt.status === 'processing'
   ) {
     return RoleDiffState.WaitingForSync;
+  }
+
+  if (
+    accessGraphSettingsAttempt.status === 'error' ||
+    waitingForSyncAttempt.status === 'error'
+  ) {
+    return RoleDiffState.Error;
   }
   return RoleDiffState.Disabled;
 }
