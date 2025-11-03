@@ -31,6 +31,63 @@ func replaceBackticks(source string) string {
 	return strings.ReplaceAll(source, "BACKTICK", "`")
 }
 
+func TestExtractHandlersKeys(t *testing.T) {
+	cases := []struct {
+		description string
+		source      string
+		expected    []TypeInfo
+	}{
+		{
+			description: "three handlers",
+			source: `package mypkg
+
+// Handlers returns a map of Handler per kind.
+// This map will be filled as we convert existing resources
+// to the Handler format.
+func Handlers() map[string]Handler {
+	// When adding resources, please keep the map alphabetically ordered.
+	return map[string]Handler{
+		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
+		types.KindApp:                                appHandler(),
+		types.KindAppServer:                          appServerHandler(),
+	}
+}`,
+			expected: []TypeInfo{
+				{
+					Package: "types",
+					Name:    "KindAccessGraphSettings",
+				},
+				{
+					Package: "types",
+					Name:    "KindApp",
+				},
+				{
+					Package: "types",
+					Name:    "KindAppServer",
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			fset := token.NewFileSet()
+			d, err := parser.ParseFile(fset,
+				"myfile.go",
+				replaceBackticks(c.source),
+				parser.ParseComments,
+			)
+			if err != nil {
+				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+			}
+
+			actual, err := extractHandlersKeys(d.Decls, "Handlers")
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
+
 func TestNamedImports(t *testing.T) {
 	cases := []struct {
 		description string

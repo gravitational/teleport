@@ -27,6 +27,11 @@ import (
 	"strings"
 )
 
+// extractHandlersKeys TODO
+func extractHandlersKeys(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
+	return []TypeInfo{}, nil
+}
+
 // PackageInfo is used to look up a Go declaration in a map of declaration names
 // to resource data.
 type PackageInfo struct {
