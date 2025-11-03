@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
+	"github.com/gravitational/teleport/build.assets/tooling/cmd/tctl-get-reference-generator/reference"
 )
 
 func main() {
