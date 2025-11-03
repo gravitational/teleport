@@ -24,6 +24,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -372,15 +373,17 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		require.NoError(t, err)
 
 		var signature []byte
-		switch signatureKey.Public().(type) {
-		case *rsa.PublicKey:
-			signature, err = oracle.SignChallenge(signatureKey, challenge)
-		case *ecdsa.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.SHA256)
-		case ed25519.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.Hash(0))
+		switch priv := signatureKey.(type) {
+		case *rsa.PrivateKey:
+			signature, err = oracle.SignChallenge(priv, challenge)
+			require.NoError(t, err)
+		case *ecdsa.PrivateKey:
+			digest := sha256.Sum256([]byte(challenge))
+			signature, err = ecdsa.SignASN1(rand.Reader, priv, digest[:])
+			require.NoError(t, err)
+		case ed25519.PrivateKey:
+			signature = ed25519.Sign(priv, []byte(challenge))
 		}
-		require.NoError(t, err)
 
 		// Make the root CA request but there's no need to actually sign it
 		// since this will be sent to the test's fake Oracle API.
