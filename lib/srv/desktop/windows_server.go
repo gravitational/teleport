@@ -1332,27 +1332,41 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			domain = parts[1]
 		}
 
-		//Try to get SID with user principal name, use configured baseDN
-		filter := fmt.Sprintf("(%s=%s)", attrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-		entries, err := s.queryLDAP(ctx, filter, username, windows.DomainDN(s.cfg.LDAPConfig.Domain))
+		queries := []func() ([]*ldap.Entry, error){
+			func() ([]*ldap.Entry, error) {
+				//User principal name and configured baseDN
+				filter := fmt.Sprintf("(%s=%s)", attrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
+				return s.queryLDAP(ctx, filter, username, windows.DomainDN(s.cfg.LDAPConfig.Domain))
+			},
+			func() ([]*ldap.Entry, error) {
+				//User principal name and baseDN derived from username
+				filter := fmt.Sprintf("(%s=%s)", attrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
+				return s.queryLDAP(ctx, filter, username, windows.DomainDN(domain))
+			},
+			func() ([]*ldap.Entry, error) {
+				//sAMAccountName and baseDN derived from username
+				if len(username) > 20 {
+					s.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
+					username = username[:20]
+				}
+				filter := fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username))
+				return s.queryLDAP(ctx, filter, username, windows.DomainDN(domain))
+			},
+		}
 
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
+		var entries []*ldap.Entry
+		for _, query := range queries {
+			entries, err = query()
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			if len(entries) > 0 {
+				break
+			}
+			s.cfg.Logger.DebugContext(ctx, "found 0 entries, trying another query")
 		}
 		if len(entries) == 0 {
-			//No users found using UPN, assume the baseDN is the same as the UPN suffix and try again using sAMAccountName
-			//if len(username) > 20 {
-			//	s.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
-			//	username = username[:20]
-			//}
-			//filter := fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username))
-			//entries, err = s.queryLDAP(ctx, filter, username, windows.DomainDN(domain))
-			//if err != nil {
-			//	return nil, nil, trace.Wrap(err)
-			//}
-			//if len(entries) == 0 {
 			return nil, nil, trace.NotFound("could not find Windows account %q", username)
-			//}
 		}
 		if len(entries) > 1 {
 			s.cfg.Logger.WarnContext(ctx, "found multiple entries for user, taking the first", "username", username)

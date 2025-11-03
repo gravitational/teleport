@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"github.com/go-ldap/ldap/v3"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -178,20 +179,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 				})
 			}
 		}
-	}
-
-	if strings.Contains(upn, "charles") {
-		name = pkix.Name{
-			ExtraNames: []pkix.AttributeTypeAndValue{
-				dc("gov"),
-				dc("nrel"),
-				dc("ext"),
-				ou("NREL"),
-				ou("Accounts"),
-				ou("B2B Guests"),
-				cn("charles.xavier_contractor.net"),
-			},
-		}
+		slices.Reverse(name.ExtraNames)
 	}
 
 	csr := &x509.CertificateRequest{
