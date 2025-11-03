@@ -276,7 +276,7 @@ type InitConfig struct {
 	Okta services.Okta
 
 	// AccessLists is a service that manages access list resources.
-	AccessLists services.AccessLists
+	AccessLists services.AccessListsInternal
 
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
