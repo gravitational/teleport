@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -33,10 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -56,9 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
-	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
-	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -80,26 +73,6 @@ func (c namedResourceCollection) WriteText(w io.Writer, verbose bool) error {
 		t.AddRow([]string{override.GetName()})
 	}
 	return trace.Wrap(t.WriteTo(w))
-}
-
-type namespaceCollection struct {
-	namespaces []types.Namespace
-}
-
-func (n *namespaceCollection) Resources() (r []types.Resource) {
-	for i := range n.namespaces {
-		r = append(r, &n.namespaces[i])
-	}
-	return r
-}
-
-func (n *namespaceCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name"})
-	for _, n := range n.namespaces {
-		t.AddRow([]string{n.Metadata.Name})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 func printMetadataLabels(labels map[string]string) string {
@@ -409,21 +382,6 @@ func (c *authPrefCollection) WriteText(w io.Writer, verbose bool) error {
 
 	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
 	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type uiConfigCollection struct {
-	uiconfig types.UIConfig
-}
-
-func (c *uiConfigCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.uiconfig}
-}
-
-func (c *uiConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Scrollback Lines", "Show Resources"})
-	t.AddRow([]string{strconv.FormatInt(int64(c.uiconfig.GetScrollbackLines()), 10), string(c.uiconfig.GetShowResources())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -808,33 +766,6 @@ func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type installerCollection struct {
-	installers []types.Installer
-}
-
-func (c *installerCollection) Resources() []types.Resource {
-	var r []types.Resource
-	for _, inst := range c.installers {
-		r = append(r, inst)
-	}
-	return r
-}
-
-func (c *installerCollection) WriteText(w io.Writer, verbose bool) error {
-	for _, inst := range c.installers {
-		if _, err := fmt.Fprintf(w, "Script: %s\n----------\n", inst.GetName()); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := fmt.Fprintln(w, inst.GetScript()); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := fmt.Fprintln(w, "----------"); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 type integrationCollection struct {
 	integrations []types.Integration
 }
@@ -990,58 +921,6 @@ func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) 
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type databaseObjectImportRuleCollection struct {
-	rules []*dbobjectimportrulev1.DatabaseObjectImportRule
-}
-
-func (c *databaseObjectImportRuleCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.rules))
-	for i, b := range c.rules {
-		resources[i] = databaseobjectimportrule.ProtoToResource(b)
-	}
-	return resources
-}
-
-func (c *databaseObjectImportRuleCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Priority", "Mapping Count", "DB Label Count"})
-	for _, b := range c.rules {
-		t.AddRow([]string{
-			b.GetMetadata().GetName(),
-			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
-			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
-			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type databaseObjectCollection struct {
-	objects []*dbobjectv1.DatabaseObject
-}
-
-func (c *databaseObjectCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.objects))
-	for i, b := range c.objects {
-		resources[i] = databaseobject.ProtoToResource(b)
-	}
-	return resources
-}
-
-func (c *databaseObjectCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Kind", "DB Service", "Protocol"})
-	for _, b := range c.objects {
-		t.AddRow([]string{
-			b.GetMetadata().GetName(),
-			fmt.Sprintf("%v", b.GetSpec().GetObjectKind()),
-			fmt.Sprintf("%v", b.GetSpec().GetDatabaseServiceName()),
-			fmt.Sprintf("%v", b.GetSpec().GetProtocol()),
-		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1251,23 +1130,6 @@ func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
 	t.AddRow([]string{
 		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
 		strings.Join(dnsZoneSuffixes, ", "),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type accessGraphSettings struct {
-	accessGraphSettings *clusterconfigrec.AccessGraphSettings
-}
-
-func (c *accessGraphSettings) Resources() []types.Resource {
-	return []types.Resource{c.accessGraphSettings}
-}
-
-func (c *accessGraphSettings) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"SSH Keys Scan"})
-	t.AddRow([]string{
-		c.accessGraphSettings.Spec.SecretsScanConfig,
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1546,112 +1408,6 @@ func (c *userTaskCollection) WriteText(w io.Writer, verbose bool) error {
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type autoUpdateConfigCollection struct {
-	config *autoupdatev1pb.AutoUpdateConfig
-}
-
-func (c *autoUpdateConfigCollection) Resources() []types.Resource {
-	return []types.Resource{types.ProtoResource153ToLegacy(c.config)}
-}
-
-func (c *autoUpdateConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
-	t.AddRow([]string{
-		c.config.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type autoUpdateVersionCollection struct {
-	version *autoupdatev1pb.AutoUpdateVersion
-}
-
-func (c *autoUpdateVersionCollection) Resources() []types.Resource {
-	return []types.Resource{types.ProtoResource153ToLegacy(c.version)}
-}
-
-func (c *autoUpdateVersionCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Version"})
-	t.AddRow([]string{
-		c.version.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type autoUpdateAgentRolloutCollection struct {
-	rollout *autoupdatev1pb.AutoUpdateAgentRollout
-}
-
-func (c *autoUpdateAgentRolloutCollection) Resources() []types.Resource {
-	return []types.Resource{types.ProtoResource153ToLegacy(c.rollout)}
-}
-
-func (c *autoUpdateAgentRolloutCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Start Version", "Target Version", "Mode", "Schedule", "Strategy"})
-	t.AddRow([]string{
-		c.rollout.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetStartVersion()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetTargetVersion()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetAutoupdateMode()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type autoUpdateAgentReportCollection struct {
-	reports []*autoupdatev1pb.AutoUpdateAgentReport
-}
-
-func (c *autoUpdateAgentReportCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(c.reports))
-	for i, report := range c.reports {
-		resources[i] = types.ProtoResource153ToLegacy(report)
-	}
-	return resources
-}
-
-func (c *autoUpdateAgentReportCollection) WriteText(w io.Writer, verbose bool) error {
-	groupSet := make(map[string]any)
-	versionsSet := make(map[string]any)
-	for _, report := range c.reports {
-		for groupName, group := range report.GetSpec().GetGroups() {
-			groupSet[groupName] = struct{}{}
-			for versionName := range group.GetVersions() {
-				versionsSet[versionName] = struct{}{}
-			}
-		}
-	}
-
-	groupNames := slices.Collect(maps.Keys(groupSet))
-	versionNames := slices.Collect(maps.Keys(versionsSet))
-	slices.Sort(groupNames)
-	slices.Sort(versionNames)
-
-	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
-	for _, report := range c.reports {
-		for i, versionName := range versionNames {
-			row := make([]string, len(groupNames)+2)
-			if i == 0 {
-				row[0] = report.GetMetadata().GetName()
-			}
-			row[1] = versionName
-			for j, groupName := range groupNames {
-				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
-			}
-			t.AddRow(row)
-		}
-		t.AddRow(make([]string, len(versionNames)+2))
-	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

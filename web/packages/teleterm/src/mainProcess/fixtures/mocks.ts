@@ -107,10 +107,6 @@ export class MockMainProcessClient implements MainProcessClient {
 
   fileStorage = createMockFileStorage();
 
-  removeKubeConfig(): Promise<void> {
-    return Promise.resolve(undefined);
-  }
-
   async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
@@ -182,7 +178,6 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
   async changeAppUpdatesManagingCluster() {}
-  async maybeRemoveAppUpdatesManagingCluster() {}
   async checkForAppUpdates() {}
   async downloadAppUpdate() {}
   async cancelAppUpdateDownload() {}
@@ -208,7 +203,7 @@ export class MockMainProcessClient implements MainProcessClient {
   } {
     return { cleanup: () => undefined };
   }
-  async logoutCluster(): Promise<void> {}
+  async logout(): Promise<void> {}
   async syncCluster(): Promise<void> {}
   async addCluster(): Promise<Cluster> {
     return makeRootCluster();

@@ -26,6 +26,7 @@ discovery_service:
       # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
       # 'memorydb' - Amazon MemoryDB databases.
       # 'opensearch' - Amazon OpenSearch Redis databases.
+      # 'docdb' - Amazon DocumentDB databases.
     - types: ["ec2"]
       # AWS regions to search for resources from
       regions: ["us-east-1","us-west-1"]

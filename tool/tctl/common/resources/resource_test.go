@@ -48,7 +48,12 @@ func TestHandlers(t *testing.T) {
 
 	updateResourceWithLabels := func(t *testing.T, r types.Resource) types.Resource {
 		t.Helper()
-		rWithLabels, ok := r.(types.ResourceWithLabels)
+
+		type setStaticLabels interface {
+			SetStaticLabels(labels map[string]string)
+		}
+
+		rWithLabels, ok := r.(setStaticLabels)
 		require.True(t, ok)
 		rWithLabels.SetStaticLabels(map[string]string{"updated": "true"})
 		return r
@@ -64,7 +69,7 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindDatabase,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				app, err := types.NewDatabaseV3(
+				db, err := types.NewDatabaseV3(
 					types.Metadata{
 						Name: name,
 					},
@@ -74,10 +79,30 @@ func TestHandlers(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				return app
+				return db
 			},
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindDatabaseObject,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				resource := makeDatabaseObject(t, name)
+				return types.ProtoResource153ToLegacy(resource)
+			},
+			checkMFARequired: require.False,
+			updateResource:   updateResourceWithLabels,
+		},
+		{
+			kind: types.KindDatabaseObjectImportRule,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				resource := makeDatabaseObjectImportRule(t, name, 100)
+				return types.ProtoResource153ToLegacy(resource)
+			},
+			checkMFARequired: require.False,
+			updateResource:   updateResourceWithLabels,
 		},
 		{
 			kind: types.KindApp,
@@ -114,12 +139,34 @@ func TestHandlers(t *testing.T) {
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
 		},
+		{
+			kind: types.KindGitServer,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				gitServer, err := types.NewGitHubServerWithName(
+					name,
+					types.GitHubServerMetadata{
+						Organization: "test-org",
+						Integration:  "test-integration",
+					},
+				)
+				require.NoError(t, err)
+				return gitServer
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.kind, func(t *testing.T) {
 			handler := Handlers()[tt.kind]
 			require.NotNil(t, handler)
+
+			// certain resources will be automatically created by default.
+			// capture baseline for comparison.
+			resourcesPrepopulated, err := handler.Get(t.Context(), clt, services.Ref{}, GetOpts{})
+			require.NoError(t, err)
 
 			// TODO(greedy52): update logic for singleton
 			resources := []types.Resource{
@@ -144,18 +191,29 @@ func TestHandlers(t *testing.T) {
 			t.Run("Get", func(t *testing.T) {
 				collection, err := handler.Get(t.Context(), clt, services.Ref{}, GetOpts{})
 				require.NoError(t, err)
+
+				var expected []types.Resource
+				expected = append(expected, resourcesPrepopulated.Resources()...)
+				expected = append(expected, resources...)
+
 				require.ElementsMatch(t,
-					sliceutils.Map(resources, types.GetName),
+					sliceutils.Map(expected, types.GetName),
 					sliceutils.Map(collection.Resources(), types.GetName),
 				)
 			})
 
 			t.Run("Update", func(t *testing.T) {
-				r := tt.updateResource(t, resources[0])
+				// Get the existing resource from backend for modifying.
+				name := resources[0].GetName()
+				collection, err := handler.Get(t.Context(), clt, services.Ref{Name: name}, GetOpts{})
+				require.NoError(t, err)
+				require.Len(t, collection.Resources(), 1)
+
+				r := tt.updateResource(t, collection.Resources()[0])
 				raw := mustMakeUnknownResource(t, r)
 				require.NoError(t, handler.Update(t.Context(), clt, raw, CreateOpts{}))
 
-				collection, err := handler.Get(t.Context(), clt, services.Ref{Name: r.GetName()}, GetOpts{})
+				collection, err = handler.Get(t.Context(), clt, services.Ref{Name: name}, GetOpts{})
 				require.NoError(t, err)
 				require.Len(t, collection.Resources(), 1)
 				// Double-check revision is changed.

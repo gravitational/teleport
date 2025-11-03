@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -131,7 +132,7 @@ func generateAndSaveCert(targetPath string, eku ...x509.ExtKeyUsage) (tls.Certif
 	}
 	defer os.Remove(tempFile.Name())
 
-	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, eku...)
+	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, eku, time.Now)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

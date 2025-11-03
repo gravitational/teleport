@@ -118,11 +118,6 @@ type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
 
-	// PublicProxyAddress is the public address of the proxy.
-	// Used to configure installation scripts for Server auto discovery.
-	// Example: proxy.example.com:443 or proxy.example.com
-	PublicProxyAddress string
-
 	// AWSFetchersClients gets the AWS clients for the given region for the fetchers.
 	AWSFetchersClients fetchers.AWSClientGetter
 
@@ -237,10 +232,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for discovery")
-	}
-
-	if c.PublicProxyAddress == "" {
-		return trace.BadParameter("no PublicProxyAddress configured for discovery")
 	}
 
 	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
@@ -569,6 +560,25 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 	return nil
 }
 
+// publicProxyAddress returns the public proxy address to use for installation scripts.
+// This is only used if the matcher does not specify a ProxyAddress.
+// Example: proxy.example.com:3080 or proxy.example.com
+func (s *Server) publicProxyAddress(ctx context.Context) (string, error) {
+	proxies, err := s.AccessPoint.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, proxy := range proxies {
+		for _, proxyAddr := range proxy.GetPublicAddrs() {
+			if proxyAddr != "" {
+				return proxyAddr, nil
+			}
+		}
+	}
+
+	return "", trace.NotFound("could not find the public proxy address for server discovery")
+}
+
 // initAWSWatchers starts AWS resource watchers based on types provided.
 func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
@@ -578,9 +588,9 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	})
 
 	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
-		Matchers:        ec2Matchers,
-		EC2ClientGetter: s.GetEC2Client,
-		PublicProxyAddr: s.PublicProxyAddress,
+		Matchers:              ec2Matchers,
+		EC2ClientGetter:       s.GetEC2Client,
+		PublicProxyAddrGetter: s.publicProxyAddress,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -701,10 +711,10 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 	})
 
 	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
-		Matchers:            serverMatchers,
-		EC2ClientGetter:     s.GetEC2Client,
-		DiscoveryConfigName: discoveryConfigName,
-		PublicProxyAddr:     s.PublicProxyAddress,
+		Matchers:              serverMatchers,
+		EC2ClientGetter:       s.GetEC2Client,
+		DiscoveryConfigName:   discoveryConfigName,
+		PublicProxyAddrGetter: s.publicProxyAddress,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

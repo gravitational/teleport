@@ -112,6 +112,10 @@ service AccessListService {
 
   // GetInheritedGrants returns the inherited grants for an access list.
   rpc GetInheritedGrants(GetInheritedGrantsRequest) returns (GetInheritedGrantsResponse);
+
+  // ListUserAccessLists returns a paginated list of all access lists where the
+  // user is an owner or member.
+  rpc ListUserAccessLists(ListUserAccessListsRequest) returns (ListUserAccessListsResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -504,4 +508,24 @@ message GetSuggestedAccessListsRequest {
 message GetSuggestedAccessListsResponse {
   // access_lists is the list of suggested lists.
   repeated AccessList access_lists = 1;
+}
+
+// ListUserAccessListsRequest is the request for getting access lists where the
+// user is an owner or member.
+message ListUserAccessListsRequest {
+  // username is the name of the user to get access lists for.
+  string username = 1;
+  // page_size is the size of the page to request.
+  int32 page_size = 2;
+  // page_token is the page token.
+  string page_token = 3;
+}
+
+// ListUserAccessListsResponse is the response for getting access lists where the
+// user is an owner or member.
+message ListUserAccessListsResponse {
+  // access_lists are the access lists where the user is a member or owner.
+  repeated AccessList access_lists = 1;
+  // next_page_token is the next page token.
+  string next_page_token = 2;
 }

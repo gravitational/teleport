@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -489,6 +490,29 @@ func TestKeyAppendKey(t *testing.T) {
 			assert.Equal(t, test.expected, appended)
 		})
 	}
+}
+
+// TestKeyAppendKeyNoOverwrite checks that the mutable storage of [backend.Key]
+// is not shared between objects after using [backend.Key.AppendKey].
+func TestKeyAppendKeyNoOverwrite(t *testing.T) {
+	var components []string
+	for range 3 {
+		components = append(components, "a")
+	}
+	k := backend.NewKey(components...)
+
+	k1 := k.AppendKey(backend.NewKey("b"))
+	require.Equal(t, "/a/a/a/b", k1.String())
+
+	// a previous implementation had a bug where AppendKey could modify the
+	// underlying array of the slice of components of k which would be then
+	// shared between future invocations of AppendKey...
+	_ = k.AppendKey(backend.NewKey("c"))
+
+	// ...so that further AppendKey might end up using the modified components
+	// slice - in this case, a "c" would appear in the components
+	k2 := k1.AppendKey(backend.NewKey("b"))
+	require.Equal(t, "/a/a/a/b/b", k2.String())
 }
 
 func TestKeyCompare(t *testing.T) {
