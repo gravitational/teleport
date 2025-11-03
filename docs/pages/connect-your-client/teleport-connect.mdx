@@ -239,8 +239,11 @@ A new tab will open with a new connection established between your device and th
 
 Alternatively, you can look for the database in the search bar and press `Enter` to connect to it.
 
-This connection will remain active until you click the Close Connection button or close Teleport
-Connect. The port number will persist between app restarts—you can set up your favorite client
+The connection is active while Teleport Connect is running.
+If the background mode is on, it remains active even after you close the window.
+To end the connection, click Close Connection or quit the app.
+
+The port number will persist between app restarts—you can set up your favorite client
 without worrying about the port suddenly changing.
 
 ### With a GUI client
@@ -329,8 +332,11 @@ press `Enter` to set up a connection to it.
 
 A new tab will open with a new connection established between your device and the application.
 
-This connection will remain active until you click the Close Connection button or close Teleport
-Connect. The port number will persist between app restarts—you can set up your favorite client
+The connection is active while Teleport Connect is running.
+If the background mode is on, it remains active even after you close the window.
+To end the connection, click Close Connection or quit the app.
+
+The port number will persist between app restarts—you can set up your favorite client
 without worrying about the port suddenly changing.
 
 The application connection tab shows an example command that can be used to query the application.
@@ -351,8 +357,11 @@ A new tab will open with a new connection established between your device and th
 
 ![MCP connection](../../img/use-teleport/connect-mcp-http.png)
 
-This connection will remain active until you click the Close Connection button or close Teleport
-Connect. The port number will persist between app restarts—you can set up your favorite client
+The connection is active while Teleport Connect is running.
+If the background mode is on, it remains active even after you close the window.
+To end the connection, click Close Connection or quit the app.
+
+The port number will persist between app restarts—you can set up your favorite client
 without worrying about the port suddenly changing.
 
 ## Connecting to multiple clusters
@@ -435,10 +444,12 @@ completely remove it. Manually logging out of the cluster will remove the agent 
 
 ![Connect My Computer status](../../img/use-teleport/connect-my-computer-status@2x.png)
 
-Your computer will be shared while Teleport Connect is open. To stop sharing, close Teleport Connect
-or stop the agent through the Connect My Computer tab. Sharing will resume on app restart, unless
-you stop the agent before exiting. The agent stops immediately if Teleport Connect unexpectedly
-crashes.
+Your computer will be shared while Teleport Connect is running.
+If the background mode is on, it remains shared even after you close the window.
+To stop sharing, quit the app or stop the agent through the Connect My Computer tab.
+
+Sharing will resume on app restart, unless you stop the agent before exiting.
+The agent stops immediately if Teleport Connect unexpectedly crashes.
 
 ### Agent maintenance
 
