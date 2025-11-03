@@ -688,7 +688,7 @@ new Workload Identity configuration experience. You can replace the use of this
 output with the new `workload-identity-x509` or `workload-identity-jwt` service.
 
 For further information, see [the new Workload Identity configuration experience
-and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+and how to migrate](./workload-identity/configuration-resource-migration.mdx).
 </Admonition>
 
 The `spiffe-svid` output is used to generate a SPIFFE X509 SVID and write this
@@ -752,7 +752,7 @@ workload identity API, intended to serve workload identity credentials
 (e.g X509/JWT SPIFFE SVIDs) to workloads running on the same host.
 
 For more information about this, see the
-[Workload Identity API and Workload Attestation reference](../workload-identity/workload-identity-api-and-workload-attestation.mdx)
+[Workload Identity API and Workload Attestation reference](./workload-identity/workload-identity-api-and-workload-attestation.mdx)
 
 The `workload-identity-api` service will not start if `tbot` has been configured
 to run in one-shot mode.
@@ -765,7 +765,7 @@ new Workload Identity configuration experience. You can replace the use of this
 service with the new `workload-identity-api` service.
 
 For further information, see [the new Workload Identity configuration experience
-and how to migrate](../workload-identity/configuration-resource-migration.mdx).
+and how to migrate](./workload-identity/configuration-resource-migration.mdx).
 </Admonition>
 
 The `spiffe-workload-api` service opens a listener for a service that implements
@@ -1166,7 +1166,7 @@ This differs to using `identity` output for SSH in a few ways:
 - Resource consumption is significantly reduced by multiplexing SSH connections
   through a fewer number of upstream connections to the Teleport Proxy Service.
 - It's possible to configure the `ssh-multiplexer` service to connect to SSH
-  servers through a [Teleport Relay](../../architecture/relay.mdx).
+  servers through a [Teleport Relay](../architecture/relay.mdx).
 
 Additionally, the `ssh-multiplexer` opens a socket that implements the SSH
 agent protocol. This allows the SSH client to authenticate without writing the
