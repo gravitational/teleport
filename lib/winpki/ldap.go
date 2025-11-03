@@ -302,7 +302,7 @@ func crlContainerDN(domain string, caType types.CertAuthType) string {
 func CRLCN(issuerCN string, issuerSKID []byte) string {
 	name := issuerCN
 	if len(issuerSKID) > 0 {
-		id := base32.HexEncoding.EncodeToString(issuerSKID)
+		id := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(issuerSKID)
 		name = id + "_" + name
 	}
 	// The limit on the CN attribute should be 64 characters, but in practice
