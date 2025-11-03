@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	err = reference.Generate(genconf)
+	err := reference.Generate()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the `tctl get` reference: %v\n", err)
 		os.Exit(1)

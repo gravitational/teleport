@@ -17,7 +17,6 @@
 package resource
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -25,7 +24,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -185,102 +183,6 @@ func NamedImports(file *ast.File) map[string]string {
 		m[i.Name.Name] = s
 	}
 	return m
-}
-
-// ReferenceDataFromDeclaration gets data for the reference by examining decl.
-// Looks up decl's fields in allDecls and methods in allMethods.
-func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
-	rs, err := getRawTypes(decl, allDecls)
-	if err != nil {
-		return nil, err
-	}
-
-	fieldsToProcess, err := handleEmbeddedStructFields(decl, rs.fields, allDecls)
-	if err != nil {
-		return nil, err
-	}
-
-	description := rs.doc
-	var example string
-
-	example, err = makeYAMLExample(fieldsToProcess)
-	if err != nil {
-		return nil, err
-	}
-
-	// Initialize the return value and insert the root reference entry
-	// provided by decl.
-	refs := make(map[PackageInfo]ReferenceEntry)
-	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
-	entry := ReferenceEntry{
-		SectionName: makeSectionName(rs.name),
-		Description: printableDescription(description, rs.name),
-		SourcePath:  decl.FilePath,
-		YAMLExample: example,
-		Fields:      []Field{},
-	}
-	key := PackageInfo{
-		DeclName:    rs.name,
-		PackageName: decl.PackageName,
-	}
-
-	fld, err := makeFieldTableInfo(fieldsToProcess)
-	if err != nil {
-		return nil, err
-	}
-	entry.Fields = fld
-	sort.Sort(entry)
-	refs[key] = entry
-
-	// For any fields within decl that have a custom type, look up the
-	// declaration for that type and create a separate reference entry for
-	// it.
-	for _, f := range rs.fields {
-		// Don't make separate reference entries for embedded structs
-		// since they are part of the containing struct for the purposes
-		// of unmarshaling YAML.
-		//
-		if f.name == "" {
-			continue
-		}
-
-		c := f.kind.customFieldData()
-
-		for _, d := range c {
-			// Find the package name to use to look up the declaration from
-			// its identifier.
-			i, ok := decl.NamedImports[d.PackageName]
-			// The file that made the declaration provided a name for the
-			// package associated with the identifier, so find the full
-			// package path and use that to look up the declaration.
-			if ok {
-				d.PackageName = i
-			}
-
-			// Get information about the field type's declaration.
-			// If we can't find it, it means the field type was
-			// probably declared in the standard library or
-			// third-party package. In this case, leave it to the
-			// GoDoc to describe the field type.
-			gd, ok := allDecls[d]
-			if !ok {
-				continue
-			}
-			r, err := ReferenceDataFromDeclaration(gd, allDecls)
-			if errors.Is(err, NotAGenDeclError{}) {
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-
-			for k, v := range r {
-				sort.Sort(v)
-				refs[k] = v
-			}
-		}
-	}
-	return refs, nil
 }
 
 // GetTopLevelStringAssignments collects all declarations of a var or a const

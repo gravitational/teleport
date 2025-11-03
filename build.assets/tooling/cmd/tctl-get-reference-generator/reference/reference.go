@@ -63,9 +63,10 @@ func getPackageInfoFromExpr(expr ast.Expr) resource.PackageInfo {
 
 // Generate uses the provided user-facing configuration to write the resource
 // reference to fs.
-func Generate(conf GeneratorConfig) error {
+func Generate() error {
 	// TODO: have this select the correct path.
-	sourceData, err := resource.NewSourceData(conf.SourcePath)
+	// TODO: use the resulting sourceData
+	_, err := resource.NewSourceData(".")
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
