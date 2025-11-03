@@ -7,7 +7,7 @@ tags:
  - platform-wide
 ---
 
-`teleport-update` is a CLI tool that is used to update Teleport Agents & Bots installed on Linux servers.
+`teleport-update` is a CLI tool that is used to update Teleport Agents and Bots installed on Linux servers.
 
 See [Teleport Agent Managed Updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx) for more details.
 
@@ -29,7 +29,7 @@ The primary commands for `teleport-update` are as follows:
 
 ## teleport-update enable
 
-Enables Managed Updates and performs an initial installation of the Teleport Agent & tbot.
+Enables Managed Updates and performs an initial installation of the Teleport Agent and tbot.
 This command also creates a systemd timer that periodically runs the update subcommand.
 
 If Teleport is already installed, `enable` will update to the cluster-advertised version
@@ -77,7 +77,7 @@ $ sudo teleport-update enable
 $ sudo systemctl enable teleport --now
 ```
 
-**Example for a new Teleport Agent & tbot installation.**
+**Example for a new Teleport Agent and tbot installation.**
 
 Install Teleport with Managed Updates enabled on a fresh system.
 
