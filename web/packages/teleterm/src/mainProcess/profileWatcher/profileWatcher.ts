@@ -144,7 +144,7 @@ async function waitForPath(
   }
 
   while (!signal?.aborted) {
-    // Start from waiting, waitForPath was called earlier.
+    // Start from waiting, pathExists() was invoked earlier to check the path.
     await wait(1000, signal);
     const exist = await pathExists(dirPath);
     if (exist) {
