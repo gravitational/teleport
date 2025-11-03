@@ -204,9 +204,11 @@ increasing the traffic created by Proxy discovery requests.
 We can reduce the overall traffic created by Proxy discovery requests by changing
 the behavior.
 
-The new behavior will only send Proxy discovery requests when there is a Proxy
-heartbeat and will only send the set of proxies that have heartbeated since the 
-last Proxy discovery request was sent.
+The new behavior will send proxy discovery requests when a Proxy heartbeat is received.
+Multiple proxies may be sent in a single discovery request if multiple heartbeats are
+received before the proxy is able to send the discovery request. In either case
+only the subset of proxies that have heartbeated since the last discovery request
+will be sent.
 
 The first discovery request will always contain the full list of unexpired Proxy
 servers.
