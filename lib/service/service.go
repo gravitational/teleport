@@ -143,6 +143,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/metrics"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -722,7 +723,7 @@ type TeleportProcess struct {
 	// and the global registry (used by some Teleport services and many dependencies).
 	// optionally other systems can add their gatherers, this can be used if they
 	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
-	metricsGatherers prometheus.Gatherers
+	*metrics.SyncGatherers
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
@@ -737,10 +738,6 @@ var processID int32
 
 func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
-}
-
-func (process *TeleportProcess) AddMetricsGatherer(gatherer prometheus.Gatherer) {
-	process.metricsGatherers = append(process.metricsGatherers, gatherer)
 }
 
 // GetReverseTunnelServer returns the process's reverse tunnel server
@@ -1301,10 +1298,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
-		metricsGatherers: prometheus.Gatherers{
+		SyncGatherers: metrics.NewSyncGatherers(
 			metricsRegistry,
 			prometheus.DefaultGatherer,
-		},
+		),
 	}
 
 	process.registerExpectedServices(cfg)

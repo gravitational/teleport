@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/metrics"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -1631,12 +1632,12 @@ func TestDebugService(t *testing.T) {
 	// every service to report ready (there's an integration test for this).
 	// So we craft a minimal process with only the debug service in it.
 	process := &TeleportProcess{
-		Config:           cfg,
-		Clock:            fakeClock,
-		logger:           log,
-		metricsRegistry:  localRegistry,
-		metricsGatherers: prometheus.Gatherers{localRegistry, prometheus.DefaultGatherer},
-		Supervisor:       NewSupervisor("supervisor-test", log),
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: localRegistry,
+		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
+		Supervisor:      NewSupervisor("supervisor-test", log),
 	}
 
 	fakeState, err := newProcessState(process)
@@ -1711,7 +1712,7 @@ func TestDebugService(t *testing.T) {
 	require.NotContains(t, string(body), "additional_metric_"+nonce)
 
 	// Test execution: add the additional registry and lookup again
-	process.AddMetricsGatherer(additionalRegistry)
+	process.AddGatherer(additionalRegistry)
 
 	// Test execution: hit the metrics endpoint.
 	resp, err = httpClient.Get("http://debug/metrics")
@@ -2127,12 +2128,12 @@ func TestDiagnosticsService(t *testing.T) {
 	// every service to report ready (there's an integration test for this).
 	// So we craft a minimal process with only the debug service in it.
 	process := &TeleportProcess{
-		Config:           cfg,
-		Clock:            fakeClock,
-		logger:           log,
-		metricsRegistry:  localRegistry,
-		metricsGatherers: prometheus.Gatherers{localRegistry, prometheus.DefaultGatherer},
-		Supervisor:       NewSupervisor("supervisor-test", log),
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: localRegistry,
+		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
+		Supervisor:      NewSupervisor("supervisor-test", log),
 	}
 
 	fakeState, err := newProcessState(process)
@@ -2182,7 +2183,7 @@ func TestDiagnosticsService(t *testing.T) {
 	require.NotContains(t, string(body), "additional_metric_"+nonce)
 
 	// Test execution: add the additional registry and lookup again
-	process.AddMetricsGatherer(additionalRegistry)
+	process.AddGatherer(additionalRegistry)
 
 	resp, err = http.Get(metricsURL.String())
 	require.NoError(t, err)

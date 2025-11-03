@@ -68,7 +68,7 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 // in-process one.
 func (process *TeleportProcess) newMetricsHandler() http.Handler {
 	metricsHandler := promhttp.InstrumentMetricHandler(
-		process.metricsRegistry, promhttp.HandlerFor(&process.metricsGatherers, promhttp.HandlerOpts{
+		process.metricsRegistry, promhttp.HandlerFor(process, promhttp.HandlerOpts{
 			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
 			// In this case, we log the error but continue collecting metrics. The first collected metric will win
 			// (the one from the local metrics registry takes precedence).
