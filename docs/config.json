@@ -2246,6 +2246,31 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/ai-agents-mwi/",
+      "destination": "/machine-workload-identity/use-cases/ai-agents-mwi/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/hybrid-multi-mwi/",
+      "destination": "/machine-workload-identity/use-cases/hybrid-multi-mwi/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/iac-mwi/",
+      "destination": "/machine-workload-identity/use-cases/iac-mwi/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/use-cases/mwi-ci-cd/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-mwi/",
+      "destination": "/machine-workload-identity/use-cases/workload-mwi/",
+      "permanent": true
+    },
+    {
       "source": "/reference/workload-identity/attributes/",
       "destination": "/reference/machine-workload-identity/workload-identity/attributes/",
       "permanent": true
