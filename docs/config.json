@@ -767,7 +767,7 @@
     },
     {
       "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
-      "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "destination": "/machine-workload-identity/use-cases/mwi-ci-cd/",
       "permanent": true
     },
     {
