@@ -10,7 +10,7 @@ tags:
 In this guide, you will install Machine and Workload Identity's agent, `tbot`,
 on an arbitrary stateless environment using Bound Keypair static keys. This
 might be a CI/CD job on a provider not yet supported by one of Teleport's
-[dedicated join methods](../../../deployment/join-methods.mdx), an ephemeral
+[dedicated join methods](../../deployment/join-methods.mdx), an ephemeral
 bare-metal node, or any other environment without writable persistent storage.
 
 Bound Keypair Joining is a more flexible alternative to [secret-based join
@@ -39,7 +39,7 @@ your static private key instead of managing it automatically.
 Static key joining relaxes certain security checks otherwise performed when
 client-side storage is available. This is designed to be used where no other
 join methods are possible. Before continuing, consider:
-- Using a [dedicated join method](../../../deployment/join-methods.mdx) for your
+- Using a [dedicated join method](../../deployment/join-methods.mdx) for your
   platform if available.
 - Using [standard Bound Keypair joining](./getting-started.mdx) if your
   environment has writable persistent storage.
@@ -294,5 +294,5 @@ longer-running jobs, otherwise the certificates issued will expire eventually
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../telemetry.mdx)
 
-[secret]: ../../../deployment/join-methods.mdx#secret-vs-delegated
+[secret]: ../../deployment/join-methods.mdx#secret-vs-delegated
 [reference]: ./bound-keypair.mdx
