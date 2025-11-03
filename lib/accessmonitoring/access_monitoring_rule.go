@@ -25,7 +25,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 )
 
-// EvaluateRules evalutes the rules againast the request environemnt and
+// EvaluateRules evalutes the rules againast the request environment and
 // returns the list of rules that match the conditions.
 func EvaluateRules(
 	ctx context.Context,
