@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -223,65 +224,40 @@ type ReadWriteInterceptor struct {
 // 'removeNilMessages' will return a subslice of the input slice with
 // nil messages removed.
 func removeNilMessages(msgs []Message) []Message {
-	nextIdx := 0
-	// Iterate over the slice swap non-nil messages
-	// to the front.
-	for current, msg := range msgs {
-		if msg != nil {
-			if current != nextIdx {
-				msgs[nextIdx] = msg
-				msgs[current] = nil
-			}
-			nextIdx++
-		}
-	}
-
-	// Return a subslice containing only the non-nil messages
-	// that have been moved to the front.
-	return msgs[:nextIdx]
+	return slices.DeleteFunc(msgs, func(msg Message) bool {
+		return msg == nil
+	})
 }
 
-// 'readInterceptorAdapter' closes over an internal struct that keeps track of
-// the slice of messages returned by the read interceptor callback (if present).
+// readInterceptorAdapter closes over an internal slice that keeps track of
+// of messages returned by the read interceptor callback (if present).
 func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, error) {
-	// Message cache
-	h := struct {
-		// "cached" messages returned by the interceptor callback
-		msgs []Message
-		// index of next message to be returned
-		next int
-	}{}
+	if i == nil {
+		return src.ReadMessage
+	}
+
+	var msgs []Message
 	return func() (Message, error) {
-		// Either:
-		// 0 == 0 - initial case
-		// next < len(msgs) - Return a cached message
-		// next == len(msgs) - Cache is empty and we need a fresh read
-		for h.next == len(h.msgs) {
+		// len(msgs) == 0 - initial case / empty cache
+		// len(msgs) > 0  - Return a cached message
+		for len(msgs) == 0 {
 			// Try reading a message
 			m, err := src.ReadMessage()
 			if err != nil {
 				return nil, err
 			}
 
-			if i != nil {
-				// The interceptor may return an empty slice and nil error
-				// In that case, we'll try again via the loop.
-				h.msgs, err = i(m)
-				if err != nil {
-					return nil, err
-				}
-				h.msgs = removeNilMessages(h.msgs)
-				h.next = 0
-			} else {
-				// No interceptor to run
-				return m, err
+			// The interceptor may return an empty slice and nil error
+			// In that case, we'll try again via the loop.
+			msgs, err = i(m)
+			if err != nil {
+				return nil, err
 			}
+			msgs = removeNilMessages(msgs)
 		}
-
-		// Return the next cached message
-		nextMsg := h.msgs[h.next : h.next+1]
-		h.next++
-		return nextMsg[0], nil
+		msg := msgs[0]
+		msgs = msgs[1:]
+		return msg, nil
 	}
 }
 
@@ -299,22 +275,22 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeI
 // for omition or modification before writing the message to the underlying
 // writer.
 func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
-	var err error
-	var out []Message
-	if i.writeInterceptor != nil {
-		out, err = i.writeInterceptor(m)
-		if err == nil {
-			for _, msg := range removeNilMessages(out) {
-				err = i.src.WriteMessage(msg)
-				if err != nil {
-					break
-				}
-			}
-		}
+	if i.writeInterceptor == nil {
+		// No interceptor found
+		return i.src.WriteMessage(m)
+	}
+
+	out, err := i.writeInterceptor(m)
+	if err != nil {
 		return err
 	}
-	// No interceptor found
-	return i.src.WriteMessage(m)
+
+	for _, msg := range removeNilMessages(out) {
+		if err = i.src.WriteMessage(msg); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ReadMessage reads from the underlying reader and passes them to the
@@ -324,28 +300,27 @@ func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
 	return i.readAdapter()
 }
 
-// Close calls close on the underlying 'MessageReadWriteCloser'
+// Close closes the underlying 'MessageReadWriteCloser'
 func (i *ReadWriteInterceptor) Close() error {
 	return i.src.Close()
 }
 
-// messageCopy behaves similarly to io.Copy except it deals with Message types.
+// copyMessages behaves similarly to io.Copy except it deals with Message types.
 // It reads messages from 'src' and writes them to 'dst' until an error is received.
 // It does *not* forward an EOF received from the reader, but returns nil in the happy path.
-func messageCopy(dst MessageWriter, src MessageReader) error {
-	var err error
-	var m Message
-	for err == nil {
-		m, err = src.ReadMessage()
-		if err == nil {
-			err = dst.WriteMessage(m)
+func copyMessages(dst MessageWriter, src MessageReader) error {
+	for {
+		msg, err := src.ReadMessage()
+		if errors.Is(err, io.EOF) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		if err := dst.WriteMessage(msg); err != nil {
+			return err
 		}
 	}
-
-	if errors.Is(err, io.EOF) {
-		err = nil
-	}
-	return err
 }
 
 // ConnProxy handles bi-directional copying of messages from server <-> client.
@@ -367,23 +342,18 @@ func NewConnProxy(client, server MessageReadWriteCloser) ConnProxy {
 // 'close' on both streams before exiting and returns any errors occurred from
 // reading, writing, or closing both streams.
 func (c *ConnProxy) Run() error {
-	newCopyFunc := func(dst, src MessageReadWriteCloser, e *error) func() {
-		return func() {
-			defer func() {
-				// Call close on the other side of the connection.
-				// This should wake them up.
-				*e = errors.Join(*e, dst.Close())
-			}()
-			// Copy from server to client
-			*e = messageCopy(dst, src)
-		}
-	}
-	g := sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	// Copy in both directions
 	var clientToServerErr, serverToClientErr error
-	g.Go(newCopyFunc(c.client, c.server, &serverToClientErr))
-	g.Go(newCopyFunc(c.server, c.client, &clientToServerErr))
-	g.Wait()
+	wg.Go(func() {
+		err := copyMessages(c.client, c.server)
+		serverToClientErr = errors.Join(err, c.client.Close())
+	})
+	wg.Go(func() {
+		err := copyMessages(c.server, c.client)
+		clientToServerErr = errors.Join(err, c.server.Close())
+	})
+	wg.Wait()
 
 	return errors.Join(clientToServerErr, serverToClientErr)
 }
