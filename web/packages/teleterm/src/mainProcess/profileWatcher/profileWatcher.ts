@@ -190,8 +190,7 @@ async function* debounceWatch(
     eventsToDebounce = 0;
     signal.resolve();
   }, debounceMs);
-
-  const watcher = watch(path, { signal: abortSignal, recursive: true }, () => {
+  const onEvent = () => {
     ++eventsToDebounce;
     if (eventsToDebounce > maxFileSystemEvents) {
       signal.reject(
@@ -200,7 +199,13 @@ async function* debounceWatch(
       return;
     }
     scheduleYield();
-  });
+  };
+
+  const watcher = watch(
+    path,
+    { signal: abortSignal, recursive: true },
+    onEvent
+  );
 
   const closeHandler = () => {
     closed = true;
@@ -212,7 +217,7 @@ async function* debounceWatch(
 
   // The watcher might be restarted if the path disappears and then reappears.
   // Begin by checking for any changes immediately.
-  scheduleYield();
+  onEvent();
 
   try {
     while (true) {

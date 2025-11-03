@@ -221,12 +221,12 @@ test('does not yield when no cluster changes detected', async () => {
   abortController.abort();
 });
 
-test('file system events are debounced and no events are lost when handler is slow', async () => {
+test('file system events are debounced', async () => {
   const tshDir = await makePerTestDir();
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-  const handler = jest.fn();
-  const testDebounceMs = 50;
+  const handler = jest.fn().mockImplementation(() => Promise.resolve());
+  const testDebounceMs = 100;
   const watcher = watchProfiles({
     tshDirectory: tshDir,
     tshClient: tshClientMock,
@@ -243,22 +243,38 @@ test('file system events are debounced and no events are lost when handler is sl
 
   const cluster = makeRootCluster();
 
-  // Test FS events debouncing.
-  handler.mockImplementation(() => Promise.resolve());
   // Insert two rapid events within debounce interval.
   await tshClientMock.insertOrUpdateCluster(cluster);
   await tshClientMock.insertOrUpdateCluster(cluster);
   // Wait slightly longer than debounce interval to ensure a single handler is called.
-  await wait(testDebounceMs + testDebounceMs / 2);
+  await wait(2 * testDebounceMs);
   expect(handler).toHaveBeenCalledTimes(1);
-  handler.mockClear();
+});
 
-  // Test no events are lost when processing is slow.
-  handler.mockImplementation(() => wait(2 * testDebounceMs));
-  await tshClientMock.insertOrUpdateCluster(cluster);
-  // Insert the second event while the first event is still processed
-  // (it will finish at 2*testDebounceMs).
-  await wait(testDebounceMs + testDebounceMs / 2);
+test('no events are lost when handler is slow', async () => {
+  const tshDir = await makePerTestDir();
+  const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
+  const clusterStoreMock = mockClusterStore({ clusters: [] });
+  const handler = jest.fn().mockImplementation(() => wait(2 * testDebounceMs));
+  const watcher = watchProfiles({
+    tshDirectory: tshDir,
+    tshClient: tshClientMock,
+    clusterStore: clusterStoreMock,
+    signal: abortController.signal,
+    debounceMs: testDebounceMs,
+  });
+
+  const cluster = makeRootCluster();
+
+  void (async () => {
+    for await (let e of watcher) {
+      const handle = handler(e);
+      // Insert the second event while the first event is still processed.
+      void tshClientMock.insertOrUpdateCluster(cluster);
+      await handle;
+    }
+  })();
+
   await tshClientMock.insertOrUpdateCluster(cluster);
   await expect(() => {
     return handler.mock.calls.length === 2;
@@ -332,16 +348,22 @@ test('max file system events count is restricted', async () => {
     tshClient: tshClientMock,
     clusterStore: clusterStoreMock,
     signal: abortController.signal,
-    debounceMs: 50,
+    debounceMs: 100,
     maxFileSystemEvents: 1,
   });
 
-  // Start the watcher by pulling the first value.
-  const firstEvent = watcher.next();
-  // Makes two updates.
-  await tshClientMock.insertOrUpdateCluster(cluster);
+  const promises = await Promise.allSettled([
+    // Start the watcher by pulling the first value.
+    watcher.next(),
+    // Makes two updates.
+    tshClientMock.insertOrUpdateCluster(cluster),
+  ]);
 
-  await expect(firstEvent).rejects.toThrow(
-    `Exceeded file system event limit: more than 1 events detected within 50 ms`
-  );
+  expect(promises[0]).toEqual({
+    status: 'rejected',
+    reason: expect.objectContaining({
+      message:
+        'Exceeded file system event limit: more than 1 events detected within 100 ms',
+    }),
+  });
 });
