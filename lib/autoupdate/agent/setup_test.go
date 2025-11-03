@@ -412,12 +412,22 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "tbot managed",
+			name: "tbot managed proxy",
 			tbotConfig: &internal.UnversionedConfig{
 				ProxyServer: "example.com",
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:3080",
+				dataDir:          "/var/lib/teleport",
+			},
+		},
+		{
+			name: "tbot managed auth",
+			tbotConfig: &internal.UnversionedConfig{
+				AuthServer: "example.com",
+			},
+			want: Namespace{
+				defaultProxyAddr: "example.com:3025",
 				dataDir:          "/var/lib/teleport",
 			},
 		},
