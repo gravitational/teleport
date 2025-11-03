@@ -1,0 +1,346 @@
+// Teleport
+// Copyright (C) 2025  Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package resource
+
+import (
+	"errors"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+// PackageInfo is used to look up a Go declaration in a map of declaration names
+// to resource data.
+type PackageInfo struct {
+	DeclName    string
+	PackageName string
+}
+
+// DeclarationInfo includes data about a declaration so the generator can
+// convert it into a ReferenceEntry.
+type DeclarationInfo struct {
+	FilePath    string
+	Decl        ast.Decl
+	PackageName string
+	// Maps the file-scoped name of each import (if given) to the
+	// corresponding full package path.
+	NamedImports map[string]string
+}
+
+type SourceData struct {
+	// TypeDecls maps package and declaration names to data that the generator
+	// uses to format documentation for dynamic resource fields.
+	TypeDecls map[PackageInfo]DeclarationInfo
+	// PossibleFuncDecls are declarations that are not import, constant,
+	// type or variable declarations.
+	PossibleFuncDecls []DeclarationInfo
+	// StringAssignments is used to look up the values of constants declared
+	// in the source tree.
+	StringAssignments map[PackageInfo]string
+}
+
+func NewSourceData(rootPath string) (SourceData, error) {
+	// All declarations within the source tree. We use this to extract
+	// information about dynamic resource fields, which we can look up by
+	// package and declaration name.
+	typeDecls := make(map[PackageInfo]DeclarationInfo)
+	possibleFuncDecls := []DeclarationInfo{}
+	stringAssignments := make(map[PackageInfo]string)
+
+	// Load each file in the source directory individually. Not using
+	// packages.Load here since the resulting []*Package does not expose
+	// individual file names, which we need so contributors who want to edit
+	// the resulting docs page know which files to modify.
+	err := filepath.Walk(rootPath, func(currentPath string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("loading Go source: %w", err)
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(info.Name()) != ".go" {
+			return nil
+		}
+
+		// Open the file so we can pass it to ParseFile. Otherwise,
+		// ParseFile always reads from the OS FS, not from fs.
+		f, err := os.Open(currentPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, currentPath, f, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+
+		str, err := GetTopLevelStringAssignments(file.Decls, file.Name.Name)
+		if err != nil {
+			return err
+		}
+
+		for k, v := range str {
+			stringAssignments[k] = v
+		}
+
+		// Use a relative path from the source directory for cleaner
+		// paths
+		relDeclPath, err := filepath.Rel(rootPath, currentPath)
+		if err != nil {
+			return err
+		}
+
+		// Collect information from each file:
+		// - Imported packages and their aliases
+		// - Possible function declarations (for identifying relevant
+		//   methods later)
+		// - Type declarations
+		pn := NamedImports(file)
+		for _, decl := range file.Decls {
+			di := DeclarationInfo{
+				Decl:         decl,
+				FilePath:     relDeclPath,
+				PackageName:  file.Name.Name,
+				NamedImports: pn,
+			}
+			l, ok := decl.(*ast.GenDecl)
+			if !ok {
+				possibleFuncDecls = append(possibleFuncDecls, di)
+				continue
+			}
+			if len(l.Specs) != 1 {
+				continue
+			}
+			spec, ok := l.Specs[0].(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			typeDecls[PackageInfo{
+				DeclName:    spec.Name.Name,
+				PackageName: file.Name.Name,
+			}] = DeclarationInfo{
+				Decl:         l,
+				FilePath:     relDeclPath,
+				PackageName:  file.Name.Name,
+				NamedImports: pn,
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return SourceData{}, fmt.Errorf("loading Go source files: %w", err)
+	}
+	return SourceData{
+		TypeDecls:         typeDecls,
+		PossibleFuncDecls: possibleFuncDecls,
+		StringAssignments: stringAssignments,
+	}, nil
+}
+
+type NotAGenDeclError struct{}
+
+func (e NotAGenDeclError) Error() string {
+	return "the declaration is not a GenDecl"
+}
+
+// NamedImports creates a mapping from the provided name of each package import
+// to the original package path.
+func NamedImports(file *ast.File) map[string]string {
+	m := make(map[string]string)
+	for _, i := range file.Imports {
+		if i.Name == nil {
+			continue
+		}
+		s := strings.Trim(i.Path.Value, "\"")
+		p := strings.Split(s, "/")
+		// Consumers check the named imports map against the final path
+		// segment of a package path.
+		if len(p) > 1 {
+			s = p[len(p)-1]
+		}
+		m[i.Name.Name] = s
+	}
+	return m
+}
+
+// ReferenceDataFromDeclaration gets data for the reference by examining decl.
+// Looks up decl's fields in allDecls and methods in allMethods.
+func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
+	rs, err := getRawTypes(decl, allDecls)
+	if err != nil {
+		return nil, err
+	}
+
+	fieldsToProcess, err := handleEmbeddedStructFields(decl, rs.fields, allDecls)
+	if err != nil {
+		return nil, err
+	}
+
+	description := rs.doc
+	var example string
+
+	example, err = makeYAMLExample(fieldsToProcess)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize the return value and insert the root reference entry
+	// provided by decl.
+	refs := make(map[PackageInfo]ReferenceEntry)
+	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
+	entry := ReferenceEntry{
+		SectionName: makeSectionName(rs.name),
+		Description: printableDescription(description, rs.name),
+		SourcePath:  decl.FilePath,
+		YAMLExample: example,
+		Fields:      []Field{},
+	}
+	key := PackageInfo{
+		DeclName:    rs.name,
+		PackageName: decl.PackageName,
+	}
+
+	fld, err := makeFieldTableInfo(fieldsToProcess)
+	if err != nil {
+		return nil, err
+	}
+	entry.Fields = fld
+	sort.Sort(entry)
+	refs[key] = entry
+
+	// For any fields within decl that have a custom type, look up the
+	// declaration for that type and create a separate reference entry for
+	// it.
+	for _, f := range rs.fields {
+		// Don't make separate reference entries for embedded structs
+		// since they are part of the containing struct for the purposes
+		// of unmarshaling YAML.
+		//
+		if f.name == "" {
+			continue
+		}
+
+		c := f.kind.customFieldData()
+
+		for _, d := range c {
+			// Find the package name to use to look up the declaration from
+			// its identifier.
+			i, ok := decl.NamedImports[d.PackageName]
+			// The file that made the declaration provided a name for the
+			// package associated with the identifier, so find the full
+			// package path and use that to look up the declaration.
+			if ok {
+				d.PackageName = i
+			}
+
+			// Get information about the field type's declaration.
+			// If we can't find it, it means the field type was
+			// probably declared in the standard library or
+			// third-party package. In this case, leave it to the
+			// GoDoc to describe the field type.
+			gd, ok := allDecls[d]
+			if !ok {
+				continue
+			}
+			r, err := ReferenceDataFromDeclaration(gd, allDecls)
+			if errors.Is(err, NotAGenDeclError{}) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			for k, v := range r {
+				sort.Sort(v)
+				refs[k] = v
+			}
+		}
+	}
+	return refs, nil
+}
+
+// GetTopLevelStringAssignments collects all declarations of a var or a const
+// within decls that assign a string value. Used to look up the values of these
+// declarations.
+func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo]string, error) {
+	result := make(map[PackageInfo]string)
+
+	// var and const assignments are GenDecls, so ignore any input Decls that
+	// don't meet this criterion by making a slice of GenDecls.
+	gd := []*ast.GenDecl{}
+	for _, d := range decls {
+		g, ok := d.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		gd = append(gd, g)
+	}
+
+	// Whether in the "var =" format or "var (" format, each assignment is
+	// an *ast.ValueSpec. Collect all ValueSpecs within a GenDecl that
+	// declares a var or a const.
+	vs := []*ast.ValueSpec{}
+	for _, g := range gd {
+		if g.Tok != token.VAR && g.Tok != token.CONST {
+			continue
+		}
+		for _, s := range g.Specs {
+			s, ok := s.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			vs = append(vs, s)
+		}
+	}
+
+	// Add the name and value of each var/const to the return as long as
+	// there is one name and the value is a string literal.
+	for _, v := range vs {
+		if len(v.Names) != 1 {
+			continue
+		}
+		if len(v.Values) != 1 {
+			continue
+		}
+
+		l, ok := v.Values[0].(*ast.BasicLit)
+		if !ok {
+			continue
+		}
+		if l.Kind != token.STRING {
+			continue
+		}
+		// String literal values are quoted. Remove the quotes so we can
+		// compare values downstream.
+		result[PackageInfo{
+			DeclName:    v.Names[0].Name,
+			PackageName: pkg,
+		}] = strings.Trim(l.Value, "\"")
+
+	}
+	return result, nil
+}

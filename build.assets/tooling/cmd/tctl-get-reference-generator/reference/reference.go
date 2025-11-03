@@ -24,38 +24,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/resource"
 )
-
-var tmpl *template.Template
-
-func init() {
-	tmpl = template.Must(template.New("Main reference").Parse(referenceTemplate))
-}
-
-// pageContent represents a reference page for a single resource and its related
-// fields. Fields must be exported so we can use them in templates.
-type pageContent struct {
-	Resource resourceSection
-	Fields   map[resource.PackageInfo]resource.ReferenceEntry
-}
-
-// resourceSection represents a top-level section of the resource reference
-// dedicated to a dynamic resource.
-type resourceSection struct {
-	Version string
-	Kind    string
-	resource.ReferenceEntry
-}
-
-// Intended to be executed with a ReferenceContent.
-//
-//go:embed reference.tmpl
-var referenceTemplate string
 
 // TypeInfo represents the name and package name of an exported Go type. It
 // makes no guarantees about whether the type was actually declared within the
@@ -65,46 +36,6 @@ type TypeInfo struct {
 	Package string `yaml:"package"`
 	// Name of the type, e.g., Metadata
 	Name string `yaml:"name"`
-}
-
-// GeneratorConfig is the user-facing configuration for the resource reference
-// generator.
-type GeneratorConfig struct {
-	// Field types that a type must have to be included in the reference. A
-	// type must have one of these field types to be included in the
-	// reference. The fields named here can be embedded fields.
-	RequiredFieldTypes []TypeInfo `yaml:"required_field_types"`
-	// Path to the root of the Go project directory.
-	SourcePath string `yaml:"source"`
-	// Directory where the generator writes reference pages.
-	DestinationDirectory string `yaml:"destination"`
-	// Struct types to exclude from the reference.
-	ExcludedResourceTypes []TypeInfo `yaml:"excluded_resource_types"`
-	// The name of the method that assigns values to the required fields
-	// within a dynamic resource. The generator determines that a type is a
-	// dynamic resource if it has this method.
-	FieldAssignmentMethodName string `yaml:"field_assignment_method"`
-}
-
-// UnmarshalYAML checks that the GeneratorConfig includes all required fields and, if
-// not, returns the first error it encounters.
-func (c GeneratorConfig) UnmarshalYAML(value *yaml.Node) error {
-	if err := value.Decode(&c); err != nil {
-		return fmt.Errorf("parsing the configuration file as YAML: %w", err)
-	}
-
-	switch {
-	case c.DestinationDirectory == "":
-		return errors.New("no destination path provided")
-	case c.FieldAssignmentMethodName == "":
-		return errors.New("must provide a field assignment method name")
-	case len(c.RequiredFieldTypes) == 0:
-		return errors.New("must provide a list of required field types")
-	case c.SourcePath == "":
-		return errors.New("must provide a source path")
-	default:
-		return nil
-	}
 }
 
 // getPackageInfoFromExpr extracts a package name and declaration name from an
