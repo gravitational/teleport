@@ -312,11 +312,11 @@ needs to be kept in the root.
 
 When a new event is added to Teleport, the web UI has to be updated to display it correctly:
 
-1. Add a new entry to [`eventCodes`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/types.ts).
-2. Add a new entry to [`RawEvents`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/types.ts) using the event you just created as the key. The fields should match the fields of the metadata fields on `events.proto` on Teleport repository.
-3. Add a new entry in [Formatters](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/makeEvent.ts) to format the event on the events table. The `format` function will receive the event you added to `RawEvents` as parameter.
-4. Define an icon to the event on [`EventIconMap`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/EventList/EventTypeCell.tsx).
-5. Add an entry to the [`events`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/fixtures/index.ts) array so it will show up on the [`AllEvents` story](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/Audit.story.tsx)
-6. Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx` using `pnpm test-update-snapshot`.
+1. Add a new entry to [`eventCodes`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/services/audit/types.ts).
+2. Add a new entry to [`RawEvents`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/services/audit/types.ts) using the event you just created as the key. The fields should match the fields of the metadata fields on `events.proto` on Teleport repository.
+3. Add a new entry in [`formatters`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/services/audit/makeEvent.ts) to format the event on the events table. The `format` function will receive the event you added to `RawEvents` as parameter.
+4. Define an icon to the event on [`EventIconMap`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/EventList/EventTypeCell.tsx).
+5. Add an entry to the [`events`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/fixtures/index.ts) array so it will show up on the [`AllPossibleEvents` story](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/Audit.story.tsx). Keep in mind that we generate the audit event reference in the documentation from audit event fixtures, so the fixture should be something you are comfortable including as an example in public-facing documentation (see the [generator](https://github.com/gravitational/teleport/tree/master/web/packages/teleport/src/services/audit/gen-event-reference)).
+6. Check that the fixture is rendered in storybook, then update the snapshot for `Audit.story.test.tsx` using `pnpm test-update-snapshot`.
 
-You can see an example in [this pr](https://github.com/gravitational/webapps/pull/561).
+You can see an example in [this PR](https://github.com/gravitational/teleport/pull/39872).
