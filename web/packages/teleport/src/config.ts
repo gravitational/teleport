@@ -846,8 +846,36 @@ const cfg = {
     return generatePath(cfg.routes.bot, { botName });
   },
 
-  getBotInstancesRoute() {
-    return generatePath(cfg.routes.botInstances);
+  getBotInstancesRoute(
+    options?: Partial<{
+      query: string;
+      isAdvancedQuery: boolean;
+      sortField: string;
+      sortDir: 'ASC' | 'DESC';
+      selectedItemId: string;
+      activeTab: 'info' | 'health' | 'yaml';
+    }>
+  ) {
+    const search = new URLSearchParams(location.search);
+    if (options?.query) {
+      search.set('query', options.query);
+    }
+    if (options?.isAdvancedQuery) {
+      search.set('is_advanced', '1');
+    }
+    if (options?.sortField) {
+      search.set('sort_field', options.sortField);
+    }
+    if (options?.sortDir) {
+      search.set('sort_dir', options.sortDir);
+    }
+    if (options?.selectedItemId) {
+      search.set('selected', options.selectedItemId);
+    }
+    if (options?.activeTab) {
+      search.set('tab', options.activeTab);
+    }
+    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
   getWorkloadIdentitiesRoute() {
