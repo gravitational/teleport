@@ -263,8 +263,13 @@ spec:
 ```
 
 This resource is used to deploy new versions of Teleport to your agents.
-The cluster will update agents from `start_version` to `target_version`
-according to the update schedule specified in the `autoupdate_config`.
+The cluster will update agents to `target_version` according to the update
+schedule specified in the `autoupdate_config`.
+
+The `start_version` is only used to determine the version used for newly
+connected agents when their update window has not occurred yet.
+This is useful to prevent version drift within groups, but some users may
+prefer to set both version fields to the same version.
 
 Run the following command to create or update the resource:
 
